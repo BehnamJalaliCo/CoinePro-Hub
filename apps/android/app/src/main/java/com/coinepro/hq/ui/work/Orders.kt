@@ -22,7 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -324,7 +324,7 @@ fun OrderMeter(t: OrderTrack) {
             )
             if (end == OrderEnd.NONE && stage != OrderStage.DONE) Text("تخمینی", style = Divan.type.micro, color = c.textMuted)
         }
-        MeterBar(p.toDouble(), tone = when { end == OrderEnd.FAILED -> BarTone.NEG; end == OrderEnd.CANCELLED -> BarTone.SILVER; stage == OrderStage.DONE -> BarTone.POS; else -> BarTone.GOLD })
+        MeterBar(p.toDouble(), tone = when { end == OrderEnd.FAILED -> BarTone.NEG; end == OrderEnd.CANCELLED -> BarTone.SILVER; stage == OrderStage.DONE -> BarTone.POS; else -> BarTone.SILVER })
     }
 }
 
@@ -386,7 +386,7 @@ fun RefButton(label: String, ref: String, icon: DivanIcon, modifier: Modifier = 
     ) {
         DIcon(icon, size = 18.dp, tint = c.goldInk)
         // ⟨1.17⟩ the ref is where it goes, never a word on the button.
-        Text(label, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text(label, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         Spacer(Modifier.weight(1f))
         DIcon(DivanIcon.NEXT, size = 14.dp, tint = c.goldInk)
     }
@@ -531,7 +531,7 @@ private fun HomeOrderRow(w: Work, onClick: () -> Unit) {
         if (t == null) Skeleton(Modifier.fillMaxWidth().height(6.dp))
         else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val p = progressOf(t)
-            Box(Modifier.weight(1f)) { MeterBar(p.toDouble(), tone = if (stageOf(t) == OrderStage.DONE) BarTone.POS else BarTone.GOLD) }
+            Box(Modifier.weight(1f)) { MeterBar(p.toDouble(), tone = if (stageOf(t) == OrderStage.DONE) BarTone.POS else BarTone.SILVER) }
             Text("حدود $p٪، ${ago(lastActivityOf(t))}", style = Divan.type.micro, color = c.textMuted)
         }
     }

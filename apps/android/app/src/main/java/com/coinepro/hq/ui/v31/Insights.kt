@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +53,7 @@ fun InsightsCard(i: Insights) {
                 i.best.patternSource?.takeIf { it.isNotBlank() }?.let { "الگو از $it" },
             )
             if (best.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (b in best) Text(plain(b), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.softGold).padding(horizontal = 10.dp, vertical = 5.dp))
+                for (b in best) Text(plain(b), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.softGold).padding(horizontal = 10.dp, vertical = 5.dp))
             }
             if (i.lessonsFa.isEmpty()) Text("هنوز درسی نیست؛ بعد از چند اجرای منتشرشده میاید.", style = Divan.type.caption, color = c.textMuted)
             else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

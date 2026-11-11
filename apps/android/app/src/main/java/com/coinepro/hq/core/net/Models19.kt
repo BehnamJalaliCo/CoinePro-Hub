@@ -538,7 +538,7 @@ private val CODE_FA_19 = mapOf(
     "series_not_sealed" to "این برنامه‌ی انتشار مُهر نشده؛ چیزی خودکار منتشر نمیشود و آیتم کارت میشود.",
     "platform_limit" to "سقف انتشار خود پلتفرم برای این حساب پر شده",
     "held" to "ناظر کل این را نگه داشته؛ تا تصمیم تو کاری روی آن انجام نمیشود.",
-    "account_not_configured" to "این حساب هنوز کلید ندارد؛ با make account-secret روی سرور واردش کن.",
+    "account_not_configured" to com.coinepro.hq.core.format.ROUTE_NOT_READY_FA,
     "version_conflict" to "همین حالا عوض شده؛ دوباره نگاه کن و بعد ذخیره کن.",
     "precondition_required" to "نسخه همراه درخواست نیامد؛ صفحه را تازه کن.",
     "decision_not_pending" to "این کارت دیگر منتظر تصمیم نیست.",

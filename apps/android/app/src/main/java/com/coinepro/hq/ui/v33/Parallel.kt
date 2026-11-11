@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -115,10 +115,10 @@ private fun PartTile(p: SplitPart, onOpen: () -> Unit) {
         }
         Text(plain(p.titleFa), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 3)
         p.whoFa?.takeIf { it.isNotBlank() }?.let { Text(plain(it), style = Divan.type.micro, color = c.textMuted, maxLines = 1) }
-        if (p.state == "working" && p.progressPct != null) MeterBar(p.progressPct.toDouble(), tone = BarTone.GOLD, height = 5.dp)
+        if (p.state == "working" && p.progressPct != null) MeterBar(p.progressPct.toDouble(), tone = BarTone.SILVER, height = 5.dp)
         when {
             p.state == "failed" -> Para(p.failedFa?.takeIf { it.isNotBlank() } ?: "این بخش تمام نشد.", style = Divan.type.caption, color = c.negative)
-            p.outputTitleFa != null -> Text(plain("خروجی: ${p.outputTitleFa}"), style = Divan.type.caption, color = c.goldInk, maxLines = 2)
+            p.outputTitleFa != null -> Text(plain("خروجی: ${p.outputTitleFa}"), style = Divan.type.caption, color = c.silverInk, maxLines = 2)
         }
         Box(Modifier.weight(1f, fill = false))
         if (p.tokensUsed > 0) Text(plain("${tokensShort(p.tokensUsed)} توکن" + (p.budgetTokens?.let { " از ${tokensShort(it)}" } ?: "")), style = Divan.type.micro, color = c.textMuted)

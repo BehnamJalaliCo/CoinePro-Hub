@@ -19,7 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -186,7 +186,7 @@ fun PlayerCard(s: Substitute) {
                     if (ratio != null) Fig(pct01(ratio), style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = if (late) c.warning else c.textPrimary)
                 }
                 if (ratio != null) Box(contentAlignment = Alignment.CenterStart) {
-                    MeterBar(minOf(100.0, ratio * 100), tone = if (late) BarTone.WARN else BarTone.GOLD)
+                    MeterBar(minOf(100.0, ratio * 100), tone = if (late) BarTone.WARN else BarTone.SILVER)
                     // The threshold (behind_ratio) as a thin mark from the bar's start.
                     Box(Modifier.fillMaxWidth(behind.toFloat().coerceIn(0f, 1f))) { Box(Modifier.align(Alignment.CenterEnd).width(2.dp).height(10.dp).clip(RoundedCornerShape(1.dp)).background(c.textMuted)) }
                 }
@@ -392,7 +392,7 @@ fun LoginContent(s: Substitute, connectionId: String) {
                 Row(Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "باز کردن نشانی ورود") { runCatching { uri.openUri(x.verificationUrl) } }.padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DIcon(DivanIcon.GLOBE, size = 16.dp, tint = c.goldInk)
-                    Fig(x.verificationUrl, style = Divan.type.figureSmall, color = c.goldInk)
+                    Fig(x.verificationUrl, style = Divan.type.figureSmall, color = c.silverInk)
                 }
                 if (x.method == "device_code" && x.userCode != null) Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.tile).padding(16.dp),

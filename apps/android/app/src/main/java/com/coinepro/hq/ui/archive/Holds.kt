@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -374,10 +374,10 @@ fun CaseHolds(caseRef: String) {
     val xs = q.data
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("توقیف‌های بایگانی", Modifier.weight(1f), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("توقیف‌های بایگانی", Modifier.weight(1f), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             Row(Modifier.clickable(role = Role.Button) { nav.go("archive-holds-new/$caseRef") }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 DIcon(DivanIcon.ADD, size = 14.dp, tint = c.goldInk)
-                Text("توقیف تازه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("توقیف تازه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             }
         }
         when {

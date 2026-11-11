@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -134,7 +134,8 @@ val RESULT = mapOf(
 )
 val QC_VERDICT = mapOf("pass" to Label("قبول", Tone.POS), "changes" to Label("اصلاح لازم", Tone.WARN), "reject" to Label("رد", Tone.NEG))
 val PUBLISH_ERROR = mapOf(
-    "no_api" to "API رسمی ندارد؛ با دست خودت", "account_not_configured" to "حساب کلید ندارد", "removed" to "از API حذف شد",
+    // ⟨1.0.1⟩ C1.4: a publishing path that is not connected is the technical team's work, never «کلید ندارد» for the owner.
+    "no_api" to "API رسمی ندارد؛ با دست خودت", "account_not_configured" to com.coinepro.hq.core.format.ROUTE_NOT_READY_SHORT_FA, "removed" to "از API حذف شد",
     "remove_by_hand" to "API حذف را اجازه نداد؛ از خود اپ پایین بیاور", "platform_limit" to "سقف خود پلتفرم پر بود",
     "series_not_sealed" to "برنامه مُهر نبود", "held" to "نگه‌داشته‌ی ناظر",
 )
@@ -352,7 +353,7 @@ fun PublishRows(rows: List<PublishRow>) {
                 if (r.at != null || (r.externalId != null && r.externalId != "manual")) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     r.at?.let { Text(com.coinepro.hq.designsystem.timesFig(jDateTime(it)), style = Divan.type.micro, color = c.textMuted) }
                     Box(Modifier.weight(1f))
-                    if (r.externalId != null && r.externalId != "manual") Fig(r.externalId, style = Divan.type.figureSmall, color = if (r.url != null) c.goldInk else c.textMuted)
+                    if (r.externalId != null && r.externalId != "manual") Fig(r.externalId, style = Divan.type.figureSmall, color = if (r.url != null) c.silverInk else c.textMuted)
                 }
             }
         }
@@ -428,7 +429,7 @@ fun ExactEmail(e: EmailDraft) {
 fun Block(title: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = Divan.colors.goldInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, Modifier.weight(1f), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = Divan.colors.silverInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
             action?.invoke()
         }
         content()

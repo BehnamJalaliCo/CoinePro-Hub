@@ -25,7 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -220,7 +220,7 @@ private fun EnvelopeSheet(h: Hiring, companies: List<Company>, opening: Boolean,
     val changed = parsed.filter { (co, t) -> t != null && t > 0 && t != h.envelopes.first { it.company == co }.tokensMonth }.mapValues { it.value!! }
     val total = parsed.values.sumOf { it ?: 0L }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
+    com.coinepro.hq.designsystem.SpringSheetFrame(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(if (opening) "اختیار استخدام با مدیرعامل‌ها" else "پاکت ماهانه‌ی شرکت‌ها", style = Divan.type.h2)
             Text("هر شرکت تا سقف پاکت ماهانه‌اش استخدام میکند؛ استخدامی که در پاکت جا نشود پذیرفته نمیشود. پاکت همان بودجه‌ی ماهانه‌ی شرکت در خزانه است.", style = Divan.type.caption, color = c.textMuted)
@@ -291,7 +291,7 @@ private fun Choice(icon: DivanIcon, title: String, note: String, enabled: Boolea
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HireSheet(onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Divan.colors.overlay) {
+    com.coinepro.hq.designsystem.SpringSheetFrame(onDismiss) {
         HireForm(onDone = onDismiss, modifier = Modifier.verticalScroll(rememberScrollState()).imePadding())
     }
 }

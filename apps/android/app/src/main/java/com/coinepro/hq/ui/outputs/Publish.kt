@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -148,7 +148,7 @@ internal fun PublishSection(d: Deliverable) {
     val cancel = rememberPublishCancel { out -> q.set(panel.copy(publishes = withPublish(panel.publishes, out))) }
     val canCancel = served(HubFeature.PUBLISH_CANCEL)
     Column(Modifier.testTag("publish"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("انتشار در اینستاگرام", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text("انتشار در اینستاگرام", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 4.dp)) {
             files.forEachIndexed { i, f ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
@@ -218,7 +218,7 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: Ses
             null -> HqButton(if (note == null) "تأیید و انتشار" else "دوباره", onAsk, variant = if (note == null) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
             "cancelled" -> HqButton("تأیید و انتشار", onAsk, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEND)
             "publishing", "scheduled" -> Row(verticalAlignment = Alignment.CenterVertically) {
-                if (p.state == "publishing") Pill("در حال انتشار", Tone.GOLD, dot = true, live = true) else Pill("زمان‌بندی شد", Tone.GOLD, dot = true)
+                if (p.state == "publishing") Pill("در حال انتشار", Tone.SILVER, dot = true, live = true) else Pill("زمان‌بندی شد", Tone.GOLD, dot = true)
                 if (quiet && job != null) HqButton("لغو", { cancel?.ask(job) }, variant = BtnVariant.TEXT, size = BtnSize.SM, label = "لغو این انتشار")
             }
             "published" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

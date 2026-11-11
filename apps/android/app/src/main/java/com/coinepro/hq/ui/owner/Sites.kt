@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -141,7 +141,7 @@ fun SitesScreen() {
                                     Text(com.coinepro.hq.designsystem.timesFig("از ${jDateTime(x.openedAt)}"), style = Divan.type.micro, color = c.textMuted)
                                     x.closedAt?.let { Text(com.coinepro.hq.designsystem.timesFig("تا ${jDateTime(it)}"), style = Divan.type.micro, color = c.textMuted) }
                                     x.lastError?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
-                                    x.workRef?.let { w -> Fig(w, style = Divan.type.figureSmall, color = c.goldInk, modifier = Modifier.clickable { nav.go("work/$w") }) }
+                                    x.workRef?.let { w -> Fig(w, style = Divan.type.figureSmall, color = c.silverInk, modifier = Modifier.clickable { nav.go("work/$w") }) }
                                 }
                             }
                         }

@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -94,51 +94,56 @@ fun usdCents(v: Double): String = String.format(Locale.US, "$%,.2f", v)
 
 // ------------------------------------------------------------------ OF-1 --
 /**
- * OF-1 «نبض دفتر»: four figures on top of the office — who works now (of all), sessions moving, what waits for the owner (cards to seal
- * and sessions on his turn), tokens a minute. A figure changes by crossfade (M2) and its tahrir glints once (M13): gold when it concerns
- * the owner, silver for the agents' work. Missing data is «—».
+ * OF-1 «نبض دفتر», ⟨1.0.1⟩ as ONE row (C3.1): how many work, how many sessions are open, how many things wait for the owner; each a
+ * number, with a tiny line of its last 24 hours when the hub's summary carries a series (else the number alone), and under the row
+ * the moment the figures were read («تا 11:35»). A figure changes by crossfade (M2) and its tahrir glints once (M13): gold when it
+ * concerns the owner, silver for the agents' work. Missing data is «—». [waiting]: the office's own count when it is there (the same
+ * number the «نوبت تو» row shows); else the live store's.
  */
 @Composable
-fun OfficePulse(modifier: Modifier = Modifier) {
+fun OfficePulse(modifier: Modifier = Modifier, waiting: Int? = null) {
     val c = Divan.colors
     val nav = LocalNav.current
     val live = rememberLive()
     val now = rememberTicker(15_000)
     val p = pulseOf(live, now)
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("نبض دفتر", style = Divan.type.h3, modifier = Modifier.weight(1f))
+    val series = live.series
+    val mine = waiting ?: p.waitingYou
+    Column(modifier.fillMaxWidth().semantics { contentDescription = "نبض دفتر" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(16.dp)).background(c.card)) {
+            PulseCell("کار میکنند", p.working?.let { faNum(it) } ?: "—", p.total?.let { "از ${faNum(it)}" }, gold = false, series = series?.working, modifier = Modifier.weight(1f).fillMaxHeight())
+            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(c.lineDivider))
+            PulseCell("جلسه‌ی باز", p.open?.let { faNum(it) } ?: "—", null, gold = false, series = series?.sessions, modifier = Modifier.weight(1f).fillMaxHeight(), onClick = { nav.go("sessions") })
+            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(c.lineDivider))
+            PulseCell("منتظر تو", mine?.let { faNum(it) } ?: "—", null, gold = (mine ?: 0) > 0, series = series?.waiting, modifier = Modifier.weight(1f).fillMaxHeight(), onClick = { nav.go("cartable") })
+        }
+        Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val at = series?.until ?: p.readAt?.let { java.time.Instant.ofEpochMilli(it).toString() }
+            Text(buildAnnotatedString { if (at != null) { append("تا "); fig(com.coinepro.hq.core.format.jTime(at)) } else append("هنوز خوانده نشده") }, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
             MissedChip()
             LiveBeat(compact = true)
-        }
-        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PulseTile(
-                "الان کار میکنند", p.working?.let { faNum(it) } ?: "—", p.total?.let { "از ${faNum(it)}" }, gold = false,
-                note = "مدلی فکر میکند یا ابزاری کار میکند", modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-            PulseTile("سشن در جریان", p.moving?.let { faNum(it) } ?: "—", null, gold = false, note = "کاری که الان قدمی دارد", modifier = Modifier.weight(1f).fillMaxHeight(), onClick = { nav.go("sessions") })
-        }
-        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PulseTile("منتظر تو", p.waitingYou?.let { faNum(it) } ?: "—", null, gold = true, note = "تصمیم برای مُهر و سشن در نوبت تو", modifier = Modifier.weight(1f).fillMaxHeight(), onClick = { nav.go("cartable") })
-            PulseTile("توکن در دقیقه", p.perMin?.let(::tokFig) ?: "—", null, gold = false, figure = p.perMin != null, note = "خزانه‌ی توکن · زنده", modifier = Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
 
 @Composable
-private fun PulseTile(label: String, value: String, sub: String?, gold: Boolean, note: String, modifier: Modifier = Modifier, figure: Boolean = false, onClick: (() -> Unit)? = null) {
+private fun PulseCell(label: String, value: String, sub: String?, gold: Boolean, series: List<Double>?, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val c = Divan.colors
-    HqCard(modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }, onClick = onClick, padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
-        Text(label, style = Divan.type.caption, color = c.textSecondary, maxLines = 1)
-        Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier.then(if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = label, onClick = onClick) else Modifier)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }.padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Crossfading(value) { v ->
-                if (figure) Fig(v, style = Divan.type.figureL.copy(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold), color = c.textPrimary)
-                else Text(v, style = Divan.type.h1.copy(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold), color = if (gold && v != "—" && v != "۰") c.goldInk else c.textPrimary)
+                Text(v, style = Divan.type.h1.copy(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold), color = if (gold) c.goldInk else c.textPrimary, maxLines = 1)
             }
-            sub?.let { Text(it, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(bottom = 4.dp)) }
+            sub?.let { Text(it, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(bottom = 5.dp), maxLines = 1) }
+            Spacer(Modifier.weight(1f))
+            com.coinepro.hq.designsystem.Spark(series, Modifier.padding(bottom = 7.dp), gold = gold, label = "روند ۲۴ ساعت $label")
         }
-        Glint(value, gold, Modifier.padding(vertical = 6.dp))
-        Text(note, style = Divan.type.micro, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Glint(value, gold, Modifier.padding(vertical = 2.dp))
+        Text(label, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -354,7 +359,7 @@ fun LiveCompanyRow(co: CompanyLive, live: LiveState, now: Long, modifier: Modifi
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ServersBadge(co, servers.map { it.state })
                     Text(
-                        "سشن: " + (co.sessionsOpen?.let { if (it == 0) "هیچ" else "${faNum(it)} باز" } ?: "—"),
+                        "جلسه: " + (co.sessionsOpen?.let { if (it == 0) "هیچ" else "${faNum(it)} باز" } ?: "—"),
                         style = Divan.type.caption, color = c.textSecondary, maxLines = 1,
                     )
                 }
@@ -465,7 +470,7 @@ fun CompanyLiveStrip(code: String, modifier: Modifier = Modifier) {
                 Text(co.working?.let { "${faNum(it)} در کار" } ?: "در کار: —", style = Divan.type.micro, color = c.textSecondary)
             }
             ServersBadge(co, servers.map { it.state })
-            Text("سشن: " + (co.sessionsOpen?.let { if (it == 0) "هیچ" else "${faNum(it)} باز" } ?: "—"), style = Divan.type.micro, color = c.textSecondary)
+            Text("جلسه: " + (co.sessionsOpen?.let { if (it == 0) "هیچ" else "${faNum(it)} باز" } ?: "—"), style = Divan.type.micro, color = c.textSecondary)
             Text(lastFa(co.lastEventAt, now), style = Divan.type.micro, color = c.textMuted)
         }
         SpendBar(co)

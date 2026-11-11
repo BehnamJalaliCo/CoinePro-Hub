@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import com.coinepro.hq.designsystem.Motion
 import com.coinepro.hq.designsystem.motionShort
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -127,8 +128,9 @@ val LocalLive = staticCompositionLocalOf { Live(StreamState.CONNECTING, null, em
 
 private data class Tab(val route: String, val label: String, val icon: DivanIcon, val badge: String? = null)
 
-/** The bottom bar (⟨1.17⟩ §35): the office, the sessions, the gold button (a new session: a tap speaks the order, a long press types
- *  it), the companies and the cartable. The gold button in the middle ("order") is not a tab. */
+/** The bottom bar (⟨1.17⟩ §35): the office, the sessions, the middle button (a new session: a tap speaks the order, a long press opens
+ *  the command sheet to type it), the companies and the cartable. The middle button ("order") is not a tab; ⟨1.0.1⟩ it is quiet
+ *  (silver), and the command itself is the round button of every top-level screen. */
 private val TABS = listOf(
     Tab("home", "دفتر", DivanIcon.HOLDING),
     Tab("sessions", "جلسه‌ها", DivanIcon.MEETING, "sessions"),
@@ -259,6 +261,13 @@ fun TechToolsGrid(go: (String) -> Unit) {
 
 private val TOP = TABS.map { it.route }.toSet() + GROUPS.flatMap { g -> g.tools.map { it.route } }
 
+/** ⟨1.0.1⟩ Top-level pages with a composer of their own at the bottom (a chat): the round command button would sit on its send button. */
+private val NO_COMMAND = setOf("advisor", "assistant", "talk", "notes")
+
+/** A page of the navigation, inside its continuity scope (M14: a card of the page before it may grow into its header). */
+private fun androidx.navigation.NavGraphBuilder.page(route: String, content: @Composable (androidx.navigation.NavBackStackEntry) -> Unit) =
+    composable(route) { entry -> com.coinepro.hq.designsystem.ContinuityPage(this) { content(entry) } }
+
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
         // A ref of something else on its way to the work page goes to its own page (0.4.0 sent `MT-0077` there: a 422).
@@ -315,6 +324,13 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     var newSession by remember { mutableStateOf(false) }
     var grantFor by remember { mutableStateOf<String?>(null) }
     var granting by remember { mutableStateOf(false) }
+    // ⟨1.0.1⟩ C2.1 the command sheet «چه میخواهی؟», opened by the round button of every top-level screen, the home's row, and a long
+    // press on the bar's middle button. One path: every order typed anywhere opens through it.
+    var command by remember { mutableStateOf<com.coinepro.hq.ui.look.CommandOpen?>(null) }
+    val openCommand = remember { { o: com.coinepro.hq.ui.look.CommandOpen? -> command = o ?: com.coinepro.hq.ui.look.CommandOpen() } }
+    val sheets = remember { com.coinepro.hq.designsystem.SheetsOpen() }
+    val dock = remember { com.coinepro.hq.designsystem.PageDock() }
+    val current = route.substringBefore('/')
     // The quick-settings tile and the widget open the app on a place (voice order, cartable); an alert on the phone's notifications opens
     // its own page (a route from the ref router: a card, an order, an output, the control room…).
     LaunchedEffect(launch) {
@@ -377,7 +393,11 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     }
     LaunchedEffect(route) { graph.errors.screen = route }
 
-    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides live, LocalBrands provides brands, com.coinepro.hq.designsystem.LocalRefLinks provides refLinks) {
+    CompositionLocalProvider(
+        LocalNav provides navApi, LocalLive provides live, LocalBrands provides brands, com.coinepro.hq.designsystem.LocalRefLinks provides refLinks,
+        com.coinepro.hq.ui.look.LocalCommand provides openCommand, com.coinepro.hq.designsystem.LocalSheetsOpen provides sheets,
+        com.coinepro.hq.designsystem.LocalPageDock provides dock,
+    ) {
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 back = !top,
@@ -403,6 +423,10 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 }
             }
             Box(Modifier.weight(1f)) {
+                // ⟨1.0.1⟩ M14: a tapped card grows into the page it opens (designsystem/Continuity.kt); the pages live inside its host.
+                val commandHere = top && current !in NO_COMMAND
+                CompositionLocalProvider(com.coinepro.hq.designsystem.LocalCommandRoom provides if (commandHere) 64.dp else 0.dp) {
+                com.coinepro.hq.designsystem.ContinuityHost(Modifier.fillMaxSize()) {
                 // Divan motion: a page pushed on top arrives from the reading side with the emphasised curve and leaves the same way on
                 // back; switching between top-level places is a quiet cross-fade. Nothing moves when animations are removed.
                 val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
@@ -442,152 +466,162 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     },
                 ) {
                     // ⟨1.17⟩ §35.5 the home is the owner's office; §35.3 his sessions and the archive; one order, one session.
-                    composable("home") { com.coinepro.hq.ui.office.OfficeScreen() }
-                    composable("sessions") { com.coinepro.hq.ui.session.SessionsScreen() }
-                    composable("sessions-archive") { com.coinepro.hq.ui.session.SessionsScreen(tab0 = "closed") }
-                    composable("session/{ref}") { com.coinepro.hq.ui.session.OrderSessionScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("holding-tech") { com.coinepro.hq.ui.companies.HoldingTechScreen() }
-                    composable("orders") { com.coinepro.hq.ui.work.OrdersScreen(onNewOrder = { order = true }) }
-                    composable("workshop") { WorkshopScreen(onNewSession = { newSession = true }, onGrant = { grantFor = it; granting = true }) }
-                    composable("workshop/{ref}") { SessionScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("cartable") { CartableScreen() }
-                    composable("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("cartable-co/{company}") { CartableScreen(company0 = it.arguments?.getString("company")) }
-                    composable("outputs") { OutputsScreen() }
-                    composable("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
-                    composable("oversight") { OversightScreen() }
-                    composable("oversight/chat") { ChatScreen("N", agent = "overseer") }
-                    composable("assistant") { AssistantScreen() }
-                    composable("stars") { StarsScreen() }
-                    composable("founding") { FoundingsScreen() }
-                    composable("founding/{ref}") { FoundingScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("skills") { SkillsScreen() }
-                    composable("academy") { AcademyScreen() }
-                    composable("tools") { ToolsScreen() }
-                    composable("messages") { ThreadsScreen() }
-                    composable("messages-co/{company}") { ThreadsScreen(company0 = it.arguments?.getString("company")) }
-                    composable("messages/{code}") { ChatScreen(it.arguments?.getString("code").orEmpty()) }
-                    composable("companies") { CompaniesScreen() }
-                    composable("companies/{code}") { CompanyScreen(it.arguments?.getString("code").orEmpty()) }
-                    composable("catalogue/{code}") { com.coinepro.hq.ui.companies.CatalogueScreen(it.arguments?.getString("code").orEmpty()) }
-                    composable("watch") { com.coinepro.hq.ui.oversight.WatchScreen() }
+                    page("home") { com.coinepro.hq.ui.office.OfficeScreen() }
+                    page("sessions") { com.coinepro.hq.ui.session.SessionsScreen() }
+                    page("sessions-archive") { com.coinepro.hq.ui.session.SessionsScreen(tab0 = "closed") }
+                    page("session/{ref}") { com.coinepro.hq.ui.session.OrderSessionScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("holding-tech") { com.coinepro.hq.ui.companies.HoldingTechScreen() }
+                    page("orders") { com.coinepro.hq.ui.work.OrdersScreen(onNewOrder = { order = true }) }
+                    page("workshop") { WorkshopScreen(onNewSession = { newSession = true }, onGrant = { grantFor = it; granting = true }) }
+                    page("workshop/{ref}") { SessionScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("cartable") { CartableScreen() }
+                    page("cartable/{ref}") { DecisionScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("cartable-co/{company}") { CartableScreen(company0 = it.arguments?.getString("company")) }
+                    page("outputs") { OutputsScreen() }
+                    page("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
+                    page("oversight") { OversightScreen() }
+                    page("oversight/chat") { ChatScreen("N", agent = "overseer") }
+                    page("assistant") { AssistantScreen() }
+                    page("stars") { StarsScreen() }
+                    page("founding") { FoundingsScreen() }
+                    page("founding/{ref}") { FoundingScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("skills") { SkillsScreen() }
+                    page("academy") { AcademyScreen() }
+                    page("tools") { ToolsScreen() }
+                    page("messages") { ThreadsScreen() }
+                    page("messages-co/{company}") { ThreadsScreen(company0 = it.arguments?.getString("company")) }
+                    page("messages/{code}") { ChatScreen(it.arguments?.getString("code").orEmpty()) }
+                    page("companies") { CompaniesScreen() }
+                    page("companies/{code}") { CompanyScreen(it.arguments?.getString("code").orEmpty()) }
+                    page("catalogue/{code}") { com.coinepro.hq.ui.companies.CatalogueScreen(it.arguments?.getString("code").orEmpty()) }
+                    page("watch") { com.coinepro.hq.ui.oversight.WatchScreen() }
                     // ⟨1.14⟩ §32: talk, apart from the gold order button.
-                    composable("talk") { com.coinepro.hq.ui.v32.TalkScreen() }
-                    composable("talk/{ref}") { com.coinepro.hq.ui.v32.TalkScreen(ref0 = it.arguments?.getString("ref")) }
-                    composable("talk-list") { com.coinepro.hq.ui.v32.ConversationsScreen() }
-                    composable("companies/{code}/{tab}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = it.arguments?.getString("tab") ?: "control") }
+                    page("talk") { com.coinepro.hq.ui.v32.TalkScreen() }
+                    page("talk/{ref}") { com.coinepro.hq.ui.v32.TalkScreen(ref0 = it.arguments?.getString("ref")) }
+                    page("talk-list") { com.coinepro.hq.ui.v32.ConversationsScreen() }
+                    page("companies/{code}/{tab}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = it.arguments?.getString("tab") ?: "control") }
                     // ⟨1.11⟩ §29.12 a connection's guide opened at once (a blocker's or a readiness check's «وصل کن»).
-                    composable("companies/{code}/connections/{kind}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = "connections", kind0 = it.arguments?.getString("kind")) }
+                    page("companies/{code}/connections/{kind}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = "connections", kind0 = it.arguments?.getString("kind")) }
                     // ⟨1.11⟩ §29.2 an order's report; §29.3 the owner's rules; §29.11 the working groups.
                     // An older link to an order's report opens its session.
-                    composable("order/{ref}") { com.coinepro.hq.ui.session.OrderSessionScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("rules") { com.coinepro.hq.ui.v29.RulesScreen() }
-                    composable("groups") { com.coinepro.hq.ui.v29.GroupsScreen() }
-                    composable("groups/{key}") { com.coinepro.hq.ui.v29.GroupScreen(it.arguments?.getString("key").orEmpty()) }
+                    page("order/{ref}") { com.coinepro.hq.ui.session.OrderSessionScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("rules") { com.coinepro.hq.ui.v29.RulesScreen() }
+                    page("groups") { com.coinepro.hq.ui.v29.GroupsScreen() }
+                    page("groups/{key}") { com.coinepro.hq.ui.v29.GroupScreen(it.arguments?.getString("key").orEmpty()) }
                     // ⟨1.12⟩ §30 production lines: a line, its runs, one run, the calendar and the library.
-                    composable("lines/{ref}") { com.coinepro.hq.ui.v30.LineScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("lines/{ref}/runs") { com.coinepro.hq.ui.v30.LineRunsScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("line-runs/{ref}") { com.coinepro.hq.ui.v30.LineRunScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("lines/{ref}") { com.coinepro.hq.ui.v30.LineScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("lines/{ref}/runs") { com.coinepro.hq.ui.v30.LineRunsScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("line-runs/{ref}") { com.coinepro.hq.ui.v30.LineRunScreen(it.arguments?.getString("ref").orEmpty()) }
                     // ⟨1.13⟩ §31: the §30 lines' calendar is the «خط تولید» filter of the one campaign calendar.
-                    composable("lines-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen(kind0 = "line") }
-                    composable("campaign-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen() }
-                    composable("automations") { com.coinepro.hq.ui.v31.AutomationsScreen() }
-                    composable("kits") { com.coinepro.hq.ui.v31.KitsScreen() }
-                    composable("library") { com.coinepro.hq.ui.v30.LibraryScreen() }
-                    composable("library/{company}") { com.coinepro.hq.ui.v30.LibraryScreen(it.arguments?.getString("company")) }
-                    composable("employees/{code}") { EmployeeScreen(it.arguments?.getString("code").orEmpty()) }
-                    composable("work/{id}") { WorkScreen(it.arguments?.getString("id").orEmpty()) }
-                    composable("treasury") { TreasuryScreen() }
-                    composable("planner") { PlannerScreen(onNewOrder = { order = true }) }
-                    composable("notifications") { NotificationsScreen() }
-                    composable("control") { ControlScreen() }
-                    composable("audit") { AuditScreen() }
-                    composable("resolutions") { com.coinepro.hq.ui.owner.ResolutionsScreen() }
-                    composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
-                    composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
-                    composable("settings") { SettingsScreen(graph) }
+                    page("lines-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen(kind0 = "line") }
+                    page("campaign-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen() }
+                    page("automations") { com.coinepro.hq.ui.v31.AutomationsScreen() }
+                    page("kits") { com.coinepro.hq.ui.v31.KitsScreen() }
+                    page("library") { com.coinepro.hq.ui.v30.LibraryScreen() }
+                    page("library/{company}") { com.coinepro.hq.ui.v30.LibraryScreen(it.arguments?.getString("company")) }
+                    page("employees/{code}") { EmployeeScreen(it.arguments?.getString("code").orEmpty()) }
+                    page("work/{id}") { WorkScreen(it.arguments?.getString("id").orEmpty()) }
+                    page("treasury") { TreasuryScreen() }
+                    page("planner") { PlannerScreen(onNewOrder = { order = true }) }
+                    page("notifications") { NotificationsScreen() }
+                    page("control") { ControlScreen() }
+                    page("audit") { AuditScreen() }
+                    page("resolutions") { com.coinepro.hq.ui.owner.ResolutionsScreen() }
+                    page("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
+                    page("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
+                    page("settings") { SettingsScreen(graph) }
                     // ⟨1.20⟩ §38.3 the hub's services, on or off, and the free memory.
-                    composable("services") { com.coinepro.hq.ui.services.ServicesScreen() }
+                    page("services") { com.coinepro.hq.ui.services.ServicesScreen() }
                     // ⟨1.22⟩ §40 the working groups drawn from sessions: the library and one playbook.
-                    composable("playbooks") { com.coinepro.hq.ui.playbook.PlaybooksScreen() }
-                    composable("playbook/{ref}") { com.coinepro.hq.ui.playbook.PlaybookScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("playbooks") { com.coinepro.hq.ui.playbook.PlaybooksScreen() }
+                    page("playbook/{ref}") { com.coinepro.hq.ui.playbook.PlaybookScreen(it.arguments?.getString("ref").orEmpty()) }
                     // ⟨1.8⟩ §26 the companies' servers
-                    composable("servers") { com.coinepro.hq.ui.servers.ServersScreen() }
-                    composable("servers/{id}") { com.coinepro.hq.ui.servers.ServerScreen(it.arguments?.getString("id").orEmpty()) }
-                    composable("servers/{id}/terminal") { com.coinepro.hq.ui.servers.TerminalScreen(it.arguments?.getString("id").orEmpty()) }
-                    composable("servers-attach") { com.coinepro.hq.ui.servers.AttachScreen() }
-                    composable("servers-attach/{company}") { com.coinepro.hq.ui.servers.AttachScreen(company0 = it.arguments?.getString("company")) }
-                    composable("server-policy") { com.coinepro.hq.ui.servers.ServerPolicyScreen() }
+                    page("servers") { com.coinepro.hq.ui.servers.ServersScreen() }
+                    page("servers/{id}") { com.coinepro.hq.ui.servers.ServerScreen(it.arguments?.getString("id").orEmpty()) }
+                    page("servers/{id}/terminal") { com.coinepro.hq.ui.servers.TerminalScreen(it.arguments?.getString("id").orEmpty()) }
+                    page("servers-attach") { com.coinepro.hq.ui.servers.AttachScreen() }
+                    page("servers-attach/{company}") { com.coinepro.hq.ui.servers.AttachScreen(company0 = it.arguments?.getString("company")) }
+                    page("server-policy") { com.coinepro.hq.ui.servers.ServerPolicyScreen() }
                     // ⟨1.8⟩ §26.6 the holding's network map
-                    composable("network") { com.coinepro.hq.ui.servers.NetworkScreen() }
-                    composable("errors") { com.coinepro.hq.ui.settings.ErrorLogScreen(graph.errors) }
+                    page("network") { com.coinepro.hq.ui.servers.NetworkScreen() }
+                    page("errors") { com.coinepro.hq.ui.settings.ErrorLogScreen(graph.errors) }
                     // ⟨1.5⟩ §19
-                    composable("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }
+                    page("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }
                     // ⟨1.15⟩ §33 money and the working style.
-                    composable("revenue-board") { com.coinepro.hq.ui.v33.RevenueBoardScreen() }
-                    composable("revenue-board/{company}") { com.coinepro.hq.ui.v33.RevenueBoardScreen(company0 = it.arguments?.getString("company")) }
-                    composable("affiliate-gaps") { com.coinepro.hq.ui.v33.AffiliateGapsScreen() }
-                    composable("usage") { com.coinepro.hq.ui.v33.UsageScreen() }
-                    composable("journeys") { com.coinepro.hq.ui.v33.JourneysScreen() }
-                    composable("leads/{ref}") { com.coinepro.hq.ui.v33.LeadScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("support") { com.coinepro.hq.ui.support.SupportScreen() }
-                    composable("support/{ref}") { com.coinepro.hq.ui.support.ConversationScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("growth") { com.coinepro.hq.ui.growth.GrowthScreen() }
-                    composable("feedback") { com.coinepro.hq.ui.feedback.FeedbackScreen() }
+                    page("revenue-board") { com.coinepro.hq.ui.v33.RevenueBoardScreen() }
+                    page("revenue-board/{company}") { com.coinepro.hq.ui.v33.RevenueBoardScreen(company0 = it.arguments?.getString("company")) }
+                    page("affiliate-gaps") { com.coinepro.hq.ui.v33.AffiliateGapsScreen() }
+                    page("usage") { com.coinepro.hq.ui.v33.UsageScreen() }
+                    page("journeys") { com.coinepro.hq.ui.v33.JourneysScreen() }
+                    page("leads/{ref}") { com.coinepro.hq.ui.v33.LeadScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("support") { com.coinepro.hq.ui.support.SupportScreen() }
+                    page("support/{ref}") { com.coinepro.hq.ui.support.ConversationScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("growth") { com.coinepro.hq.ui.growth.GrowthScreen() }
+                    page("feedback") { com.coinepro.hq.ui.feedback.FeedbackScreen() }
                     // ⟨1.5⟩ §20
-                    composable("meetings") { com.coinepro.hq.ui.meetings.MeetingsScreen() }
-                    composable("meetings/{ref}") { com.coinepro.hq.ui.meetings.MeetingScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("charter") { com.coinepro.hq.ui.charter.CharterScreen() }
-                    composable("knowledge") { com.coinepro.hq.ui.knowledge.KnowledgeScreen() }
-                    composable("knowledge/{ref}") { com.coinepro.hq.ui.knowledge.KnowledgeScreen(open0 = it.arguments?.getString("ref")) }
-                    composable("scorecard") { com.coinepro.hq.ui.scorecard.ScorecardScreen() }
-                    composable("okr") { com.coinepro.hq.ui.okr.OkrScreen() }
-                    composable("outcomes") { com.coinepro.hq.ui.outcomes.OutcomesScreen() }
-                    composable("risks") { com.coinepro.hq.ui.risks.RisksScreen() }
-                    composable("risks/{ref}") { com.coinepro.hq.ui.risks.RisksScreen(hi = it.arguments?.getString("ref")) }
-                    composable("calendar") { com.coinepro.hq.ui.calendar.CalendarScreen() }
-                    composable("authority") { com.coinepro.hq.ui.authority.AuthorityScreen() }
+                    page("meetings") { com.coinepro.hq.ui.meetings.MeetingsScreen() }
+                    page("meetings/{ref}") { com.coinepro.hq.ui.meetings.MeetingScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("charter") { com.coinepro.hq.ui.charter.CharterScreen() }
+                    page("knowledge") { com.coinepro.hq.ui.knowledge.KnowledgeScreen() }
+                    page("knowledge/{ref}") { com.coinepro.hq.ui.knowledge.KnowledgeScreen(open0 = it.arguments?.getString("ref")) }
+                    page("scorecard") { com.coinepro.hq.ui.scorecard.ScorecardScreen() }
+                    page("okr") { com.coinepro.hq.ui.okr.OkrScreen() }
+                    page("outcomes") { com.coinepro.hq.ui.outcomes.OutcomesScreen() }
+                    page("risks") { com.coinepro.hq.ui.risks.RisksScreen() }
+                    page("risks/{ref}") { com.coinepro.hq.ui.risks.RisksScreen(hi = it.arguments?.getString("ref")) }
+                    page("calendar") { com.coinepro.hq.ui.calendar.CalendarScreen() }
+                    page("authority") { com.coinepro.hq.ui.authority.AuthorityScreen() }
                     // ⟨1.5⟩ management tools (§21)
-                    composable("notes") { com.coinepro.hq.ui.notes.NotesScreen() }
-                    composable("notes/{ref}") { com.coinepro.hq.ui.notes.NotesScreen(highlight = it.arguments?.getString("ref")) }
-                    composable("letter") { com.coinepro.hq.ui.letter.LetterScreen() }
-                    composable("letter/{ref}") { com.coinepro.hq.ui.letter.LetterScreen(open0 = it.arguments?.getString("ref")) }
-                    composable("substitutes") { com.coinepro.hq.ui.substitutes.SubstitutesScreen() }
-                    composable("substitutes/{ref}") { com.coinepro.hq.ui.substitutes.SubstitutesScreen(creative0 = it.arguments?.getString("ref")) }
-                    composable("digital-ceo") { com.coinepro.hq.ui.dceo.DigitalCeoScreen() }
+                    page("notes") { com.coinepro.hq.ui.notes.NotesScreen() }
+                    page("notes/{ref}") { com.coinepro.hq.ui.notes.NotesScreen(highlight = it.arguments?.getString("ref")) }
+                    page("letter") { com.coinepro.hq.ui.letter.LetterScreen() }
+                    page("letter/{ref}") { com.coinepro.hq.ui.letter.LetterScreen(open0 = it.arguments?.getString("ref")) }
+                    page("substitutes") { com.coinepro.hq.ui.substitutes.SubstitutesScreen() }
+                    page("substitutes/{ref}") { com.coinepro.hq.ui.substitutes.SubstitutesScreen(creative0 = it.arguments?.getString("ref")) }
+                    page("digital-ceo") { com.coinepro.hq.ui.dceo.DigitalCeoScreen() }
                     // ⟨1.6⟩ the media studio and the legal counsel (§22)
-                    composable("studio") { com.coinepro.hq.ui.studio.StudioScreen() }
-                    composable("studio/{ref}") { com.coinepro.hq.ui.studio.StudioScreen(open0 = it.arguments?.getString("ref")) }
-                    composable("series") { com.coinepro.hq.ui.studio.SeriesScreen() }
-                    composable("series/{ref}") { com.coinepro.hq.ui.studio.SeriesScreen(focus0 = it.arguments?.getString("ref")) }
-                    composable("voice") { com.coinepro.hq.ui.studio.VoiceScreen() }
-                    composable("legal") { com.coinepro.hq.ui.legal.LegalScreen() }
-                    composable("legal/{ref}") { com.coinepro.hq.ui.legal.CaseScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("roles/{ref}") { com.coinepro.hq.ui.org.RoleDraftScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("studio") { com.coinepro.hq.ui.studio.StudioScreen() }
+                    page("studio/{ref}") { com.coinepro.hq.ui.studio.StudioScreen(open0 = it.arguments?.getString("ref")) }
+                    page("series") { com.coinepro.hq.ui.studio.SeriesScreen() }
+                    page("series/{ref}") { com.coinepro.hq.ui.studio.SeriesScreen(focus0 = it.arguments?.getString("ref")) }
+                    page("voice") { com.coinepro.hq.ui.studio.VoiceScreen() }
+                    page("legal") { com.coinepro.hq.ui.legal.LegalScreen() }
+                    page("legal/{ref}") { com.coinepro.hq.ui.legal.CaseScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("roles/{ref}") { com.coinepro.hq.ui.org.RoleDraftScreen(it.arguments?.getString("ref").orEmpty()) }
                     // ⟨1.7⟩ the archive (§23)
-                    composable("archive") { com.coinepro.hq.ui.archive.ArchiveScreen() }
-                    composable("archive-in/{key}/{value}") { e ->
+                    page("archive") { com.coinepro.hq.ui.archive.ArchiveScreen() }
+                    page("archive-in/{key}/{value}") { e ->
                         val k = e.arguments?.getString("key").orEmpty()
                         val v = e.arguments?.getString("value")
                         com.coinepro.hq.ui.archive.ArchiveScreen(party0 = v.takeIf { k == "party" }, folder0 = v.takeIf { k == "folder" })
                     }
-                    composable("archive/{ref}") { com.coinepro.hq.ui.archive.RecordScreen(it.arguments?.getString("ref").orEmpty()) }
-                    composable("archive-holds") { com.coinepro.hq.ui.archive.HoldsScreen() }
-                    composable("archive-holds/{ref}") { com.coinepro.hq.ui.archive.HoldsScreen(focus0 = it.arguments?.getString("ref")) }
-                    composable("archive-holds-new/{case}") { com.coinepro.hq.ui.archive.HoldsScreen(newFor = it.arguments?.getString("case")) }
-                    composable("archive-reminders") { com.coinepro.hq.ui.archive.RemindersScreen() }
-                    composable("archive-retention") { com.coinepro.hq.ui.archive.RetentionScreen() }
-                    composable("archive-settings") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen() }
-                    composable("archive-settings/{tab}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab")) }
-                    composable("archive-settings/{tab}/{ref}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab"), open0 = it.arguments?.getString("ref")) }
+                    page("archive/{ref}") { com.coinepro.hq.ui.archive.RecordScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("archive-holds") { com.coinepro.hq.ui.archive.HoldsScreen() }
+                    page("archive-holds/{ref}") { com.coinepro.hq.ui.archive.HoldsScreen(focus0 = it.arguments?.getString("ref")) }
+                    page("archive-holds-new/{case}") { com.coinepro.hq.ui.archive.HoldsScreen(newFor = it.arguments?.getString("case")) }
+                    page("archive-reminders") { com.coinepro.hq.ui.archive.RemindersScreen() }
+                    page("archive-retention") { com.coinepro.hq.ui.archive.RetentionScreen() }
+                    page("archive-settings") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen() }
+                    page("archive-settings/{tab}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab")) }
+                    page("archive-settings/{tab}/{ref}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab"), open0 = it.arguments?.getString("ref")) }
+                }
+                }
+                }
+                // ⟨1.0.1⟩ C2.1 the command, on every top-level screen in the same corner above the navigation: hidden inside a session
+                // (its composer is the command there), on a page with a composer of its own, and while a sheet is open.
+                if (commandHere && sheets.count == 0 && !tools && !order && !voice && !newSession && !granting && command == null && !WindowInsets.isImeVisible) {
+                    com.coinepro.hq.ui.look.CommandButton(
+                        { command = com.coinepro.hq.ui.look.CommandOpen(); graph.errors.crumb("sheet command") },
+                        Modifier.align(Alignment.BottomEnd).padding(start = 16.dp, end = 16.dp, bottom = 16.dp + with(androidx.compose.ui.platform.LocalDensity.current) { dock.barHeight.toDp() }),
+                    )
                 }
             }
             // ⟨2026-11-09⟩ the owner could not see what he typed in a session: the screens pad themselves for the keyboard
             // (imePadding) while the bar's own height stayed under it, so the composer was squeezed to a clipped line. The bar
             // steps aside while the keyboard is up.
             if (!WindowInsets.isImeVisible) {
-                BottomBar(route, inbox.data?.decisionsPending ?: 0, yourTurn, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
+                BottomBar(route, inbox.data?.decisionsPending ?: 0, yourTurn, listening = voice, onOrder = { voice = true }, onTypedOrder = { openCommand(null) }) { navApi.go(it) }
             }
         }
         if (tools) {
@@ -596,6 +630,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 ToolsSheet(outputs = inbox.data?.let { it.deliverablesUnseen ?: it.deliverablesUnrated } ?: 0, errors = graph.errors.entries.collectAsStateWithLifecycle().value.count { it.level != com.coinepro.hq.core.diag.LEVEL_INFO }) { r -> tools = false; navApi.go(r) }
             }
         }
+        command?.let { o -> com.coinepro.hq.ui.look.CommandSheet(onDismiss = { command = null }, open = o) }
         if (order) NewOrderSheet(onDismiss = { order = false })
         if (voice) VoiceOrderSheet(onDismiss = { voice = false })
         if (newSession) NewSessionSheet(onDismiss = { newSession = false })
@@ -672,9 +707,10 @@ private fun BottomBar(route: String, decisions: Int, sessions: Int, listening: B
                                 .semantics { contentDescription = "جلسه‌ی تازه؛ بزن و بگو، نگه دار و بنویس" },
                             contentAlignment = Alignment.Center,
                         ) {
-                            // While the order is being spoken the orb breathes and a soft gold glow swells around it.
-                            Orb(48.dp, state = if (listening) "listening" else "rest", label = "جلسه‌ی تازه")
-                            DIcon(DivanIcon.MIC, size = 22.dp, tint = c.onGold)
+                            // ⟨1.0.1⟩ C0.1: the owner types, so the mic is quiet: a silver ring on a raised disc, never the gold orb. While
+                            // an order is being spoken its ring and glyph turn ivory.
+                            Box(Modifier.size(48.dp).clip(CircleShape).background(c.raised).border(1.5.dp, if (listening) c.textPrimary else com.coinepro.hq.designsystem.silverLine(), CircleShape))
+                            DIcon(DivanIcon.MIC, size = 22.dp, tint = if (listening) c.textPrimary else c.silverInk)
                         }
                     }
                     continue
@@ -685,7 +721,8 @@ private fun BottomBar(route: String, decisions: Int, sessions: Int, listening: B
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    val tint by animateColorAsState(if (active) c.goldInk else c.textSecondary, motionShort(), label = "tab")
+                    // ⟨1.0.1⟩ C0.1: where he is reads ivory, never gold.
+                    val tint by animateColorAsState(if (active) c.textPrimary else c.textSecondary, motionShort(), label = "tab")
                     val ink by animateColorAsState(if (active) c.textPrimary else c.textSecondary, motionShort(), label = "tab-ink")
                     Box {
                         DIcon(t.icon, size = 24.dp, tint = tint, active = active)
@@ -766,7 +803,7 @@ private fun ToolTile(t: Tool, badge: Int?, modifier: Modifier, go: (String) -> U
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(t.icon, size = 17.dp, tint = c.goldInk) }
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(c.tile), contentAlignment = Alignment.Center) { DIcon(t.icon, size = 17.dp, tint = c.silverInk) }
             Text(t.label, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (badge != null) Badge(badge)
         }

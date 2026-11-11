@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,7 +82,7 @@ fun RemindersScreen() {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("قاعده‌ها در", style = Divan.type.caption, color = c.textMuted)
-                Text("طرح بایگانی، یادآورها", Modifier.clickable(role = Role.Button) { nav.go("archive-settings/reminders") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("طرح بایگانی، یادآورها", Modifier.clickable(role = Role.Button) { nav.go("archive-settings/reminders") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             }
         }
     }
@@ -156,7 +156,7 @@ fun RetentionScreen() {
             ) {
                 DIcon(DivanIcon.SEAL, size = 18.dp, tint = c.goldInk)
                 Text("کارت امحای منتظر مُهر تو:", style = Divan.type.small, color = c.textPrimary)
-                for (d in cards) Fig(d, Modifier.clickable(role = Role.Button) { nav.go("cartable/$d") }, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                for (d in cards) Fig(d, Modifier.clickable(role = Role.Button) { nav.go("cartable/$d") }, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             }
         }
         item {
@@ -172,7 +172,7 @@ fun RetentionScreen() {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("قاعده‌ها در", style = Divan.type.caption, color = c.textMuted)
-                Text("طرح بایگانی، نگهداری", Modifier.clickable(role = Role.Button) { nav.go("archive-settings/retention") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("طرح بایگانی، نگهداری", Modifier.clickable(role = Role.Button) { nav.go("archive-settings/retention") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 Text("؛ پیش‌فرض‌اند، نه نظر حقوقی.", style = Divan.type.caption, color = c.textMuted)
             }
         }
@@ -210,7 +210,7 @@ private fun RetentionRow(x: RetentionDue, m: ArchiveMaps) {
             x.decisionRef?.let { d ->
                 Row(Modifier.clickable(role = Role.Button) { nav.go("cartable/$d") }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     DIcon(DivanIcon.CARTABLE, size = 14.dp, tint = c.goldInk)
-                    Text(buildAnnotatedString { append("کارت "); fig(d) }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                    Text(buildAnnotatedString { append("کارت "); fig(d) }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 }
             }
         }

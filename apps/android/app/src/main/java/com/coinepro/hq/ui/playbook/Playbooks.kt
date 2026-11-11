@@ -14,7 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
+import com.coinepro.hq.designsystem.continuity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -143,7 +144,10 @@ fun PlaybookScreen(ref: String) {
             pb == null && !on -> item(key = "none") { Empty("کارگروه‌ها با به‌روزرسانی بعدی هاب میایند", icon = DivanIcon.DEPARTMENT) }
             pb == null -> item(key = "sk") { Skeleton(Modifier.fillMaxWidth().height(420.dp), radius = 16.dp) }
             else -> item(key = "body") {
-                PlaybookBody(pb, onSaved = { q.set(it) }, onApply = { sheet = PbSheet.APPLY }, onRetire = { sheet = PbSheet.RETIRE })
+                // ⟨1.0.1⟩ M14: the row of the library grows into this page.
+                androidx.compose.foundation.layout.Box(Modifier.continuity("playbook/${pb.ref}")) {
+                    PlaybookBody(pb, onSaved = { q.set(it) }, onApply = { sheet = PbSheet.APPLY }, onRetire = { sheet = PbSheet.RETIRE })
+                }
             }
         }
     }
@@ -214,7 +218,7 @@ internal fun PlaybookBody(pb: Playbook, onSaved: (Playbook) -> Unit, onApply: ()
             Text(
                 "از جلسه‌ای در ${co ?: "هلدینگ"}",
                 Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "جلسه‌اش") { nav.go("session/${pb.source.order}") }.padding(horizontal = 4.dp, vertical = 2.dp),
-                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk,
+                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
             )
             Text(
                 plain(listOfNotNull(

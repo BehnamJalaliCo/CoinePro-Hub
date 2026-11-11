@@ -27,7 +27,7 @@ import kotlinx.serialization.json.doubleOrNull
 val ORDER_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
     "received" to ("رسید" to Tone.NEUTRAL),
     "planned" to ("برنامه‌اش نوشته شد" to Tone.LAPIS),
-    "in_progress" to ("در کار" to Tone.GOLD),
+    "in_progress" to ("در کار" to Tone.SILVER),
     "waiting" to ("منتظر" to Tone.WARN),
     "blocked" to ("گیر کرده" to Tone.NEG),
     "delivered" to ("تحویل شد" to Tone.POS),
@@ -154,7 +154,7 @@ val RULE_STATUS_FA = mapOf("proposed" to "منتظر مُهر", "sealed" to "م�
 val EMPLOYEE_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
     "idle" to ("آماده" to Tone.SILVER),
     "thinking" to ("در حال فکر" to Tone.LAPIS),
-    "working" to ("در حال کار" to Tone.GOLD),
+    "working" to ("در حال کار" to Tone.SILVER),
     "waiting" to ("منتظر" to Tone.WARN),
     "stuck" to ("گیر کرده" to Tone.NEG),
     "done" to ("امروز تحویل داد" to Tone.POS),

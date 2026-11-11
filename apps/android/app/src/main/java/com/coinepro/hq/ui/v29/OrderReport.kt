@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -173,7 +173,7 @@ private fun PlanCard(o: OrderReport) {
         SectionTitle("رسید و برنامه", note = o.ack?.let { "رسید ${ago(it.at)}" } ?: "رسید؛ برنامه هنوز نوشته نشده", icon = DivanIcon.PLANNER)
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             o.route?.let { r ->
-                Text(plain(routeLineFa(r, { companyOf(companies, it).nameFa })), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text(plain(routeLineFa(r, { companyOf(companies, it).nameFa })), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             }
             val a = o.ack
             if (a == null) Text("دریافت شد و سپرده شد؛ کسی که آن را گرفته باید تا ده دقیقه برنامه‌اش را بنویسد.", style = Divan.type.caption.copy(textAlign = TextAlign.Justify), color = c.textSecondary)

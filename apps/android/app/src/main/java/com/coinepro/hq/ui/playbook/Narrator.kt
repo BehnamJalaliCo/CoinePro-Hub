@@ -14,7 +14,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -141,16 +141,23 @@ internal fun NarratorPicker(n: Narrator, onSaved: (Narrator) -> Unit) {
         HqTextField(style, { style = it; refused = null }, "مثلاً: آرام و مطمئن، مثل گوینده‌ی خبر", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 500)
         refused?.let { Text(timesFig(it), style = Divan.type.caption, color = c.negative, modifier = Modifier.padding(horizontal = 4.dp)) }
     }
-    HqButton("ثبت", {
-        val v = voice ?: return@HqButton
-        save.run(onError = { e: ApiException ->
-            if (e.status == 422) { e.logged?.let { env.api.failures?.forget(it) }; refused = e.messageFa } else toasts.error(e.messageFa)
-        }) {
-            val out = env.api.setNarrator(n.company, v, style)
-            env.cache.invalidate("narrator")
-            toasts.ok("گوینده ثبت شد؛ از این به بعد همین صداست.")
-            // the hub answers the narrator; the list of voices stays the one already here when it leaves it out
-            onSaved(if (out.voices.isEmpty()) out.copy(voices = n.voices) else out)
-        }
-    }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, enabled = voice != null, loading = save.busy)
+    // ⟨1.0.1⟩ C0.2: the sheet's one primary action, stuck to its bottom.
+    com.coinepro.hq.designsystem.SheetBar {
+        com.coinepro.hq.designsystem.DecisionBar(
+            "ثبت", {
+                val v = voice ?: return@DecisionBar
+                save.run(onError = { e: ApiException ->
+                    if (e.status == 422) { e.logged?.let { env.api.failures?.forget(it) }; refused = e.messageFa } else toasts.error(e.messageFa)
+                }) {
+                    val out = env.api.setNarrator(n.company, v, style)
+                    env.cache.invalidate("narrator")
+                    toasts.ok("گوینده ثبت شد؛ از این به بعد همین صداست.")
+                    // the hub answers the narrator; the list of voices stays the one already here when it leaves it out
+                    onSaved(if (out.voices.isEmpty()) out.copy(voices = n.voices) else out)
+                }
+            },
+            context = voice?.let { "هر ریلز و ویدیوی این شرکت با صدای $it گفته میشود." },
+            icon = DivanIcon.SEAL, enabled = voice != null, state = if (save.busy) com.coinepro.hq.designsystem.DecisionState.WORKING else com.coinepro.hq.designsystem.DecisionState.IDLE,
+        )
+    }
 }

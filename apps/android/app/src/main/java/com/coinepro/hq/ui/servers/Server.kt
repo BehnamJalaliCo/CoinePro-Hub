@@ -18,7 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -264,7 +264,7 @@ private fun MapSection(title: String, count: Int?, limit: Int = 6, total: Int = 
     var all by remember { mutableStateOf(false) }
     HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.weight(1f))
+            Text(title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.weight(1f))
             count?.let { Text("$it", style = Divan.type.caption, color = c.textMuted) }
         }
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content(all) }
@@ -301,7 +301,7 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
             onRefresh?.let { HqButton("نقشه‌ی تازه", it, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = refreshing) }
         }
         HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp)) {
-            Text("سیستم", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("سیستم", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 m.os?.let { Fig(it, style = Divan.type.figureSmall, color = c.textPrimary) }
                 m.kernel?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
@@ -365,7 +365,7 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
             for (x in if (all) m.cron else m.cron.take(6)) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // A schedule has no letter to set its direction: isolated left to right, it reads as cron wrote it.
-                    Fig("\u2066${x.schedule}\u2069", style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                    Fig("\u2066${x.schedule}\u2069", style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                     x.user?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                 }
                 CodeBlock(x.command)

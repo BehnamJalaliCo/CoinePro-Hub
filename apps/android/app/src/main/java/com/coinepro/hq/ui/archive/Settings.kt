@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -263,7 +263,7 @@ private fun PartiesTab(m: ArchiveMaps, sel: String?, onOpen: (String?) -> Unit) 
                             }
                         }
                     }
-                    if (p.records > 0) Text("${p.records} سند", Modifier.clickable(role = Role.Button) { nav.go("archive-in/party/${p.ref}") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                    if (p.records > 0) Text("${p.records} سند", Modifier.clickable(role = Role.Button) { nav.go("archive-in/party/${p.ref}") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 }
             }
         }

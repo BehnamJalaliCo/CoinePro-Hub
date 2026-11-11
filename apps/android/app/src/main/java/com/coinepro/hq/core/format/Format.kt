@@ -106,8 +106,23 @@ fun usd(v: String?, digits: Int = 2): String {
 
 fun usd(v: Double?, digits: Int = 2): String = usd(v?.toString(), digits)
 
-/** "21٪" — prose (drawn with Persian digits). */
-fun pct(v: Double?): String = if (v == null) "—" else "${v.roundToInt()}٪"
+/** "21%" — ⟨1.0.1⟩ C0.4: a percent is a figure (Latin tabular digits), like money and a rank; the app's text draws it so. */
+fun pct(v: Double?): String = if (v == null) "—" else "${v.roundToInt()}%"
+
+/**
+ * ⟨1.0.1⟩ C0.4: [text] as one isolated left-to-right run (U+2066 … U+2069), for a Latin token (money, a percent, a ref like O-000152,
+ * P0, a file name, a handle) inside a Persian string that stays a string (a toast, a label built by a formatter, a content
+ * description). On a screen nothing more is needed: the app's `Text` isolates every such token itself (designsystem/Text.kt).
+ * A dash, an empty string and a run already isolated come back as they are.
+ */
+fun ltr(text: String?): String = when {
+    text.isNullOrEmpty() -> ""
+    text == "—" || text.startsWith('\u2066') -> text
+    else -> "\u2066$text\u2069"
+}
+
+/** [text] without the isolate marks [ltr] added (for a value that is sent, compared or copied). */
+fun unltr(text: String): String = text.replace("\u2066", "").replace("\u2069", "")
 
 /**
  * A share as a percent, whichever way the hub sends it: a fraction (0..1, the contract's form: `uptime_24h`, accuracy, progress) or,

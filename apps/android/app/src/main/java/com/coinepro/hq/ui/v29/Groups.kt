@@ -13,7 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
+import com.coinepro.hq.designsystem.continuity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,7 +98,7 @@ fun GroupsScreen() {
             list.isEmpty() -> item { Empty("هنوز کارگروهی تعریف نشده", icon = DivanIcon.DEPARTMENT) }
             else -> items(list, key = { it.key }) { g ->
                 Box(itemMotion()) {
-                    HqCard(Modifier.fillMaxWidth(), onClick = { nav.go("groups/${g.key}") }) {
+                    HqCard(Modifier.fillMaxWidth().continuity("groups/${g.key}"), onClick = { nav.go("groups/${g.key}") }) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             IconTile(DivanIcon.DEPARTMENT, c.goldInk, c.softGold)
                             Column(Modifier.weight(1f)) {
@@ -132,7 +133,7 @@ fun GroupScreen(key: String) {
             g == null -> item { Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 16.dp) }
             else -> {
                 item(key = "head") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.continuity("groups/${g.key}"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("کارگروه", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f))
                             Pill(if (g.state == "on") "روشن" else "خاموش", if (g.state == "on") Tone.POS else Tone.SILVER, dot = true)
@@ -346,7 +347,7 @@ private fun ExperimentsCard(list: List<Experiment>?) {
                             when (x.kept) {
                                 true -> Pill("ماند", Tone.POS, dot = true)
                                 false -> Pill("کنار رفت", Tone.SILVER, dot = true)
-                                null -> Pill("در جریان", Tone.GOLD, dot = true)
+                                null -> Pill("در جریان", Tone.SILVER, dot = true)
                             }
                         }
                         Text(plain(x.hypothesisFa), style = Divan.type.small.copy(textAlign = TextAlign.Justify), color = c.textPrimary)

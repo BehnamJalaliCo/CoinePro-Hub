@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -199,7 +199,7 @@ fun TombstoneView(r: ArchiveRecord, m: ArchiveMaps) {
             FactLine("ساخته") { Text(jStamp(r.createdAt, year = true), style = Divan.type.caption, color = c.textPrimary) }
             FactLine("ثبت") { Text(jStamp(r.filedAt, year = true), style = Divan.type.caption, color = c.textPrimary) }
             if (!t?.hashes.isNullOrEmpty()) {
-                Text("hash فایل‌های نابودشده", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("hash فایل‌های نابودشده", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 for (h in t!!.hashes) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 8.dp)) {
                     Fig(h.name, style = Divan.type.figureSmall, color = c.textPrimary)
                     Fig(h.sha256, style = Divan.type.figureSmall, color = c.textMuted, maxLines = 2)
@@ -426,7 +426,7 @@ private fun VersionCard(r: ArchiveRecord, v: RecordVersion, onView: (RecordFile)
                 Fig(f.name, style = Divan.type.figureSmall, color = c.textPrimary)
                 FileFacts(f)
             }
-            Text("نمایش", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("نمایش", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         }
         Text(buildAnnotatedString { append("manifest: "); fig(shaShort(v.manifestSha256)) }, style = Divan.type.micro, color = c.textMuted)
     }
@@ -900,7 +900,7 @@ private fun AccessPanel(r: ArchiveRecord, m: ArchiveMaps) {
                         Text(jStamp(a.at), Modifier.weight(1f), style = Divan.type.micro, color = c.textMuted)
                         if (a.stepUp) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             DIcon(DivanIcon.LOCK, size = 11.dp, tint = c.goldInk)
-                            Fig("passkey", style = Divan.type.figureSmall, color = c.goldInk)
+                            Fig("passkey", style = Divan.type.figureSmall, color = c.silverInk)
                         }
                         if (a.watermarked) Text("ته‌نقش", style = Divan.type.micro, color = c.textMuted)
                     }

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -171,7 +171,7 @@ private fun SchemaCard(d: Decision) {
     val simple = changed.filter { it.kind != AttrKind.FIELDS }
     val fields = changed.firstOrNull { it.kind == AttrKind.FIELDS }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("تغییر طرح بایگانی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text("تغییر طرح بایگانی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Pill(ui.fa, Tone.NEUTRAL, icon = ui.icon)
             Fig(p.key, style = Divan.type.figureSmall, color = c.textPrimary)
@@ -181,7 +181,7 @@ private fun SchemaCard(d: Decision) {
                 else { append("نسخه‌ی پایه "); fig("${p.baseVersion}"); append("، الان "); fig(current?.get("version").p ?: "—") }
             }, style = Divan.type.micro, color = c.textSecondary)
             Text("در طرح بایگانی", Modifier.clickable(role = Role.Button) { nav.go("archive-settings/${p.part}" + if (current != null) "/${p.key}" else "") },
-                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         }
         if (st.void == true) Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softNegative).padding(12.dp),
@@ -220,7 +220,7 @@ private fun DisposalCard(d: Decision) {
     val held = got.orEmpty().count { (it?.holds?.size ?: 0) > 0 }
     val gone = got.orEmpty().count { it?.state == "disposed" }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("سندهای این کارت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text("سندهای این کارت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         Text(buildAnnotatedString {
             append("${list.size - held - gone} سند امحا میشود")
             if (held > 0) { append("؛ "); withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = c.negative)) { append("$held سند توقیف دارد و رد میشود") } }

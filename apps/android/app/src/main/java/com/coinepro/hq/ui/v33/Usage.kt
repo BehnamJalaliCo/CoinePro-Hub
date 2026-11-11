@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -180,7 +180,7 @@ fun UsageReportCard(r: UsageReport, head: Boolean = false, open0: Boolean = fals
                 Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softGold).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text("یک صرفه‌جویی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("یک صرفه‌جویی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 Para(t.savingFa, style = Divan.type.small, color = c.textPrimary)
             }
         }
@@ -188,7 +188,7 @@ fun UsageReportCard(r: UsageReport, head: Boolean = false, open0: Boolean = fals
             Modifier.padding(top = 10.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 6.dp, horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text("جزئیات", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("جزئیات", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             Chevron(open, tint = c.goldInk)
         }
         Expand(open) { Box(Modifier.padding(top = 8.dp)) { UsagePackBody(r.pack) } }

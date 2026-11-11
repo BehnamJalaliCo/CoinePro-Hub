@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToKey
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
 import com.coinepro.hq.designsystem.Divan
@@ -170,9 +171,11 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "control" to { _ -> ControlScreen() },
             // 0.4.1 notifications: «خوانده‌نشده» with the overseer's hourly finding folded into one row (its count and last time), a meeting and
             // a founding; that row opened on every time it was raised; «خوانده‌شده» with a budget alert raised three times.
+            // ⟨1.0.1⟩ C3.5: one list in three levels («از تو کاری میخواهد» on top, then by day); every row opened (the hourly finding's
+            // times, the raw text of a machine title one tap away); and the quiet «خبر» alone (read ones by day, a budget alert raised three times).
             "notifications" to { _ -> NotificationsScreen() },
             "notifications-group" to { _ -> NotificationsScreen(open0 = setOf("*")) },
-            "notifications-read" to { _ -> NotificationsScreen(tab0 = "read") },
+            "notifications-read" to { _ -> NotificationsScreen(level0 = "news") },
             "audit" to { _ -> AuditScreen() },
             "settings" to { g -> SettingsScreen(g) },
             // The background link (alerts with the app closed): on and live, battery optimisation off, on a Samsung (its own sleeping-apps
@@ -326,8 +329,10 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "advisor-triggers" to { _ -> Sheetlike { com.coinepro.hq.ui.advisor.TriggersContent() } },
             "decision-evaluation" to { _ -> DecisionScreen("D-000040") },
             "deploy-diff" to { _ -> Sheetlike { com.coinepro.hq.ui.cartable.DecisionManagementView("D-000017", open0 = "src/chart/cache.ts") } },
-            "deploy-memo" to { _ -> Sheetlike { com.coinepro.hq.ui.cartable.DecisionManagementView("D-000017") } },
-            "deploy-memo-devil" to { _ -> Sheetlike { com.coinepro.hq.ui.cartable.DecisionManagementView("D-000017", mode0 = "devil") } },
+            // ⟨1.0.1⟩ C1.5: the memo itself (it sits far below the fold of the card, so both shots used to show the same deploy payload):
+            // the advisor's formal memo, and the devil's advocate's.
+            "deploy-memo" to { _ -> Sheetlike { WithDecision("D-000017") { com.coinepro.hq.ui.cartable.MemoBlock(it) } } },
+            "deploy-memo-devil" to { _ -> Sheetlike { WithDecision("D-000017") { com.coinepro.hq.ui.cartable.MemoBlock(it, mode0 = "devil") } } },
             "evaluation-memo" to { _ -> Sheetlike { com.coinepro.hq.ui.cartable.DecisionManagementView("D-000040") } },
             "notes" to { _ -> com.coinepro.hq.ui.notes.NotesScreen() },
             "letter" to { _ -> com.coinepro.hq.ui.letter.LetterScreen() },
@@ -461,6 +466,12 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
         @Composable
         private fun WithTrack(id: String, content: @Composable (com.coinepro.hq.core.data.OrderTrack) -> Unit) {
             com.coinepro.hq.ui.work.rememberTrack(id, full = true).data?.let { content(it) }
+        }
+
+        /** A card of the cartable as the demo serves it. */
+        @Composable
+        private fun WithDecision(ref: String, content: @Composable (com.coinepro.hq.core.net.Decision) -> Unit) {
+            com.coinepro.hq.ui.rememberQuery("decision:$ref", "decisions") { decision(ref) }.data?.let { content(it) }
         }
 
         /** The live feed's lines as the stream sends them: works by ref and by id (one gone), runs on a work, an output, a file. */
@@ -684,7 +695,6 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
 
         /** Screens shown from further down their page: the item (of the page's list) to bring to the top. */
         private val SCROLL: Map<String, Int> = mapOf(
-            "revenue-funnel" to 6, "revenue-accounts" to 7, "revenue-rescue" to 9,
             "support-conversations" to 3, "support-channels" to 3, "support-knowledge" to 3, "support-shadow" to 3,
             "growth-rules" to 3, "growth-nps" to 3,
             // The tools page: header, intro, totals, the egress log and its title, ⟨1.5⟩ the connections, the MCP title, one item per
@@ -710,6 +720,10 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "companies-list" to 3, "company-control-live" to 5,
             "archive-record-files" to 2, "archive-record-links" to 3, "archive-record-access" to 5, "archive-record-held" to 5, "archive-record-seal" to 4,
         )
+
+        /** ⟨1.0.1⟩ C1.5 Screens shown from a section of their page, found by the section's own key: an item added above it never moves
+         *  the shot to another section (the three revenue shots showed whatever stood at a stale index). */
+        private val SCROLL_KEY: Map<String, String> = mapOf("revenue-funnel" to "funnel", "revenue-accounts" to "accounts", "revenue-rescue" to "rescue")
 
         /** The number of rows the demo serves at [path], bare or paged. */
         private fun fixtureSize(path: String): Int =
@@ -774,6 +788,16 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
         SCROLL[name]?.let { index ->
             repeat(2) {
                 compose.onAllNodes(hasScrollToIndexAction())[0].performScrollToIndex(index)
+                repeat(6) {
+                    Thread.sleep(200)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    compose.mainClock.advanceTimeBy(250)
+                }
+            }
+        }
+        SCROLL_KEY[name]?.let { key ->
+            repeat(2) {
+                compose.onAllNodes(androidx.compose.ui.test.hasScrollToKeyAction())[0].performScrollToKey(key)
                 repeat(6) {
                     Thread.sleep(200)
                     shadowOf(Looper.getMainLooper()).idle()

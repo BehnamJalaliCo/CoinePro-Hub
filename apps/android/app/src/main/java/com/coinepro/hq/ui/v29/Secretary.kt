@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -99,7 +99,7 @@ fun PreviewLine(p: Preview, onEdit: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DIcon(DivanIcon.DELEGATE, size = 16.dp, tint = c.goldInk)
-            Text(if (p.edited) "مسیر، با تغییر تو" else "منشی هلدینگ این‌طور میفرستد", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.weight(1f))
+            Text(if (p.edited) "مسیر، با تغییر تو" else "منشی هلدینگ این‌طور میفرستد", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.weight(1f))
             if (p.loading) CircularProgressIndicator(Modifier.size(14.dp), color = c.goldInk, strokeWidth = 2.dp)
             else HqButton("تغییر", onEdit, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.EDIT)
         }
@@ -171,7 +171,7 @@ fun RouteEditorBody(r0: OrderRoute29, onDone: (OrderRoute29) -> Unit) {
         r.budgetTokens?.let { b ->
             Text(plain("بودجه: ${tokens(b)} واحد مصرف؛ هیچ‌وقت کمتر از کف دپارتمان نیست."), style = Divan.type.caption, color = c.textMuted)
         }
-        Text(plain(routeLineFa(r.copy(previewFa = ""), { companyOf(companies, it).nameFa })), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text(plain(routeLineFa(r.copy(previewFa = ""), { companyOf(companies, it).nameFa })), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         HqButton("همین مسیر", { onDone(r.copy(previewFa = "")) }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, enabled = r.companies.isNotEmpty())
     }
 }

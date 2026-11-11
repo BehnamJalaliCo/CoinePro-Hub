@@ -492,11 +492,13 @@ class Api(
     // ------------------------------------------------ voice orders ⟨1.3⟩ --
     /** ⟨1.11⟩ §29.4 with [route] (the secretary's preview, maybe edited by the owner) the hub follows it exactly; without, it decides.
      *  ⟨2026-11-09⟩ [pace] is the owner's answer to «با من یا خودکار؟» when he makes the session; it wins over his words (§34.1). */
-    suspend fun order(text: String, source: String, fileId: String?, route: OrderRoute29? = null, pace: String? = null): Order =
+    suspend fun order(text: String, source: String, fileId: String?, route: OrderRoute29? = null, pace: String? = null, company: String? = null): Order =
         post("/orders", buildJsonObject {
             put("text", text); put("source", source); put("file_id", fileId)
             if (route != null) put("route", json.encodeToJsonElement(OrderRoute29.serializer(), route))
             if (pace != null) put("pace", pace)
+            // ⟨1.0.1⟩ C2.1 the company the owner picked by its mark in the command sheet (one per order; the hub routes inside it).
+            if (company != null) put("company", company)
         })
     suspend fun orders(): Page<Order> = get("/orders")
 
@@ -648,6 +650,9 @@ class Api(
     /** ⟨1.9⟩ §27.2: the council of an order given with `mode: "council"`. */
     suspend fun council(id: String): Council = get("/work/${seg(id)}/council")
     suspend fun quota(): QuotaView = get("/treasury/quota")
+
+    /** ⟨1.33⟩ §55.3 the owner's Claude accounts (each one ring) and today's meter. A hub before it has no such route ([HubFeature.LIMITS]). */
+    suspend fun limits(): Limits = get("/treasury/limits")
     suspend fun whatIf(model: String, from: String, to: String, company: String? = null): WhatIf =
         get("/treasury/what-if", mapOf("model" to model, "from" to from, "to" to to, "company" to company))
     suspend fun calls(company: String? = null, actor: String? = null, status: String? = null, cursor: String? = null, limit: Int = 25): Page<CallRow> =

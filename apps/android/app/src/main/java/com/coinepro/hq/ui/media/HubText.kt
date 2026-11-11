@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -65,7 +65,7 @@ fun HubTextToggle(hubText: String?, on: Boolean, onToggle: () -> Unit, writing: 
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            DIcon(DivanIcon.MIC, size = 12.dp, tint = if (on) c.goldInk else c.textSecondary)
+            DIcon(DivanIcon.MIC, size = 12.dp, tint = if (on) c.silverInk else c.textSecondary)
             Text(if (on) "متن هاب · برگرد به متن پیام" else "متن هاب", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = if (on) c.goldInk else c.textSecondary)
         }
         writing -> Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

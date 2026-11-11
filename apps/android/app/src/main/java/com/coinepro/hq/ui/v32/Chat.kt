@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -121,8 +121,8 @@ fun TalkBubble(
                         Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "دوباره بشنو", onClick = onReplay).padding(horizontal = 6.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
-                        DIcon(DivanIcon.MIC, size = 12.dp, tint = c.goldInk)
-                        Text("بشنو", style = Divan.type.micro, color = c.goldInk)
+                        DIcon(DivanIcon.MIC, size = 12.dp, tint = c.silverInk)
+                        Text("بشنو", style = Divan.type.micro, color = c.silverInk)
                     }
                 }
             }
@@ -218,7 +218,7 @@ fun TalkCardView(card: TalkCard, onRun: suspend (TalkCard, JsonObject?) -> Unit,
             // ⟨1.17⟩ what it made, in one word each («فرمان»، «تصمیم»); the ref is the way in, never a word on the screen.
             for (ref in card.made) {
                 val route = com.coinepro.hq.core.data.madeRouteOf(ref)
-                Text(com.coinepro.hq.core.data.madeFa(ref), Modifier.clip(CircleShape).background(c.raised).clickable(enabled = route != null, role = Role.Button, onClickLabel = "باز کن") { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.goldInk)
+                Text(com.coinepro.hq.core.data.madeFa(ref), Modifier.clip(CircleShape).background(c.raised).clickable(enabled = route != null, role = Role.Button, onClickLabel = "باز کن") { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.silverInk)
             }
         }
         if (card.state == "offered" || card.state == "failed") {
@@ -280,7 +280,7 @@ private fun PayloadSummary(card: TalkCard) {
         if (decisions.isNotEmpty()) {
             Text("تصمیم‌ها", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
             for (d in decisions) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("•", style = Divan.type.caption, color = c.goldInk)
+                Text("•", style = Divan.type.caption, color = c.silverInk)
                 Text(plain(d), style = Divan.type.caption, color = c.textPrimary, modifier = Modifier.weight(1f))
             }
         }

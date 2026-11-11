@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,7 +78,7 @@ fun CouncilPlan(k: Council) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ModelMark("claude", provider = "anthropic", size = 18.dp)
             Column(Modifier.weight(1f)) {
-                Text("برنامه‌ی شورا", style = Divan.type.bodyStrong, color = c.goldInk)
+                Text("برنامه‌ی شورا", style = Divan.type.bodyStrong, color = c.silverInk)
                 Text("چه کسی · چه کاری · تا کی", style = Divan.type.micro, color = c.textSecondary)
             }
         }

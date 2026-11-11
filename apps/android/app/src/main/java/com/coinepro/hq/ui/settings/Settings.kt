@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -96,7 +96,7 @@ fun SettingsScreen(graph: AppGraph) {
                                     Fig(d.name, style = Divan.type.figure)
                                     Text("${if (d.kind == "passkey") "passkey" else "نشست"}، آخرین استفاده ${ago(d.lastUsedAt)}", style = Divan.type.micro, color = c.textMuted)
                                 }
-                                if (d.current) Pill("همین دستگاه", Tone.GOLD)
+                                if (d.current) Pill("همین دستگاه", Tone.SILVER)
                                 else HqButton("باطل کن", {
                                     action.run {
                                         val token = env.auth.stepUp(act, "device.revoke", d.id)

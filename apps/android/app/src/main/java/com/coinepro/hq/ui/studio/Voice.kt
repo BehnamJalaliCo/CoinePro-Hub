@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -129,7 +129,7 @@ fun VoiceScreen() {
                         SectionTitle("قاعده‌ی صدا", note = "هیچ استثنایی ندارد")
                         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             for ((t, b) in RULES) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                DIcon(DivanIcon.MIC, Modifier.padding(top = 2.dp), size = 16.dp, tint = c.goldInk)
+                                DIcon(DivanIcon.MIC, Modifier.padding(top = 2.dp), size = 16.dp, tint = c.silverInk)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(t, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                                     Text(prose(b), style = Divan.type.caption, color = c.textSecondary)
@@ -247,7 +247,7 @@ private fun BlindTest(voices: List<Voice>) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(Modifier.size(36.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) {
-                            Text(label, style = Divan.type.small.copy(fontWeight = FontWeight.Bold), color = c.goldInk)
+                            Text(label, style = Divan.type.small.copy(fontWeight = FontWeight.Bold), color = c.silverInk)
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(if (shown) prose(v.nameFa) else buildAnnotatedString { append("صدای $label") }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)

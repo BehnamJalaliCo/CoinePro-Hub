@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -52,7 +52,7 @@ fun ListeningPanel(l: Listening, onFinish: () -> Unit, onCancel: () -> Unit) {
     val c = Divan.colors
     val hub = l.engine == "hub"
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (hub) "ضبط میشود؛ هاب به متن میکند" else "میشنوم… هر وقت تمام شد بزن «تمام»", style = Divan.type.bodyStrong, color = c.goldInk, textAlign = TextAlign.Center)
+        Text(if (hub) "ضبط میشود؛ هاب به متن میکند" else "میشنوم… هر وقت تمام شد بزن «تمام»", style = Divan.type.bodyStrong, color = c.silverInk, textAlign = TextAlign.Center)
         Waveform(l.levels, Modifier.height(40.dp))
         if (l.partial.isNotBlank()) {
             val scroll = rememberScrollState()
@@ -70,11 +70,11 @@ fun ListeningPanel(l: Listening, onFinish: () -> Unit, onCancel: () -> Unit) {
                 DIcon(DivanIcon.SEND, size = 14.dp, tint = c.textSecondary)
                 Text("${l.sent} از ${l.chunks} بخش به هاب رسید؛ هر بخش تا یک دقیقه و نیم", style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
             }
-            MeterBar(if (l.chunks == 0) 0.0 else l.sent * 100.0 / l.chunks, tone = com.coinepro.hq.designsystem.BarTone.GOLD)
+            MeterBar(if (l.chunks == 0) 0.0 else l.sent * 100.0 / l.chunks, tone = com.coinepro.hq.designsystem.BarTone.SILVER)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Fig(clock(l.elapsed), style = Divan.type.figure, color = c.textSecondary)
-            Text("تمام", Modifier.clip(RoundedCornerShape(8.dp)).clickable { onFinish() }.padding(6.dp), style = Divan.type.small, color = c.goldInk)
+            Text("تمام", Modifier.clip(RoundedCornerShape(8.dp)).clickable { onFinish() }.padding(6.dp), style = Divan.type.small, color = c.silverInk)
             Text("لغو", Modifier.clip(RoundedCornerShape(8.dp)).clickable { onCancel() }.padding(6.dp), style = Divan.type.small, color = c.textMuted)
         }
         Text(

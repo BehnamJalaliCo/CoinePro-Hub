@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -430,7 +430,7 @@ private fun Review(d: FoundingDraft, edit: (Int) -> Unit) {
             }
         }
         HqCard(Modifier.fillMaxWidth(), color = c.softGold) {
-            Text("با تأیید تو", style = Divan.type.bodyStrong, color = c.goldInk)
+            Text("با تأیید تو", style = Divan.type.bodyStrong, color = c.silverInk)
             Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val lines = when (d.path) {
                     FoundingPath.REGISTER -> listOf(
@@ -451,7 +451,7 @@ private fun Review(d: FoundingDraft, edit: (Int) -> Unit) {
                 }
                 lines.forEachIndexed { i, l ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("${i + 1}.", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.width(18.dp))
+                        Text("${i + 1}.", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.width(18.dp))
                         Text(l, style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
                     }
                 }

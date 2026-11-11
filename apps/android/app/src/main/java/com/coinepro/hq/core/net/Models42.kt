@@ -68,6 +68,8 @@ data class LiveSummary(
     val tokens: LiveTokens = LiveTokens(),
     val control: LiveControl = LiveControl(),
     val companies: List<LiveCompany> = emptyList(),
+    /** ⟨1.0.1⟩ additive: a 24-hour series for the pulse's figures, when this hub sends one (Models55.kt). */
+    val series: PulseSeries? = null,
 )
 
 // ------------------------------------------------------------------ §42.2 the events' data --

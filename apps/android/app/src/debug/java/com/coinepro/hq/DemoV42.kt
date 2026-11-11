@@ -81,6 +81,10 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             })
             put("approvals", approvals)
             put("urgent_unread", urgent)
+            // ⟨1.0.1⟩ the pulse's 24-hour series (additive; a hub that sends none leaves the numbers alone).
+            if (LookDemo.series) put("series", LookDemo.pulseSeries(
+                cos.keys.sumOf { working(it) }, badges.size, approvals + badges.count { it.first == "your_turn" || it.first == "ready" },
+            ))
             put("servers", buildJsonObject {
                 put("online", servers.values.count { it.second })
                 put("offline", servers.values.count { !it.second })

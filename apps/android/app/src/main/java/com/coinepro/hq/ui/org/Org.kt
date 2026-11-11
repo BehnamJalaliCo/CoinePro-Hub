@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -114,7 +114,7 @@ fun DepartmentView(company: String, code: String, onRole: (String) -> Unit) {
                     Text(prose(m.fromFa), style = Divan.type.small, color = c.textPrimary)
                 }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softGold).padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("مقصد", style = Divan.type.micro, color = c.goldInk)
+                    Text("مقصد", style = Divan.type.micro, color = c.silverInk)
                     Text(prose(m.toFa), style = Divan.type.small, color = c.textPrimary)
                 }
                 Bullets("خروجی‌ها", m.outputsFa)
@@ -139,7 +139,7 @@ fun DepartmentView(company: String, code: String, onRole: (String) -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(t.titleFa, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                         Fig(t.role, style = Divan.type.figureSmall, color = c.textMuted)
-                        if (t.first) Pill("اول", Tone.GOLD)
+                        if (t.first) Pill("اول", Tone.SILVER)
                     }
                     Text(prose(t.whyFa), style = Divan.type.micro, color = c.textMuted)
                 }

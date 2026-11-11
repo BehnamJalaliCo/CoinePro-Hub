@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -167,8 +167,8 @@ internal fun WatchFindingCard(f: Finding, kind: WatchKind, onDetails: () -> Unit
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DIcon(DivanIcon.EDIT, size = 14.dp, tint = c.goldInk)
-                Text(if (kind == WatchKind.GROWTH || kind == WatchKind.HOLDING) "پیشنهاد" else "اصلاح پیشنهادی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.weight(1f))
-                f.fix?.ref?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) }
+                Text(if (kind == WatchKind.GROWTH || kind == WatchKind.HOLDING) "پیشنهاد" else "اصلاح پیشنهادی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.weight(1f))
+                f.fix?.ref?.let { Fig(it, style = Divan.type.figureSmall, color = c.silverInk) }
             }
             Md(fix, style = Divan.type.small, color = c.textPrimary)
         }

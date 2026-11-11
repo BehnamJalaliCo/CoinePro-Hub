@@ -203,6 +203,8 @@ data class LiveState(
     val foreground: Boolean = false,
     val visibleSince: Long? = null,
     val missed: Int = 0,
+    /** ⟨1.0.1⟩ The last 24 hours of the pulse's figures, when the hub's summary carried them (null: the numbers stand alone). */
+    val series: com.coinepro.hq.core.net.PulseSeries? = null,
 )
 
 // ------------------------------------------------------------------ small helpers --
@@ -265,6 +267,7 @@ fun seeded(prev: LiveState, s: LiveSummary, day: Totals?, now: Long): LiveState 
         seq = s.seq ?: prev.seq,
         seeded = true,
         seededAt = now,
+        series = s.series ?: prev.series,
         people = s.people,
         sessions = s.sessions,
         approvals = s.approvals,
@@ -560,14 +563,17 @@ fun spendPct(t: TokensLive): Double? {
     return u / b * 100.0
 }
 
-/** OF-1's four figures, each null when the hub has not said («—»). */
-data class PulseView(val working: Int?, val total: Int?, val moving: Int?, val waitingYou: Int?, val perMin: Long?)
+/** OF-1's figures, each null when the hub has not said («—»). ⟨1.0.1⟩ [open]: every open session (moving, the owner's turn, stuck,
+ *  ready), the pulse's middle figure; [readAt]: the moment the figures were last heard of (the last event, else the seed). */
+data class PulseView(val working: Int?, val total: Int?, val moving: Int?, val waitingYou: Int?, val perMin: Long?, val open: Int? = null, val readAt: Long? = null)
 
 fun pulseOf(s: LiveState, now: Long): PulseView {
     val p = s.people
     val working = if (p.working == null && p.thinking == null) null else (p.working ?: 0) + (p.thinking ?: 0)
     val waiting = if (s.approvals == null && s.sessions.yourTurn == null) null else (s.approvals ?: 0) + (s.sessions.yourTurn ?: 0)
-    return PulseView(working, p.total, s.sessions.moving, waiting, perMin(s.tokens, now))
+    val ss = s.sessions
+    val open = if (ss.moving == null && ss.yourTurn == null) null else (ss.moving ?: 0) + (ss.yourTurn ?: 0) + (ss.stuck ?: 0) + (ss.ready ?: 0)
+    return PulseView(working, p.total, ss.moving, waiting, perMin(s.tokens, now), open, s.lastEventAt ?: s.seededAt)
 }
 
 /** CO-1's card state: locked first, then stuck people, then busy, else calm. */

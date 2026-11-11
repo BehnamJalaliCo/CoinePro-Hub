@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -205,7 +205,7 @@ private fun MemoryCard(d: HubServices) {
                 buildAnnotatedString { append("آزاد "); fig(mbFig(m.freeMb), c.textPrimary, FontWeight.SemiBold); append(" از بودجه‌ی "); fig(mbFig(m.budgetMb)) },
                 style = Divan.type.body, color = c.textSecondary,
             )
-            MeterBar(pct, tone = when { pct >= 90 -> BarTone.NEG; pct >= 75 -> BarTone.WARN; else -> BarTone.GOLD }, height = 8.dp)
+            MeterBar(pct, tone = when { pct >= 90 -> BarTone.NEG; pct >= 75 -> BarTone.WARN; else -> BarTone.SILVER }, height = 8.dp)
             Text(
                 buildAnnotatedString { append("سرویس‌های روشن "); fig(mbFig(m.capsMb)); append(" گرفته‌اند؛ کل حافظه‌ی سرور "); fig(mbFig(m.totalMb)) },
                 style = Divan.type.caption, color = c.textMuted,
@@ -261,7 +261,7 @@ fun RefusedBody(x: Refused, freeMb: Double, onDismiss: () -> Unit, onSwap: (List
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
                 Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(timesFig(b.titleFa.ifBlank { b.key }), style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
-                    if (b in off) Pill("خاموش میشود", Tone.GOLD)
+                    if (b in off) Pill("خاموش میشود", Tone.SILVER)
                     Fig(mbFig(b.memCapMb), style = Divan.type.figureSmall, color = c.textMuted)
                 }
             }

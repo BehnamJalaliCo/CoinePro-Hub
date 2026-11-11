@@ -31,7 +31,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
@@ -609,7 +609,7 @@ fun VoiceProblem(why: String, settings: Boolean, onSettings: () -> Unit, onDismi
     ) {
         DIcon(DivanIcon.MIC, size = 16.dp, tint = c.warning)
         Text(why, style = Divan.type.caption, color = c.textPrimary, modifier = Modifier.weight(1f))
-        if (settings) Text("تنظیمات", Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onSettings).padding(4.dp), style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.goldInk)
+        if (settings) Text("تنظیمات", Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onSettings).padding(4.dp), style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.silverInk)
         IconBtn(DivanIcon.CLOSE, "بستن؛ مینویسم", onDismiss)
     }
 }

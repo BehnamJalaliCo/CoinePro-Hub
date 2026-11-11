@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -1089,8 +1089,8 @@ fun FeedLine(r: FeedRow, open: (String) -> Unit) {
         // The work as the owner knows it: its ref and title; its ref alone while the title is not known; never its id.
         fun work() {
             when {
-                known != null -> { fig(known.ref, c.goldInk); append(" · "); append(known.title) }
-                workKey != null && com.coinepro.hq.core.data.WorkTitles.isHuman(workKey) -> fig(workKey, c.goldInk)
+                known != null -> { fig(known.ref, c.silverInk); append(" · "); append(known.title) }
+                workKey != null && com.coinepro.hq.core.data.WorkTitles.isHuman(workKey) -> fig(workKey, c.silverInk)
                 else -> append("کاری که دیگر در دسترس نیست")
             }
         }
@@ -1101,10 +1101,10 @@ fun FeedLine(r: FeedRow, open: (String) -> Unit) {
                 append("اجرای"); who(); append(when (r.state) { "done" -> " تمام شد"; "failed" -> " شکست خورد"; "refused" -> " ایستاد"; else -> " بسته شد" })
                 if (workKey != null) { append(": "); work() }
             }
-            r.type == "deliverable.created" -> { append("خروجی تازه "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) }; if (workKey != null) { append(" برای "); work() } }
-            r.type == "deliverable.rated" -> { append("امتیاز تو به "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) } }
-            r.type == "decision.created" -> { append("کارت تازه در کارتابل "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) } }
-            r.type == "decision.decided" -> { append("تصمیم "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) }; append(" گرفته شد") }
+            r.type == "deliverable.created" -> { append("خروجی تازه "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.silverInk) }; if (workKey != null) { append(" برای "); work() } }
+            r.type == "deliverable.rated" -> { append("امتیاز تو به "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.silverInk) } }
+            r.type == "decision.created" -> { append("کارت تازه در کارتابل "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.silverInk) } }
+            r.type == "decision.decided" -> { append("تصمیم "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.silverInk) }; append(" گرفته شد") }
             r.type == "control.changed" -> append("کلیدها تغییر کرد")
             r.type == "work.created" -> { append("کار تازه: "); work() }
             r.type == "work.delegated" -> {
@@ -1118,7 +1118,7 @@ fun FeedLine(r: FeedRow, open: (String) -> Unit) {
             else -> {
                 append("رویداد تازه در ")
                 append(TOPIC_FA[r.type.substringBefore('.')] ?: "هاب")
-                r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { append(" "); fig(it, c.goldInk) }
+                r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { append(" "); fig(it, c.silverInk) }
             }
         }
     }

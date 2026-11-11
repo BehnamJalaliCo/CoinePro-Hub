@@ -119,7 +119,7 @@ fun lineModeTone(m: String?): Tone = if (m == "auto") Tone.GOLD else Tone.LAPIS
 /** A line's run state (§30.1 Run). */
 val LINE_RUN_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
     "queued" to ("در صف" to Tone.SILVER),
-    "running" to ("در کار" to Tone.GOLD),
+    "running" to ("در کار" to Tone.SILVER),
     "waiting" to ("منتظر مُهر تو" to Tone.WARN),
     "done" to ("انجام شد" to Tone.POS),
     "failed" to ("انجام نشد" to Tone.NEG),
@@ -133,7 +133,7 @@ fun lineRunStateTone(s: String?): Tone = LINE_RUN_STATE_FA[s]?.second ?: Tone.SI
 
 val STEP_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
     "pending" to ("در انتظار" to Tone.SILVER),
-    "running" to ("در کار" to Tone.GOLD),
+    "running" to ("در کار" to Tone.SILVER),
     "waiting" to ("منتظر تو" to Tone.WARN),
     "done" to ("تمام شد" to Tone.POS),
     "failed" to ("انجام نشد" to Tone.NEG),

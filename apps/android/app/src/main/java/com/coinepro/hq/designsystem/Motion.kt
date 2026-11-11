@@ -46,7 +46,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +62,8 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
+import kotlinx.coroutines.launch
 
 /**
  * Divan motion: three durations and two curves, used everywhere instead of ad-hoc values, so every part of the app moves with
@@ -157,18 +159,81 @@ fun Modifier.smoothSize(): Modifier = composed {
 }
 
 // --------------------------------------------------------------- press --
-/** Press feedback: the element sinks a little while pressed. The scale lives in the layer, so pressing never recomposes. */
-fun Modifier.pressScale(source: InteractionSource, pressed: Float = 0.97f): Modifier = composed {
+/** ⟨1.0.1⟩ M16 «فرورفتن»: how far a pressable surface sinks under the finger (2 %), in [Motion.SHORT] (120 ms). */
+const val PRESS_SCALE = 0.98f
+
+/** Press feedback (M16): the element sinks a little while pressed. The scale lives in the layer, so pressing never recomposes. A plain
+ *  `clickable` needs nothing: the theme's indication ([PressIndication]) answers every touch the same way. */
+fun Modifier.pressScale(source: InteractionSource, pressed: Float = PRESS_SCALE): Modifier = composed {
     val reduced = LocalReducedMotion.current
     val down by source.collectIsPressedAsState()
     val s = animateFloatAsState(if (down && !reduced) pressed else 1f, Motion.short(reduced), label = "press")
     graphicsLayer { scaleX = s.value; scaleY = s.value }
 }
 
+/**
+ * ⟨1.0.1⟩ M16 for every pressable surface at once: the theme's indication ([DivanTheme] provides it as `LocalIndication`), so a row, a
+ * card, a chip or a tab made with a plain `clickable` / `selectable` / `toggleable` sinks to [PRESS_SCALE] and back in 120 ms, with the
+ * usual ripple. No touch is left without an answer, and no screen has to ask for it. Instant when animations are removed.
+ */
+object PressIndication : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): androidx.compose.ui.node.DelegatableNode = PressNode(interactionSource)
+    override fun equals(other: Any?): Boolean = other === this
+    override fun hashCode(): Int = 16
+}
+
+private class PressNode(private val source: InteractionSource) :
+    androidx.compose.ui.node.DelegatingNode(), androidx.compose.ui.node.DrawModifierNode, androidx.compose.ui.node.CompositionLocalConsumerModifierNode {
+    // The platform ripple itself (the same one Material's `ripple()` draws, in the content colour), owned here so that its drawing
+    // and the content's sink together in one draw.
+    private val ripple = delegate(
+        androidx.compose.material.ripple.createRippleModifierNode(
+            source, bounded = true, radius = Dp.Unspecified,
+            color = { currentValueOf(LocalContentColor) },
+            rippleAlpha = { androidx.compose.material3.RippleDefaults.RippleAlpha },
+        ),
+    )
+    private val scale = Animatable(1f)
+
+    override fun onAttach() {
+        coroutineScope.launch {
+            var down = 0
+            source.interactions.collect { i ->
+                when (i) {
+                    is androidx.compose.foundation.interaction.PressInteraction.Press -> down++
+                    is androidx.compose.foundation.interaction.PressInteraction.Release, is androidx.compose.foundation.interaction.PressInteraction.Cancel -> down = (down - 1).coerceAtLeast(0)
+                    else -> return@collect
+                }
+                val reduced = currentValueOf(LocalReducedMotion)
+                val to = if (down > 0 && !reduced) PRESS_SCALE else 1f
+                launch { if (reduced) scale.snapTo(1f) else scale.animateTo(to, tween(Motion.SHORT, easing = Motion.Standard)) }
+            }
+        }
+    }
+
+    override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
+        val s = scale.value
+        val content = this
+        val inner = ripple as androidx.compose.ui.node.DrawModifierNode
+        // The ripple's own draw draws the content once and then the ripple over it.
+        if (s == 1f) with(inner) { content.draw() } else scale(s, s) { with(inner) { content.draw() } }
+    }
+}
+
 // -------------------------------------------------------------- haptics --
-/** Light haptics for the actions that matter (seal, stop, mark seen); nothing for ordinary taps. */
+/**
+ * ⟨1.0.1⟩ M21 «لرزش»: three subtle haptics, each answering an act of the owner, never a passive update. Get it with [rememberHaptics].
+ * - [tick]: one light tap (a step done, a selection, «خوانده شد»);
+ * - [seal]: one heavier tap (an approval sent);
+ * - [error]: two short taps (it did not happen).
+ * [confirm], [firm] and [reject] are the older names of the same platform constants.
+ */
 @Stable
 class Haptics(private val h: HapticFeedback) {
+    /** One heavier tap: an approval was sent («تأیید», «باز کن», «انتشار»). */
+    fun seal() = h.performHapticFeedback(HapticFeedbackType.LongPress)
+    /** Two short taps: the act did not go through. */
+    fun error() = h.performHapticFeedback(HapticFeedbackType.Reject)
     /** A light tick: marked seen, a toggle, a chip. */
     fun tick() = h.performHapticFeedback(HapticFeedbackType.SegmentTick)
     /** Done: sealed, saved, resumed. */
@@ -183,6 +248,91 @@ class Haptics(private val h: HapticFeedback) {
 fun rememberHaptics(): Haptics {
     val h = LocalHapticFeedback.current
     return remember(h) { Haptics(h) }
+}
+
+// --------------------------------------------------------------- M17 stagger --
+/** ⟨1.0.1⟩ M17 «پله‌پله»: at most this many rows of a list settle one after another; the rest are simply there. */
+const val STAGGER_ROWS = 8
+/** The gap between one row's start and the next one's. */
+const val STAGGER_MS = 30
+
+/**
+ * M17: the [index]th row of a list settles (M1: it fades in and rises 6 dp, 200 ms) [STAGGER_MS] after the one before, the first time
+ * the list is shown; rows past [STAGGER_ROWS] and every row when animations are removed are simply in place. Put it on each row:
+ * `Modifier.stagger(i)`. The motion lives in the layer, so it never re-lays out.
+ */
+fun Modifier.stagger(index: Int): Modifier = composed {
+    if (LocalReducedMotion.current || index >= STAGGER_ROWS) return@composed this
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        // By the frame clock, so it follows the display and the test clock alike.
+        if (index > 0) {
+            val start = androidx.compose.runtime.withFrameNanos { it }
+            while (androidx.compose.runtime.withFrameNanos { it } - start < index * STAGGER_MS * 1_000_000L) Unit
+        }
+        p.animateTo(1f, tween(Grammar.SETTLE_ROW, easing = Motion.Standard))
+    }
+    graphicsLayer {
+        alpha = p.value
+        translationY = (1f - p.value) * Grammar.RISE.toPx()
+    }
+}
+
+// --------------------------------------------------------------- M18 collapse --
+/**
+ * ⟨1.0.1⟩ M18 «جمع شدن سربرگ»: how far a page's header has folded, 0 (open) to 1 (one line), from how far its list has scrolled:
+ * the first [range] of scroll folds it. Read `.value` inside [CollapsingHeader] (or a layer); with animations removed it is 0 or 1.
+ */
+@Composable
+fun rememberCollapse(list: androidx.compose.foundation.lazy.LazyListState, range: Dp = 72.dp): State<Float> {
+    val px = with(androidx.compose.ui.platform.LocalDensity.current) { range.toPx() }
+    val reduced = LocalReducedMotion.current
+    return remember(list, px, reduced) {
+        androidx.compose.runtime.derivedStateOf {
+            val f = if (list.firstVisibleItemIndex > 0) 1f else (list.firstVisibleItemScrollOffset / px).coerceIn(0f, 1f)
+            if (reduced) (if (f >= 0.5f) 1f else 0f) else f
+        }
+    }
+}
+
+/** The same for a page that scrolls as one column. */
+@Composable
+fun rememberCollapse(scroll: androidx.compose.foundation.ScrollState, range: Dp = 72.dp): State<Float> {
+    val px = with(androidx.compose.ui.platform.LocalDensity.current) { range.toPx() }
+    val reduced = LocalReducedMotion.current
+    return remember(scroll, px, reduced) {
+        androidx.compose.runtime.derivedStateOf {
+            val f = (scroll.value / px).coerceIn(0f, 1f)
+            if (reduced) (if (f >= 0.5f) 1f else 0f) else f
+        }
+    }
+}
+
+/**
+ * M18: a header that folds to one line as its page scrolls. Put it ABOVE the list (not inside it): [full] is the open header, [line]
+ * the one line it becomes; its height follows [fraction] (from [rememberCollapse]) between the two, [full] fading out as [line]
+ * fades in. Nothing here animates on its own: it follows the finger.
+ */
+@Composable
+fun CollapsingHeader(fraction: () -> Float, modifier: Modifier = Modifier, line: @Composable () -> Unit, full: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(
+        content = {
+            Box(Modifier.graphicsLayer { alpha = (1f - fraction() * 1.6f).coerceIn(0f, 1f) }) { full() }
+            Box(Modifier.graphicsLayer { alpha = ((fraction() - 0.4f) / 0.6f).coerceIn(0f, 1f) }) { line() }
+        },
+        modifier = modifier.clip(androidx.compose.ui.graphics.RectangleShape),
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+        val open = measurables[0].measure(loose)
+        val folded = measurables[1].measure(loose)
+        val f = fraction().coerceIn(0f, 1f)
+        val h = (open.height + (folded.height - open.height) * f).toInt().coerceAtLeast(0)
+        layout(constraints.maxWidth, h) {
+            // Whichever cannot be seen is not placed, so it takes no touch.
+            if (f < 1f) open.placeRelative(0, 0)
+            if (f > 0f) folded.placeRelative(0, 0)
+        }
+    }
 }
 
 // ---------------------------------------------------------------- loops --

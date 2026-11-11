@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -152,7 +152,7 @@ private fun MemberRow(m: CouncilMember, role: String? = null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(playerFa(m.player), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = if (out) c.textSecondary else c.textPrimary)
                 // ⟨1.11⟩ §29.8 its role in the council.
-                role?.let { Text(it, style = Divan.type.micro, color = c.goldInk) }
+                role?.let { Text(it, style = Divan.type.micro, color = c.silverInk) }
                 if (m.model.isNotBlank()) Fig(if (m.player == "claude") com.coinepro.hq.core.format.modelLabel(m.model) else subModel(m.model), style = Divan.type.figureSmall, color = c.textMuted)
             }
             if (out) memberReasonFa(m.reason)?.let { ReasonLine(it, if (m.state == "failed") c.negative else c.textMuted) }
@@ -162,8 +162,8 @@ private fun MemberRow(m: CouncilMember, role: String? = null) {
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     DIcon(DivanIcon.DELIVERABLE, size = 13.dp, tint = c.goldInk)
-                    Text("پاسخ کامل", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
-                    Fig(ref, style = Divan.type.figureSmall, color = c.goldInk)
+                    Text("پاسخ کامل", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
+                    Fig(ref, style = Divan.type.figureSmall, color = c.silverInk)
                 }
             }
         }
@@ -186,7 +186,7 @@ internal fun ReasonLine(r: MemberReason, tint: androidx.compose.ui.graphics.Colo
             Text(r.text, style = Divan.type.micro, color = tint, maxLines = 3)
             if (r.raw != null) Text(
                 if (open) "بستن جزئیات" else "جزئیات",
-                style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk,
+                style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { open = !open }.padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
@@ -252,7 +252,7 @@ fun SynthesisView(ref: String, title: String, body: String, model: String?) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ModelMark(model ?: "claude", provider = "anthropic", size = 18.dp)
             Column(Modifier.weight(1f)) {
-                Text("جمع‌بندی Claude", style = Divan.type.bodyStrong, color = c.goldInk)
+                Text("جمع‌بندی Claude", style = Divan.type.bodyStrong, color = c.silverInk)
                 Text(title, style = Divan.type.micro, color = c.textSecondary, maxLines = 2)
             }
             Fig(ref, style = Divan.type.figureSmall, color = c.textMuted)

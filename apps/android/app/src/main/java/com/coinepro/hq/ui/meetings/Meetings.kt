@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -371,7 +371,7 @@ private fun Stepper(value: Int, range: IntRange, unit: String, onChange: (Int) -
 private fun StepKey(sign: String, enabled: Boolean, onClick: () -> Unit) {
     val c = Divan.colors
     Box(Modifier.size(32.dp).clip(CircleShape).clickable(enabled = enabled, role = Role.Button, onClickLabel = if (sign == "+") "بیشتر" else "کمتر", onClick = onClick), contentAlignment = Alignment.Center) {
-        Fig(sign, style = Divan.type.figure, color = if (enabled) c.goldInk else c.disabledText)
+        Fig(sign, style = Divan.type.figure, color = if (enabled) c.silverInk else c.disabledText)
     }
 }
 

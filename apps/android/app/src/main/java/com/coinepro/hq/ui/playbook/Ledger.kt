@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -125,21 +125,7 @@ internal fun LedgerBody(group: String, company: String, kind0: String = "topic",
         )
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HqTextField(draft, { draft = it; refused = null }, "این را قبلاً گفته‌ایم…", Modifier.weight(1f).testTag("ledger-add"), maxLength = 300)
-            HqButton("افزودن", {
-                val b = body ?: return@HqButton
-                add.run(onError = { e: ApiException ->
-                    // said before: the hub names the earlier line and its day, under the field
-                    if (e.status == 409) { e.logged?.let { env.api.failures?.forget(it) }; refused = e.messageFa } else toasts.error(e.messageFa)
-                }) {
-                    env.api.addTopic(group, company, b)
-                    draft = ""; link = ""; refused = null
-                    env.cache.invalidate("ledger")
-                    toasts.ok("در دفتر ثبت شد؛ دیگر ساخته نمیشود.")
-                }
-            }, size = BtnSize.MD, icon = DivanIcon.ADD, enabled = body != null, loading = add.busy)
-        }
+        HqTextField(draft, { draft = it; refused = null }, "این را قبلاً گفته‌ایم…", Modifier.fillMaxWidth().testTag("ledger-add"), maxLength = 300)
         // a sample is its link (its words are optional); the example is Latin alone, so it reads left to right
         if (kind == "reference") {
             Text("لینک نمونه", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
@@ -175,6 +161,25 @@ internal fun LedgerBody(group: String, company: String, kind0: String = "topic",
         "ایجنت‌ها پیش از ساختن هر محتوا موضوعش را همین‌جا ثبت میکنند؛ موضوعی که این‌جاست دوباره ساخته نمیشود مگر آزادش کنی.",
         style = Divan.type.micro, color = c.textMuted,
     )
+    // ⟨1.0.1⟩ C0.2: the sheet's one primary action, stuck to its bottom (the line he adds is the field above).
+    com.coinepro.hq.designsystem.SheetBar {
+        com.coinepro.hq.designsystem.DecisionBar(
+            "افزودن", {
+                val b = body ?: return@DecisionBar
+                add.run(onError = { e: ApiException ->
+                    // said before: the hub names the earlier line and its day, under the field
+                    if (e.status == 409) { e.logged?.let { env.api.failures?.forget(it) }; refused = e.messageFa } else toasts.error(e.messageFa)
+                }) {
+                    env.api.addTopic(group, company, b)
+                    draft = ""; link = ""; refused = null
+                    env.cache.invalidate("ledger")
+                    toasts.ok("در دفتر ثبت شد؛ دیگر ساخته نمیشود.")
+                }
+            },
+            icon = DivanIcon.ADD, enabled = body != null,
+            state = if (add.busy) com.coinepro.hq.designsystem.DecisionState.WORKING else com.coinepro.hq.designsystem.DecisionState.IDLE,
+        )
+    }
 }
 
 /** One line: its words, its day and where it came from; a sample's link (opens outside); and «آزاد کن», asked in place. */

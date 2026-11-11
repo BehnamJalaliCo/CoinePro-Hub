@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,7 +86,7 @@ fun TrainingCard(code: String, modifier: Modifier = Modifier) {
                 }
                 if (r.lessons.isNotEmpty()) Text(buildAnnotatedString {
                     append("درس‌هایی که با خودش دارد: ")
-                    r.lessons.forEachIndexed { i, l -> if (i > 0) append("، "); fig(l, c.goldInk) }
+                    r.lessons.forEachIndexed { i, l -> if (i > 0) append("، "); fig(l, c.silverInk) }
                 }, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.clickable { nav.go("stars") })
             }
         }

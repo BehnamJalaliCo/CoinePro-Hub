@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -315,7 +315,7 @@ fun Masked4(v: String) {
     var show by rememberSaveable(v) { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Fig(if (show) v else last4(v), style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-        Text(if (show) "پنهان" else "نمایش", Modifier.clickable(role = Role.Button) { show = !show }, style = Divan.type.micro, color = c.goldInk)
+        Text(if (show) "پنهان" else "نمایش", Modifier.clickable(role = Role.Button) { show = !show }, style = Divan.type.micro, color = c.silverInk)
     }
 }
 
@@ -355,8 +355,8 @@ fun FieldValue(f: FieldDef, v: JsonElement?, m: ArchiveMaps, masked: Boolean = f
             Text(companyOf(companies, v.prim).nameFa, style = strong, color = c.textPrimary)
         }
         "ref" -> v.obj?.get("ref").str?.let { RefChip(it, note = v.obj?.get("kind").str?.let { k -> REF_KIND_FA[k] ?: k }) } ?: Fig(v.prim.orEmpty(), style = figStyle)
-        "url" -> Fig(v.prim.orEmpty(), Modifier.clickable(role = Role.Button) { runCatching { uri.openUri(v.prim.orEmpty()) } }, style = figStyle, color = c.goldInk, maxLines = 3)
-        "email" -> Fig(v.prim.orEmpty(), Modifier.clickable(role = Role.Button) { runCatching { uri.openUri("mailto:${v.prim}") } }, style = figStyle, color = c.goldInk, maxLines = 2)
+        "url" -> Fig(v.prim.orEmpty(), Modifier.clickable(role = Role.Button) { runCatching { uri.openUri(v.prim.orEmpty()) } }, style = figStyle, color = c.silverInk, maxLines = 3)
+        "email" -> Fig(v.prim.orEmpty(), Modifier.clickable(role = Role.Button) { runCatching { uri.openUri("mailto:${v.prim}") } }, style = figStyle, color = c.silverInk, maxLines = 2)
         "phone" -> Fig(v.prim.orEmpty(), style = figStyle, color = c.textPrimary)
         "id_code", "iban" -> Masked4(v.prim.orEmpty())
         "long_text" -> Text(prose(v.prim.orEmpty()), style = Divan.type.small, color = c.textPrimary)

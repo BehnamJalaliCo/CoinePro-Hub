@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,33 +95,34 @@ fun OfficeScreen() {
         item(key = "hello") {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(jWeekday(com.coinepro.hq.core.format.HqClock.now().toString()), style = Divan.type.caption, color = c.textMuted)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("دفتر مدیر کل", style = Divan.type.h1, modifier = Modifier.weight(1f))
-                    if (presence.data?.khalvat == true) Pill("خلوت؛ فقط فوری", Tone.LEARN, icon = DivanIcon.KHALVAT)
-                    // ⟨1.20⟩ §38.3 the hub's services, one tap from the office.
-                    // ⟨1.22⟩ §40 the working groups drawn from sessions, one tap from the office.
-                    // ⟨1.24⟩ HM: the holding's live network map, one tap from the office.
-                    com.coinepro.hq.designsystem.IconBtn(DivanIcon.GLOBE, "شبکه", { nav.go("network") }, tint = c.textSecondary)
-                    if (playbooksOn) com.coinepro.hq.designsystem.IconBtn(DivanIcon.DEPARTMENT, "کارگروه‌ها", { nav.go("playbooks") }, tint = c.textSecondary)
-                    if (servicesOn) com.coinepro.hq.designsystem.IconBtn(DivanIcon.SERVER, "سرویس‌های هاب", { nav.go("services") }, tint = c.textSecondary)
+                    // ⟨1.20⟩ §38.3 the hub's services, ⟨1.22⟩ §40 the working groups, ⟨1.24⟩ the holding's live network map: one tap from the
+                    // office. ⟨1.0.1⟩ each sign carries its name.
+                    com.coinepro.hq.ui.look.NamedIcon(DivanIcon.GLOBE, "شبکه", { nav.go("network") })
+                    if (playbooksOn) com.coinepro.hq.ui.look.NamedIcon(DivanIcon.DEPARTMENT, "کارگروه‌ها", { nav.go("playbooks") })
+                    if (servicesOn) com.coinepro.hq.ui.look.NamedIcon(DivanIcon.SERVER, "سرویس‌ها", { nav.go("services") })
                 }
+                if (presence.data?.khalvat == true) Pill("خلوت؛ فقط فوری", Tone.LEARN, icon = DivanIcon.KHALVAT)
             }
         }
         when {
             office == null && (q.error ?: home?.error) != null -> item(key = "error") { ErrorBlock(q.error ?: home?.error, { r.refresh() }) }
             office == null -> item(key = "skeleton") { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { repeat(3) { Skeleton(Modifier.fillMaxWidth().height(if (it == 1) 300.dp else 140.dp), radius = 16.dp) } } }
             else -> {
-                // ⟨1.24⟩ OF-1: is my holding working, and is anything waiting for me — the first answer on opening the app.
-                if (liveOn) item(key = "pulse") { com.coinepro.hq.ui.live.OfficePulse() }
+                // ⟨1.0.1⟩ C3.1: what waits for the owner first, answered in place; then the pulse in one row, the one-row command entry,
+                // the sessions as cards; the rest as it was.
+                item(key = "turn") { com.coinepro.hq.ui.look.TurnRow(office) }
                 if (office.critical.isNotEmpty()) item(key = "critical") { com.coinepro.hq.ui.v29.CriticalCard(office.critical) }
-                item(key = "command") { CommandBar() }
-                item(key = "sessions") { SessionsCard(office, sessionsOn) }
+                // ⟨1.24⟩ OF-1: is my holding working, and is anything waiting for me.
+                if (liveOn) item(key = "pulse") { com.coinepro.hq.ui.live.OfficePulse(waiting = com.coinepro.hq.core.data.turnCount(office)) }
+                item(key = "command") { com.coinepro.hq.ui.look.CommandRow() }
+                item(key = "sessions") { SessionsBlock(office, sessionsOn) }
                 // ⟨1.24⟩ CO-1: every company alive, working, healthy and what it costs today, the busiest first.
                 if (liveOn) item(key = "live-companies") { com.coinepro.hq.ui.live.LiveCompaniesCard() }
                 item(key = "canvas") { CanvasCard(office.canvas, editable = sessionsOn) }
                 // ⟨1.24⟩ MO-1: the holding's real cost, moving as it is spent.
                 if (liveOn) item(key = "tokens") { com.coinepro.hq.ui.live.TokenMeter() }
-                item(key = "approvals") { ApprovalsCard(office.approvals, office.approvalsTotal) }
                 item(key = "money") { MoneyLine(office.money, sessionsOn) }
                 if (office.suggestions.isNotEmpty()) {
                     item(key = "suggestions-title") { SectionTitle("پیشنهادها", note = "از کار واقعی، درباره‌ی هر چیزی؛ «اجرا کن» جلسه‌اش را باز میکند", icon = DivanIcon.STAR) }
@@ -134,133 +135,21 @@ fun OfficeScreen() {
     }
 }
 
-// --------------------------------------------------------------- command --
-/**
- * The command bar: the owner says or writes what he wants, the secretary's one line says where it goes, and «جلسه را باز کن» sends the
- * order and opens its session at once (§35.1: the holder speaks first there within seconds). [text0] opens it on words already there.
- */
-@Composable
-fun CommandBar(text0: String = "", preview0: com.coinepro.hq.core.net.OrderRoute29? = null) {
-    val env = LocalEnv.current
-    val nav = LocalNav.current
-    val c = Divan.colors
-    val action = rememberAction()
-    var text by rememberSaveable { mutableStateOf(text0) }
-    var voice by remember { mutableStateOf<VoiceResult?>(null) }
-    var editing by remember { mutableStateOf(false) }
-    // ⟨2026-11-09⟩ «با من یا خودکار؟» is asked before the session opens; nothing is chosen for the owner
-    var pace by rememberSaveable { mutableStateOf<String?>(null) }
-    val vh = rememberLongVoice("order") { r -> text = if (text.isBlank()) r.text else "${text.trimEnd()} ${r.text}"; voice = r }
-    val v = vh.v
-    val source = if (voice != null) "voice" else "text"
-    val preview = rememberPreview(text, source, on = !v.active && text.isNotBlank(), preview0 = preview0)
-    HqCard(Modifier.fillMaxWidth(), tahrir = true) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DIcon(DivanIcon.COMMAND, size = 18.dp, tint = c.goldInk)
-                Text("فرمان تازه", style = Divan.type.bodyStrong, modifier = Modifier.weight(1f))
-                Text("هر فرمان یک جلسه", style = Divan.type.micro, color = c.textMuted)
-            }
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HqTextField(text, { text = it }, "بگو یا بنویس چه میخواهی؛ درباره‌ی هر چیزی", Modifier.weight(1f), singleLine = false, minLines = 2, maxLength = 10000)
-                Box(contentAlignment = Alignment.Center) {
-                    if (v.transcribing) CircularProgressIndicator(Modifier.padding(10.dp), color = c.goldInk, strokeWidth = 2.dp)
-                    else IconBtn(if (v.recording) DivanIcon.STOP else DivanIcon.MIC, if (v.recording) "تمام" else "بگو", { if (v.recording) v.finish() else vh.start() }, tint = c.goldInk, active = v.recording)
-                }
-            }
-            if (v.recording || v.partial.isNotBlank()) Text(plain(v.partial.ifBlank { "میشنوم…" }), style = Divan.type.caption, color = c.textSecondary, maxLines = 2)
-            v.unavailable?.let { Text(it, style = Divan.type.caption, color = c.warning) }
-            PreviewLine(preview, onEdit = { editing = true })
-            if (text.trim().length >= 3) com.coinepro.hq.ui.session.PaceAsk(pace, { pace = it })
-            HqButton(
-                "جلسه را باز کن", {
-                    val chosen = pace ?: return@HqButton
-                    action.run {
-                        val o = env.api.orderWithPace(text.trim(), source, voice?.fileId, preview.route, chosen)
-                        env.cache.invalidate("orders", "work", "sessions", "office", "home", "decisions", "inbox")
-                        text = ""; voice = null; pace = null; preview.route = null; preview.edited = false
-                        nav.go("session/${o.ref}")
-                    }
-                },
-                Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active && pace != null, loading = action.busy,
-            )
-        }
-    }
-    if (editing) preview.route?.let { r -> RouteEditor(r, onDone = { preview.route = it; preview.edited = true; editing = false }, onCancel = { editing = false }) }
-}
-
 // -------------------------------------------------------------- sessions --
+/** ⟨1.0.1⟩ The open sessions as cards with three states only («منتظر تو», «در کار», «تمام»), each opening out of itself (M14). */
 @Composable
-private fun SessionsCard(office: Office, sessionsOn: Boolean) {
+private fun SessionsBlock(office: Office, sessionsOn: Boolean) {
     val nav = LocalNav.current
-    val c = Divan.colors
     val list = sortSessions(office.sessions)
-    val mine = list.count { it.badge == "your_turn" }
-    HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 6.dp)) {
-        SectionTitle("جلسه‌های باز", note = when {
-            list.isEmpty() -> "جلسه‌ی بازی نیست"
-            mine > 0 -> "$mine جلسه منتظر توست"
-            else -> "${list.size} جلسه در جریان"
-        }, icon = DivanIcon.MEETING) {
-            if (sessionsOn) HqButton("همه", { nav.go("sessions") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
+    val waiting = list.count { com.coinepro.hq.core.data.state3(it.badge) == "waiting" }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionTitle("جلسه‌ها", note = when {
+            waiting > 0 -> "${com.coinepro.hq.core.data.faNum(waiting)} جلسه منتظر توست"
+            else -> "هر فرمان یک جلسه است"
+        }) {
+            if (sessionsOn) HqButton("همه و بایگانی", { nav.go("sessions") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
         }
-        Column(Modifier.padding(top = 4.dp)) {
-            if (list.isEmpty()) Text("فرمان تازه‌ای بده؛ همان لحظه جلسه‌اش این‌جا باز میشود.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(vertical = 10.dp))
-            list.take(6).forEachIndexed { i, s ->
-                if (i > 0) HorizontalDivider(color = c.lineDivider)
-                SessionRow(s) { nav.go("session/${s.ref}") }
-            }
-            if (list.size > 6) HqButton("${list.size - 6} جلسه‌ی دیگر", { nav.go("sessions") }, Modifier.fillMaxWidth(), variant = BtnVariant.TEXT, size = BtnSize.SM)
-        }
-    }
-}
-
-// ------------------------------------------------------------- approvals --
-/** What waits for the owner's seal: the first few, sealed right here; the rest in the cartable. */
-@Composable
-private fun ApprovalsCard(items: List<Decision>, total: Int) {
-    val nav = LocalNav.current
-    val c = Divan.colors
-    val companies = rememberCompanies()
-    HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 6.dp)) {
-        SectionTitle("منتظر مُهر تو", note = if (total == 0) "چیزی منتظر نیست" else "$total مورد", icon = DivanIcon.SEAL) {
-            HqButton("کارتابل", { nav.go("cartable") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
-        }
-        Column(Modifier.padding(top = 4.dp)) {
-            if (items.isEmpty()) Text("هر کاری که مُهر تو را بخواهد این‌جا میاید.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(vertical = 10.dp))
-            items.take(3).forEachIndexed { i, d ->
-                if (i > 0) HorizontalDivider(color = c.lineDivider)
-                Column {
-                    com.coinepro.hq.ui.cartable.DecisionRow(d, companies) { nav.go("cartable/${d.ref}") }
-                    SealInPlace(d)
-                }
-            }
-            if (total > 3) HqButton("${total - 3} مورد دیگر در کارتابل", { nav.go("cartable") }, Modifier.fillMaxWidth(), variant = BtnVariant.TEXT, size = BtnSize.SM)
-        }
-    }
-}
-
-/** One card's seal, without leaving the office (the passkey when the card asks for it, as in the cartable). */
-@Composable
-private fun SealInPlace(d: Decision) {
-    val env = LocalEnv.current
-    val nav = LocalNav.current
-    val toasts = LocalToasts.current
-    val act = activity()
-    val seal = rememberAction()
-    var done by remember(d.ref) { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (done) Pill("مُهر خورد", Tone.POS, icon = DivanIcon.SEAL)
-        else HqButton("مُهر بزن", {
-            seal.run {
-                val token = if (com.coinepro.hq.ui.cartable.needsStepUp(d)) env.auth.stepUp(act, com.coinepro.hq.core.net.sealAction(d), com.coinepro.hq.core.net.sealTarget(d)) else null
-                env.api.approve(d.ref, null, token)
-                done = true
-                toasts.ok("مُهر خورد.")
-                env.cache.invalidate("decisions", "inbox", "office")
-            }
-        }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = seal.busy)
-        HqButton("ببین", { nav.go("cartable/${d.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM)
+        com.coinepro.hq.ui.look.SessionCards(office.sessions, onMore = { nav.go("sessions") }) { s -> nav.go("session/${s.ref}") }
     }
 }
 

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -160,7 +160,7 @@ fun CalendarDay(day: String, list: List<CampaignItem>, onOpen: (CampaignItem) ->
     HqCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(plain(jWeekday(day)), style = Divan.type.bodyStrong, modifier = Modifier.weight(1f))
-            if (day == today) Pill("امروز", Tone.GOLD)
+            if (day == today) Pill("امروز", Tone.SILVER)
             Text(plain("${list.size} مورد"), style = Divan.type.caption, color = c.textMuted)
         }
         Column(Modifier.padding(top = 6.dp)) {

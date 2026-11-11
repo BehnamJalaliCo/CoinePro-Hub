@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -161,7 +161,7 @@ fun KitFlowBody(
                 if (left.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("هنوز باید وصل کنی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
                     for (t in left) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("•", style = Divan.type.small, color = c.goldInk)
+                        Text("•", style = Divan.type.small, color = c.silverInk)
                         Para(t, Modifier.weight(1f), style = Divan.type.small, color = c.textPrimary)
                     }
                 }
@@ -200,7 +200,7 @@ private fun KitPart(title: String, items: List<String>) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
         for (t in items) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("•", style = Divan.type.small, color = c.goldInk)
+            Text("•", style = Divan.type.small, color = c.silverInk)
             Text(plain(t), style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
         }
     }

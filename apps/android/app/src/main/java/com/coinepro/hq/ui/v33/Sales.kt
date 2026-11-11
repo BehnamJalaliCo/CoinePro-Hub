@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -160,7 +160,7 @@ private fun StageBar(s: PipeStage, max: Int, chosen: Boolean, onClick: () -> Uni
             Fig("${s.count}", style = Divan.type.figure, color = c.textPrimary)
             if (s.valueUsdt > 0) Fig(usdtText(s.valueUsdt), style = Divan.type.figureSmall, color = c.textMuted)
         }
-        MeterBar(s.count * 100.0 / max, tone = when (s.kind) { "won" -> BarTone.POS; "lost" -> BarTone.SILVER; else -> BarTone.GOLD }, height = 5.dp)
+        MeterBar(s.count * 100.0 / max, tone = when (s.kind) { "won" -> BarTone.POS; "lost" -> BarTone.SILVER; else -> BarTone.SILVER }, height = 5.dp)
     }
 }
 

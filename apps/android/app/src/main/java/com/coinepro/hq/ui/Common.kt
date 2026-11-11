@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -250,7 +250,8 @@ fun Page(onRefresh: (() -> Unit)? = null, refreshing: Boolean = false, content: 
         LazyColumn(
             Modifier.fillMaxSize(),
             state = list,
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
+            // ⟨1.0.1⟩ under the last row there is room for the round command button, where the page has one.
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp + com.coinepro.hq.designsystem.LocalCommandRoom.current),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             content = content,
         )

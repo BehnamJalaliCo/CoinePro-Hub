@@ -21,7 +21,6 @@ import com.coinepro.hq.core.AppGraph
 import com.coinepro.hq.core.net.Canvas
 import com.coinepro.hq.core.net.CanvasNode
 import com.coinepro.hq.core.net.CompanyLink
-import com.coinepro.hq.core.net.OrderRoute29
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.DivanTheme
 import com.coinepro.hq.ui.LocalEnv
@@ -41,9 +40,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * ⟨1.17⟩ Contract §35.5–§35.6, night and day, with the demo holding, drawn tall (1600dp): the owner's office whole (the command bar,
- * the open sessions with his turn first, the canvas, the approvals sealed in place, the money line and the suggestions); the command bar
- * with words and the secretary's line; the canvas alone with its links (one off, one placed by the owner); the sessions list and the
+ * ⟨1.17⟩ Contract §35.5–§35.6, night and day, with the demo holding, drawn tall (1600dp): the owner's office whole (⟨1.0.1⟩ what waits
+ * for him answered in place, the pulse in one row, the command row, the sessions as cards in three states, the canvas, the money line and
+ * the suggestions); the command row and its sheet with words in it; the canvas alone with its links (one off, one placed by the owner); the sessions list and the
  * archive.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -51,11 +50,6 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [35], qualifiers = "w400dp-h1600dp-xxhdpi")
 class OfficeScreensTest(private val name: String, private val night: Boolean) {
     companion object {
-        private val ROUTE = OrderRoute29(
-            companies = listOf("FX"), department = "SUPPORT", outputKind = "other",
-            previewFa = "→ کوینه‌پرو FX/پشتیبانی؛ خروجی: یک پشتیبان شبانه", whyFa = "پشتیبانی تلگرام با مدیر پشتیبانی همان شرکت است.",
-        )
-
         private val CANVAS = Canvas(
             nodes = listOf(
                 CanvasNode("HQ", "هلدینگ کوینه‌پرو", "holding", openSessions = 2),
@@ -72,7 +66,20 @@ class OfficeScreensTest(private val name: String, private val night: Boolean) {
 
         private val SCREENS: Map<String, @Composable (AppGraph) -> Unit> = linkedMapOf(
             "office" to { _ -> com.coinepro.hq.ui.office.OfficeScreen() },
-            "office-command" to { _ -> Cardlike { com.coinepro.hq.ui.office.CommandBar("برای کوینه‌پرو FX یک پشتیبان تلگرامی بگذار که شب‌ها هم جواب بدهد", ROUTE) } },
+            // ⟨1.0.1⟩ C2.1: the home's one-row command entry, and under it the sheet it opens with words in it (the sheet's every state is
+            // in LookScreensTest).
+            "office-command" to { _ ->
+                Cardlike {
+                    com.coinepro.hq.ui.look.CommandRow()
+                    val s = androidx.compose.runtime.remember {
+                        com.coinepro.hq.ui.look.CommandState(com.coinepro.hq.ui.look.CommandOpen(text = "برای کوینه‌پرو FX یک پشتیبان تلگرامی بگذار که شب‌ها هم جواب بدهد")).apply { picked = listOf("FX"); pace = "step" }
+                    }
+                    val companies = com.coinepro.hq.ui.rememberCompanies().filter { it.kind != "holding" }
+                    com.coinepro.hq.designsystem.SpringSheetPreview(com.coinepro.hq.core.data.COMMAND_FA, bar = { com.coinepro.hq.ui.look.CommandDecisionBar(s, companies, {}, {}, {}) }) {
+                        com.coinepro.hq.ui.look.CommandFields(s, companies, routineOn = true)
+                    }
+                }
+            },
             "office-canvas" to { _ -> Cardlike { com.coinepro.hq.ui.office.CanvasCard(CANVAS, editable = true) } },
             "sessions-open" to { _ -> com.coinepro.hq.ui.session.SessionsScreen() },
             "sessions-archive" to { _ -> com.coinepro.hq.ui.session.SessionsScreen(tab0 = "closed") },

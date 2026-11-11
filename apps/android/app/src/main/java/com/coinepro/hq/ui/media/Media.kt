@@ -3,6 +3,7 @@ package com.coinepro.hq.ui.media
 import android.content.Intent
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -26,7 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -297,8 +298,9 @@ fun AudioNote(a: FileRef, showTranscript: Boolean = true) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(c.goldFill).clickable(role = Role.Button, onClickLabel = if (playing) "مکث" else "پخش") { toggle() }, contentAlignment = Alignment.Center) {
-                DIcon(if (playing) DivanIcon.PAUSE else DivanIcon.RESUME, size = 18.dp, tint = c.onGold)
+            // ⟨1.0.1⟩ C0.1: the play button is silver (a raised disc with a silver hairline); gold is the page's one primary action.
+            Box(Modifier.size(36.dp).clip(CircleShape).background(c.raised).border(1.dp, com.coinepro.hq.designsystem.silverLine(), CircleShape).clickable(role = Role.Button, onClickLabel = if (playing) "مکث" else "پخش") { toggle() }, contentAlignment = Alignment.Center) {
+                DIcon(if (playing) DivanIcon.PAUSE else DivanIcon.RESUME, size = 18.dp, tint = c.textPrimary)
             }
             // Playback runs left to right like every media timeline, also in RTL.
             val p = if (dur > 0) (pos / dur).toFloat() else 0f
@@ -321,7 +323,7 @@ fun AudioNote(a: FileRef, showTranscript: Boolean = true) {
         val speech = rememberSpeechEnabled()
         val words = a.hubText
         if (showTranscript && words != null) {
-            Text(if (text) "بستن متن" else if (speech) "متن هاب" else "متن ویس", Modifier.clickable { text = !text }.padding(horizontal = 4.dp), style = Divan.type.micro, color = c.goldInk)
+            Text(if (text) "بستن متن" else if (speech) "متن هاب" else "متن ویس", Modifier.clickable { text = !text }.padding(horizontal = 4.dp), style = Divan.type.micro, color = c.silverInk)
             if (text) Text(words, Modifier.padding(horizontal = 4.dp), style = Divan.type.small, color = c.textSecondary)
         } else if (a.status == "processing") {
             Text("در حال نوشتن متن…", Modifier.padding(horizontal = 4.dp), style = Divan.type.micro, color = c.textMuted)

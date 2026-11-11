@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -166,7 +166,7 @@ fun LineBody(l: Line, voices: List<TtsVoice>, open0: Set<String>? = null) {
                     Text(if (l.mode == "auto") "منتشر میکند، بی‌مُهر" else "هر انتشار اول با مُهر تو", style = Divan.type.bodyStrong, modifier = Modifier.weight(1f))
                     Pill("${l.goodRuns} از ${l.autoAfter} اجرای خوب", if (l.goodRuns >= l.autoAfter) Tone.POS else Tone.SILVER)
                 }
-                MeterBar(if (l.autoAfter > 0) l.goodRuns * 100.0 / l.autoAfter else 0.0, tone = if (l.goodRuns >= l.autoAfter) com.coinepro.hq.designsystem.BarTone.POS else com.coinepro.hq.designsystem.BarTone.GOLD)
+                MeterBar(if (l.autoAfter > 0) l.goodRuns * 100.0 / l.autoAfter else 0.0, tone = if (l.goodRuns >= l.autoAfter) com.coinepro.hq.designsystem.BarTone.POS else com.coinepro.hq.designsystem.BarTone.SILVER)
                 when {
                     l.mode == "auto" -> HqButton("برگرد به مُهر تو", {
                         modeAct.run { env.api.setLineMode(l.ref, "draft"); env.cache.invalidate("lines"); toasts.ok("از این به بعد هر انتشار اول با مُهر توست.") }

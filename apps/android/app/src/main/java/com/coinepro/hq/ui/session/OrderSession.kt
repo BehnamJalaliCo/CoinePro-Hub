@@ -23,7 +23,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
+import com.coinepro.hq.designsystem.continuity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -314,13 +315,16 @@ fun OrderSessionScreen(ref: String) {
 
     Column(Modifier.fillMaxSize().imePadding()) {
         when {
-            o != null -> SessionHead(
-                o, closed, sessionsOn, pace = paceAsked ?: o.pace,
-                onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE },
-                onPace = { p -> setPace(p) }, onPlan = { sheet = SessionSheet.PLAN },
-                lastStepAt = shown?.last?.lastOrNull()?.at?.ifBlank { null } ?: shown?.idleSince,
-                folded = folded, onFold = { f -> folded = f; ui.headFolded = f },
-            )
+            // ⟨1.0.1⟩ M14: the card that was tapped (the office, the sessions list) grows into this head.
+            o != null -> Box(Modifier.continuity("session/$ref")) {
+                SessionHead(
+                    o, closed, sessionsOn, pace = paceAsked ?: o.pace,
+                    onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE },
+                    onPace = { p -> setPace(p) }, onPlan = { sheet = SessionSheet.PLAN },
+                    lastStepAt = shown?.last?.lastOrNull()?.at?.ifBlank { null } ?: shown?.idleSince,
+                    folded = folded, onFold = { f -> folded = f; ui.headFolded = f },
+                )
+            }
             q.error != null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { ErrorBlock(q.error, { q.refresh() }) }
             else -> Skeleton(Modifier.fillMaxWidth().padding(16.dp).height(58.dp), radius = 12.dp)
         }

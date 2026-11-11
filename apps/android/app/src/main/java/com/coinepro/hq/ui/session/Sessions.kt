@@ -17,7 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
+import com.coinepro.hq.designsystem.continuity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,7 +98,7 @@ fun SessionRow(s: SessionCard, modifier: Modifier = Modifier, onErase: (() -> Un
     val press = if (onErase == null) Modifier.clickable(role = Role.Button, onClickLabel = "باز کردن جلسه", onClick = onClick)
     else Modifier.combinedClickable(role = Role.Button, onClickLabel = "باز کردن جلسه", onLongClickLabel = "پاک کردن برای همیشه", onLongClick = { menu = true }, onClick = onClick)
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).then(press).padding(vertical = 10.dp, horizontal = 4.dp),
+        modifier.fillMaxWidth().continuity("session/${s.ref}").clip(RoundedCornerShape(12.dp)).then(press).padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

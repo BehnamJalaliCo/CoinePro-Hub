@@ -24,7 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -236,7 +236,7 @@ private fun SeatView(s: Seat) {
             contentAlignment = Alignment.Center,
         ) { ActorAvatar(s.actor, 40.dp) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (s.speaking) DIcon(DivanIcon.MIC, size = 12.dp, tint = c.goldInk)
+            if (s.speaking) DIcon(DivanIcon.MIC, size = 12.dp, tint = c.silverInk)
             Text(s.actor.displayFa ?: s.actor.code, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, textAlign = TextAlign.Center, maxLines = 2)
         }
         Text(s.status, style = Divan.type.micro, color = s.tone, textAlign = TextAlign.Center, maxLines = 2)
@@ -481,7 +481,7 @@ private fun Drafts(m: Meeting) {
             val it = m.items.firstOrNull { x -> x.id == d.item }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("پیش‌نویس مصوبه ${i + 1}", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.weight(1f))
+                    Text("پیش‌نویس مصوبه ${i + 1}", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.weight(1f))
                     Text(
                         if (d.votes.total > 0) "رأی‌ها: ${d.votes.support} موافق، ${d.votes.oppose} مخالف، ${d.votes.abstain} ممتنع"
                         else when (it?.state) { "round_1" -> "رأی در دور ۲"; "round_2" -> "در حال رأی"; else -> "بی‌رأی" },
@@ -858,7 +858,7 @@ private fun WarRoom(m: Meeting, turns: List<Turn>) {
                 Text(p.roleFa, style = Divan.type.small)
             }
             Text(buildAnnotatedString {
-                if (post != null) { append("کالبدشکافی ${jWeekday(post.startsAt)} "); fig(jTime(post.startsAt)); append(" در پلنر ثبت شد ("); fig(post.ref, c.goldInk); append("). ") }
+                if (post != null) { append("کالبدشکافی ${jWeekday(post.startsAt)} "); fig(jTime(post.startsAt)); append(" در پلنر ثبت شد ("); fig(post.ref, c.silverInk); append("). ") }
                 append(prose("هر مهار بیرونی یک کارت A3 است. هشدار فوری حتی در خلوت میرسد."))
             }, Modifier.clickable(enabled = post != null, role = Role.Button) { post?.let { nav.go("meetings/${it.ref}") } }, style = Divan.type.caption, color = c.textMuted)
         }

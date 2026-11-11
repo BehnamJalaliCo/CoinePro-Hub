@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,7 +58,7 @@ import com.coinepro.hq.ui.v14.LabelPill
 
 val RUN_STATE = mapOf(
     "queued" to Label("در صف", Tone.NEUTRAL),
-    "running" to Label("در حال اجرا", Tone.GOLD, live = true),
+    "running" to Label("در حال اجرا", Tone.SILVER, live = true),
     "done" to Label("تمام شد", Tone.POS),
     "failed" to Label("شکست", Tone.NEG),
     "refused" to Label("رد شد", Tone.WARN),
@@ -86,7 +86,7 @@ fun RunRow(run: Run, showEmployee: Boolean = true, withSteps: Boolean = false) {
                 run.model?.let { Fig(modelLabel(it), style = Divan.type.figureSmall, color = c.textMuted) }
                 Text("${run.steps} قدم، ${run.toolCalls} ابزار", style = Divan.type.micro, color = c.textMuted)
                 Fig("${tokens(run.tokens.input + run.tokens.output)} · ${usd(run.equivCostUsd)}", style = Divan.type.figureSmall, color = c.textMuted)
-                run.workRef?.let { w -> Fig(w, style = Divan.type.figureSmall, color = c.goldInk, modifier = Modifier.clickable { nav.go("work/$w") }) }
+                run.workRef?.let { w -> Fig(w, style = Divan.type.figureSmall, color = c.silverInk, modifier = Modifier.clickable { nav.go("work/$w") }) }
                 run.errorCode?.let { Fig(it, style = Divan.type.figureSmall, color = c.negative) }
             }
         }

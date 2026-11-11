@@ -92,13 +92,8 @@ class PlaybookScreensTest(private val name: String, private val night: Boolean) 
 
         @Composable
         private fun Sheet(title: String, content: @Composable () -> Unit) {
-            Column(
-                Modifier.fillMaxSize().background(Divan.colors.overlay).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Text(title, style = Divan.type.h2)
-                content()
-            }
+            // ⟨1.0.1⟩ the sheet as it stands: as tall as what it holds, its one action stuck to its bottom
+            com.coinepro.hq.designsystem.SpringSheetPreview(title, fill = true) { content() }
         }
 
         /** A topic TradeYar's ledger already holds (its newest line). */

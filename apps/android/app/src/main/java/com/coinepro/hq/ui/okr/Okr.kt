@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -182,7 +182,7 @@ private fun KrRow(k: KeyResult) {
         }
         Fig("${num(k.start)} → ${k.current?.let(::num) ?: "—"} → ${num(k.target)}", style = Divan.type.figure, color = c.textSecondary)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MeterBar(k.progress * 100, Modifier.weight(1f), tone = if (k.progress >= 0.7) BarTone.POS else if (k.progress >= 0.3) BarTone.GOLD else BarTone.WARN)
+            MeterBar(k.progress * 100, Modifier.weight(1f), tone = if (k.progress >= 0.7) BarTone.POS else if (k.progress >= 0.3) BarTone.SILVER else BarTone.WARN)
             Fig(pct01(k.progress), Modifier.width(40.dp), style = Divan.type.figureSmall, color = c.textPrimary)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {

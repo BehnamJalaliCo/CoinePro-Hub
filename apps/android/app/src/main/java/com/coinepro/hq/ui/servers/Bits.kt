@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -406,7 +406,7 @@ fun SealPayload(d: Decision) {
     val card = sealCardOf(d) ?: return
     val where = rememberServerName(card.company, card.serverName)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("فرمانی که اجرا میشود", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text("فرمانی که اجرا میشود", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         CodeBlock(card.cmd.ifBlank { "—" }, prefix = (card.cwd?.let { "$it " } ?: "") + "$ ", bg = c.softNegative, wrap = true)
         Text(buildAnnotatedString {
             append("سرور "); append(where.text); append(" · ")

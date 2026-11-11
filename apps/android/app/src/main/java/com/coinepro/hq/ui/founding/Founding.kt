@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -594,7 +594,7 @@ private fun CopyLine(text: String) {
         ) {
             Fig("$", style = Divan.type.figureSmall, color = c.textMuted)
             Fig(text, Modifier.weight(1f), style = Divan.type.figureSmall, color = c.textPrimary)
-            Text("کپی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) {
+            Text("کپی", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) {
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("command", text))
                 toasts.ok("کپی شد.")
             }.padding(horizontal = 6.dp, vertical = 2.dp))

@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,7 +88,7 @@ fun DepartmentRanks(company: String) {
                 else -> rows.forEach { r ->
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.size(28.dp).clip(CircleShape).background(c.card), contentAlignment = Alignment.Center) { Fig("${r.rankCompany}", style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk) }
+                            Box(Modifier.size(28.dp).clip(CircleShape).background(c.card), contentAlignment = Alignment.Center) { Fig("${r.rankCompany}", style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk) }
                             DIcon(DEPT_ICON[r.department] ?: DivanIcon.DEPARTMENT, size = 18.dp, tint = c.silverInk)
                             Column(Modifier.weight(1f)) {
                                 Text(DEPT_FA[r.department] ?: r.department, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
@@ -97,7 +97,7 @@ fun DepartmentRanks(company: String) {
                             Trend(r.trend, null, width = 56.dp, height = 22.dp)
                             Fig(String.format(Locale.US, "%.1f", r.score), Modifier.width(44.dp), style = Divan.type.figureM, color = c.textPrimary)
                         }
-                        MeterBar(r.score, tone = if (r.score >= 75) BarTone.GOLD else if (r.score >= 60) BarTone.SILVER else BarTone.WARN)
+                        MeterBar(r.score, tone = if (r.score >= 75) BarTone.POS else if (r.score >= 60) BarTone.SILVER else BarTone.WARN)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             for ((k, fa) in PARTS) {
                                 val v = when (k) { "people" -> r.parts.people; "delivery" -> r.parts.delivery; "efficiency" -> r.parts.efficiency; else -> r.parts.owner }

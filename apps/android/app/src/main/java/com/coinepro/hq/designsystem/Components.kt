@@ -50,11 +50,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,40 +120,86 @@ private val LATIN_RUN = Regex("(?:[A-Za-z$@#/~]|\\d[\\d.,]*(?=[A-Za-z]))[A-Za-z0
 private val DATE = Regex("(?<![\\d/-])\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}(?![\\d/-])")
 /** A count of tokens or dollars ("182400 توکن", "12 USD"): money and tokens are figures. */
 private val COUNT = Regex("(?<![\\d.,])\\d[\\d,.]*(?=\\s?(?:توکن|USDT?\\b))")
+/** ⟨1.0.1⟩ A signed amount ("+640", "-18", "−$3.20") at the start of a word, and a percent ("21%", "99.8%"): figures, sign and all. */
+private val AMOUNT = Regex("(?<![^\\s(«])[+\\-−±]\\$?\\d[\\d.,]*%?|(?<![\\w.,:/])\\d[\\d.,]*%")
+/** A bare number ("500", "≥ 80%", "2.4M"), for text whose every number is a figure ([bidi] with `numbers`). */
+private val NUMBER = Regex("(?:[≥≤<>~±+−-]\\s?)?\\$?\\d[\\d.,/:]*(?:\\s?[%٪]|[KMBs](?![A-Za-z]))?")
+
+private fun arabicLetter(ch: Char) = ch in '؀'..'ۿ' || ch in 'ݐ'..'ݿ' || ch in 'ﭐ'..'﻿'
 
 /**
- * Where [text] must read left to right in Latin figures: its Latin runs, dates, counts of tokens or money, and clock times, in order and
- * never overlapping (the longest first where two start together). A Latin run's digits stay Latin («GPT 5.5», never «GPT ۵٫۵»).
+ * Where [text] must read left to right in Latin figures: its Latin runs, dates, counts of tokens or money, signed amounts, percents
+ * and clock times ([numbers]: every number), in order and never overlapping (the longest first where two start together). A Latin
+ * run's digits stay Latin («GPT 5.5», never «GPT ۵٫۵»).
+ *
+ * ⟨1.0.1⟩ C0.4, one token is one run, whatever it is made of: an amount and the unit after it («+640 USDT», «-18 USD», «2 GB»), a
+ * letter and the digit glued to it («P0»), a date and its time. A slash that leads on to a Persian word («USDT/ماه») stays outside
+ * the run, so it is drawn between the two and not at the run's far end.
  */
-fun latinRanges(text: String): List<IntRange> {
+fun latinRanges(text: String, numbers: Boolean = false): List<IntRange> {
     val found = buildList {
         for (m in LATIN_RUN.findAll(text)) if (m.value.any { it in 'A'..'Z' || it in 'a'..'z' } || m.value.startsWith("$")) add(m.range)
         for (re in listOf(DATE, COUNT, CLOCK)) for (m in re.findAll(text)) add(m.range)
+        // A mark that only ends the sentence stays outside the run ("+640.", "80%،").
+        fun trimmed(r: IntRange): IntRange { var e = r.last; while (e > r.first && text[e] in ".,:/") e--; return r.first..e }
+        for (m in AMOUNT.findAll(text)) add(trimmed(m.range))
+        if (numbers) for (m in NUMBER.findAll(text)) add(trimmed(m.range))
     }.sortedWith(compareBy<IntRange>({ it.first }, { -it.last }))
     val out = mutableListOf<IntRange>()
-    for (r in found) if (out.isEmpty() || r.first > out.last().last) out += r
-    return out
+    for (r0 in found) {
+        var r = r0
+        val prev = out.lastOrNull()
+        if (prev != null && r.first <= prev.last) {
+            // Overlapping: the earlier run takes what it lacks of the later one ("+640" and "640K").
+            if (r.last > prev.last) out[out.lastIndex] = prev.first..r.last
+            continue
+        }
+        // A bare number right before a Latin unit is part of it ("640 USDT", "2 GB", "5 GPT").
+        if (text[r.first].let { it in 'A'..'Z' || it in 'a'..'z' }) {
+            var i = r.first
+            if (i > 0 && text[i - 1] == ' ') i--
+            var j = i
+            while (j > 0 && (text[j - 1] in '0'..'9' || ((text[j - 1] == '.' || text[j - 1] == ',') && j < i))) j--
+            if (j < i && text[j] in '0'..'9' && (j == 0 || !(text[j - 1].isLetterOrDigit() || text[j - 1] in ".,:/-")) && (prev == null || j > prev.last)) r = j..r.last
+        }
+        // Two runs with one space (or nothing) between them are one ("-18 USD", "2026-10-17 14:00").
+        val gap = if (prev == null) null else text.substring(prev.last + 1, r.first)
+        if (prev != null && (gap == "" || gap == " ")) out[out.lastIndex] = prev.first..r.last else out += r
+    }
+    return out.map { r -> if (r.last > r.first && text[r.last] == '/' && r.last + 1 < text.length && arabicLetter(text[r.last + 1])) r.first until r.last else r }
 }
 
-/** [text] with every Latin run (and date, count, clock) set as a figure inside a left-to-right isolate (U+2066 … U+2069), so it keeps
- *  its order and its Latin digits inside a right-to-left sentence. */
-fun AnnotatedString.Builder.bidi(text: String, color: Color? = null) {
+/**
+ * [text] as it reads inside a Persian line: every Latin run (and date, count, amount, clock) set as a figure inside a left-to-right
+ * isolate (U+2066 … U+2069), so it keeps its order and its Latin digits; « · » between facts drawn as the hairline ([sep], unless
+ * [seps] is off); a run already isolated is left as it is. [numbers]: every bare number is a figure too.
+ */
+fun AnnotatedString.Builder.bidi(text: String, color: Color? = null, numbers: Boolean = false, seps: Boolean = true) {
     var last = 0
-    for (r in latinRanges(text)) {
-        append(text.substring(last, r.first))
-        fig(keepTogether(text.substring(r.first, r.last + 1)), color)
+    fun plain(s: String) = if (seps) appendWithSeps(s) else append(s)
+    for (r in latinRanges(text, numbers)) {
+        if (insideIsolate(text, r.first)) continue
+        plain(text.substring(last, r.first))
+        val run = text.substring(r.first, r.last + 1)
+        // A bare number with its sign («≥ 80%») is drawn as it is; a run with words in it never splits at its spaces.
+        fig(if (run.any { it in 'A'..'Z' || it in 'a'..'z' }) keepTogether(run) else run, color)
         last = r.last + 1
     }
-    append(text.substring(last))
+    plain(text.substring(last))
 }
 
 /** A Latin run never splits at its spaces: each space is followed by a word joiner (U+2060, invisible; the face has no no-break space
  *  glyph), so «GPT 5.5» or a command stays whole on its line (a line break inside an isolate can reorder its neutral marks, «--name»
- *  drawn «name--»); a run longer than the line still breaks at its hyphens. */
-fun keepTogether(run: String): String = run.replace(" ", " \u2060")
+ *  drawn «name--»); a run longer than the line still breaks at its hyphens. ⟨1.0.1⟩ A long English passage (a sentence of an error, a
+ *  log line) wraps at its spaces like any text. */
+fun keepTogether(run: String): String = if (run.length > KEEP_MAX) run else run.replace(" ", " ⁠")
+private const val KEEP_MAX = 64
 
-/** [text] as it should read inside a Persian line: Latin runs isolated and Latin, clock times Latin (see [bidi]). */
+/** [text] as it should read inside a Persian line: Latin runs isolated and Latin, clock times Latin, « · » as the hairline (see [bidi]). */
 fun timesFig(text: String): AnnotatedString = buildAnnotatedString { bidi(text) }
+
+/** Mixed text whose every number is a figure too (a KPI target «500 در 90 روز», «≥ 80%»); the words stay in their right-to-left order. */
+fun figures(text: String): AnnotatedString = buildAnnotatedString { bidi(text, numbers = true) }
 
 /** [text] with its Latin runs and clock times isolated and set as figures; the spans it already has are kept, and runs already isolated
  *  (inside U+2066 … U+2069) are left as they are. */
@@ -164,7 +210,7 @@ fun timesFig(text: AnnotatedString): AnnotatedString {
         var last = 0
         for (r in ranges) {
             append(text.subSequence(last, r.first))
-            withStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum")) { append("\u2066"); append(keepTogether(text.text.substring(r.first, r.last + 1))); append("\u2069") }
+            withStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum")) { append("⁦"); append(keepTogether(text.text.substring(r.first, r.last + 1))); append("⁩") }
             last = r.last + 1
         }
         append(text.subSequence(last, text.length))
@@ -173,15 +219,18 @@ fun timesFig(text: AnnotatedString): AnnotatedString {
 
 /** Whether [at] lies inside an isolate already (an LRI/FSI/RLI not yet closed before it). */
 private fun insideIsolate(t: String, at: Int): Boolean {
+    if ('⁦' !in t && '⁧' !in t && '⁨' !in t) return false
     var depth = 0
-    for (i in 0 until at) when (t[i]) { '\u2066', '\u2067', '\u2068' -> depth++; '\u2069' -> if (depth > 0) depth-- }
+    for (i in 0 until at) when (t[i]) { '⁦', '⁧', '⁨' -> depth++; '⁩' -> if (depth > 0) depth-- }
     return depth > 0
 }
 
-/** A figure (money, tokens, codes, model names): Latin digits, tabular. */
+/** A figure (money, tokens, codes, model names): Latin digits, tabular, read left to right. ⟨1.0.1⟩ On one line it is never cut with
+ *  «…»: it shrinks to fit its box ([FitText]). */
 @Composable
 fun Fig(text: String, modifier: Modifier = Modifier, style: TextStyle = Divan.type.figure, color: Color = LocalContentColor.current, maxLines: Int = 1) {
-    Text(text, modifier, style = style.copy(textDirection = TextDirection.Ltr), color = color, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+    if (maxLines == 1) FitText(AnnotatedString(text), modifier, style.copy(textDirection = TextDirection.Ltr), color, wrap = false)
+    else Text(AnnotatedString(text), modifier, style = style.copy(textDirection = TextDirection.Ltr), color = color, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 }
 
 // ---------------------------------------------------------------- button --
@@ -190,7 +239,9 @@ enum class BtnSize(val height: Dp, val pad: Dp, val font: Int, val icon: Dp, val
     SM(32.dp, 12.dp, 12, 16.dp, 8.dp), MD(40.dp, 16.dp, 13, 18.dp, 10.dp), LG(48.dp, 18.dp, 14, 20.dp, 10.dp)
 }
 
-/** Buttons (D1): gold = the owner's authority, one primary action per view. */
+/** Buttons (D1): gold = the owner's authority, one primary action per view. ⟨1.0.1⟩ C0.1 «یک طلای پُر در هر صفحه»: [BtnVariant.PRIMARY] is
+ *  the ONLY filled gold of the app, and a screen (or an open sheet) shows at most one of it; the second and later actions of a list are
+ *  [BtnVariant.SECONDARY] (outlined). A small text action («کپی», «همه», «برگردان») is silver. Every button sinks under the finger (M16). */
 @Composable
 fun HqButton(
     text: String?,
@@ -211,7 +262,7 @@ fun HqButton(
         BtnVariant.PRIMARY -> Triple(if (!enabled) c.disabledFill else if (pressed) c.goldDeep else c.goldFill, if (!enabled) c.disabledText else c.onGold, null)
         BtnVariant.SECONDARY -> Triple(if (pressed) c.pressed else Color.Transparent, if (!enabled) c.disabledText else c.textPrimary, if (!enabled) c.lineDivider else c.lineStrong)
         BtnVariant.SILVER -> Triple(if (!enabled) c.disabledFill else c.silverInk.copy(alpha = if (pressed) 0.24f else 0.14f), if (!enabled) c.disabledText else c.silverInk, null)
-        BtnVariant.TEXT -> Triple(if (pressed) c.softGold else Color.Transparent, if (!enabled) c.disabledText else c.goldInk, null)
+        BtnVariant.TEXT -> Triple(if (pressed) c.silverInk.copy(alpha = 0.14f) else Color.Transparent, if (!enabled) c.disabledText else c.silverInk, null)
         BtnVariant.DANGER -> Triple(if (pressed) c.softNegative else Color.Transparent, if (!enabled) c.disabledText else c.negative, if (!enabled) c.lineDivider else c.negative.copy(alpha = 0.45f))
         BtnVariant.GHOST -> Triple(if (pressed) c.pressed else Color.Transparent, if (!enabled) c.disabledText else c.textSecondary, null)
     }
@@ -261,7 +312,7 @@ fun IconBtn(icon: DivanIcon, label: String, onClick: () -> Unit, modifier: Modif
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        DIcon(icon, Modifier.graphicsLayer { if (flip) scaleX = -1f }, size = 22.dp, tint = tint ?: if (active) c.goldInk else c.textSecondary, active = active)
+        DIcon(icon, Modifier.graphicsLayer { if (flip) scaleX = -1f }, size = 22.dp, tint = tint ?: if (active) c.textPrimary else c.textSecondary, active = active)
         if (badge > 0) Badge(badge, Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 4.dp))
     }
 }
@@ -270,10 +321,10 @@ fun IconBtn(icon: DivanIcon, label: String, onClick: () -> Unit, modifier: Modif
 fun Badge(n: Int, modifier: Modifier = Modifier) {
     val c = Divan.colors
     Box(
-        modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(CircleShape).background(c.goldFill).padding(horizontal = 4.dp),
+        modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(CircleShape).background(c.page).border(1.dp, c.goldInk, CircleShape).padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(if (n > 99) "99+" else n.toString(), style = Divan.type.micro.copy(fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold), color = c.onGold)
+        Text(if (n > 99) "99+" else n.toString(), style = Divan.type.micro.copy(fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold), color = c.goldInk)
     }
 }
 
@@ -299,7 +350,7 @@ fun HqCard(
     val haptics = rememberHaptics()
     Column(
         modifier
-            .then(if (onClick != null || onLongClick != null) Modifier.pressScale(src, 0.985f) else Modifier)
+            .then(if (onClick != null || onLongClick != null) Modifier.pressScale(src) else Modifier)
             .clip(shape)
             .background(color)
             .then(if (tahrir) Modifier.border(1.dp, Divan.colors.lineTahrir, shape) else Modifier)
@@ -318,16 +369,22 @@ fun HqCard(
     )
 }
 
+/** ⟨1.0.1⟩ The hairline of a selected chip, tab or switch: silver, never gold. */
+@Composable
+fun silverLine(): Color = Divan.colors.silverInk.copy(alpha = if (Divan.night) 0.42f else 0.46f)
+
 // ------------------------------------------------------------------ pill --
 @Composable
 fun Pill(text: String, tone: Tone = Tone.NEUTRAL, modifier: Modifier = Modifier, icon: DivanIcon? = null, dot: Boolean = false, live: Boolean = false, figure: Boolean = false) {
     val (bg, fg) = toneColors(tone)
+    // ⟨1.0.1⟩ C0.1: a warning carries its own sign, so its amber never reads as the owner's gold (in the day theme the two are close).
+    val sign = icon ?: if (tone == Tone.WARN && !dot && !live) DivanIcon.URGENT else null
     Row(
         modifier.height(24.dp).clip(CircleShape).background(bg).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (sign != null && icon == null) 4.dp else 6.dp),
     ) {
-        if (icon != null) DIcon(icon, size = 14.dp, tint = fg)
+        if (sign != null) DIcon(sign, size = if (icon == null) 12.dp else 14.dp, tint = fg)
         if (dot || live) LiveDot(fg, live)
         Text(if (figure) AnnotatedString(text) else timesFig(text), style = (if (figure) Divan.type.figureSmall else Divan.type.caption).copy(fontWeight = FontWeight.SemiBold, fontSize = 12.sp), color = fg, maxLines = 1)
     }
@@ -345,22 +402,25 @@ fun LiveDot(color: Color, live: Boolean = true, size: Dp = 6.dp) {
 fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, count: Int? = null, figure: Boolean = false) {
     val c = Divan.colors
     val shape = CircleShape
-    val bg by animateColorAsState(if (selected) c.softGold else Color.Transparent, motionShort(), label = "chip")
-    val line by animateColorAsState(if (selected) c.lineTahrir else c.lineStrong, motionShort(), label = "chip-line")
+    // ⟨1.0.1⟩ C0.1: a selection is ivory on a raised surface with a silver hairline, never gold.
+    val bg by animateColorAsState(if (selected) c.raised else Color.Transparent, motionShort(), label = "chip")
+    val line by animateColorAsState(if (selected) silverLine() else c.lineStrong, motionShort(), label = "chip-line")
+    val src = remember { MutableInteractionSource() }
     Row(
         modifier
             .height(32.dp)
+            .pressScale(src)
             .clip(shape)
             .background(bg)
             .border(1.dp, line, shape)
-            .selectable(selected, role = Role.Tab, onClick = onClick)
+            .selectable(selected, interactionSource = src, indication = androidx.compose.material3.ripple(), role = Role.Tab, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         // A figure (an hour, a code) reads in Latin digits left to right; prose in the text face.
-        Text(if (figure) AnnotatedString(text) else timesFig(text), style = (if (figure) Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr) else Divan.type.small).copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.goldInk else c.textSecondary)
-        if (count != null) Text(count.toString(), style = Divan.type.caption, color = (if (selected) c.goldInk else c.textSecondary).copy(alpha = 0.8f))
+        Text(if (figure) AnnotatedString(text) else timesFig(text), style = (if (figure) Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr) else Divan.type.small).copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.textPrimary else c.textSecondary)
+        if (count != null) Text(count.toString(), style = Divan.type.caption, color = (if (selected) c.textPrimary else c.textSecondary).copy(alpha = 0.8f))
     }
 }
 
@@ -379,6 +439,7 @@ fun <T> Segmented(options: List<SegOption<T>>, value: T, onChange: (T) -> Unit, 
                     .height(36.dp)
                     .clip(RoundedCornerShape(Radius.small))
                     .background(bg)
+                    .then(if (on) Modifier.border(1.dp, silverLine(), RoundedCornerShape(Radius.small)) else Modifier)
                     .selectable(on, role = Role.RadioButton, onClick = { onChange(o.value) }),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -397,13 +458,14 @@ fun <T> Segmented(options: List<SegOption<T>>, value: T, onChange: (T) -> Unit, 
 fun HqSwitch(checked: Boolean, onChange: (Boolean) -> Unit, label: String, enabled: Boolean = true) {
     val c = Divan.colors
     val x = animateFloatAsState(if (checked) 1f else 0f, motionMedium(), label = "switch")
-    val track by animateColorAsState(if (!enabled) c.disabledFill else if (checked) c.goldFill else c.tile, motionMedium(), label = "switch-track")
+    // ⟨1.0.1⟩ C0.1: on = a silver knob on a lighter track (a switch is a setting, not the owner's act; never gold).
+    val track by animateColorAsState(if (!enabled) c.disabledFill else if (checked) c.silverInk.copy(alpha = 0.32f) else c.tile, motionMedium(), label = "switch-track")
     Box(
         Modifier
             .size(width = 44.dp, height = 26.dp)
             .clip(CircleShape)
             .background(track)
-            .then(if (!checked && enabled) Modifier.border(1.5.dp, c.lineStrong, CircleShape) else Modifier)
+            .then(if (enabled) Modifier.border(if (checked) 1.dp else 1.5.dp, if (checked) silverLine() else c.lineStrong, CircleShape) else Modifier)
             .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
             .semantics { contentDescription = label }
             .padding(3.dp),
@@ -417,7 +479,7 @@ fun HqSwitch(checked: Boolean, onChange: (Boolean) -> Unit, label: String, enabl
                 .graphicsLayer { translationX = (if (rtl) -1 else 1) * 16.dp.toPx() * x.value }
                 .size(d)
                 .clip(CircleShape)
-                .background(if (!enabled) c.disabledText else if (checked) c.onGold else c.textSecondary),
+                .background(if (!enabled) c.disabledText else if (checked) c.silverFill else c.textSecondary),
         )
     }
 }
@@ -546,7 +608,8 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: S
         Spacer(Modifier.height(4.dp))
         val col = when (tone) { Tone.NEG -> c.negative; Tone.WARN -> c.warning; Tone.POS -> c.positive; else -> c.textPrimary }
         val big = (if (figure) Divan.type.figureL else Divan.type.h2).copy(fontSize = 24.sp, lineHeight = 32.sp)
-        if (count) CountingText(value, big, color = col) else Text(value, style = big, color = col, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // ⟨1.0.1⟩ C0.4: a figure is never cut and never leaves its tile; it shrinks to fit.
+        if (count) CountingText(value, big, color = col) else FitText(value, style = big, color = col)
         if (subRich != null) Text(subRich, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
         else if (sub != null) Text(timesFig(sub), style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
     }
@@ -590,7 +653,7 @@ fun PageHeader(title: String, modifier: Modifier = Modifier, eyebrow: String? = 
     }
 }
 
-/** One-line text field in the Divan style (tile fill, gold focus line). */
+/** One-line text field in the Divan style (tile fill; ⟨1.0.1⟩ a silver focus line: gold is the primary action alone). */
 @Composable
 fun HqTextField(
     value: String,
@@ -613,14 +676,14 @@ fun HqTextField(
         minLines = minLines,
         interactionSource = src,
         textStyle = (if (figure) Divan.type.figure else Divan.type.body).copy(color = c.textPrimary),
-        cursorBrush = SolidColor(c.goldInk),
+        cursorBrush = SolidColor(c.textPrimary),
         decorationBox = { inner ->
             Box(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
                     .background(c.tile)
-                    .border(1.dp, if (focused) c.goldInk else c.lineStrong, RoundedCornerShape(10.dp))
+                    .border(1.dp, if (focused) c.silverInk else c.lineStrong, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp, vertical = 12.dp),
             ) {
                 // A figure field's example keeps Latin digits too ("W-000123", "2026-10-20 14:00").
@@ -661,4 +724,27 @@ fun ScrollRow(modifier: Modifier = Modifier, spacing: Dp = Space.xs, content: @C
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
+}
+
+// ------------------------------------------------------------ technical details --
+/**
+ * ⟨1.0.1⟩ «جزئیات فنی»: where a command, a code, a host name or the machine's own words go, one tap away from the owner's page (they are
+ * never on it). Closed at first; [open0] opens it (a screenshot).
+ */
+@Composable
+fun TechDetails(text: String, modifier: Modifier = Modifier, title: String = "جزئیات فنی", open0: Boolean = false) {
+    val c = Divan.colors
+    var open by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(open0) }
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier.clip(RoundedCornerShape(Radius.small)).clickable(role = Role.Button, onClickLabel = if (open) "بستن" else "نمایش") { open = !open }.padding(horizontal = 4.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Chevron(open, tint = c.textMuted)
+            Text(title, style = Divan.type.caption, color = c.textMuted)
+        }
+        Expand(open) {
+            RichText(text, Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.control)).background(c.tile).padding(12.dp), style = Divan.type.caption, color = c.textSecondary)
+        }
+    }
 }

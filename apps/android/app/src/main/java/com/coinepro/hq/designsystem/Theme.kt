@@ -139,6 +139,8 @@ fun DivanTheme(night: Boolean, reducedMotion: Boolean? = null, content: @Composa
             LocalPalette provides p,
             LocalNight provides night,
             LocalReducedMotion provides reduced,
+            // ⟨1.0.1⟩ M16: every pressable surface answers the touch the same way (Motion.kt).
+            androidx.compose.foundation.LocalIndication provides PressIndication,
             LocalLayoutDirection provides LayoutDirection.Rtl,
             LocalContentColor provides p.textPrimary,
             LocalTextStyle provides t.body.copy(color = p.textPrimary),

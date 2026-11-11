@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -102,7 +102,7 @@ fun ResolutionsScreen() {
             else -> items(items, key = { it.ref }) { res -> Box(itemMotion()) {
                 HqCard(Modifier.fillMaxWidth().clickable { open = res }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Fig(res.ref, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                        Fig(res.ref, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                         if (res.company != null) CompanyMark(res.company, height = 12.dp, mono = true, ink = c.textSecondary) else Pill("هلدینگ")
                         Text(jDate(res.sealedAt, withYear = true), style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
                         (res.source["decision"] ?: res.source["message"])?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
@@ -128,10 +128,12 @@ fun ResolutionsScreen() {
     }
 }
 
-private val LEVELS = listOf("urgent", "decision", "report", "info", "learning")
+/** ⟨1.0.1⟩ C3.5 the settings speak of the same three levels as the notifications: «خبر» sets the hub's report, info and learning together. */
+private val LEVEL3_ICON = mapOf("urgent" to DivanIcon.URGENT, "decision" to DivanIcon.LEVEL_DECISION, "news" to DivanIcon.INFO)
 private val MUTES = listOf<Pair<String, Long?>>("بی‌صدا نیست" to null, "یک ساعت" to 3_600_000L, "هشت ساعت" to 8 * 3_600_000L, "یک هفته" to 7 * 86_400_000L)
 
-/** The per-company, per-level matrix (§6): "*" is every company's default, a company row overrides it. Urgent always arrives. */
+/** The per-company, per-level matrix (§6): "*" is every company's default, a company row overrides it. Urgent always arrives.
+ *  ⟨1.0.1⟩ One row for each of the three levels («فوری», «تصمیم», «خبر»); «خبر» shows its first level's settings and writes all of them. */
 @Composable
 fun NotificationMatrixCard() {
     val c = Divan.colors
@@ -144,14 +146,15 @@ fun NotificationMatrixCard() {
     var edits by remember { mutableStateOf<NotificationSettings?>(null) }
     val base = q.data
     val draft = edits ?: base
-    fun set(level: String, f: (LevelSettings) -> LevelSettings) {
+    fun set(levels: List<String>, f: (LevelSettings) -> LevelSettings) {
         val m = draft ?: return
-        val row = m.matrix[scope].orEmpty()
-        edits = m.copy(matrix = m.matrix + (scope to (row + (level to f(row[level] ?: LevelSettings())))))
+        var row = m.matrix[scope].orEmpty()
+        for (level in levels) row = row + (level to f(row[level] ?: LevelSettings()))
+        edits = m.copy(matrix = m.matrix + (scope to row))
     }
-    fun reset(level: String) {
+    fun reset(levels: List<String>) {
         val m = draft ?: return
-        val row = m.matrix[scope].orEmpty() - level
+        val row = m.matrix[scope].orEmpty() - levels.toSet()
         edits = m.copy(matrix = if (row.isEmpty()) m.matrix - scope else m.matrix + (scope to row))
     }
     HqCard(Modifier.fillMaxWidth()) {
@@ -168,27 +171,30 @@ fun NotificationMatrixCard() {
                     Text("سطح", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
                     listOf("در اپ", "push", "صدا").forEach { Text(it, style = Divan.type.micro, color = c.textMuted, modifier = Modifier.width(56.dp)) }
                 }
-                for (level in LEVELS) {
+                for (l3 in com.coinepro.hq.core.data.LEVELS3) {
+                    val levels = com.coinepro.hq.core.data.LEVEL3_OF.getValue(l3)
+                    val level = levels.first()
+                    val fa = com.coinepro.hq.core.data.LEVEL3_FA.getValue(l3)
                     val e = draft.effective(scope, level)
-                    val urgent = level == "urgent"
-                    val own = scope != "*" && draft.matrix[scope]?.containsKey(level) == true
+                    val urgent = l3 == "urgent"
+                    val own = scope != "*" && levels.any { draft.matrix[scope]?.containsKey(it) == true }
                     val muted = e.mutedUntil?.takeIf { runCatching { Instant.parse(it).isAfter(com.coinepro.hq.core.format.HqClock.now()) }.getOrDefault(false) }
                     HorizontalDivider(color = c.lineDivider)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            DIcon(LEVEL.getValue(level).icon, size = 18.dp)
-                            Text(LEVEL.getValue(level).fa, style = Divan.type.small)
-                            if (own) Text("مثل همه", style = Divan.type.micro, color = c.goldInk, modifier = Modifier.clickable { reset(level) })
+                            DIcon(LEVEL3_ICON.getValue(l3), size = 18.dp)
+                            Text(fa, style = Divan.type.small)
+                            if (own) Text("مثل همه", style = Divan.type.micro, color = c.silverInk, modifier = Modifier.clickable { reset(levels) })
                         }
-                        Row(Modifier.width(56.dp)) { HqSwitch(urgent || e.inApp == true, { v -> set(level) { it.copy(inApp = v) } }, "${LEVEL.getValue(level).fa}: در اپ", enabled = !urgent) }
-                        Row(Modifier.width(56.dp)) { HqSwitch(urgent || e.push == true, { v -> set(level) { it.copy(push = v) } }, "${LEVEL.getValue(level).fa}: push", enabled = !urgent) }
-                        Row(Modifier.width(56.dp)) { HqSwitch(e.sound == true, { v -> set(level) { it.copy(sound = v) } }, "${LEVEL.getValue(level).fa}: صدا") }
+                        Row(Modifier.width(56.dp)) { HqSwitch(urgent || e.inApp == true, { v -> set(levels) { it.copy(inApp = v) } }, "$fa: در اپ", enabled = !urgent) }
+                        Row(Modifier.width(56.dp)) { HqSwitch(urgent || e.push == true, { v -> set(levels) { it.copy(push = v) } }, "$fa: push", enabled = !urgent) }
+                        Row(Modifier.width(56.dp)) { HqSwitch(e.sound == true, { v -> set(levels) { it.copy(sound = v) } }, "$fa: صدا") }
                     }
                     if (!urgent) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("بی‌صدا", style = Divan.type.micro, color = c.textMuted)
                         if (muted != null) Pill("تا ${jDateTime(muted)}", Tone.WARN)
                         MUTES.forEach { (label, ms) ->
-                            FilterChip(label, if (ms == null) muted == null else false, { set(level) { it.copy(mutedUntil = ms?.let { d -> Instant.now().plusMillis(d).toString() } ?: "") } })
+                            FilterChip(label, if (ms == null) muted == null else false, { set(levels) { it.copy(mutedUntil = ms?.let { d -> Instant.now().plusMillis(d).toString() } ?: "") } })
                         }
                     }
                 }

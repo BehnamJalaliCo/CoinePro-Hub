@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -109,7 +109,7 @@ fun DayCard(d: CalendarDay, onOpen: (CalendarItem) -> Unit) {
     HqCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(plain(jWeekday(d.day)), style = Divan.type.bodyStrong, modifier = Modifier.weight(1f))
-            if (d.day == today) Pill("امروز", com.coinepro.hq.core.format.Tone.GOLD)
+            if (d.day == today) Pill("امروز", com.coinepro.hq.core.format.Tone.SILVER)
             Text(plain("${d.items.size} مورد"), style = Divan.type.caption, color = c.textMuted)
         }
         Column(Modifier.padding(top = 6.dp)) {

@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -763,10 +763,10 @@ private fun CompanySheet(code: String, live: LiveState, servers: List<MapServer>
     val flows = live.flows.filter { it.from == code || it.to == code }.takeLast(10).asReversed()
     com.coinepro.hq.ui.v14.HqSheet(onDismiss, names(code), sub = if (companyStateOf(co, live.control) == "locked") "قفل است؛ کاری اجرا نمیشود." else null) {
         SheetRow("در کار", plainA(co.working?.let { w -> "${faNum(w)} نفر" + (co.total?.let { " از ${faNum(it)}" } ?: "") } ?: "—"))
-        SheetRow("سشن باز", plainA(co.sessionsOpen?.let(::faNum) ?: "—"))
+        SheetRow("جلسه‌ی باز", plainA(co.sessionsOpen?.let(::faNum) ?: "—"))
         SheetRow("خرج امروز", buildAnnotatedString { fig(co.spendTodayUsd?.let(::usdCents) ?: "—"); co.budgetUsd?.let { append(" از "); fig(usdCents(it)) } })
         if (servers.isNotEmpty()) {
-            Text("سرورها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("سرورها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             for (s in servers) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ServerGlyph(s.state, size = 11.dp)
                 Text(if (servers.size > 1) "${names(code)} · ${s.name}" else names(code), style = Divan.type.small, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -775,7 +775,7 @@ private fun CompanySheet(code: String, live: LiveState, servers: List<MapServer>
             }
         }
         if (flows.isNotEmpty()) {
-            Text("آخرین جریان‌ها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("آخرین جریان‌ها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             for (f in flows) FlowRowLine(f, names)
         }
         HqButton("باز کردن شرکت", onOpen, Modifier.fillMaxWidth(), icon = DivanIcon.NEXT)
@@ -895,7 +895,7 @@ fun HoldingTable(net: NetworkMap?, live: LiveState, modifier: Modifier = Modifie
         }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                for ((t, wgt) in listOf("شرکت" to 1.6f, "سرور" to 1f, "در کار" to 1f, "سشن" to 0.8f, "جریان/ساعت" to 1f, "آخرین" to 1.2f)) {
+                for ((t, wgt) in listOf("شرکت" to 1.6f, "سرور" to 1f, "در کار" to 1f, "جلسه" to 0.8f, "جریان/ساعت" to 1f, "آخرین" to 1.2f)) {
                     Text(t, Modifier.weight(wgt), style = Divan.type.micro, color = c.textMuted, maxLines = 2)
                 }
             }
@@ -905,7 +905,7 @@ fun HoldingTable(net: NetworkMap?, live: LiveState, modifier: Modifier = Modifie
             }
         }
         if (servers.isNotEmpty()) {
-            Text("سرورها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.padding(top = 4.dp))
+            Text("سرورها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk, modifier = Modifier.padding(top = 4.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile)) {
                 servers.sortedWith(compareBy({ if (it.offline) 0 else 1 }, { it.company })).forEachIndexed { i, s ->
                     if (i > 0) HorizontalDivider(color = c.lineDivider)

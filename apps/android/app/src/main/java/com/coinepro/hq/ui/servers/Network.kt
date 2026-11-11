@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -427,7 +427,7 @@ internal fun NodeDetail(m: NetworkMap, n: NetNode, names: (NetNode) -> ServerNam
             if (n.outside) com.coinepro.hq.ui.v16.Notice(DivanIcon.GLOBE, c.softWarning, c.warning) {
                 Text(isolated(outsideHint(Network.nextFreeIp(m))), style = Divan.type.caption, color = c.textSecondary)
             }
-            Text("از این سرور به سرورهای دیگر", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("از این سرور به سرورهای دیگر", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             Matrix(m, n, others, names)
             Text(buildAnnotatedString { append("زمان‌ها به "); fig("ms"); append("؛ «—» یعنی هنوز بررسی نشده و «·» یعنی هاب روی آن پورت سنجیده نمیشود.") }, style = Divan.type.micro, color = c.textMuted)
             val incoming = m.links.filter { it.to == n.id && it.ok == false && m.link(it.from, it.to, it.port)?.ok == false }

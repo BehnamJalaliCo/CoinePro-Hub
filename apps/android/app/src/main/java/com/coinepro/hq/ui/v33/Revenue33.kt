@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -192,7 +192,7 @@ fun GapCard(g: AffiliateGap) {
             if (open) Column(Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("پیش‌نویس پیام پیگیری", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
                 Para(g.draftFa, style = Divan.type.small, color = c.textPrimary)
-            } else Text("پیش‌نویس پیام پیگیری آماده است؛ بزن تا ببینی.", Modifier.padding(top = 8.dp), style = Divan.type.caption, color = c.goldInk)
+            } else Text("پیش‌نویس پیام پیگیری آماده است؛ بزن تا ببینی.", Modifier.padding(top = 8.dp), style = Divan.type.caption, color = c.silverInk)
         }
         g.workRef?.let { ref ->
             Box(Modifier.padding(top = 8.dp)) {

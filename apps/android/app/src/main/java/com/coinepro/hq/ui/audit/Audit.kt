@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,7 +85,7 @@ fun AuditScreen() {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CompanyMark(e.company, height = 11.dp, mono = true, ink = c.textMuted)
                                 Text(actorFa(e.actor), style = Divan.type.micro, color = c.textSecondary)
-                                e.target["ref"]?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) }
+                                e.target["ref"]?.let { Fig(it, style = Divan.type.figureSmall, color = c.silverInk) }
                                 Text(ago(e.at), style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
                             }
                         }

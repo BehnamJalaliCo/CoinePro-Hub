@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -372,7 +372,7 @@ fun EmployeeScreen(code: String) {
                         SectionTitle("امتیازهای اخیر تو")
                         e.recentRatings.forEach { rt ->
                             Row(Modifier.fillMaxWidth().clickable { nav.go("outputs/${rt.deliverable}") }.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Fig(rt.deliverable, style = Divan.type.figureSmall, color = c.goldInk)
+                                Fig(rt.deliverable, style = Divan.type.figureSmall, color = c.silverInk)
                                 Text("${rt.score} از ۱۰", style = Divan.type.small, modifier = Modifier.weight(1f))
                                 Text(ago(rt.ratedAt), style = Divan.type.micro, color = c.textMuted)
                             }
@@ -433,7 +433,7 @@ fun WorkScreen(id: String) {
                     w.progressPct?.let { p ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row { Text("گزارش پیشرفت مجری", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f)); Text("$p٪", style = Divan.type.caption) }
-                            MeterBar(p.toDouble(), tone = com.coinepro.hq.designsystem.BarTone.GOLD)
+                            MeterBar(p.toDouble(), tone = com.coinepro.hq.designsystem.BarTone.SILVER)
                             w.progressNote?.let { Text(it, style = Divan.type.caption, color = c.textSecondary) }
                         }
                     }

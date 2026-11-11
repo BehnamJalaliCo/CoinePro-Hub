@@ -17,7 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -134,7 +134,7 @@ fun GrantSheet(initial: String?, onDismiss: () -> Unit) {
     // Managers and the chief advisor drive sessions (owner, 2026-10-17); the owner only grants.
     val drivers = employees.data.orEmpty().filter { it.status == "active" && ((it.company == company && it.kind in setOf("manager", "ceo")) || it.kind == "advisor") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
+    com.coinepro.hq.designsystem.SpringSheetFrame(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("مجوز تازه برای کارگاه", style = Divan.type.h2)
             Text("تو فقط اجازه میدهی؛ مدیرها و مشاور کل کار را میبرند. ادغام و انتشار همیشه با مُهر خودت.", style = Divan.type.caption, color = c.textMuted)
@@ -193,7 +193,7 @@ fun NewSessionSheet(onDismiss: () -> Unit) {
     val active = grants.data.orEmpty().filter { it.revokedAt == null }
     val chosen = active.firstOrNull { it.ref == grant } ?: active.singleOrNull()
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
+    com.coinepro.hq.designsystem.SpringSheetFrame(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("جلسه‌ی تازه در کارگاه", style = Divan.type.h2)
             Text("زیر یکی از مجوزهای فعال؛ راننده‌ی همان مجوز کار را میبرد.", style = Divan.type.caption, color = c.textMuted)

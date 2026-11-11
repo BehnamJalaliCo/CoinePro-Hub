@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -223,7 +223,7 @@ fun ReviewContent() {
                 LabelPill(REVIEW_STATE[r.state], r.state)
                 Text("هفته‌ی ${weekFa(r.week)}", style = Divan.type.caption, color = c.textSecondary)
                 r.startedAt?.let { Text(com.coinepro.hq.designsystem.timesFig("شروع ${jTime(it)}"), style = Divan.type.caption, color = c.textSecondary) }
-                r.briefMessageRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) }
+                r.briefMessageRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.silverInk) }
                 r.minutesRef?.let { RefChip(it, note = "صورت‌جلسه") }
             }
             if (r.state == "ready") {
@@ -275,7 +275,7 @@ fun MemosContent(onOpen: () -> Unit = {}) {
             ) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
-                    Fig(m.decision, style = Divan.type.figureSmall, color = c.goldInk)
+                    Fig(m.decision, style = Divan.type.figureSmall, color = c.silverInk)
                     Text(if (m.mode == "devil") "مخالف‌خوان" else "استاندارد", style = Divan.type.micro, color = c.textMuted)
                     Text(if (m.trigger == "auto") "خودکار" else "درخواست تو", style = Divan.type.micro, color = c.textMuted)
                     Text(ago(m.createdAt), style = Divan.type.micro, color = c.textMuted)
@@ -322,7 +322,7 @@ fun TriggersContent() {
                 Fig(factLine(t.facts), Modifier.fillMaxWidth(), style = Divan.type.figureSmall, color = c.textMuted, maxLines = 3)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(ago(t.firedAt), style = Divan.type.micro, color = c.textMuted)
-                    t.messageRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) }
+                    t.messageRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.silverInk) }
                 }
             }
         }

@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -494,7 +494,7 @@ private fun OptionsEditor(value: List<JsonObject>, onChange: (List<JsonObject>) 
             }
         }
         ErrText(err)
-        Text("+ گزینه", Modifier.clickable(role = Role.Button) { onChange(value + jobj("key" to JsonPrimitive(""), "title_fa" to JsonPrimitive(""))) }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        Text("+ گزینه", Modifier.clickable(role = Role.Button) { onChange(value + jobj("key" to JsonPrimitive(""), "title_fa" to JsonPrimitive(""))) }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
     }
 }
 
@@ -733,7 +733,7 @@ private fun AttrInput(a: Attr, row: JsonObject, set: (Pair<String, JsonElement?>
                     }
                     if (opts.isNotEmpty()) Text("+ پیوند خودکار", Modifier.clickable(role = Role.Button) {
                         set(a.key to JsonArray(xs + jobj("field" to JsonPrimitive(opts.first().v), "link_kind" to JsonPrimitive(m.schema?.linkKinds?.firstOrNull()?.key ?: "about"))))
-                    }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                    }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                     else Text("فیلد ارجاعی ندارد.", style = Divan.type.caption, color = c.textMuted)
                 }
             }

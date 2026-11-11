@@ -78,6 +78,12 @@ enum class HubFeature {
     ROUTINES,
     /** ⟨1.31⟩ §51 `POST /publishes/{job}/cancel`; without it «لغو» is not offered on a scheduled post. */
     PUBLISH_CANCEL,
+    /** ⟨1.33⟩ §55.3 `GET /treasury/limits`; without it the limits block (the Claude accounts and today's meter) is hidden and the
+     *  older quota card stays. */
+    LIMITS,
+    /** ⟨1.33⟩ `POST /orders {company}`, the company the owner picked by its mark in the command sheet; a hub that refuses the field
+     *  gets the order with that company named in its words. */
+    ORDER_COMPANY,
 }
 
 /**
@@ -113,17 +119,17 @@ val ApiException.orderPaceUnknown: Boolean
  * A hub that does not take the pace with the order gets it right after, on the session (`POST /orders/{ref}/pace`), once per app
  * start learnt; the refusal is taken back out of the error log.
  */
-suspend fun Api.orderWithPace(text: String, source: String, fileId: String?, route: OrderRoute29?, pace: String): Order {
+suspend fun Api.orderWithPace(text: String, source: String, fileId: String?, route: OrderRoute29?, pace: String, company: String? = null): Order {
     if (gaps.has(HubFeature.ORDER_PACE)) {
         try {
-            return order(text, source, fileId, route, pace)
+            return order(text, source, fileId, route, pace, company)
         } catch (e: ApiException) {
             if (!e.orderPaceUnknown) throw e
             e.logged?.let { failures?.forget(it) }
             gaps.mark(HubFeature.ORDER_PACE)
         }
     }
-    val o = order(text, source, fileId, route)
+    val o = order(text, source, fileId, route, company = company)
     if (o.pace == pace) return o
     return try {
         setPace(o.ref, pace)
@@ -131,6 +137,31 @@ suspend fun Api.orderWithPace(text: String, source: String, fileId: String?, rou
     } catch (e: ApiException) {
         o
     }
+}
+
+/** A hub that does not take an order's `company` yet refuses it as an unknown field (`422`, `fields.company` "Extra inputs are not permitted"). */
+val ApiException.orderCompanyUnknown: Boolean
+    get() = status == 422 && fields["company"]?.contains("extra", ignoreCase = true) == true
+
+/**
+ * ⟨1.0.1⟩ C2.1 «باز کن»: the command sheet's order, on the one path (the existing new-order call). One company picked by its mark:
+ * the order carries it (`company`). Several: the hub takes one company per order, so the words name them all and the order goes to
+ * the holding, which spreads it. None: the holding decides. A hub that does not take `company` gets the order with the company named
+ * in its words (learnt once per app start; the refusal is taken back out of the error log).
+ */
+suspend fun Api.commandOrder(text: String, companies: List<com.coinepro.hq.core.data.CommandCompany>, pace: String): Order {
+    val words = text.trim()
+    val named = com.coinepro.hq.core.data.commandWords(words, companies.map { it.nameFa })
+    if (companies.size == 1 && gaps.has(HubFeature.ORDER_COMPANY)) {
+        try {
+            return orderWithPace(words, "text", null, null, pace, company = companies.single().code)
+        } catch (e: ApiException) {
+            if (!e.orderCompanyUnknown) throw e
+            e.logged?.let { failures?.forget(it) }
+            gaps.mark(HubFeature.ORDER_COMPANY)
+        }
+    }
+    return orderWithPace(named, "text", null, null, pace)
 }
 
 /** A hub before §45 refuses an as-is gift's `publish` as an unknown field (`422`, `fields.publish` "Extra inputs are not permitted"). */

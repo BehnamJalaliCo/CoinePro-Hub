@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -103,7 +103,7 @@ fun NewsletterBody(n: Newsletter, onSchedule: (String) -> Unit) {
             val limit = l.sizeLimit
             if (limit != null && limit > 0) {
                 val over = l.subscribers > limit
-                MeterBar(l.subscribers * 100.0 / limit, Modifier.padding(top = 8.dp), tone = if (over) BarTone.WARN else BarTone.GOLD)
+                MeterBar(l.subscribers * 100.0 / limit, Modifier.padding(top = 8.dp), tone = if (over) BarTone.WARN else BarTone.SILVER)
                 Text(if (over) plain("از سقف ${limit} نفر گذشته؛ فرستادن به این فهرست مُهر تو را میخواهد.") else plain("سقف فرستادن بدون مُهر: ${limit} نفر"), style = Divan.type.micro, color = if (over) c.warning else c.textMuted, modifier = Modifier.padding(top = 4.dp))
             }
         }

@@ -16,7 +16,7 @@ val GROWTH_METRIC_FA = mapOf("views" to "بازدید", "reach" to "دیده‌�
 fun growthMetricFa(m: String?): String = GROWTH_METRIC_FA[m] ?: "نتیجه"
 
 val NL_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
-    "draft" to ("پیش‌نویس" to Tone.SILVER), "scheduled" to ("زمان‌بندی‌شده" to Tone.LAPIS), "sending" to ("در حال ارسال" to Tone.GOLD),
+    "draft" to ("پیش‌نویس" to Tone.SILVER), "scheduled" to ("زمان‌بندی‌شده" to Tone.LAPIS), "sending" to ("در حال ارسال" to Tone.SILVER),
     "sent" to ("فرستاده شد" to Tone.POS), "cancelled" to ("لغو شد" to Tone.SILVER),
 )
 
@@ -25,7 +25,7 @@ val CAL_KIND31_FA = mapOf("line" to "خط تولید", "newsletter" to "خبرن
 /** The state of a calendar item in words (a line's run state, a campaign's, or an ad's). */
 fun calStateFa(state: String?): Pair<String, Tone> = LINE_RUN_STATE_FA[state] ?: when (state) {
     "planned" -> "برنامه‌ریزی‌شده" to Tone.LAPIS
-    "running" -> "در جریان" to Tone.GOLD
+    "running" -> "در جریان" to Tone.SILVER
     "paused" -> "متوقف" to Tone.WARN
     "sent" -> "فرستاده شد" to Tone.POS
     else -> (state.orEmpty().ifBlank { "در برنامه" }) to Tone.SILVER

@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -135,24 +135,31 @@ internal fun RoutineForm(order: String, sentence0: String = "", refused0: String
             )
             refused?.let { Text(timesFig(it), style = Divan.type.caption, color = c.negative, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
-        HqButton("بساز", {
-            go.run(onError = { e: ApiException ->
-                // a sentence the hub could not make a routine of: its own words under the field, the text kept
-                if (e.status == 422) { e.logged?.let { env.api.failures?.forget(it) }; refused = e.messageFa } else toasts.error(e.messageFa)
-            }) {
-                val made = env.api.gated(HubFeature.ROUTINES) { newRoutine(sentence, order, key) }
-                if (made == null) toasts.info("این نسخه‌ی هاب هنوز روال دائمی ندارد؛ بعد از به‌روز شدن هاب می‌آید.")
-                else {
-                    env.cache.invalidate("automations", "order-report")
-                    onMade(made)
-                }
-            }
-        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.TIME, enabled = on && routineReady(sentence), loading = go.busy)
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DIcon(DivanIcon.INFO, size = 14.dp, tint = c.textMuted)
             Text(
                 "بگو کِی و چه کاری: «هر روز ساعت ۹ …»، «هر جمعه …». همان لحظه روشن میشود و کارش در سقف پاکت ماه شرکت انجام میشود.",
                 style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f),
+            )
+        }
+        // ⟨1.0.1⟩ C0.2: the sheet's one primary action, stuck to its bottom.
+        com.coinepro.hq.designsystem.SheetBar {
+            com.coinepro.hq.designsystem.DecisionBar(
+                "بساز", {
+                    go.run(onError = { e: ApiException ->
+                        // a sentence the hub could not make a routine of: its own words under the field, the text kept
+                        if (e.status == 422) { e.logged?.let { env.api.failures?.forget(it) }; refused = e.messageFa } else toasts.error(e.messageFa)
+                    }) {
+                        val made = env.api.gated(HubFeature.ROUTINES) { newRoutine(sentence, order, key) }
+                        if (made == null) toasts.info("این نسخه‌ی هاب هنوز روال دائمی ندارد؛ بعد از به‌روز شدن هاب می‌آید.")
+                        else {
+                            env.cache.invalidate("automations", "order-report")
+                            onMade(made)
+                        }
+                    }
+                },
+                context = "بی کارت و بی اثر انگشت؛ همین حالا روشن میشود.",
+                icon = DivanIcon.TIME, enabled = on && routineReady(sentence), state = if (go.busy) com.coinepro.hq.designsystem.DecisionState.WORKING else com.coinepro.hq.designsystem.DecisionState.IDLE,
             )
         }
     }

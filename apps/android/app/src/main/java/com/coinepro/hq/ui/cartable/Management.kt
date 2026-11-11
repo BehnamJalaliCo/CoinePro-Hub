@@ -21,7 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -247,7 +247,7 @@ fun DeployPayloadBlock(d: Decision, open0: String? = null) {
             if (p.prUrl.isNotBlank()) Row(Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "باز کردن PR") { runCatching { uri.openUri(p.prUrl) } }.padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 DIcon(DivanIcon.SHARE, size = 13.dp, tint = c.goldInk)
-                Fig("PR", style = Divan.type.figureSmall, color = c.goldInk)
+                Fig("PR", style = Divan.type.figureSmall, color = c.silverInk)
             }
         }
         p.calendarConflicts.orEmpty().forEach { x ->
@@ -284,7 +284,7 @@ fun EvaluationBlock(d: Decision) {
     val r = RECOMMENDATION[p.recommendation] ?: Rec(p.recommendation.ifEmpty { "—" }, Tone.NEUTRAL, DivanIcon.RATE)
     Section("ارزیابی ماهانه") {
         FactPairs(
-            "کارمند" to { Fig(p.employee.ifEmpty { "—" }, Modifier.clickable(enabled = p.employee.isNotBlank(), role = Role.Button) { nav.go("employees/${p.employee}") }, style = Divan.type.figure, color = c.goldInk) },
+            "کارمند" to { Fig(p.employee.ifEmpty { "—" }, Modifier.clickable(enabled = p.employee.isNotBlank(), role = Role.Button) { nav.go("employees/${p.employee}") }, style = Divan.type.figure, color = c.silverInk) },
             "پیشنهاد" to { Pill(r.fa, r.tone, icon = r.icon) },
             "دور ارزیابی" to { FigValue(p.round.ifEmpty { "—" }) },
         )

@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,10 +88,10 @@ fun JourneyCard(j: Journey, compact: Boolean = false) {
                 )
             }
         }
-        MeterBar(if (j.stages.isEmpty()) 0.0 else reached * 100.0 / j.stages.size, Modifier.padding(top = 10.dp), tone = BarTone.GOLD, height = 6.dp)
+        MeterBar(if (j.stages.isEmpty()) 0.0 else reached * 100.0 / j.stages.size, Modifier.padding(top = 10.dp), tone = BarTone.SILVER, height = 6.dp)
         j.nextFa?.takeIf { it.isNotBlank() }?.let {
             Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softGold).padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("قدم بعدی", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("قدم بعدی", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 Para(it, style = Divan.type.small, color = c.textPrimary)
             }
         }

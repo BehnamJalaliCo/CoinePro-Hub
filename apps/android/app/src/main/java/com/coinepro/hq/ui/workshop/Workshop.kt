@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -125,7 +125,7 @@ fun SessionRow(s: CodeSession, workspaces: List<Workspace>?, grant: Grant?, serv
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Fig(s.ref, style = Divan.type.figureSmall, color = c.textMuted)
                     // ⟨1.8⟩ Claude Code on the company's own server, in its repository there.
-                    if (s.onServer) Text("روی سرور " + (serverName ?: com.coinepro.hq.ui.companyOf(com.coinepro.hq.ui.rememberCompanies(), s.company).nameFa.ifBlank { "شرکت" }), style = Divan.type.micro, color = c.goldInk)
+                    if (s.onServer) Text("روی سرور " + (serverName ?: com.coinepro.hq.ui.companyOf(com.coinepro.hq.ui.rememberCompanies(), s.company).nameFa.ifBlank { "شرکت" }), style = Divan.type.micro, color = c.silverInk)
                     else Fig(ws?.repo?.substringAfter('/') ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
                 }
             }
@@ -134,7 +134,7 @@ fun SessionRow(s: CodeSession, workspaces: List<Workspace>?, grant: Grant?, serv
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Avatar(s.driver.kind, size = 20.dp, state = if (s.state == "working") "working" else "idle")
             Text(actorFa(s.driver), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (s.prUrl != null) Text("PR", style = Divan.type.caption, color = c.goldInk)
+            if (s.prUrl != null) Text("PR", style = Divan.type.caption, color = c.silverInk)
             Text(ago(s.updatedAt), style = Divan.type.micro, color = c.textMuted)
             Fig(usd(s.usage.usd) + (grant?.let { " / " + usd(it.budgetUsd, 0) } ?: ""), style = Divan.type.figureSmall, color = c.textSecondary)
         }
@@ -291,7 +291,7 @@ private fun PersonalSessions() {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             androidx.compose.foundation.layout.Box(Modifier.size(40.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.CODE, size = 20.dp, tint = c.goldInk) }
             Column(Modifier.weight(1f)) {
-                Text("سشن‌های خودت در Claude Code", style = Divan.type.bodyStrong)
+                Text("جلسه‌های خودت در Claude Code", style = Divan.type.bodyStrong)
                 Text("با حساب Claude خودت", style = Divan.type.caption, color = c.textMuted)
             }
         }

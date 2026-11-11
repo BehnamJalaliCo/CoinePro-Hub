@@ -78,7 +78,7 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت 18:30", "کامنت «۷»", "اسلاید", "در حال انتشار")),
             // ⟨1.0.1⟩ §51 a scheduled post taken back: a reel he can still cancel («لغو»), a post taken back («لغو شد», his to publish
             // again), a story whose cancel is on its way, and a post IG-Hub would not cancel (he may try again)
-            "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "پست · لغو شد", "در حال لغو", "لغو انجام نشد")),
+            "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "پست، لغو شد", "در حال لغو", "لغو انجام نشد")),
             // …asked once, in the row's own place
             "output-publish-cancel-ask" to Scene("O-000954", false, listOf("این انتشار لغو شود؟", "لغو کن", "نه"), tap = "لغو"),
             // ⟨1.0.1⟩ §49 «بهترین ساعت» among the sheet's times (chosen: what it rests on, «تأیید و زمان‌بندی»), and §52 the quiet line

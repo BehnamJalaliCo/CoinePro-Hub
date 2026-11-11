@@ -3,7 +3,7 @@ package com.coinepro.hq.ui.session
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +33,6 @@ fun PaceAsk(pace: String?, onPace: (String) -> Unit, modifier: Modifier = Modifi
             listOf(SegOption<String?>("step", PACE_FA.getValue("step"), DivanIcon.OWNER), SegOption<String?>("auto", PACE_FA.getValue("auto"), DivanIcon.RESUME)),
             pace, { p -> if (p != null) onPace(p) }, Modifier.fillMaxWidth(),
         )
-        Text(pace?.let { PACE_HINT_FA[it] } ?: PACE_PICK_FIRST_FA, style = Divan.type.micro, color = if (pace == null) c.goldInk else c.textMuted)
+        Text(pace?.let { PACE_HINT_FA[it] } ?: PACE_PICK_FIRST_FA, style = Divan.type.micro, color = if (pace == null) c.textSecondary else c.textMuted)
     }
 }

@@ -17,7 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -250,7 +250,7 @@ fun ExpiringStrip(m: ArchiveMaps) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("نزدیک‌ترین سررسیدها", Modifier.weight(1f), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-            Text("همه‌ی یادآورها", Modifier.clickable(role = Role.Button) { nav.go("archive-reminders") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("همه‌ی یادآورها", Modifier.clickable(role = Role.Button) { nav.go("archive-reminders") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
         }
         com.coinepro.hq.designsystem.ScrollRow {
             for ((r, x, left) in rows) {

@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -253,7 +253,7 @@ fun MessageTest(code: String, personas: List<SalesPersona>, test0: PersonaTest? 
                         }
                         MeterBar(s.score.toDouble(), tone = when (scoreTone(s.score)) { Tone.POS -> BarTone.POS; Tone.WARN -> BarTone.WARN; else -> BarTone.NEG }, height = 5.dp)
                         s.objectionFa?.takeIf { it.isNotBlank() }?.let { Para("ایراد: $it", style = Divan.type.caption, color = c.textSecondary) }
-                        s.fixFa?.takeIf { it.isNotBlank() }?.let { Para("پیشنهاد: $it", style = Divan.type.caption, color = c.goldInk) }
+                        s.fixFa?.takeIf { it.isNotBlank() }?.let { Para("پیشنهاد: $it", style = Divan.type.caption, color = c.silverInk) }
                     }
                 }
                 Text(plain("سنجیده شد ${jDateTime(r.at)}"), style = Divan.type.micro, color = c.textMuted)

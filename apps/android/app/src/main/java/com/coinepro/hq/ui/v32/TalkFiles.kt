@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,7 +93,7 @@ private fun PendingChip(p: Pending, onRemove: () -> Unit, onRetry: () -> Unit) {
                         else -> {
                             Text(kind?.fa ?: "فایل", style = Divan.type.micro, color = c.textMuted, maxLines = 1)
                             if (p.file.size > 0) Fig(fileSize(p.file.size), style = Divan.type.figureSmall, color = c.textMuted)
-                            if (going) Fig("${(p.progress * 100).toInt()}%", style = Divan.type.figureSmall, color = c.goldInk)
+                            if (going) Fig("${(p.progress * 100).toInt()}%", style = Divan.type.figureSmall, color = c.silverInk)
                         }
                     }
                 }

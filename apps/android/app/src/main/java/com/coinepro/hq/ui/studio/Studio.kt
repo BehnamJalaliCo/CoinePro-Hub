@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -271,7 +271,7 @@ private fun NeedsYou(items: List<MediaItem>, onOpen: (String) -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         LabelPill(st, x.state)
                         Text(if (x.state == "held") "ناظر نگه داشته؛ تصمیم با توست" else "کارت انتشار", Modifier.weight(1f), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        x.decisionRef?.let { d -> Fig(d, Modifier.clip(CircleShape).clickable(role = Role.Button) { nav.go("cartable/$d") }.padding(horizontal = 4.dp), style = Divan.type.figureSmall, color = c.goldInk) }
+                        x.decisionRef?.let { d -> Fig(d, Modifier.clip(CircleShape).clickable(role = Role.Button) { nav.go("cartable/$d") }.padding(horizontal = 4.dp), style = Divan.type.figureSmall, color = c.silverInk) }
                     }
                 }
             }
@@ -390,12 +390,15 @@ fun ItemView(ref: String) {
                 Pill("ساخته‌ی هوش مصنوعی", Tone.NEUTRAL, icon = DivanIcon.INFO)
                 Text("به‌روز ${ago(x.updatedAt)}", style = Divan.type.micro, color = c.textMuted)
             }
-            x.stateNoteFa?.let { note ->
+            x.stateNoteFa?.let { raw ->
+                // ⟨1.0.1⟩ C1.4: a terminal command is never the owner's step: the note is shown without it, the command one tap away.
+                val note = remember(raw) { com.coinepro.hq.core.format.ownerNote(raw) }
                 val bad = x.state == "held" || x.state == "failed"
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (bad) c.softNegative else c.softWarning).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (note.fa.isNotBlank()) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (bad) c.softNegative else c.softWarning).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DIcon(DivanIcon.URGENT, Modifier.padding(top = 2.dp), size = 16.dp, tint = if (bad) c.negative else c.warning)
-                    RichText(note, Modifier.weight(1f), style = Divan.type.small, color = c.textPrimary)
+                    RichText(note.fa, Modifier.weight(1f), style = Divan.type.small, color = c.textPrimary)
                 }
+                note.technical?.let { com.coinepro.hq.designsystem.TechDetails(it) }
             }
         }
         // The owner's part: a waiting item's card, sealed here; a published item comes down through the same API.
@@ -465,7 +468,7 @@ fun ItemView(ref: String) {
                         DIcon(DivanIcon.KNOWLEDGE, size = 13.dp, tint = c.textSecondary)
                         Text(SOURCE_FA[src.kind] ?: src.kind, style = Divan.type.micro, color = c.textMuted)
                         src.ref?.let { RefChip(it, tone = RefTone.NEUTRAL) }
-                        src.url?.let { Fig(it.removePrefix("https://").removePrefix("http://"), Modifier.widthIn(max = 220.dp), style = Divan.type.figureSmall, color = c.goldInk) }
+                        src.url?.let { Fig(it.removePrefix("https://").removePrefix("http://"), Modifier.widthIn(max = 220.dp), style = Divan.type.figureSmall, color = c.silverInk) }
                         Text(prose(src.note), style = Divan.type.caption, color = c.textSecondary)
                     }
                 }

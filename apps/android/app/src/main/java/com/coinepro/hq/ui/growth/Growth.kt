@@ -16,7 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -143,7 +143,7 @@ private fun body(text: String): AnnotatedString {
             var last = 0
             for (m in Regex("\\{\\{\\s*\\w+\\s*\\}\\}").findAll(text)) {
                 append(text.substring(last, m.range.first))
-                withStyle(SpanStyle(background = c.softGold)) { fig(m.value, c.goldInk) }
+                withStyle(SpanStyle(background = c.softGold)) { fig(m.value, c.silverInk) }
                 last = m.range.last + 1
             }
             append(text.substring(last))
@@ -331,7 +331,7 @@ private fun RulesTab(company: String?, data: List<LifecycleRule>?, error: com.co
                     if (r.status != "active" && t != null && t.status != "sealed") Text("قالب این نسخه هنوز مُهر نشده؛ اول قالب، بعد قاعده.", style = Divan.type.caption, color = c.warning)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         r.decisionRef?.let { d ->
-                            Fig(d, Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { nav.go("cartable/$d") }.padding(horizontal = 4.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.goldInk)
+                            Fig(d, Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { nav.go("cartable/$d") }.padding(horizontal = 4.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.silverInk)
                         }
                         Spacer(Modifier.weight(1f))
                         val mine = busy == r.ref && action.busy
@@ -488,7 +488,7 @@ private fun Wave(w: NpsWave) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${jDate(w.opensAt)} تا ${jDate(w.closesAt)}" + if (open) " (${until(w.closesAt)})" else "", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
             if (w.commentsToFeedback > 0) Text(
-                "${w.commentsToFeedback} توضیح در صندوق بازخورد", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk,
+                "${w.commentsToFeedback} توضیح در صندوق بازخورد", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { nav.go("feedback") }.padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }

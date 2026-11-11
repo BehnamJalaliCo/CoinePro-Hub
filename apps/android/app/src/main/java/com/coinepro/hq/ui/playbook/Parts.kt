@@ -17,7 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
+import com.coinepro.hq.designsystem.continuity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -159,7 +160,7 @@ fun RoutineLine(pb: Playbook, r: PlaybookRoutine, trailing: (@Composable () -> U
 fun RuleLine(text: String, trailing: (@Composable () -> Unit)? = null) {
     val c = Divan.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("•", style = Divan.type.small, color = c.goldInk)
+        Text("•", style = Divan.type.small, color = c.silverInk)
         Text(plain(text), style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
         trailing?.invoke()
     }
@@ -404,7 +405,7 @@ fun MemoryCard(memory: String) {
             if (folds) Text(
                 if (open) "کوتاه کن" else "همه‌اش را بخوان",
                 Modifier.clip(CircleShape).clickable(role = Role.Button) { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp),
-                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk,
+                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
             )
         }
     }
@@ -455,7 +456,7 @@ fun SessionPlaybooks(order: String, onDrafted: (Playbook) -> Unit) {
 fun PlaybookRow(pb: Playbook, sourceFa: String?, showState: Boolean = true, onClick: () -> Unit) {
     val c = Divan.colors
     Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "باز کن", onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().continuity("playbook/${pb.ref}").clickable(role = Role.Button, onClickLabel = "باز کن", onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(Modifier.size(34.dp).clip(CircleShape).background(if (pb.sealed) c.softPositive else c.softGold), contentAlignment = Alignment.Center) {

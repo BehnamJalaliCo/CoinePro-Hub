@@ -17,7 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -210,7 +210,7 @@ private fun StateCard(k: Catalogue, companyFa: String) {
                 )
             }
             when (k.state) {
-                "running" -> Pill("در جریان", Tone.GOLD, live = true)
+                "running" -> Pill("در جریان", Tone.SILVER, live = true)
                 "failed" -> Pill("ناموفق", Tone.NEG, dot = true)
                 else -> Pill("${k.sections.size} بخش", Tone.POS, icon = DivanIcon.SEAL)
             }
@@ -242,7 +242,7 @@ private fun ServerLine(s: CatalogueServer, companyFa: String) {
             s.reasonFa?.let { Text(it, style = Divan.type.micro, color = c.negative, maxLines = 2) }
         }
         when (s.state) {
-            "running" -> Pill("میخواند", Tone.GOLD, live = true)
+            "running" -> Pill("میخواند", Tone.SILVER, live = true)
             "done" -> Pill("تمام", Tone.POS, dot = true)
             "failed" -> Pill("ناموفق", Tone.NEG, dot = true)
             else -> Pill("در صف", Tone.NEUTRAL, dot = true)
@@ -377,7 +377,7 @@ internal fun CatalogueCard(code: String, nameFa: String) {
                     style = Divan.type.caption, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (k?.running == true) Pill("در جریان", Tone.GOLD, live = true) else DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
+            if (k?.running == true) Pill("در جریان", Tone.SILVER, live = true) else DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
         }
     }
 }

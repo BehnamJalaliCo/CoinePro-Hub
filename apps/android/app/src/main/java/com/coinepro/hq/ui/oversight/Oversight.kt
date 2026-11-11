@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -178,7 +178,7 @@ fun OversightScreen() {
                         item {
                             HqCard(Modifier.fillMaxWidth()) {
                                 SectionTitle(if (s.watch.on) "در نبودت (در جریان)" else "آخرین «در نبودت»", note = s.watch.since?.let { "از ${jDateTime(it)}" }) {
-                                    if (s.watch.on) Pill("نگهبان روشن", Tone.GOLD, live = true)
+                                    if (s.watch.on) Pill("نگهبان روشن", Tone.SILVER, live = true)
                                 }
                                 Md(s.watch.summaryMd, Modifier.padding(top = 8.dp))
                             }
@@ -449,7 +449,7 @@ internal fun FindingSheet(f: Finding, onClose: () -> Unit) {
             for (e in f.evidence) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Fig(e.kind, style = Divan.type.figureSmall, color = c.textMuted)
-                    Fig(e.ref, style = Divan.type.figureSmall, color = c.goldInk)
+                    Fig(e.ref, style = Divan.type.figureSmall, color = c.silverInk)
                     e.note?.let { RichText(it, Modifier.weight(1f), style = Divan.type.caption) }
                 }
             }

@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -219,10 +219,11 @@ fun RevenueScreen() {
                 }
             }
         }
-        item { FunnelCard() }
-        item { AlertsCard(s?.alerts) }
-        item { AccountsCard() }
-        item { RescueCard() }
+        // Keyed: the screenshots (and a deep link) find a section by what it is, not by how many stand above it.
+        item(key = "funnel") { FunnelCard() }
+        item(key = "alerts") { AlertsCard(s?.alerts) }
+        item(key = "accounts") { AccountsCard() }
+        item(key = "rescue") { RescueCard() }
     }
 }
 

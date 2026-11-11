@@ -38,7 +38,7 @@ class FormatTest {
         assertEquals("$2.94", usd("2.94"))
         assertEquals("$1,234.50", usd("1234.5"))
         assertEquals("—", usd(null as String?))
-        assertEquals("21٪", pct(21.4))
+        assertEquals("21%", pct(21.4))
     }
 
     @Test
@@ -71,7 +71,9 @@ class FormatTest {
         assertEquals("⁦≥ 80%⁩", figs("≥ 80%").text)
         // Units and a dollar sign stay with their number, so "2.4M" never reads "M2.4" in a right-to-left line.
         assertEquals("تعهد ⁦2.4M⁩، مصرف ⁦$4.20⁩ در ⁦1.1s⁩", figs("تعهد 2.4M، مصرف $4.20 در 1.1s").text)
-        assertEquals("⁦5⁩ Max", figs("5 Max").text)
+        // ⟨1.0.1⟩ C0.4: a number and the Latin word it belongs to are one run («5 Max», «640 USDT», «P0»), never two halves that a
+        // right-to-left line may draw in the wrong order.
+        assertEquals("⁦5 \u2060Max⁩", figs("5 Max").text)
     }
 
     @Test

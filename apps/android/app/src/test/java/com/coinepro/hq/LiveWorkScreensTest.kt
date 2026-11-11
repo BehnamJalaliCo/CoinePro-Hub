@@ -58,15 +58,16 @@ class LiveWorkScreensTest(private val name: String, private val night: Boolean) 
         private val SCREENS: Map<String, Scene> = linkedMapOf(
             // Two at work on F-0104: the CEO at step 6 and his SEO specialist (step 4 once the hub is asked again after the stream's line); the
             // last lines, the newest heard on the stream; the plan 1 of 2.
-            "session-live-working" to Scene(listOf("مدیرعامل پرو-چارت دارد کار میکند · قدم ۶", "همزمان: کارشناس سئوی پرو-چارت · قدم ۴", "کار ۱ از ۲"), stream = true) {
+            "session-live-working" to Scene(listOf("مدیرعامل پرو-چارت دارد کار میکند، قدم ۶", "همزمان: کارشناس سئوی پرو-چارت، قدم ۴", "کار ۱ از ۲"), stream = true) {
                 com.coinepro.hq.ui.session.OrderSessionScreen("F-0104")
             },
             // F-0103 stuck: no one to hire and hiring closed; the warm row says why and what fixes it, and «ادامه بده».
             "session-live-stuck" to Scene(listOf("ادامه بده")) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0103") },
-            // F-0101 waits for the owner: «منتظر شما» with the CEO's question; the pace «با من» chosen in the head, the plan 3 of 4.
-            "session-live-waiting" to Scene(listOf("کار ۳ از ۴", "با من")) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0101") },
+            // F-0101 waits for the owner, as «کار زنده» says it: nobody works, who it waits for and since when. ⟨1.0.1⟩ C1.5: the session's
+            // page in this state is `session-chat-your-turn` (the two used to be one and the same picture).
+            "session-live-waiting" to Scene(listOf("کار زنده")) { Sheet("F-0101") },
             // «کار زنده»: every line of F-0104, oldest first, and the two at work at the end.
-            "session-live-sheet" to Scene(listOf("کار زنده", "۴ دقیقه · قدم ۳")) { Sheet("F-0104") },
+            "session-live-sheet" to Scene(listOf("کار زنده", "۴ دقیقه، قدم ۳")) { Sheet("F-0104") },
         )
 
         @Composable

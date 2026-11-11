@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -115,7 +115,7 @@ fun PlannerScreen(onNewOrder: () -> Unit) {
                 HqCard(Modifier.fillMaxWidth(), tahrir = isToday) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(jWeekday(d.date + "T12:00:00Z"), style = Divan.type.bodyStrong, color = if (isToday) c.goldInk else c.textPrimary, modifier = Modifier.weight(1f))
-                        if (isToday) Text("امروز", style = Divan.type.micro, color = c.goldInk)
+                        if (isToday) Text("امروز", style = Divan.type.micro, color = c.silverInk)
                     }
                     if (d.items.isEmpty()) Text("کاری ثبت نشده.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(top = 6.dp))
                     else Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -159,7 +159,7 @@ private fun MonthGrid(first: LocalDate, last: LocalDate, days: List<com.coinepro
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween,
                     ) {
                         if (d != null) {
-                            Fig("${jDay(d)}", style = Divan.type.figureSmall, color = if (d == today) c.goldInk else c.textSecondary)
+                            Fig("${jDay(d)}", style = Divan.type.figureSmall, color = if (d == today) c.silverInk else c.textSecondary)
                             if (n > 0) Text("$n", style = Divan.type.micro, color = c.onGold, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.goldFill).padding(horizontal = 6.dp))
                         }
                     }

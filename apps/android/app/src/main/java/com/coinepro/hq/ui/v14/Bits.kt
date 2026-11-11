@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -194,38 +194,19 @@ fun Tag(text: String, modifier: Modifier = Modifier, figure: Boolean = false) {
     }
 }
 
-/** A bottom sheet with a title (its [ref] as a Latin figure above it), an optional line under it, scrolling content
- *  and the action at the end. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** A bottom sheet with a title, an optional line under it, scrolling content and the action at the end. ⟨1.0.1⟩ It is the app's one
+ *  sheet ([com.coinepro.hq.designsystem.SpringSheet], M15): a handle, as tall as its content, following the finger; [bar] (a
+ *  [com.coinepro.hq.designsystem.DecisionBar]) sticks the sheet's one primary action to its bottom. */
 @Composable
-fun HqSheet(onDismiss: () -> Unit, title: String, sub: String? = null, ref: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    val c = Divan.colors
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            // ⟨1.17⟩ [ref] is the sheet's key only: the owner never reads a ref (§34.4).
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                RichText(title, style = Divan.type.h2, color = c.textPrimary)
-                if (sub != null) Text(sub, style = Divan.type.caption, color = c.textMuted)
-            }
-            content()
-        }
-    }
+fun HqSheet(onDismiss: () -> Unit, title: String, sub: String? = null, ref: String? = null, bar: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    // ⟨1.17⟩ [ref] is the sheet's key only: the owner never reads a ref (§34.4).
+    com.coinepro.hq.designsystem.SpringSheet(onDismiss, title, sub, bar, content)
 }
 
-// A figure keeps its sign, a leading $ and a unit suffix (K, M, B, s) inside the isolate: "$4.20", "2.4M", "1.1s".
-private val NUMBER = Regex("(?:[≥≤<>~±+−-]\\s?)?\\$?\\d[\\d.,/:]*(?:\\s?[%٪]|[KMBs](?![A-Za-z]))?")
-
-/** Mixed text such as a KPI target ("500 در 90 روز", "≥ 80%"): every number is a Latin figure, the words stay in
- *  their right-to-left order. */
-fun figs(text: String): AnnotatedString = buildAnnotatedString {
-    var last = 0
-    for (m in NUMBER.findAll(text)) {
-        append(text.substring(last, m.range.first))
-        fig(m.value)
-        last = m.range.last + 1
-    }
-    append(text.substring(last))
-}
+/** Mixed text such as a KPI target ("500 در 90 روز", "≥ 80%"): every number is a Latin figure, the words stay in their right-to-left
+ *  order. ⟨1.0.1⟩ One token is one run ([com.coinepro.hq.designsystem.latinRanges]): «P0» is never «P» and an isolated «0» (it was drawn
+ *  «0P»), and an amount keeps its sign and its unit («-18 USD»). */
+fun figs(text: String): AnnotatedString = com.coinepro.hq.designsystem.figures(text)
 
 /** The owner's voice or text, as the composer hands it over: a lone file id without files allowed is the voice. */
 data class Spoken(val text: String, val source: String, val fileId: String?)

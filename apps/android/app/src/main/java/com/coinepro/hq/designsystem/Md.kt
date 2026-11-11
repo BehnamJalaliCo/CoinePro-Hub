@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -97,7 +96,8 @@ private val DOT = Regex(" · (?=[\u0600-\u06FF0-9])|(?<=[\u0600-\u06FF0-9]) · "
 
 /** A decimal inside Persian prose ("disk 90.4%") takes the Persian separator, so «۹۰٫۴٪» does not read as «۹۰.۴». */
 // Never inside a Latin run: "GPT 5.5", "disk 90.4%" keep their Latin point (a number after a Latin word belongs to it).
-private val DECIMAL = Regex("(?<![\\w.:/$-])(?<![A-Za-z] )(\\d+)\\.(\\d+)(?=%|٪|\\s|$|[،؛,;)])")
+// ⟨1.0.1⟩ Nor before a Latin unit or a percent sign: «94.60 USDT» and «3.5%» are figures (one Latin run), not prose.
+private val DECIMAL = Regex("(?<![\\w.:/$+−-])(?<![A-Za-z] )(\\d+)\\.(\\d+)(?=٪|\\s(?![A-Za-z$@#])|$|[،؛,;)])")
 
 private fun inline(raw: String, k: MdColors): AnnotatedString = inlineText(raw, k)
 
@@ -142,7 +142,8 @@ private fun AnnotatedString.Builder.link(t: String, k: MdColors) {
 private fun mdColors(): MdColors {
     val c = Divan.colors
     val links = LocalRefLinks.current
-    return remember(c, links) { MdColors(c.textPrimary, c.goldInk, c.tile, c.lapis, links) }
+    // ⟨1.0.1⟩ C0.1: a work number is silver (it is the agents' paperwork), never gold.
+    return remember(c, links) { MdColors(c.textPrimary, c.silverInk, c.tile, c.lapis, links) }
 }
 
 /** One line or paragraph of agent or server text with refs and Latin tokens kept Latin (no blocks). */
@@ -263,7 +264,7 @@ private fun MdTable(t: MdBlock.Table, k: MdColors) {
         Box(Modifier.horizontalScroll(scroll)) {
             val divider = c.lineDivider
             val strong = c.lineStrong
-            TableLayout(t.columns, t.rows.size + 1, available) {
+            TableLayout(t.columns, t.rows.size + 1, available, figures) {
                 for (col in 0 until t.columns) {
                     val a = alignment(t.align[col], figures[col])
                     Box(Modifier.background(c.tile).drawBehind { drawLine(strong, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), 1.dp.toPx()) }.padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = a) {
@@ -314,14 +315,23 @@ private fun textAlign(a: Alignment): TextAlign = when (a) {
     else -> TextAlign.Start
 }
 
-/** Lays out [columns] × [rows] cells (header first, row by row): widths from [MdParser.columnWidths], each row as tall as its tallest cell. */
+/** Lays out [columns] × [rows] cells (header first, row by row): widths from [MdParser.columnWidths], each row as tall as its tallest
+ *  cell. ⟨1.0.1⟩ A table a little wider than its card fits by wrapping its text ([MdParser.fitWidths]): a text cell wraps at its words,
+ *  a figure stays whole; only when even that is too wide does the table scroll sideways. */
 @Composable
-private fun TableLayout(columns: Int, rows: Int, available: Int, content: @Composable () -> Unit) {
+private fun TableLayout(columns: Int, rows: Int, available: Int, figures: List<Boolean>, content: @Composable () -> Unit) {
     Layout(content) { measurables, _ ->
         val min = 56.dp.roundToPx()
         val max = 240.dp.roundToPx()
         val natural = List(columns) { col -> (0 until rows).maxOf { r -> measurables[r * columns + col].maxIntrinsicWidth(Constraints.Infinity) } }
-        val widths = MdParser.columnWidths(natural, available, min, max, 0)
+        val wide = MdParser.columnWidths(natural, available, min, max, 0)
+        // The narrowest each column can be: its longest word (the header's too); a figure column keeps its figures whole.
+        val floors = List(columns) { col ->
+            val words = (0 until rows).maxOf { r -> measurables[r * columns + col].minIntrinsicWidth(Constraints.Infinity) }
+            val body = if (figures.getOrElse(col) { false } && rows > 1) (1 until rows).maxOf { r -> measurables[r * columns + col].maxIntrinsicWidth(Constraints.Infinity) } else 0
+            maxOf(min, words, body)
+        }
+        val widths = MdParser.fitWidths(wide, floors, available) ?: wide
         val heights = List(rows) { r -> (0 until columns).maxOf { col -> measurables[r * columns + col].maxIntrinsicHeight(widths[col]) } }
         val placeables = measurables.mapIndexed { i, m -> m.measure(Constraints.fixed(widths[i % columns], heights[i / columns])) }
         layout(widths.sum(), heights.sum()) {

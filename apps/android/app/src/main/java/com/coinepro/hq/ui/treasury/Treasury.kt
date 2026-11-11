@@ -1,6 +1,14 @@
 package com.coinepro.hq.ui.treasury
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.sp
+import com.coinepro.hq.core.net.HubFeature
+import com.coinepro.hq.core.net.gated
+import com.coinepro.hq.designsystem.sep
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -76,34 +84,28 @@ fun TreasuryScreen() {
     val start = month.data?.periodStart?.let(::ownerDay)?.takeIf { it != "—" }
     val byDay = if (start != null) rememberQuery("treasury:by:day:$start", "treasury") { breakdown("day", from = start) } else null
     val conns = rememberQuery("connections", "treasury") { connections() }
-    val r = refresher(*listOfNotNull(sum, month, byCo, byModel, byDay, conns).toTypedArray())
+    // ⟨1.33⟩ §55.3 the limits; read again every minute while the page is open.
+    val limits = rememberQuery("treasury:limits", "treasury", maxAgeMs = 30_000) { gated(HubFeature.LIMITS) { limits() } }
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    androidx.compose.runtime.LaunchedEffect(onScreen, limits.data != null) { while (onScreen && limits.data != null) { kotlinx.coroutines.delay(60_000); limits.refresh() } }
+    // Every number says when it was read: the moment this page last got its summary.
+    val readAt = remember(sum.data) { com.coinepro.hq.core.format.HqClock.now().toString() }
+    val r = refresher(*listOfNotNull(sum, month, byCo, byModel, byDay, conns, limits).toTypedArray())
     val slot = { i: Int? -> if (i != null && i in 1..8) c.chart[i - 1] else c.silverInk }
     var editBudgets by rememberSaveable { mutableStateOf(false) }
     var editConn by remember { mutableStateOf<com.coinepro.hq.core.net.Connection?>(null) }
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
-            PageHeader("خزانه‌ی توکن", eyebrow = "مصرف هر فراخوانی، از یک مسیر واحد")
+            PageHeader("خزانه‌ی توکن")
         }
+        // ⟨1.0.1⟩ C3.6, §55.3: the Claude accounts as rings and today's meter. A hub before it: nothing here, and the older quota card stays.
+        limits.data?.let { l -> item(key = "limits") { com.coinepro.hq.ui.look.LimitsBlock(l) } }
         item { Segmented(listOf(SegOption("day", "امروز"), SegOption("month", "این ماه")), period, { period = it }, Modifier.fillMaxWidth()) }
         item {
-            Loadable(sum, skeleton = { Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 14.dp) }) { s ->
-                val t = s.totals
-                val holding = s.budgets.firstOrNull { it.scopeType == "holding" }
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile("توکن ورودی و خروجی", tokens(t.inputTokens + t.outputTokens), Modifier.weight(1f), subRich = buildAnnotatedString { fig(tokens(t.cacheReadTokens)); append(" از کش خوانده شد") })
-                        StatTile("هزینه‌ی معادل", usd(t.equivCostUsd), Modifier.weight(1f), subRich = buildAnnotatedString { append("پرداخت واقعی API: "); fig(usd(t.costUsd)) })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile("فراخوانی", t.calls.toString(), Modifier.weight(1f), sub = if (period == "day") "از امروز صبح" else "از اول ماه", figure = false)
-                        StatTile("بودجه‌ی مصرف‌شده", pct(holding?.pct), Modifier.weight(1f), subRich = holding?.let { buildAnnotatedString { fig("${tokens(it.tokensUsed)} / ${tokens(it.tokenLimit)}") } },
-                            tone = when (budgetTone(holding?.pct)) { com.coinepro.hq.designsystem.BarTone.NEG -> Tone.NEG; com.coinepro.hq.designsystem.BarTone.WARN -> Tone.WARN; else -> null }, figure = false)
-                    }
-                }
-            }
+            Loadable(sum, skeleton = { Skeleton(Modifier.fillMaxWidth().height(180.dp), radius = 14.dp) }) { s -> TreasuryHero(s, period, readAt) }
         }
-        item { com.coinepro.hq.ui.owner.QuotaCard() }
+        if (limits.data == null) item { com.coinepro.hq.ui.owner.QuotaCard() }
         // The server's breakdown by day (contract v1.2 addition); hidden until it answers with days.
         val days = byDay?.data.orEmpty().filter { it.key != null }
         if (days.size >= 2 && start != null) item {
@@ -191,11 +193,12 @@ fun TreasuryScreen() {
                         s.topConsumers.forEachIndexed { i, x ->
                             if (i > 0) HorizontalDivider(color = c.lineDivider)
                             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text((i + 1).toString(), style = Divan.type.caption, color = c.textMuted)
+                                Fig((i + 1).toString(), style = Divan.type.figureSmall, color = c.textMuted)
                                 Avatar(agentKindOf(x.actor), dept = deptOf(x.actor), size = 32.dp)
                                 Column(Modifier.weight(1f)) {
-                                    Fig(x.actor, style = Divan.type.figure)
-                                    Text("${x.calls} فراخوانی", style = Divan.type.micro, color = c.textMuted)
+                                    // ⟨1.0.1⟩ a role is read by its name («مدیر رشد تریدیار»), never by its code.
+                                    Text(actorTitle(x.actor) { code -> companyOf(companies, code).nameFa }, style = Divan.type.small, color = c.textPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    Text(buildAnnotatedString { fig(x.calls.toString()); append(" فراخوانی") }, style = Divan.type.micro, color = c.textMuted)
                                 }
                                 Fig(tokens(x.tokens), style = Divan.type.figureSmall, color = c.textMuted)
                                 Fig(usd(x.usd), style = Divan.type.figure)
@@ -249,4 +252,93 @@ fun TreasuryScreen() {
 private fun periodStart(period: String): String {
     val today = com.coinepro.hq.core.format.HqClock.today()
     return (if (period == "day") today else today.withDayOfMonth(1)).toString()
+}
+
+
+/** A role's code as the owner reads it: «مدیر فنی کوینه‌پرو FX», never «FX-TECH-MGR». */
+internal fun actorTitle(code: String, company: (String) -> String): String {
+    val parts = code.split('-')
+    val co = parts.getOrElse(0) { "" }
+    val a = parts.getOrElse(1) { "" }
+    val b = parts.getOrElse(2) { "" }
+    val name = company(co)
+    val dept = com.coinepro.hq.core.format.DEPT_FA[a]
+    return when {
+        a == "CEO" -> "مدیرعامل $name"
+        a == "ADV" -> "مشاور کل"
+        a == "OVR" -> "ناظر کل"
+        a == "SYS" -> "سیستم"
+        a == "AST" || a == "PA" -> "دستیار"
+        dept != null && b == "MGR" -> "مدیر $dept $name"
+        dept != null && b.all { it.isDigit() } && b.isNotEmpty() -> "کارمند $dept $name"
+        name.isNotBlank() && name != co -> "همکار $name"
+        else -> "همکار"
+    }
+}
+
+/**
+ * ⟨1.0.1⟩ C3.6 the top of the period: the verdict sentence («تا آخر ماه میرسم یا نه», the month with its cap), one big number, the
+ * three small numbers in one row, and when it was read. Figures are Latin tabular digits; none is cut (it shrinks to fit).
+ */
+@Composable
+private fun TreasuryHero(s: com.coinepro.hq.core.net.TreasurySummary, period: String, readAt: String) {
+    val c = Divan.colors
+    val t = s.totals
+    val budget = s.budgets.firstOrNull { it.scopeType == "holding" }?.takeIf { period == "month" }
+    val verdict = budget?.let { com.coinepro.hq.core.data.monthVerdict(it.tokensUsed, it.tokenLimit) }
+    HqCard(Modifier.fillMaxWidth().testTag("treasury-hero")) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            verdict?.let { (tone, fa) ->
+                val ink = when (tone) { "pos" -> c.positive; "warn" -> c.warning; else -> c.negative }
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.coinepro.hq.designsystem.DIcon(if (tone == "pos") com.coinepro.hq.designsystem.generated.DivanIcon.SEAL else com.coinepro.hq.designsystem.generated.DivanIcon.URGENT, Modifier.padding(top = 3.dp), size = 16.dp, tint = ink)
+                    Text(fa, style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = ink, modifier = Modifier.weight(1f))
+                }
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.coinepro.hq.designsystem.Amount(
+                    tokens(budget?.tokensUsed ?: (t.inputTokens + t.outputTokens)), Modifier.weight(1f, fill = false),
+                    style = Divan.type.figureL.copy(fontSize = 40.sp, lineHeight = 46.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.textPrimary,
+                )
+                Text(
+                    buildAnnotatedString {
+                        when {
+                            budget != null -> {
+                                append("از "); fig(tokens(budget.tokenLimit)); append(" سقف ماه")
+                                budget.pct?.let { p -> sep(); fig(pct(p), when { p >= 90 -> c.negative; p >= 70 -> c.warning; else -> null }, androidx.compose.ui.text.font.FontWeight.SemiBold) }
+                            }
+                            period == "month" -> append("توکن این ماه")
+                            else -> append("توکن امروز، از نیمه‌شب تهران")
+                        }
+                    },
+                    style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+                SmallFigure("توکن ورودی و خروجی", tokens(t.inputTokens + t.outputTokens), Modifier.weight(1f))
+                androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = 10.dp).width(1.dp).fillMaxHeight().background(c.lineDivider))
+                SmallFigure("هزینه‌ی معادل", usd(t.equivCostUsd), Modifier.weight(1f))
+                androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = 10.dp).width(1.dp).fillMaxHeight().background(c.lineDivider))
+                SmallFigure("فراخوانی", String.format(java.util.Locale.US, "%,d", t.calls), Modifier.weight(1f))
+            }
+            Text(
+                buildAnnotatedString {
+                    append(if (period == "month") "از اول ماه" else "امروز"); sep()
+                    append("خوانده‌شده در "); fig(com.coinepro.hq.core.format.jTime(readAt)); sep()
+                    append("پرداخت واقعی: "); fig(usd(t.costUsd))
+                },
+                style = Divan.type.micro, color = c.textMuted,
+            )
+        }
+    }
+}
+
+/** One small figure of the row under the big number: Latin tabular digits, never cut. */
+@Composable
+private fun SmallFigure(label: String, value: String, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        com.coinepro.hq.designsystem.Amount(value, style = Divan.type.figureM.copy(fontSize = 17.sp, lineHeight = 26.sp), color = c.textPrimary)
+        Text(label, style = Divan.type.micro, color = c.textMuted, maxLines = 2)
+    }
 }

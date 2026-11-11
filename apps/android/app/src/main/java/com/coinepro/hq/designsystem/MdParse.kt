@@ -205,4 +205,22 @@ object MdParser {
         out[out.lastIndex] += available - out.sum()
         return out
     }
+
+    /**
+     * ⟨1.0.1⟩ C0.4 A table that is only a little wider than its card fits by wrapping its text before it scrolls (the report table's
+     * last column used to leave the edge for the sake of a few pixels): each column gives up width in proportion to what it has above
+     * its floor ([floors]: the narrowest it can be: its longest word, a figure whole), until the columns together are [available].
+     * Null when the table fits already, or when even its floors are wider than [available] (it then scrolls sideways inside its card).
+     */
+    fun fitWidths(natural: List<Int>, floors: List<Int>, available: Int): List<Int>? {
+        val total = natural.sum()
+        if (natural.isEmpty() || total <= available) return null
+        val low = natural.indices.map { minOf(natural[it], floors.getOrElse(it) { natural[it] }) }
+        val least = low.sum()
+        if (least > available) return null
+        val spare = (total - least).coerceAtLeast(1)
+        val out = natural.indices.map { low[it] + ((natural[it] - low[it]).toLong() * (available - least) / spare).toInt() }.toMutableList()
+        out[out.lastIndex] += available - out.sum()
+        return out
+    }
 }

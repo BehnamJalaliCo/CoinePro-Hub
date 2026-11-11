@@ -213,12 +213,12 @@ fun impactSortKey(i: DecisionImpact?): Double = if (hasImpact(i)) -abs(impactMon
 // ---------------------------------------------------------------- parallel --
 /** A part: working · delivered · failed. */
 val PART_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
-    "working" to ("در حال کار" to Tone.GOLD), "delivered" to ("تحویل شد" to Tone.POS), "failed" to ("نشد" to Tone.NEG),
+    "working" to ("در حال کار" to Tone.SILVER), "delivered" to ("تحویل شد" to Tone.POS), "failed" to ("نشد" to Tone.NEG),
 )
 
 /** The split as a whole: running · merging · done · failed · cancelled. */
 val SPLIT_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
-    "running" to ("بخش‌ها در کارند" to Tone.GOLD), "merging" to ("در حال ادغام" to Tone.LAPIS), "done" to ("ادغام شد" to Tone.POS),
+    "running" to ("بخش‌ها در کارند" to Tone.SILVER), "merging" to ("در حال ادغام" to Tone.LAPIS), "done" to ("ادغام شد" to Tone.POS),
     "failed" to ("نشد" to Tone.NEG), "cancelled" to ("لغو شد" to Tone.SILVER),
 )
 
@@ -227,7 +227,7 @@ fun partsDoneLine(parts: List<SplitPart>): String = "${parts.count { it.state ==
 
 /** A workspace on a company's server: starting · working · awaiting_seal · idle · delivered · stopped · failed. */
 val WORKSPACE_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
-    "starting" to ("در حال آماده شدن" to Tone.SILVER), "working" to ("در حال کار" to Tone.GOLD), "awaiting_seal" to ("منتظر مُهر تو" to Tone.WARN),
+    "starting" to ("در حال آماده شدن" to Tone.SILVER), "working" to ("در حال کار" to Tone.SILVER), "awaiting_seal" to ("منتظر مُهر تو" to Tone.WARN),
     "idle" to ("منتظر" to Tone.LAPIS), "delivered" to ("تحویل شد" to Tone.POS), "stopped" to ("متوقف شد" to Tone.SILVER), "failed" to ("نشد" to Tone.NEG),
 )
 

@@ -21,7 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -239,7 +239,7 @@ private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
             if (hold.active) drawCircle(c.goldFill.copy(alpha = 0.14f + 0.14f * breath.value), this.size.minDimension / 2 * (0.9f + 0.1f * breath.value), style = Stroke(2.dp.toPx()))
         }
         Box(Modifier.size(44.dp).scale(grow).clip(CircleShape).background(if (hold.active) c.goldFill else c.softGold), contentAlignment = Alignment.Center) {
-            DIcon(DivanIcon.MIC, size = 22.dp, tint = if (hold.active) c.onGold else c.goldInk)
+            DIcon(DivanIcon.MIC, size = 22.dp, tint = if (hold.active) c.onGold else c.silverInk)
         }
     }
 }

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +73,7 @@ private fun Fact(label: String, value: String, modifier: Modifier = Modifier, fi
     val c = Divan.colors
     Column(modifier.clip(RoundedCornerShape(12.dp)).background(c.tile).then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = Divan.type.micro, color = c.textMuted)
-        if (figure) Fig(value, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = if (onClick != null) c.goldInk else c.textPrimary)
+        if (figure) Fig(value, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = if (onClick != null) c.silverInk else c.textPrimary)
         else Text(value, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
     }
 }
@@ -127,6 +127,8 @@ private fun PublishBlock(d: Decision) {
                     Text(PLACEMENT_FA[x.placement] ?: x.placement, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                     Fig(x.account, style = Divan.type.figureSmall, color = c.textMuted)
                     when {
+                        // ⟨1.0.1⟩ C1.4: a path the technical team still connects is a quiet line, not a warning the owner must act on.
+                        x.blocked == "account_not_configured" -> Text(com.coinepro.hq.core.format.ROUTE_NOT_READY_FA, style = Divan.type.caption, color = c.textSecondary)
                         x.blocked != null -> Pill("${PUBLISH_ERROR[x.blocked] ?: x.blocked}؛ این بار نه", Tone.WARN, icon = DivanIcon.URGENT)
                         x.via == "manual" -> Pill("با دست تو", Tone.GOLD, icon = DivanIcon.SHARE)
                         else -> Pill("API رسمی", Tone.SILVER, icon = DivanIcon.SEND)

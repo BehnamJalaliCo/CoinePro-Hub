@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -128,7 +128,7 @@ fun WasteCard(company: String? = null) {
                             Text(w.second, style = Divan.type.micro, color = c.textMuted)
                             for (t in it.top) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 t.employee?.let { e -> Fig(e, Modifier.clickable(role = Role.Button) { nav.go("employees/$e") }, style = Divan.type.figureSmall, color = c.textPrimary) }
-                                t.workRef?.let { r -> Fig(r, Modifier.clickable(role = Role.Button) { nav.go("work/$r") }, style = Divan.type.figureSmall, color = c.goldInk) }
+                                t.workRef?.let { r -> Fig(r, Modifier.clickable(role = Role.Button) { nav.go("work/$r") }, style = Divan.type.figureSmall, color = c.silverInk) }
                                 t.runId?.let { r -> Fig(r, style = Divan.type.figureSmall, color = c.textMuted) }
                                 Box(Modifier.weight(1f))
                                 Fig(tokens(t.tokens), style = Divan.type.figureSmall, color = c.textSecondary)
@@ -151,7 +151,8 @@ private fun WasteBars(days: List<WasteDay>, picked: String, onPick: (String) -> 
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
                 for (x in days) {
                     val color = when {
-                        x.day == picked -> c.goldFill
+                        // ⟨1.0.1⟩ C0.1: the day on show is a full silver bar (gold is the owner's act, not «today»).
+                        x.day == picked -> c.silverInk
                         x.share > 0.15 -> c.warning.copy(alpha = 0.7f)
                         else -> c.silverInk.copy(alpha = 0.4f)
                     }

@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -392,7 +392,7 @@ private fun ChannelCard(ch: SupportChannel, report: ShadowReport?, card: String?
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         DIcon(DivanIcon.SEAL, size = 14.dp, tint = c.goldInk)
-                        Text(buildAnnotatedString { append("کارت "); fig(ref); append(" منتظر مُهر توست") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                        Text(buildAnnotatedString { append("کارت "); fig(ref); append(" منتظر مُهر توست") }, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                     }
                 }
             }

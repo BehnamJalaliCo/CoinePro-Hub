@@ -25,7 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -357,7 +357,7 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                     Text(when (k) {
                         "decision" -> "تصمیم"; "work" -> "کار"; "resolution" -> "مصوبه"; "errand" -> "پیگیری"; "teaching" -> "آموزش"; "inquiry" -> "استعلام"
                         "finding" -> "یافته"; "session" -> "کارگاه"; "case" -> "پرونده"; "media_item" -> "رسانه"; "series" -> "برنامه‌ی انتشار"; else -> "ببین"
-                    }, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.goldInk)
+                    }, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.silverInk)
                 }
                 if (body.isNotBlank()) com.coinepro.hq.ui.CopyAction(com.coinepro.hq.core.format.plainOfMd(body), color = c.textSecondary)
                 if (m.body.isNotBlank()) Text("مصوبه", style = Divan.type.micro, color = c.textSecondary, modifier = Modifier.clip(CircleShape).clickable(onClickLabel = "این پیام را به‌عنوان مصوبه ثبت کن") { onResolve(m) }.padding(horizontal = 8.dp, vertical = 2.dp))
@@ -380,8 +380,8 @@ private fun MetaTags(meta: com.coinepro.hq.core.net.AdvisorMeta) {
     }
     meta.review?.let { r ->
         Row(Modifier.clip(CircleShape).background(c.softGold).padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("مرور هفتگی", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
-            Fig(r, style = Divan.type.figureSmall, color = c.goldInk)
+            Text("مرور هفتگی", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
+            Fig(r, style = Divan.type.figureSmall, color = c.silverInk)
         }
     }
 }

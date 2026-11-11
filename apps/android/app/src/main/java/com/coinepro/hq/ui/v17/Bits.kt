@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -227,13 +227,17 @@ fun RefChip(ref: String, note: String? = null, tone: RefTone = RefTone.GOLD, mod
     val c = Divan.colors
     val nav = LocalNav.current
     val route = refRoute(ref)
-    val (bg, fg) = when (tone) { RefTone.GOLD -> c.softGold to c.goldInk; RefTone.NEG -> c.softNegative to c.negative; RefTone.NEUTRAL -> c.tile to c.textSecondary }
+    // ⟨1.0.1⟩ C0.1: a work number is silver (the default tone keeps its old name), never gold.
+    val (bg, fg) = when (tone) { RefTone.GOLD -> c.silverInk.copy(alpha = 0.14f) to c.silverInk; RefTone.NEG -> c.softNegative to c.negative; RefTone.NEUTRAL -> c.tile to c.textSecondary }
     Row(
         modifier.clip(CircleShape).background(bg).then(if (route != null) Modifier.clickable(role = Role.Button) { nav.go(route) } else Modifier).padding(horizontal = 8.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Fig(ref, style = Divan.type.figureSmall, color = fg)
-        if (!note.isNullOrBlank()) Text("· $note", style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!note.isNullOrBlank()) {
+            com.coinepro.hq.designsystem.Sep(height = 10.dp)
+            Text(note, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -281,7 +285,7 @@ fun Stat(label: String, value: String, modifier: Modifier = Modifier, sub: Strin
 /** A small section heading inside a card (gold, like the decision page's). */
 @Composable
 fun Heading(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = Divan.colors.goldInk)
+    Text(text, modifier, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = Divan.colors.silverInk)
 }
 
 /** A titled block of a card. */

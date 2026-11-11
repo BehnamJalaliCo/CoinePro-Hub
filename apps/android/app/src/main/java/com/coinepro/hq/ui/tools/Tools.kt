@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -187,7 +187,7 @@ fun ToolsScreen() {
                     Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Fig(t.name, Modifier.weight(1f), style = Divan.type.figureSmall, color = c.textPrimary)
-                            Fig(t.`class`, style = Divan.type.figureSmall, color = c.goldInk)
+                            Fig(t.`class`, style = Divan.type.figureSmall, color = c.silverInk)
                         }
                         Text(t.roles.joinToString("، ") { roleFa(it) }, style = Divan.type.micro, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }

@@ -31,7 +31,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
+import com.coinepro.hq.designsystem.continuity
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -502,7 +503,7 @@ internal fun OutputRow(
 ) {
     val c = Divan.colors
     val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
-    val tint by androidx.compose.animation.animateColorAsState(if (selected) c.softGold else c.card, com.coinepro.hq.designsystem.Motion.short(reduced), label = "row-selected")
+    val tint by androidx.compose.animation.animateColorAsState(if (selected) c.raised else c.card, com.coinepro.hq.designsystem.Motion.short(reduced), label = "row-selected")
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
     AnimatedVisibility(
         selecting,
@@ -512,7 +513,8 @@ internal fun OutputRow(
         Box(Modifier.padding(end = 10.dp)) { SelectCheck(selected) }
     }
     HqCard(
-        Modifier.weight(1f).then(if (selected) Modifier.border(1.dp, c.lineTahrir, RoundedCornerShape(com.coinepro.hq.designsystem.Radius.card)) else Modifier),
+        // ⟨1.0.1⟩ M14: the card grows into the page of its output. C0.1: a selected row carries a silver hairline, never gold.
+        Modifier.weight(1f).continuity("outputs/${d.ref}").then(if (selected) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), RoundedCornerShape(com.coinepro.hq.designsystem.Radius.card)) else Modifier),
         onClick = onOpen, color = tint, onLongClick = onLongClick,
         onClickLabel = if (selecting) (if (selected) "برداشتن از انتخاب" else "انتخاب") else "باز کردن", onLongClickLabel = "انتخاب چندتایی",
     ) {
@@ -522,7 +524,7 @@ internal fun OutputRow(
             CompanyMark(d.company, height = 13.dp, mono = true, ink = c.textSecondary)
             // One weighted part: the company's name takes the free width (it is not halved by a spacer).
             Text(companyFa, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            if (d.rating == null) Pill("بی‌امتیاز", Tone.GOLD, dot = true) else Pill("${d.rating.score} از ۱۰", Tone.SILVER)
+            if (d.rating == null) Pill("بی‌امتیاز", Tone.SILVER, dot = true) else Pill("${d.rating.score} از ۱۰", Tone.SILVER)
         }
         RichText(d.title, Modifier.padding(top = 8.dp), style = Divan.type.bodyStrong, color = if (seen) c.textSecondary else c.textPrimary, maxLines = 2)
         RichText(d.summary, Modifier.padding(top = 4.dp), style = Divan.type.small, color = if (seen) c.textMuted else c.textSecondary, maxLines = 2)
@@ -534,13 +536,13 @@ internal fun OutputRow(
     }
 }
 
-/** The round check of selection mode: an empty ring, or the gold disc with its tick. */
+/** The round check of selection mode: an empty ring, or the disc with its tick. ⟨1.0.1⟩ C0.1: a selection is silver, never gold. */
 @Composable
 internal fun SelectCheck(on: Boolean) {
     val c = Divan.colors
     val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
-    val fill by androidx.compose.animation.animateColorAsState(if (on) c.goldFill else androidx.compose.ui.graphics.Color.Transparent, com.coinepro.hq.designsystem.Motion.short(reduced), label = "check-fill")
-    val ring = if (on) c.goldFill else c.textMuted
+    val fill by androidx.compose.animation.animateColorAsState(if (on) c.silverFill else androidx.compose.ui.graphics.Color.Transparent, com.coinepro.hq.designsystem.Motion.short(reduced), label = "check-fill")
+    val ring = if (on) c.silverFill else c.textMuted
     val ink = c.page
     androidx.compose.foundation.Canvas(Modifier.size(24.dp).semantics { contentDescription = if (on) "انتخاب‌شده" else "انتخاب‌نشده" }) {
         val r = size.minDimension / 2
@@ -705,7 +707,7 @@ fun OutputScreen(ref: String) {
     var deleting by remember { mutableStateOf<Deliverable?>(null) }
     var erasing by remember { mutableStateOf(false) }
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(300.dp), radius = 16.dp) }) { d -> OutputDetail(d, onDelete = { deleting = d }, onErase = { erasing = true }) { q.set(it) } } }
+        item { Box(Modifier.continuity("outputs/$ref")) { Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(300.dp), radius = 16.dp) }) { d -> OutputDetail(d, onDelete = { deleting = d }, onErase = { erasing = true }) { q.set(it) } } } }
     }
     // ⟨1.19⟩ §37.2 one output and its files, after the preview and the passkey; the work it belongs to stays.
     if (erasing) com.coinepro.hq.ui.session.EraseSheet(com.coinepro.hq.core.net.EraseKind.OUTPUT, ref, onDismiss = { erasing = false }) {
@@ -826,7 +828,7 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () 
             }
         }
         HqCard(Modifier.fillMaxWidth(), color = c.softGold) {
-            Text("خلاصه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Text("خلاصه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
             com.coinepro.hq.ui.Selectable { Md(d.summary, Modifier.padding(top = 4.dp), color = c.textPrimary) }
         }
         if (!d.body.isNullOrBlank()) com.coinepro.hq.ui.Selectable { Md(d.body) }
@@ -841,7 +843,7 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () 
         }
         if (d.attachments.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("پیوست‌ها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+                Text("پیوست‌ها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk)
                 // ⟨0.19.6⟩ opened, played and downloaded here (they were names only): a workshop's video, image, PDF. An output's
                 // attachment carries its type only as its mime, so the kind is read from it.
                 MessageMedia(d.attachments.map(::kindFromMime), labelled = true)

@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -166,7 +166,7 @@ fun MeterChip(m: VoiceMeter?, warnAt: Double, onClick: () -> Unit, modifier: Mod
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(text, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = ink, maxLines = 1)
-        if (frac != null) MeterBar((frac * 100).toDouble(), Modifier.fillMaxWidth(), tone = when (tone) { Tone.NEG -> BarTone.NEG; Tone.WARN -> BarTone.WARN; else -> BarTone.GOLD }, height = 3.dp)
+        if (frac != null) MeterBar((frac * 100).toDouble(), Modifier.fillMaxWidth(), tone = when (tone) { Tone.NEG -> BarTone.NEG; Tone.WARN -> BarTone.WARN; else -> BarTone.SILVER }, height = 3.dp)
     }
 }
 
@@ -203,7 +203,7 @@ fun MeterBody(period0: String = "month", showPrices0: Boolean = false, editCap0:
                 )
                 HqButton(if (editCap) "بستن" else if (cap == null) "سقف بگذار" else "ویرایش سقف", { editCap = !editCap }, variant = BtnVariant.SILVER, size = BtnSize.SM, icon = DivanIcon.EDIT)
             }
-            capFraction(m)?.let { f -> MeterBar((f * 100).toDouble(), Modifier.fillMaxWidth(), tone = when (tone) { Tone.NEG -> BarTone.NEG; Tone.WARN -> BarTone.WARN; else -> BarTone.GOLD }) }
+            capFraction(m)?.let { f -> MeterBar((f * 100).toDouble(), Modifier.fillMaxWidth(), tone = when (tone) { Tone.NEG -> BarTone.NEG; Tone.WARN -> BarTone.WARN; else -> BarTone.SILVER }) }
             Expand(editCap) { CapEditor(m?.capUsd, settings.data?.voice) { editCap = false; meter.refresh() } }
             m?.let {
                 Text(buildAnnotatedString { append("با این روند تا آخر ماه حدود "); usdSpan(this, it.projectedUsd) }, style = Divan.type.small, color = c.textSecondary)

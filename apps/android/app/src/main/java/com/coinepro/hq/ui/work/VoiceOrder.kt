@@ -26,7 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
+import com.coinepro.hq.designsystem.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -134,7 +134,7 @@ private fun RouteChip(r: OrderRoute, onGo: (String) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceOrderSheet(onDismiss: () -> Unit, listen: Boolean = true, typed: Boolean = false) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Divan.colors.overlay) {
+    com.coinepro.hq.designsystem.SpringSheetFrame(onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             VoiceOrderBody(onDismiss, listen, typed)
         }
@@ -221,7 +221,7 @@ fun VoiceOrderBody(
             when {
                 hearing != null -> ListeningPanel(hearing, v::finish, v::cancel)
                 hubBusy -> {
-                    Text(HUB_TRANSCRIBING, style = Divan.type.bodyStrong, color = c.goldInk)
+                    Text(HUB_TRANSCRIBING, style = Divan.type.bodyStrong, color = c.silverInk)
                     if (v.chunks > 0) Text("${v.sent} از ${v.chunks} بخش رسید؛ متن کامل را هاب برمیگرداند.", style = Divan.type.caption, color = c.textSecondary, textAlign = TextAlign.Center)
                     else Text("صدای ضبط‌شده روی خود هاب به متن میشود و از هاب بیرون نمیرود. متن را پیش از فرستادن میخوانی.", style = Divan.type.small, color = c.textSecondary, textAlign = TextAlign.Center)
                 }
@@ -240,7 +240,7 @@ fun VoiceOrderBody(
                         else "مثلاً «برای تریدیار سه ریلز درباره‌ی سیگنال طلا بساز و در اینستاگرام منتشر کن». منشی شرکت، دپارتمان، خروجی و بودجه را پیشنهاد میدهد. «با جی‌پی‌تی»، «با جمنای»، «با دیپ‌سیک» یا «شورا» بازیکنش را تعیین میکند.",
                         style = Divan.type.small, color = c.textSecondary, textAlign = TextAlign.Center,
                     )
-                    Text("به‌جایش مینویسم", Modifier.clickable { phase = "review" }.padding(6.dp), style = Divan.type.small, color = c.goldInk)
+                    Text("به‌جایش مینویسم", Modifier.clickable { phase = "review" }.padding(6.dp), style = Divan.type.small, color = c.silverInk)
                 }
             }
         }
