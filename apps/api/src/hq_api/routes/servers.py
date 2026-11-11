@@ -420,7 +420,10 @@ async def runner_events(
         raw = json.loads(await request.body() or b"[]")
     except ValueError as exc:
         raise ApiError(422, "validation_failed", fields={"events": "JSON"}) from exc
-    items = EventsIn.model_validate(raw if isinstance(raw, dict) else {"events": raw}).events
+    try:  # a pydantic ValidationError is a ValueError; unhandled it would be a 500
+        items = EventsIn.model_validate(raw if isinstance(raw, dict) else {"events": raw}).events
+    except ValueError as exc:
+        raise ApiError(422, "validation_failed", fields={"events": str(exc)[:200]}) from exc
     async with hub.db.tx(_scope(r)) as tx:
         j = await _runner_job(tx, r, id)
         _still_running(j)

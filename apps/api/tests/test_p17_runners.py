@@ -330,6 +330,14 @@ async def test_exec_job_lifecycle_and_sse_shape(
         await asyncio.sleep(0.1)
     assert job is not None and job["kind"] == "exec" and job["args"]["cmd"] == "uname -a"
     assert job["actor"]["kind"] == "owner" and job["timeout_s"] == 60
+    # A malformed batch is a 422, not a 500 (seq < 1, an unknown type, a bare scalar).
+    for bad in (
+        {"events": [{"seq": 0, "type": "stdout", "data": {"text": "x"}}]},
+        {"events": [{"seq": 1, "type": "nonsense", "data": {}}]},
+        7,
+    ):
+        r = await client.post(f"/api/v1/runners/jobs/{job['id']}/events", json=bad, headers=rn["h"])
+        assert r.status_code == 422 and r.json()["code"] == "validation_failed", r.text
     r = await client.post(
         f"/api/v1/runners/jobs/{job['id']}/events",
         json={
