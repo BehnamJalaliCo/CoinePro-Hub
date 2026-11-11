@@ -675,8 +675,12 @@ def test_loosening_a_rule_is_what_needs_the_seal() -> None:
     assert not AD.loosens(old, {**old, "window_days": 3, "scope": "111"} | {"scope": "account"})
     for change in ({"daily_cap": 150}, {"daily_cap": None}, {"min_roas": 1}, {"min_roas": None},
                    {"min_spend_before_judging": 500}, {"action": "notify"}, {"state": "off"},
-                   {"scope": "111"}):  # fmt: skip
+                   {"scope": "111"}, {"window_days": 30}):  # fmt: skip
         assert AD.loosens(old, {**old, **change}), change
+    one = {**old, "scope": "111"}  # a campaign-scoped rule
+    assert not AD.loosens(one, {**one, "scope": "111", "window_days": 3})
+    assert AD.loosens(one, {**one, "scope": "222"})  # the guard leaves campaign 111
+    assert AD.loosens(one, {**one, "scope": "account"}) is False  # more campaigns covered
 
 
 async def test_both_platforms_are_read_and_a_pause_changes_nothing_but_the_status(
@@ -924,6 +928,11 @@ async def test_ad_rules_and_resuming_are_the_owners_with_a_seal_where_it_loosens
         )
     ).status_code == 422  # nothing to judge
     path = f"/api/v1/companies/{c}/ad-rules/{rule['id']}"
+    for k in ("min_spend_before_judging", "window_days", "scope", "action", "state"):
+        nulled = await client.put(path, headers=h, json={k: None})
+        assert nulled.status_code == 422, (k, nulled.text)  # NOT NULL fields: 422, not 500
+    longer = await client.put(path, headers=h, json={"window_days": 30})
+    assert longer.status_code == 403  # a longer window dilutes the figure: 🔏 ads.cap
     tighter = await client.put(path, headers=h, json={"daily_cap": 80})
     assert tighter.status_code == 200 and tighter.json()["daily_cap"] == 80
     looser = await client.put(path, headers=h, json={"daily_cap": 500})
