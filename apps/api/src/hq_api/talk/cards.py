@@ -46,6 +46,7 @@ run again (with the owner's edits). Running a done card answers what it made.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from datetime import datetime
@@ -67,6 +68,7 @@ from hq_api.talk import data, personas, store
 from hq_api.talk.personas import Persona
 from hq_api.talk.scrub import clean
 
+log = logging.getLogger("hq_api.talk.cards")
 TALK = Principal(kind="service", code="talk", role="service")
 DEPT = r"^[A-Z][A-Z0-9]{1,11}$"
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
@@ -236,6 +238,16 @@ async def _run(
         why = exc.message_fa or CODES.get(exc.code, CODES["internal_error"])[2]
         await _mark(ctx, card, "failed", [], why, payload)
         await _order_step(ctx, conv, card, payload, why)
+        raise
+    except Exception:
+        # audit 2026-11-11: any other fault (a bad number in the payload, a database or router
+        # error) also leaves the card `failed` with its plain reason (§32), never `offered`
+        why = CODES["internal_error"][2]
+        try:
+            await _mark(ctx, card, "failed", [], why, payload)
+            await _order_step(ctx, conv, card, payload, why)
+        except Exception:
+            log.exception("talk card %s: could not mark it failed", card["id"])
         raise
     row = await _mark(ctx, card, "done", made, None, payload)
     await _order_step(ctx, conv, card, payload, None, note[0] if note else None)
@@ -994,6 +1006,11 @@ async def _decision(
         charter = lib.get(role) if lib is not None else None
         if charter is None:
             raise _fail("نقشِ این استخدام منشور ندارد.", "payload.role")
+        try:
+            tokens = int(payload.get("tokens_month") or charter.limits.tokens_per_run * 30)
+        except (TypeError, ValueError) as exc:
+            why = "سهمیه‌ی ماهانه‌ی این استخدام باید یک عدد باشد."
+            raise _fail(why, "payload.tokens_month") from exc
         hire = {
             "company": p.company,
             "department": payload.get("department") or (p.employee or {}).get("department"),
@@ -1003,8 +1020,7 @@ async def _decision(
             "reason": str(payload.get("why_fa") or text)[:5000],
             "model": str(payload.get("model") or charter.model),
             "effort": str(payload.get("effort") or charter.effort),
-            "quota_estimate_month": {"tokens": int(payload.get("tokens_month")
-                                                   or charter.limits.tokens_per_run * 30)},
+            "quota_estimate_month": {"tokens": tokens},
         }  # fmt: skip
         body = Dec.DecisionIn(kind="hire", title=f"استخدام: {hire['title_fa']}"[:300],
                               what=str(card["body_fa"] or hire["reason"])[:20000],
