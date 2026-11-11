@@ -419,3 +419,19 @@ def test_the_governance_schedules() -> None:
     daily = fixed[schedules.GOVERNANCE_DAILY]
     assert daily.workflow == "GovernanceDaily" and daily.spec.time_zone_name == "Asia/Tehran"
     assert not kpi.paused and not daily.paused  # they gate themselves
+
+
+def test_the_okr_reminder_waits_for_the_quarters_last_jalali_month() -> None:
+    """Audit 2026-11-11: a 31-day distance fired a day or two early before Azar and Esfand."""
+    from datetime import date
+
+    from hq_api.domain import gov_common as G
+
+    for jy in (1404, 1405, 1406, 1407):
+        for q in (1, 2, 3, 4):
+            start, end = G.quarter_bounds(f"{jy}-Q{q}")
+            last = G.from_jalali(jy, 3 * q, 1)
+            assert not G.in_last_quarter_month(last - timedelta(days=1))
+            assert G.in_last_quarter_month(last) and G.in_last_quarter_month(end - timedelta(days=1))
+            assert not G.in_last_quarter_month(start)
+    assert not G.in_last_quarter_month(date(2026, 11, 21))  # 30 Aban 1405

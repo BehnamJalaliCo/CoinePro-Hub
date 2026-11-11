@@ -71,6 +71,11 @@ def quarter_bounds(quarter: str) -> tuple[date, date]:
     return start, end
 
 
+def in_last_quarter_month(d: date) -> bool:
+    """Whether `d` is in its quarter's third Jalali month (Khordad, Shahrivar, Azar, Esfand)."""
+    return to_jalali(d)[1] % 3 == 0
+
+
 def next_quarter(quarter: str) -> str:
     jy, q = int(quarter[:4]), int(quarter[-1])
     return f"{jy + 1}-Q1" if q == 4 else f"{jy}-Q{q + 1}"
