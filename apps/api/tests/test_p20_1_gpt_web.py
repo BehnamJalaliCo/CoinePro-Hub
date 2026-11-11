@@ -112,6 +112,7 @@ async def test_a_gpt_work_goes_to_the_web_queue_never_to_codex(
     co = (await new_company())["code"]
     async with bench(su, hub, web=("gpt",)):
         await per_day(su, "gpt", "assistant_errand", 5)
+        await per_day(su, "gpt", "content_draft", 5)
         w = await order(client, owner, co, player="gpt")
         run = await work_run(su, w["id"])
         c = await agents.runner.claim(str(run["id"]))
@@ -121,7 +122,8 @@ async def test_a_gpt_work_goes_to_the_web_queue_never_to_codex(
                WHERE purpose_kind = 'work' AND purpose_ref = $1""",
             w["ref"],
         )
-        assert (call["via"], call["state"], call["seat"]) == ("web", "queued", "assistant_errand")
+        # ⟨2026-11-11⟩ GPT's first text seat is content_draft now (migration 0062), on the web
+        assert (call["via"], call["state"], call["seat"]) == ("web", "queued", "content_draft")
         # nothing for the host's CLI dispatcher (Codex): the job waits for the web path
         r = await client.post("/internal/v1/substitutes/jobs/claim", headers=substitutes_headers())
         assert r.status_code == 200 and r.json().get("job") is None, r.text

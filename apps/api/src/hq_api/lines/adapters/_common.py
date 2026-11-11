@@ -51,6 +51,13 @@ SKIP_FA = {
     "holding_locked": "هلدینگ قفل است؛ هیچ کاری اجرا نمی‌شود.",
     "company_locked": "این شرکت قفل است.",
     "deploy_freeze": "هاب در توقف استقرار است.",
+    # ⟨2026-11-11⟩ the ends a call gets from the hub itself
+    "too_long": "متن برای این جایگاه بلندتر از حد است.",
+    "not_claimed": "نوبت این کار به موقع نرسید.",
+    "timeout": "جواب به موقع نرسید.",
+    "browser_unavailable": "مرورگر هاب در دسترس نبود.",
+    "worker_error": "خطای داخلی هاب پیش آمد.",
+    "abandoned": "جواب به موقع نرسید.",
 }
 
 
@@ -136,6 +143,7 @@ async def ask_seat(
         raise StepFailed(skip_fa(call.get("state_reason"), who), code="seat_skipped")
     deadline = timeout_s if timeout_s is not None else timeout_of(ctx)
     waited = 0.0
+    gave_up = False
     while True:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             row = await tx.first("SELECT * FROM substitutes.calls WHERE id = :id", id=call["id"])
@@ -155,9 +163,12 @@ async def ask_seat(
             # ⟨2026-11-11⟩ the step stops waiting: its call ends too (`abandoned`), so it neither
             # waits in the player's queue nor counts against the daily cap; one that ended just
             # now is read once more above
-            async with hub.db.tx(await hub.companies.ids()) as tx:
-                ended = await S.abandon(tx, hub, call["id"])
-            if ended:
+            ended = True
+            if not gave_up:
+                gave_up = True
+                async with hub.db.tx(await hub.companies.ids()) as tx:
+                    ended = await S.abandon(tx, hub, call["id"])
+            if ended or row is None:
                 raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
             continue
         await sleep(POLL_S)

@@ -12,6 +12,7 @@ delivered by its turn, and its package follows without waiting for the agent's d
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -53,7 +54,8 @@ async def instagram(su: Any, company_id: Any, config: str) -> None:
 async def tech_works(su: Any, tag: str, code: str) -> list[Any]:
     return list(
         await su.fetch(
-            f"SELECT ref, status FROM work.work WHERE run_meta ->> '{tag}' = $1 ORDER BY created_at",
+            "SELECT ref, status FROM work.work WHERE run_meta ->> $1::text = $2 ORDER BY created_at",
+            tag,
             code,
         )
     )
@@ -74,7 +76,6 @@ def test_the_holdings_command_publishes_every_company_through_ig_hub() -> None:
     row = {"config": {"via": "ig_hub", "accounts": ["pro.chart"]}, "secret_set": False}
     assert CN.state_of("instagram", row) == "connected"
     assert CN.ig_hub_line(row) == "از راه IG-Hub خوانده و منتشر میشود (1 حساب)."
-    # a company without its own command: the setting's figures are never read by a guess
     assert BH.command(HUB_COMMAND, "@pro.chart") == f"{HUB_COMMAND} posts pro.chart 100"
 
 
@@ -83,7 +84,9 @@ def test_the_technical_team_learns_the_accounts_from_ig_hub_by_code() -> None:
     brief = CN.ig_setup_brief("PC", details)
     assert f"`{HUB_COMMAND} accounts`" in brief and "server.exec" in brief
     assert "server.map" in brief and "connection.set" in brief
-    assert "kind: instagram, via: ig_hub" in brief and "server: {company: IG, name: IG-Hub}" in brief
+    assert (
+        "kind: instagram, via: ig_hub" in brief and "server: {company: IG, name: IG-Hub}" in brief
+    )
     assert "paused" in brief and "never registered" in brief
     assert "«پروچارت»" in brief and "Pro-Chart" in brief and "https://pro-chart.com" in brief
     assert "Match by the company's name, its site and the handle" in brief
@@ -116,8 +119,7 @@ async def test_a_company_is_ready_once_its_accounts_are_registered(
             co=co["id"],
         )
     assert ready["ready"] is True and ready["command"] == HUB_COMMAND
-    assert ready["accounts"] == ["pro.chart"]
-    assert state is not None
+    assert ready["accounts"] == ["pro.chart"] and state is not None
     # a company's own command wins
     await instagram(
         su, co["id"], '{"via": "ig_hub", "accounts": ["pro.chart"], "publish_command": "/srv/x"}'
@@ -127,7 +129,8 @@ async def test_a_company_is_ready_once_its_accounts_are_registered(
     # the daily read of a connection with accounts and no figures command: nothing to read, no
     # error (the posts are read for the best hour)
     await instagram(su, co["id"], '{"via": "ig_hub", "accounts": ["pro.chart"]}')
-    after = await CN.read_one(hub, co["id"], "instagram")
+    async with holding_switch(su, "released"):
+        after = await CN.read_one(hub, co["id"], "instagram")
     assert after["state"] == "connected" and after["last_error_fa"] is None
 
 
@@ -141,11 +144,10 @@ async def test_the_best_hour_reads_the_posts_with_the_holdings_command(
     ig, co = await new_company(), await new_company()
     rn = await pair(client, hub, owner_session, ig, "IG-Hub")
     assert (await poll(client, rn)).status_code in (200, 204)
+    server = {"company": ig["code"], "name": "IG-Hub"}
     await instagram(
-        su, co["id"],
-        '{"via": "ig_hub", "accounts": ["pro.chart"], "server": {"company": "%s", "name": "IG-Hub"}}'
-        % ig["code"],
-    )  # fmt: skip
+        su, co["id"], json.dumps({"via": "ig_hub", "accounts": ["pro.chart"], "server": server})
+    )
     got = await BH.read_due(hub, datetime.now(UTC))
     assert got["asked"] >= 1, got
     job = await take(client, rn)
@@ -328,4 +330,6 @@ async def test_an_empty_seat_says_why_and_asks_the_ceo_to_fill_it_once_a_day(
         await GR.tick(hub, now=at(day + timedelta(days=3), 8, 0), only={co["id"]})
     assert await fills_now() == 2
     # an optional seat is never a hire of its own: its run says so plainly
-    assert "اختیاری" in GR.EMPTY_OPTIONAL_FA and H.check(GR.EMPTY_OPTIONAL_FA.format(seat="x")) == []
+    assert (
+        "اختیاری" in GR.EMPTY_OPTIONAL_FA and H.check(GR.EMPTY_OPTIONAL_FA.format(seat="x")) == []
+    )

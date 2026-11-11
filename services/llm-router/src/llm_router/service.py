@@ -224,7 +224,9 @@ class RouterService:
         self.metrics.quota_exhausted.labels(conn.key).set(1 if quota else 0)
 
     # --------------------------------------------------------------- admit --
-    async def admit(self, req: RunRequest, caller: str, max_input_chars: int) -> Plan:
+    async def admit(
+        self, req: RunRequest, caller: str, max_input_chars: int, *, retry_of: str | None = None
+    ) -> Plan:
         snap = await self.registry.get()
         company = snap.companies.get(req.company_code)
         if company is None or company.status != "active":
@@ -291,6 +293,8 @@ class RouterService:
                 **({"images": len(req.images())} if req.images() else {}),
                 # ⟨1.5⟩ prompt 12 §8: the request's and its prefix's hashes (never the text)
                 **hashes.of(req, model),
+                # ⟨2026-11-11⟩ the call the other subscription refused, made again here
+                **({"retry_of": retry_of} if retry_of else {}),
             },
         )
         scopes = _usage_scopes(chain, company, holding)

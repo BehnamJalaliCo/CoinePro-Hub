@@ -23,7 +23,7 @@ from hq_api.domain import playbooks as PB
 from hq_api.domain import session_publish as SPB
 from hq_api.hub import Hub
 
-from .conftest import agent_headers, idem
+from .conftest import idem
 from .p10_fakes import holding_switch
 from .test_p13a_media import mp4
 from .test_p17_runners import pair, poll, take

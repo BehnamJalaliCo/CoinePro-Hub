@@ -265,7 +265,13 @@ class Calls:
 
 
 def seat_world(monkeypatch: pytest.MonkeyPatch, *, call_state: str = "queued", reason: str | None = None,
-                guard: str | None = None, found: bool = True) -> None:  # fmt: skip
+                guard: str | None = None, found: bool = True) -> list[Any]:  # fmt: skip
+    abandoned: list[Any] = []
+
+    async def abandon(tx: Any, hub: Any, call_id: Any) -> bool:
+        abandoned.append(call_id)
+        return True
+
     async def text_seat(tx: Any, player: str) -> Any:
         return ({"player": player}, {"seat": "assistant_errand"}) if found else None
 
@@ -283,6 +289,8 @@ def seat_world(monkeypatch: pytest.MonkeyPatch, *, call_state: str = "queued", r
     monkeypatch.setattr(C.S, "guard", guard_)
     monkeypatch.setattr(C.S, "seat_call", seat_call)
     monkeypatch.setattr(C.S, "full_text", full_text)
+    monkeypatch.setattr(C.S, "abandon", abandon)
+    return abandoned
 
 
 async def test_the_seat_call_waits_for_the_answer_and_reads_it(
@@ -323,11 +331,13 @@ async def test_a_signed_out_or_limited_chatgpt_is_a_plain_failure_never_another_
 
 
 async def test_a_call_that_never_answers_times_out_plainly(monkeypatch: pytest.MonkeyPatch) -> None:
-    seat_world(monkeypatch)
+    abandoned = seat_world(monkeypatch)
     hub = FakeHub(**{"FROM substitutes.calls": {"state": "running"}})
     with pytest.raises(StepFailed) as e:
         await C.ask_seat(ctx(hub, "gpt_text", timeout_s=10), "x")
     assert e.value.code == "timeout" and "به موقع" in e.value.reason_fa
+    # ⟨2026-11-11⟩ its call ends with it (no orphan in the player's queue, no daily cap eaten)
+    assert len(abandoned) == 1
 
 
 # --------------------------------------------------------------------- tts --

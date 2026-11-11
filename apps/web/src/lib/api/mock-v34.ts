@@ -10,6 +10,9 @@
 // `hq.e2e.stuck=plain` makes F-0005 stuck with no fix of the hub's (the knot's own way out is then «ادامه بده»). The
 // checks ask for the rarer states through `hq.e2e.ring=late` (the turn is past 90 percent of its cap), `hq.e2e.workers=2` (two work
 // at once in F-0007), `hq.e2e.mood=thinking` (a run that has taken no step yet) and `hq.e2e.old55` (a hub before §55: none of these).
+// ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states and in no list: F-0013 while
+// the draft waits in ChatGPT's queue (an outside call at work, `kind: call`), F-0014 the next morning, when nothing ran after «… از ChatGPT
+// خواسته شد و در صف است» and the hub still said «آرام» (the page says «ایستاده» with «ادامه بده»).
 
 import { conversationCard, conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
 import { memoryOf, setSource, sourceOf } from './mock-v40';
@@ -25,6 +28,8 @@ type S = {
   ref: string; conv: string; pace: 'auto' | 'step'; hidden: boolean; opened_at: string; closed_at: string | null; verdict: 'ok' | 'cancel' | null;
   participants: Participant[]; tasks: Task[]; turn: { question_fa: string; at: string; by: { kind: string; code: string; display_fa: string }; who_fa: string } | null;
   holder: { code: string; title_fa: string; company: string; company_fa: string } | null; persona: string; text_fa: string; last_at: string; state?: string;
+  /** ⟨2026-11-11⟩ false: a session the checks open by its ref, in no list (the lists stay as they were). */
+  listed?: boolean;
 };
 const sessions = new Map<string, S>();
 /** ⟨1.19⟩ Orders erased for good: they answer 404 and never come back from the fixtures. */
@@ -131,20 +136,52 @@ function seed() {
     ['owner', 'برای تریدیار یک ریلز درباره‌ی جای درست حد ضرر بساز.', T('2026-11-10', '05:00')],
     ['media_director@TY', 'ریلز ساخته شد و با کاورش پایین همین صفحه است. اگر خوب است، تأیید کن تا منتشر شود.', T('2026-11-10', '06:20')],
   ]);
+  // ⟨2026-11-11⟩ the owner's 12-hour stall, while the draft waits in ChatGPT's queue, and the next morning
+  const ago41 = (sec: number) => new Date(Date.now() - sec * 1000).toISOString();
+  const pc = { code: 'PC-CEO', title_fa: 'مدیرعامل', company: 'PC', company_fa: 'پرو-چارت' };
+  mk({
+    ref: 'F-0013', text_fa: 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو', persona: 'ceo@PC', pace: 'step', listed: false,
+    opened_at: ago41(40 * 60), last_at: ago41(4 * 60), holder: pc, participants: [holderP('مدیرعامل پرو-چارت', 'PC', 'ceo@PC')], tasks: reelsPlan(),
+  }, [
+    ['owner', 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو.', ago41(40 * 60)],
+    ['ceo@PC', 'سلام مدیر کل. سناریست را استخدام میکنم، گوینده را یک‌بار تنظیم میکنم و هر قدم را با تو جلو میبرم.', ago41(38 * 60)],
+    ['owner', 'خودت تصمیم بگیر و ادامه بده', ago41(6 * 60)],
+    ['ceo@PC', DRAFT_ASKED_FA, ago41(4 * 60)],
+  ]);
+  mk({
+    ref: 'F-0014', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', persona: 'ceo@PC', pace: 'step', listed: false,
+    opened_at: ago41(830 * 60), last_at: ago41(812 * 60), holder: pc, participants: [holderP('مدیرعامل پرو-چارت', 'PC', 'ceo@PC')], tasks: reelsPlan(),
+  }, [
+    ['owner', 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من.', ago41(830 * 60)],
+    ['ceo@PC', '**سؤال از تو** · گام ۱ انجام شد (استخدام سناریست و روش موضوع روزانه). تأیید یا اصلاح؟ اگر تأیید است، گام ۲ (متن گوینده و تنظیم یک‌بارِ صدا) را شروع کنم؟', ago41(815 * 60)],
+    ['owner', 'خودت تصمیم بگیر و ادامه بده', ago41(813 * 60)],
+  ]);
 }
+/** The eighteen steps of Pro-Chart's daily reels («با من»): two done, the third in hand. */
+const REELS_PLAN = [
+  'استخدام سناریست و روش موضوع روزانه', 'متن گوینده و تنظیم یک‌بار صدا', 'پیش‌نویس متن ریلز اول با ChatGPT', 'خواندن متن با صدای گوینده',
+  'موشن‌گرافی ریلز اول', 'کاور ریلز اول', 'کپشن و کلمه‌ی کامنت', 'تأیید و انتشار ریلز اول', 'خواندن بازخورد ریلز اول',
+  'موضوع روز دوم', 'متن روز دوم', 'صدا و موشن‌گرافی روز دوم', 'انتشار روز دوم', 'پیدا کردن بهترین ساعت انتشار',
+  'کارگروه روزانه‌ی ریلز', 'انتشار خودکار هر روز', 'گزارش هفته‌ی اول', 'جمع‌بندی و بستن',
+];
+function reelsPlan(): Task[] { return REELS_PLAN.map((t, i) => task(i + 1, t, i < 2 ? 'done' : i === 2 ? 'doing' : 'todo', 'agent', 'مدیرعامل پرو-چارت')); }
+/** The holder's last word of the owner's 12-hour stall, as it was (F-0014), and while the draft is in ChatGPT's queue (F-0013). */
+const STALLED_FA = 'گام ۲ در جریان است. موضوع اول («معرفی ابزارهای ترسیم روی نمودار پرو-چارت») ثبت شد. گوینده‌ی ثابت پرو-چارت (Kore، فارسی معیار و گرم) یک‌بار برای همیشه تنظیم شد. '
+  + 'پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است.';
+const DRAFT_ASKED_FA = 'پیش‌نویس متن ریلز اول از ChatGPT خواسته شد و در صف است؛ تا جوابش برسد، کاور را آماده میکنم.';
 seed();
 
 // -------------------------------------------------------------------------------------- ⟨1.23⟩ §41 live activity
 type Line41 = { at: string; who_fa: string; text_fa: string; id?: string; company?: string | null; kind?: string; state?: 'running' | 'done' | 'failed'; task_n?: number | null };
 type Work41 = {
   who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string;
-  kind?: 'run' | 'workshop' | 'direct' | 'server'; cap_s?: number | null; last_fa?: string | null; last_at?: string | null;
+  kind?: 'run' | 'workshop' | 'direct' | 'server' | 'call'; cap_s?: number | null; last_fa?: string | null; last_at?: string | null;
 };
 type Act41 = { working: Work41[]; last: Line41[]; idle_since: string | null; waiting_fa: string | null; stuck_fa: string | null };
 const MOOD_FA: Record<string, string> = { thinking: 'فکر میکند', working: 'کار میکند', waiting: 'منتظر تو', stuck: 'گیر کرده', idle: 'آرام' };
 /** §55.1 the mood, by the hub's own rule: someone works (still thinking until a run's first step, or a turn's first act); else it waits for the owner; else stuck; else calm. */
 const moodOf = (a: Act41): string => {
-  if (a.working.length) return a.working.some((w) => ((w.kind ?? 'run') === 'run' ? w.step > 0 : w.last_fa != null)) ? 'working' : 'thinking';
+  if (a.working.length) return a.working.some((w) => ((w.kind ?? 'run') === 'run' ? w.step > 0 : w.kind === 'call' || w.last_fa != null)) ? 'working' : 'thinking';
   return a.waiting_fa ? 'waiting' : a.stuck_fa ? 'stuck' : 'idle';
 };
 /** The activity as the hub of §55 answers it; a hub before §55 says neither the mood nor a worker's kind, cap or last line. */
@@ -191,6 +228,27 @@ function actOf(s: S): Act41 {
       idle_since: null, waiting_fa: null, stuck_fa: null,
     };
   }
+  else if (s.ref === 'F-0013') {
+    a = {
+      working: [{ who_fa: 'ChatGPT', company_fa: 'پرو-چارت', work_title_fa: 'پیش‌نویس متن ریلز اول', started_at: ago41(4 * 60), step: 0, doing_fa: 'در صف ChatGPT: پیش‌نویس متن', kind: 'call', cap_s: 900, last_fa: null, last_at: ago41(4 * 60) }],
+      last: [
+        { id: `run-${s.ref}-1`, at: ago41(5 * 60), who_fa: who, company: co, text_fa: 'دوباره سر کار آمد', kind: 'start', state: 'done', task_n: null },
+        { id: `run-${s.ref}-2`, at: ago41(4 * 60), who_fa: who, company: co, text_fa: 'از ChatGPT پرسید', kind: 'step', state: 'done', task_n: 3 },
+      ],
+      idle_since: null, waiting_fa: null, stuck_fa: null,
+    };
+  } else if (s.ref === 'F-0014') {
+    // As the hub said it that night: nobody works, nothing waits for the owner, nothing is stuck: «آرام».
+    a = {
+      working: [],
+      last: [
+        { id: `run-${s.ref}-1`, at: ago41(812 * 60 + 40), who_fa: who, company: co, text_fa: 'حرف تو را گرفت و دارد فکر میکند', kind: 'start', state: 'done', task_n: null },
+        { id: `run-${s.ref}-2`, at: ago41(812 * 60), who_fa: who, company: co, text_fa: STALLED_FA, kind: 'step', state: 'done', task_n: null },
+        { id: `run-${s.ref}-3`, at: ago41(812 * 60 - 5), who_fa: who, company: co, text_fa: 'این دور کارش را تمام کرد', kind: 'end', state: 'done', task_n: null },
+      ],
+      idle_since: ago41(812 * 60 - 5), waiting_fa: null, stuck_fa: null,
+    };
+  }
   else if (s.ref === 'F-0005') a = { working: [], last: lines(2), idle_since: ago41(1500), waiting_fa: null, stuck_fa: 'بودجه‌ی پست سوم تمام شده؛ بودجه را اضافه کن یا بگو ادامه بدهم.' };
   else if (s.ref === 'F-0008') a = { working: [], last: lines(1), idle_since: ago41(300), waiting_fa: 'انتخاب یکی از سه عنوان', stuck_fa: null };
   else a = { working: [], last: s.closed_at ? [] : lines(1), idle_since: ago41(600), waiting_fa: null, stuck_fa: null };
@@ -205,6 +263,8 @@ export function tickActivity(): Array<{ id: string; type: string; at: string; co
     const a = actOf(s);
     const w = a.working[0];
     if (!w || s.closed_at) continue;
+    // an outside call takes no steps of its own: it is there until its answer comes
+    if (a.working.every((x) => x.kind === 'call')) continue;
     const co = s.holder?.company ?? null;
     const open = a.last.findIndex((l) => l.state === 'running');
     if (open >= 0) {
@@ -248,7 +308,7 @@ const LOCAL: Record<string, any> = {
     ref: 'F-0008', text_fa: 'سه عنوان برای خبرنامه‌ی هفته‌ی تریدیار پیشنهاد بده', at: T('2026-11-05', '08:00'), state: 'waiting',
     ack: { at: T('2026-11-05', '08:01'), by: { kind: 'employee', code: 'TY-CEO', display_fa: 'مدیرعامل تریدیار' }, plan_fa: 'مدیرعامل سه عنوان مینویسد، با مدیر کل یکی را انتخاب میکند و بعد متن را مینویسد.', assigned: [{ company: 'TY', code: 'TY-CEO', title_fa: 'مدیرعامل' }], due_at: null },
     route: { companies: ['TY'], department: null, collaborators: [], output_kind: 'answer', budget_tokens: 60_000, mode: 'single', player: 'auto' },
-    steps: [{ at: T('2026-11-05', '08:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل تریدیار سپرد.' }, { at: T('2026-11-06', '06:10'), who_fa: 'مدیرعامل تریدیار', what_fa: 'سه عنوان نوشت و از شما سؤال کرد.' }],
+    steps: [{ at: T('2026-11-05', '08:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل تریدیار سپرد.' }, { at: T('2026-11-06', '06:10'), who_fa: 'مدیرعامل تریدیار', what_fa: 'سه عنوان نوشت و از تو سؤال کرد.' }],
     blockers: [], outputs: [], summary: null, updated_at: T('2026-11-06', '06:10'),
   },
   'F-0009': {
@@ -264,7 +324,7 @@ const LOCAL: Record<string, any> = {
       { at: T('2026-11-07', '09:10'), who_fa: 'سازنده‌ی ریلز', what_fa: 'ریلز اول را ساخت و تحویل داد. (O-000071)' },
       { at: T('2026-11-07', '09:15'), who_fa: 'سازنده‌ی ریلز', what_fa: 'ریلز دوم را ساخت و تحویل داد. (D-000090)' },
       { at: T('2026-11-07', '09:25'), who_fa: 'مدیر رسانه', what_fa: 'انتشار منتظر ماند: سری انتشار هنوز مُهر نشده و مسئول انتشار نیست.' }],
-    blockers: [{ kind: 'series_unsealed', title_fa: 'سری انتشار مُهر نشده', detail_fa: 'ریلزها آماده است، ولی سری هنوز مُهر شما را ندارد.', since: T('2026-11-07', '09:25'), fix: { action: 'series.seal', label_fa: 'مُهر سری انتشار', target: 'SR-0013' } },
+    blockers: [{ kind: 'series_unsealed', title_fa: 'سری انتشار مُهر نشده', detail_fa: 'ریلزها آماده است، ولی سری هنوز مُهر تو را ندارد.', since: T('2026-11-07', '09:25'), fix: { action: 'series.seal', label_fa: 'مُهر سری انتشار', target: 'SR-0013' } },
       { kind: 'no_employee', title_fa: 'مسئول انتشار نیست', detail_fa: 'جایگاه مسئول انتشار پرو-چارت خالی است.', since: T('2026-11-07', '09:25'), fix: { action: 'hire', label_fa: 'استخدام مسئول انتشار', target: 'PC/publisher' } }],
     outputs: [{ ref: 'O-000071', title_fa: 'ریلز ۱: معرفی ابزار خط روند', kind: 'reel' }, { ref: 'O-000072', title_fa: 'ریلز ۲: ساختن اولین هشدار قیمت', kind: 'reel' }],
     summary: null, updated_at: T('2026-11-07', '09:25'),
@@ -288,6 +348,23 @@ const LOCAL: Record<string, any> = {
     steps: [{ at: T('2026-11-10', '05:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به رسانه‌ی تریدیار سپرد.' }, { at: T('2026-11-10', '05:40'), who_fa: 'نویسنده', what_fa: 'متن ریلز را نوشت.' }, { at: T('2026-11-10', '06:18'), who_fa: 'سازنده‌ی ریلز', what_fa: 'ریلز را ساخت و تحویل داد.' }],
     blockers: [], outputs: [{ ref: 'O-000067', title_fa: 'ریلز: حد ضرر را کجا بگذاریم', kind: 'reel' }],
     summary: { done_fa: 'ریلز ۳۰ ثانیه‌ای با کاور ساخته شد.', left_fa: '', need_fa: 'اگر خوب است، تأیید کن تا منتشر شود.' }, updated_at: T('2026-11-10', '06:20'),
+  },
+  'F-0013': {
+    ref: 'F-0013', text_fa: 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو', at: ago41(40 * 60), state: 'in_progress',
+    ack: null, route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 600_000, mode: 'single', player: 'auto' },
+    steps: [{ at: ago41(38 * 60), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل پرو-چارت سپرد.' }, { at: ago41(4 * 60), who_fa: 'مدیرعامل پرو-چارت', what_fa: DRAFT_ASKED_FA }],
+    blockers: [], outputs: [], summary: null, updated_at: ago41(4 * 60),
+  },
+  'F-0014': {
+    ref: 'F-0014', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', at: ago41(830 * 60), state: 'in_progress',
+    ack: null, route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 600_000, mode: 'single', player: 'auto' },
+    steps: [
+      { at: ago41(828 * 60), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل پرو-چارت سپرد.' },
+      { at: ago41(818 * 60), who_fa: 'مدیرعامل پرو-چارت', what_fa: 'روش موضوع بدون تکرار: سناریست هر روز با ChatGPT موضوع پیشنهاد میدهد و با دفتر موضوعات ثبت میکند؛ موضوع تکراری خودکار رد میشود.' },
+      { at: ago41(815 * 60), who_fa: 'مدیرعامل پرو-چارت', what_fa: 'سناریست ریلز پرو-چارت استخدام شد و به همین جلسه آمد.' },
+      { at: ago41(812 * 60), who_fa: 'مدیرعامل پرو-چارت', what_fa: STALLED_FA },
+    ],
+    blockers: [], outputs: [], summary: null, updated_at: ago41(812 * 60),
   },
   'F-0004': {
     ref: 'F-0004', text_fa: 'گزارش هزینه‌ی تبلیغات اکتبر', at: T('2026-10-28', '14:00'), state: 'delivered',
@@ -332,7 +409,7 @@ let linkSeq = 3;
 const canvas = () => ({
   nodes: Object.keys(NAME).map((code) => ({
     code, name_fa: NAME[code]!, kind: code === 'HQ' ? 'holding' : 'company', x: nodePlace[code]!.x, y: nodePlace[code]!.y, line_fa: LINE[code]!,
-    open_sessions: [...sessions.values()].filter((s) => !s.closed_at && s.holder?.company === code).length,
+    open_sessions: [...sessions.values()].filter((s) => !s.closed_at && s.listed !== false && s.holder?.company === code).length,
   })),
   links,
 });
@@ -382,7 +459,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
 
   // --------------------------------------------------------------------------------------------- the office
   if (p === '/office' && m === 'GET') {
-    const cards = await Promise.all([...sessions.values()].filter((s) => !s.closed_at && !s.hidden).map(async (s) => card(s, await reportOf(s.ref))));
+    const cards = await Promise.all([...sessions.values()].filter((s) => !s.closed_at && !s.hidden && s.listed !== false).map(async (s) => card(s, await reportOf(s.ref))));
     const home = await (await next(new Request(new URL('/api/v1/home', req.url)))).json().catch(() => ({ cards: {}, critical: [] })) as any;
     const decs = await (await next(new Request(new URL('/api/v1/decisions?status=pending&limit=10', req.url)))).json().catch(() => ({ items: [] })) as any;
     const items = Array.isArray(decs) ? decs : decs.items ?? [];
@@ -427,7 +504,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
   // ---------------------------------------------------------------------------------------------- sessions
   if (p === '/sessions' && m === 'GET') {
     const st = q.get('state') ?? 'open';
-    const all = await Promise.all([...sessions.values()].map(async (s) => card(s, await reportOf(s.ref))));
+    const all = await Promise.all([...sessions.values()].filter((s) => s.listed !== false).map(async (s) => card(s, await reportOf(s.ref))));
     const items = all.filter((c) => (st === 'all' ? true : st === 'closed' ? !!c.closed_at && !c.hidden : !c.closed_at && !c.hidden));
     const rank = ['your_turn', 'ready', 'stuck', 'moving', 'closed'];
     items.sort((a, b) => rank.indexOf(a.badge) - rank.indexOf(b.badge) || Date.parse(b.last_at) - Date.parse(a.last_at));

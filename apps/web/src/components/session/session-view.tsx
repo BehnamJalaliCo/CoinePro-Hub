@@ -9,6 +9,8 @@
 // - right above the composer, never stacked banners: the «الان» bar while something works (with the build ring of a workshop or direct
 //   turn, and «نگه دار»), then ONE of the owner's things: the «منتظر تو» card with its ready answers, or the «گره» card with its one
 //   action, or the decision bar («تأیید و انتشار» of what the session waits on, else «تأیید و بستن»): the page's one full gold;
+// - ⟨2026-11-11⟩ an open session that nobody works on and that none of those explains is «ایستاده» after twenty minutes: one calm card
+//   there says so, with the last thing done and «ادامه بده» (looked at again every minute);
 // - a closed session ends with its end leaf. Nothing here shows a ref or a code, and nothing sends the owner elsewhere.
 
 import Link from 'next/link';
@@ -51,7 +53,8 @@ import { useFillHeight } from '@/components/look/fill';
 import { faceOf, usageOf } from '@/components/look/output';
 import { PublishFor, PublishUnder, leadFile } from '@/components/look/publish';
 import { DrawnTick } from '@/components/look/ring';
-import { AnswerSent, EndLeaf, IdleNudge, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, WaitingCard, moodOf, taskFa, taskOf } from '@/components/look/session';
+import { AnswerSent, EndLeaf, IdleNudge, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, StillCard, WaitingCard, moodOf, stillOf, taskFa, taskOf } from '@/components/look/session';
+import { useTick } from '@/components/live/motion';
 import { SpringSheet } from '@/components/look/spring-sheet';
 import { Facts, Ltr } from '@/components/look/text';
 import { SysRow } from './system-group';
@@ -176,7 +179,11 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   // says it; once no one does, the header's facts carry it.
   const lastStep = useLastStep(refId, r.steps.at(-1)?.at, activity?.last.at(-1)?.at);
   const asked = !!r.turn && !closed;
-  const mood = moodOf(activity, { closed, badge, asked });
+  // ⟨2026-11-11⟩ An open session nobody works on, that the hub has not explained, is «ایستاده» with its own card (looked at again every
+  // minute); never «آرام» for hours with nothing to press.
+  const minute = useTick(60_000, !closed && !activity?.working.length);
+  const still = closed ? null : stillOf(r, activity, badge, minute);
+  const mood = still ? 'still' : moodOf(activity, { closed, badge, asked });
   const task = taskOf(r.tasks);
   const outs = useSessionOutputs(r.outputs);
 
@@ -250,7 +257,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           <div className="flex items-center gap-2.5">
             <h1 className="min-w-0 flex-1 truncate text-[17px] font-semibold leading-8 text-ink"><PlainText text={r.text_fa} /></h1>
             {task ? <span className="hq-m18-only flex-none text-[12px] text-sec">{taskFa(task)}</span> : null}
-            <MoodLight mood={mood} word={activity?.mood ? activity.mood_fa : null} />
+            <MoodLight mood={mood} word={activity?.mood && activity.mood === mood ? activity.mood_fa : null} />
             <IconButton icon="more" label="جزئیات" size={36} aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); setDetails(true); }} />
           </div>
           <div className="hq-m18-fold text-[12px] leading-5 text-sec" data-session-facts>
@@ -262,13 +269,14 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         {talk ? (
           <ConversationPane
             variant="session" fill conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} onScrolled={setScrolled}
-            quietSend={bar || knot} answer={asked ? reply : undefined}
+            quietSend={bar || knot || !!still} answer={asked ? reply : undefined}
             above={(
               <>
                 {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} />}
                 {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : said && !closed ? <AnswerSent text={said} /> : null}
                 {closed ? null : <SessionCards cards={r.cards ?? []} />}
                 {knot ? <KnotCard refId={refId} stuckFa={blockers.length ? null : activity?.stuck_fa} blockers={blockers} company={company} run={runFix} lead={!bar} /> : null}
+                {still ? <StillCard refId={refId} still={still} now={minute} lead={!bar} /> : null}
                 {bar ? (
                   <DecisionBar place="flow" label={waitsOn ? 'تأیید و انتشار' : 'تأیید و بستن'} state={closeState} doneLabel="جلسه بسته شد" onLeft={() => setCloseState('idle')}
                     context={waitsOn ? 'کار تمام شده؛ با تأیید تو همین فایل منتشر میشود.' : 'کار تمام شده؛ با تأیید تو جلسه بسته و بایگانی میشود.'}
@@ -318,7 +326,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
             {/* ⟨1.0.1⟩ §54 a direct session: its holder is one session with the hub's tools; nothing else changes for the owner. */}
             {(r as DirectReport).direct ? <p className="text-[12px] leading-5 text-sec" data-testid="direct-session">{DIRECT_FA}</p> : null}
             {/* §41 a quiet session never stalls unseen: when it last worked, and one tap that takes it up again. */}
-            {!closed && !asked && mood === 'idle' ? <IdleNudge refId={refId} a={activity} /> : null}
+            {/* (the page's still card carries that tap once the session stands still; the line stays here) */}
+            {!closed && !asked && (mood === 'idle' || mood === 'still') ? <IdleNudge refId={refId} a={activity} button={!still} /> : null}
           </Card>
           <Participants r={r} closed={closed} onAddPerson={() => setPeople(true)} />
           <Tasks r={r} closed={closed} />
@@ -345,7 +354,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           </Card>
         </div>
       </SpringSheet>
-      <LiveSheet open={live} onOpenChange={setLive} a={activity} />
+      <LiveSheet open={live} onOpenChange={setLive} a={activity} refId={refId} ready={ready} />
       <PersonSheet open={people} onOpenChange={setPeople} r={r} />
       <CloseSheet open={closing} onOpenChange={setClosing} r={r} onAsk={(t) => { setClosing(false); void pane?.send(t); }} onClosed={() => { setClosing(false); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); }} />
       {asking ? <PublishFor output={asking.output} fileId={asking.file} onClose={() => setAsking(null)} /> : null}

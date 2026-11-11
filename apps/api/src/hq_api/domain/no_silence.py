@@ -15,7 +15,7 @@ Rule-based, no model. Every text passes `humanize` in `notify.raise_notification
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -27,6 +27,7 @@ log = logging.getLogger("hq_api.no_silence")
 QUIET = timedelta(minutes=5)
 
 # A run's refusal (agents.runner) in the owner's words: why, and what fixes it.
+# ⟨2026-11-11⟩ the owner is «تو», never «شما»
 RUN_WHY_FA: dict[str, tuple[str, str]] = {
     "locked": (
         "کلید توقف یا قفل انتشار روشن است.",
@@ -34,18 +35,18 @@ RUN_WHY_FA: dict[str, tuple[str, str]] = {
     ),
     "daily_cap": (
         "سقف توکن امروز پر شده است.",
-        "فردا خودکار جواب میدهد، یا سقف روزانه را در خزانه بالا ببرید.",
+        "فردا خودکار جواب میدهد، یا سقف روزانه را در خزانه بالا ببر.",
     ),
-    "budget_used_up": ("بودجه‌ی این کار تمام شده است.", "بودجه‌ی کار را در گزارش فرمان بیشتر کنید."),
+    "budget_used_up": ("بودجه‌ی این کار تمام شده است.", "بودجه‌ی کار را در گزارش فرمان بیشتر کن."),
     "budget_usd": (
         "بودجه‌ی دلاری این کار تمام شده است.",
-        "بودجه‌ی کار را در گزارش فرمان بیشتر کنید.",
+        "بودجه‌ی کار را در گزارش فرمان بیشتر کن.",
     ),
-    "usd_used": ("بودجه‌ی دلاری این کار تمام شده است.", "بودجه‌ی کار را در گزارش فرمان بیشتر کنید."),
+    "usd_used": ("بودجه‌ی دلاری این کار تمام شده است.", "بودجه‌ی کار را در گزارش فرمان بیشتر کن."),
     "no_charter": ("منشور این نقش پیدا نشد.", "مدیر فنی هلدینگ باید منشور را برگرداند."),
     "employee_inactive": (
         "این کارمند فعال نیست.",
-        "کارمند را فعال کنید یا پیام را به مدیر دیگری بدهید.",
+        "کارمند را فعال کن یا پیام را به مدیر دیگری بده.",
     ),
     "runtime_not_configured": (
         "موتور اجرای ایجنت‌ها روی هاب آماده نیست.",
@@ -53,15 +54,79 @@ RUN_WHY_FA: dict[str, tuple[str, str]] = {
     ),
     "talk_loop": (
         "این کار بی‌خروجی دور خودش چرخید و نگه داشته شد.",
-        "در گزارش فرمان آن را دوباره روشن کنید.",
+        "در گزارش فرمان آن را دوباره روشن کن.",
     ),
     # ⟨2026-11-09⟩ «با من»
     "owner_turn": (
-        "این جلسه «با من» است و منتظر جواب شماست.",
-        "در جلسه جواب بدهید یا «ادامه بده» را بزنید.",
+        "این جلسه «با من» است و منتظر جواب توست.",
+        "در جلسه جواب بده یا «ادامه بده» را بزن.",
     ),
 }
-RUN_WHY_DEFAULT = ("جواب آماده نشد.", "از «گفتگو» بپرسید چه شده؛ گزارش کامل آنجاست.")
+RUN_WHY_DEFAULT = ("جواب آماده نشد.", "از «گفتگو» بپرس چه شده؛ گزارش کامل آنجاست.")
+
+# ⟨2026-11-11⟩ a quota stopped the run: one plain sentence each, with the time its account has
+# room again when the run carries it (`{when}`: «از ساعت 03:30», «از فردا ساعت 03:30»)
+QUOTA_FA: dict[str, tuple[str, str]] = {
+    "quota_exhausted": (
+        "اکانت‌های Claude پر است؛ {when} دوباره کار میکند.",
+        "اکانت‌های Claude پر است؛ تا یکی جا باز کند خودش دوباره کار میکند.",
+    ),
+    "usage_limit": (
+        "اکانت‌های Claude پر است؛ {when} دوباره کار میکند.",
+        "اکانت‌های Claude پر است؛ تا یکی جا باز کند خودش دوباره کار میکند.",
+    ),
+    "quota_throttled": (
+        "سهمیه‌ی مدل لحظه‌ای پر بود؛ {when} دوباره کار میکند.",
+        "سهمیه‌ی مدل لحظه‌ای پر بود؛ کمی بعد خودش دوباره کار میکند.",
+    ),
+    "circuit_open": (
+        "موتور مدل موقتاً جواب نمیدهد؛ {when} دوباره کار میکند.",
+        "موتور مدل موقتاً جواب نمیدهد؛ چند دقیقه بعد خودش دوباره کار میکند.",
+    ),
+}
+
+
+def quota_why_fa(code: str | None, when_fa: str | None = None) -> str | None:
+    """The owner's sentence for a quota code (None for any other code)."""
+    pair = QUOTA_FA.get(code or "")
+    if pair is None:
+        return None
+    return pair[0].format(when=when_fa) if when_fa else pair[1]
+
+
+def parse_at(raw: Any, base: datetime | None = None) -> datetime | None:
+    """A reset time as a run may carry it: a datetime, an ISO text, or seconds after `base`."""
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return raw
+    text = str(raw).strip()
+    try:
+        secs = float(text)
+    except ValueError:
+        secs = None
+    if secs is not None:
+        return base + timedelta(seconds=secs) if base is not None else None
+    try:
+        at = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return at if at.tzinfo is not None else at.replace(tzinfo=UTC)
+
+
+def when_fa(at: datetime | None, zone: Any, now: datetime) -> str | None:
+    """«از ساعت 03:30» (today), «از فردا ساعت 03:30», «از N روز دیگر، ساعت 03:30» in the owner's
+    zone, Latin digits; None for no time or a time already past."""
+    if at is None or at <= now:
+        return None
+    local, today = at.astimezone(zone), now.astimezone(zone)
+    days = (local.date() - today.date()).days
+    clock = f"{local:%H:%M}"
+    if days <= 0:
+        return f"از ساعت {clock}"
+    if days == 1:
+        return f"از فردا ساعت {clock}"
+    return f"از {days} روز دیگر، ساعت {clock}"
 
 # An automatic hire refused (hiring.auto_fill): the ApiError's code.
 HIRE_WHY_FA: dict[str, tuple[str, str]] = {
@@ -181,7 +246,12 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
             if run is None:
                 why, fix = "پیام به کسی نرسید.", "مدیر فنی هلدینگ باید صف پیام‌ها را ببیند."
             elif run["state"] == "refused" or run["state"] == "failed":
-                why, fix = RUN_WHY_FA.get(run["error_code"] or "", RUN_WHY_DEFAULT)
+                quota = quota_why_fa(run["error_code"])  # ⟨2026-11-11⟩ in plain words
+                why, fix = (
+                    (quota, "")
+                    if quota is not None
+                    else RUN_WHY_FA.get(run["error_code"] or "", RUN_WHY_DEFAULT)
+                )
             elif run["state"] == "queued":
                 busy = await tx.scalar(
                     """SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'
@@ -205,7 +275,7 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
             company_code=r["company"],
             level="report",
             title_fa=f"پیام شما به {who} هنوز جواب نگرفته است",
-            body_fa=f"{why} {fix}",
+            body_fa=f"{why} {fix}".strip(),
             link_kind="thread",
             link_ref=r["thread"],
             domain="business",

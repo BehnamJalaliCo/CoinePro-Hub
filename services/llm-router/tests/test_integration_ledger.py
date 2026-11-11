@@ -411,6 +411,7 @@ async def test_the_second_subscription_takes_over_when_the_first_is_out(
     reset = time.time() + 60
     sub = FakeBackend(
         BackendResult(QUOTA, error_class="usage_limit", quota_resets_at=reset),
+        ok_result(text="the refused call, again"),
         ok_result(text="from the second account"),
         ok_result(text="P4 too"),
     )
@@ -418,7 +419,8 @@ async def test_the_second_subscription_takes_over_when_the_first_is_out(
     await su.execute("UPDATE llm.connections SET status = 'enabled' WHERE key = 'claude-max-2'")
     try:
         first = await svc.run(req(), "t", 10_000)
-        assert first.status == "quota_exhausted"
+        # ⟨2026-11-11⟩ the refused call itself is made once more on the second account
+        assert first.connection == "claude-max-2" and first.text == "the refused call, again"
         moved = await svc.run(req(priority=2), "t", 10_000)  # not transferable: still moves
         assert moved.connection == "claude-max-2" and moved.text == "from the second account"
         meta = await su.fetchval("SELECT meta FROM llm.calls WHERE id = $1", moved.call_id)

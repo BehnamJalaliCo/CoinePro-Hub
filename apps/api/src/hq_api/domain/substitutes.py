@@ -878,7 +878,7 @@ async def claim(tx: Tx, hub: Any = None) -> dict[str, Any]:
         try:
             async with tx.conn.begin_nested():
                 await expire_stale(tx, hub)
-        except Exception:  # noqa: BLE001 - the reaper never stops a claim
+        except Exception:
             log.exception("the substitutes' reaper failed at a claim")
     lock = await gate.holding_lock(tx)
     if lock is not None:
@@ -2232,7 +2232,9 @@ async def behind_check(tx: Tx, hub: Any, now: datetime | None = None) -> int:
 # -------------------------------------------------------------- the web path --
 def queue_deadline(seat: str | None, task: str | None) -> timedelta:
     """How long a call may wait in its queue: longer for an image or a video."""
-    return QUEUE_DEADLINE_MEDIA if seat == "creative" or task in ("image", "video") else QUEUE_DEADLINE
+    return (
+        QUEUE_DEADLINE_MEDIA if seat == "creative" or task in ("image", "video") else QUEUE_DEADLINE
+    )
 
 
 def deadline_at(c: dict[str, Any]) -> datetime:
@@ -2287,8 +2289,10 @@ async def _end_safely(
     try:
         async with tx.conn.begin_nested():
             return await end_call(tx, hub, call_id, state, reason, why=why) is not None
-    except Exception:  # noqa: BLE001 - one call never stops the others
-        log.exception("a substitute call's end could not be delivered", extra={"call": str(call_id)})
+    except Exception:
+        log.exception(
+            "a substitute call's end could not be delivered", extra={"call": str(call_id)}
+        )
     try:
         async with tx.conn.begin_nested():
             n = await tx.exec(
@@ -2300,7 +2304,7 @@ async def _end_safely(
                 id=call_id,
             )
         return n > 0
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("a substitute call could not be ended", extra={"call": str(call_id)})
         return False
 
@@ -2369,7 +2373,7 @@ async def pending_for(
             {CALLS_OF_WORKS}
               AND c.state IN ('queued', 'running')
               AND {DEADLINE_SQL} > CAST(:now AS timestamptz)
-            ORDER BY c.created_at, c.id""",  # noqa: S608 - constants only
+            ORDER BY c.created_at, c.id""",
         refs=[str(w) for w in work_ids],
         ids=[str(w) for w in work_ids],
         now=now or datetime.now(UTC),
@@ -2399,7 +2403,7 @@ async def ended_since(tx: Tx, work_ids: list[UUID], since: datetime) -> list[dic
         f"""SELECT c.id, c.player, c.seat, c.task, c.state, c.state_reason, c.finished_at
             {CALLS_OF_WORKS}
               AND c.state IN ('failed', 'skipped') AND c.finished_at >= :since
-            ORDER BY c.finished_at DESC, c.id""",  # noqa: S608 - constants only
+            ORDER BY c.finished_at DESC, c.id""",
         refs=[str(w) for w in work_ids],
         ids=[str(w) for w in work_ids],
         since=since,
@@ -2446,7 +2450,7 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
     try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             expired = await expire_stale(tx, hub, now)
-    except Exception:  # noqa: BLE001 - the reaper never stops the pass
+    except Exception:
         log.exception("the substitutes' reaper failed")
     async with hub.db.tx(await hub.companies.ids()) as tx:
         lock = await gate.holding_lock(tx)
@@ -2511,7 +2515,7 @@ async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> in
         )
         await apply_web(hub, c, account, answer)
         return 1
-    except Exception:  # noqa: BLE001 - one job never stops the others
+    except Exception:
         log.exception(
             "a substitute web job failed in the worker",
             extra={"call": str(c["id"]), "player": c["player"]},
@@ -2519,8 +2523,10 @@ async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> in
     try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             await _end_safely(tx, hub, c["id"], "failed", "worker_error")
-    except Exception:  # noqa: BLE001 - the reaper ends it at its deadline
-        log.exception("a failed substitute web job could not be ended", extra={"call": str(c["id"])})
+    except Exception:
+        log.exception(
+            "a failed substitute web job could not be ended", extra={"call": str(c["id"])}
+        )
     return 0
 
 

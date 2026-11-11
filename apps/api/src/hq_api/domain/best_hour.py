@@ -307,7 +307,8 @@ async def read_due(hub: Any, now: datetime | None = None) -> dict[str, int]:
         )
         for conn in conns:
             cfg = _cfg(conn["config"])
-            accounts = cfg.get("accounts") if isinstance(cfg.get("accounts"), list) else []
+            raw = cfg.get("accounts")
+            accounts = raw if isinstance(raw, list) else []
             if not CN.publish_command_of(cfg):
                 continue
             for account in [str(a) for a in accounts][:20]:

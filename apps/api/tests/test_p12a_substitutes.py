@@ -34,11 +34,16 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
     test database), nothing else queued, the holding unlocked; then signed out
     and off again, as they are on the hub. ⟨20.1⟩ GPT named in `cli` has its
     text seats on Codex for the block (the CLI path the code review keeps; by
-    default its text runs on the web)."""
+    default its text runs on the web); ⟨2026-11-11⟩ its web-only content_draft
+    seat is off for the block (a GPT work's text takes the Codex seat) and the
+    substitutes runner is on (a CLI seat is never queued while it is off)."""
     if "gpt" in cli:
         await su.execute(
             """UPDATE substitutes.seats SET via = 'cli' WHERE player = 'gpt'
                  AND seat IN ('advisor_second_opinion', 'overseer_cross_check', 'assistant_errand')"""
+        )
+        await su.execute(
+            "UPDATE substitutes.seats SET enabled = false WHERE player = 'gpt' AND seat = 'content_draft'"
         )
         await su.execute(
             """UPDATE substitutes.players SET capabilities = jsonb_set(capabilities, '{text}', '"cli"')
@@ -58,7 +63,7 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
         list(web),
     )
     saved = hub.settings
-    hub.settings = replace(saved, substitute_wait_s=wait_s)
+    hub.settings = replace(saved, substitute_wait_s=wait_s, substitutes_runner=bool(cli))
     try:
         async with holding_switch(su, "released"):
             yield

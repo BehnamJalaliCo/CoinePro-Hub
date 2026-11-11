@@ -59,9 +59,7 @@ WORK_FAILED = ("failed", "cancelled")
 # ⟨2026-11-11⟩ a routine that cannot run for an empty seat says why on the working group's page,
 # in one plain line, and the company's CEO gets a work to fill the seat (once per seat a day)
 EMPTY_SEAT_FA = "جایگاه «{seat}» هنوز خالی است؛ استخدام خودکار آن را پر میکند."
-EMPTY_OPTIONAL_FA = (
-    "جایگاه «{seat}» اختیاری است و خالی مانده؛ این روال تا پر شدن آن اجرا نمیشود."
-)
+EMPTY_OPTIONAL_FA = "جایگاه «{seat}» اختیاری است و خالی مانده؛ این روال تا پر شدن آن اجرا نمیشود."
 EMPTY_CEO_FA = (
     "جایگاه «{seat}» هنوز خالی است؛ مدیرعامل شرکت آن را پر میکند و روال از نوبت بعد اجرا میشود."
 )
@@ -698,9 +696,7 @@ async def _record_run(
     return rid
 
 
-def fill_brief(
-    g: Group, seat: Seat, r: Routine, m: dict[str, Any], occurrence: datetime
-) -> str:
+def fill_brief(g: Group, seat: Seat, r: Routine, m: dict[str, Any], occurrence: datetime) -> str:
     code = str(m.get("company") or m.get("code"))
     name = m.get("name_fa") or code
     return (
@@ -786,21 +782,23 @@ async def run_routine(
         note = "سری انتشار مُهرشده‌ای نیست؛ چیزی برای انتشار نیست."
     elif emp is None:
         empty = True
-        note = (
-            EMPTY_OPTIONAL_FA if seat.optional else EMPTY_SEAT_FA
-        ).format(seat=seat.title_fa)
+        note = (EMPTY_OPTIONAL_FA if seat.optional else EMPTY_SEAT_FA).format(seat=seat.title_fa)
     if note is not None:
         rid = await _record_run(tx, grow, m, r, occurrence, "skipped", note, None)
+        # ⟨2026-11-11⟩ a routine that cannot run is not silent: the company's CEO gets a work to
+        # fill the seat (once per seat per day); the run's line says so
+        if (
+            rid is not None
+            and empty
+            and not seat.optional
+            and await fill_seat_work(tx, g, m, seat, r, occurrence) is not None
+        ):
+            await tx.exec(
+                "UPDATE growth.routine_runs SET note_fa = :n WHERE id = :id",
+                id=rid,
+                n=EMPTY_CEO_FA.format(seat=seat.title_fa),
+            )
         if rid is not None:
-            if empty and not seat.optional:
-                # ⟨2026-11-11⟩ a routine that cannot run is not silent: the company's CEO gets a
-                # work to fill the seat (once per seat per day); the run's line says so
-                if await fill_seat_work(tx, g, m, seat, r, occurrence) is not None:
-                    await tx.exec(
-                        "UPDATE growth.routine_runs SET note_fa = :n WHERE id = :id",
-                        id=rid,
-                        n=EMPTY_CEO_FA.format(seat=seat.title_fa),
-                    )
             await events.emit(
                 tx, m["company"], "group.run", None,
                 {"group": g.key, "routine": r.key, "state": "skipped"},

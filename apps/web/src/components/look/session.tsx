@@ -8,12 +8,16 @@
 //   direct turn shows the build ring: real elapsed time out of the turn's cap, amber from 90 percent;
 // - the «منتظر تو» card: the ONE place of the holder's question, with its ready answers (one tap answers);
 // - the «گره» card: one sentence of why the session stands still, and one action;
-// - the cards of the session that wait for his word, answered in place; the live steps as thin lines; the end leaf of a closed session.
+// - the cards of the session that wait for his word, answered in place; the live steps as thin lines; the end leaf of a closed session;
+// - ⟨2026-11-11⟩ the still card: an open session nobody works on and nothing above explains is «ایستاده» after twenty minutes, with the
+//   last thing done and «ادامه بده» (the owner's 12-hour stall that read «آرام» and offered nothing to press); an outside call (ChatGPT
+//   drafting the text, the AI narrator) is one of those at work in the «الان» bar, with its model's mark.
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/brand/avatar';
+import { ModelMark } from '@/components/brand/model-mark';
 import { Icon } from '@/components/icon';
 import { Arc, TickMark, WorkBand, useReducedMotion, useTick } from '@/components/live/motion';
 import { Button } from '@/components/ui/button';
@@ -26,7 +30,7 @@ import type { Fix } from '@/lib/api/v29';
 import { WORKSPACE_LIVE, useStopWorkspace, type OrderParallel } from '@/lib/api/v33';
 import type { Badge, OrderCard, SessionReport, SessionTask } from '@/lib/api/v34';
 import { useNudge, type ActivityLine, type Mood, type SessionActivity, type Worker } from '@/lib/api/v41';
-import { DECIDE_YOURSELF_FA, MOOD_FA, readyAnswers, type MoodKey } from '@/lib/api/v55';
+import { DECIDE_YOURSELF_FA, MOOD_FA, deskDayFa, readyAnswers, type MoodKey } from '@/lib/api/v55';
 import { ago, cx, jTime, tokens } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { haptic } from './haptics';
@@ -40,23 +44,25 @@ const KNOWN: readonly Mood[] = ['thinking', 'working', 'waiting', 'stuck', 'idle
 
 /**
  * The session's mood: the hub's own word when it sends one (§55.1); on an older hub it is read from what the activity says; with no
- * activity at all, from the session's badge. A closed session is «تمام».
+ * activity at all, from the session's badge. A closed session is «تمام». ⟨2026-11-11⟩ A session ready for his OK waits for him: never
+ * «آرام», whatever an older hub says. The page puts «ایستاده» over an «آرام» that has stood too long (`stillOf`).
  */
 export function moodOf(a: SessionActivity | null | undefined, hint: { closed: boolean; badge?: Badge | null; asked?: boolean }): MoodKey {
   if (hint.closed) return 'done';
+  let mood: MoodKey;
   if (a) {
-    if (a.mood && KNOWN.includes(a.mood)) return a.mood;
-    if (a.stuck_fa) return 'stuck';
-    if (a.waiting_fa) return 'waiting';
-    if (a.working.length) return 'working';
-    return hint.asked ? 'waiting' : 'idle';
-  }
-  if (hint.asked || hint.badge === 'your_turn') return 'waiting';
-  return hint.badge === 'stuck' ? 'stuck' : hint.badge === 'moving' ? 'working' : 'idle';
+    if (a.mood && KNOWN.includes(a.mood)) mood = a.mood;
+    else if (a.stuck_fa) mood = 'stuck';
+    else if (a.waiting_fa) mood = 'waiting';
+    else if (a.working.length) mood = 'working';
+    else mood = hint.asked ? 'waiting' : 'idle';
+  } else if (hint.asked || hint.badge === 'your_turn') mood = 'waiting';
+  else mood = hint.badge === 'stuck' ? 'stuck' : hint.badge === 'moving' ? 'working' : 'idle';
+  return mood === 'idle' && hint.badge === 'ready' ? 'waiting' : mood;
 }
 
 const MOOD_TONE: Record<MoodKey, string> = {
-  thinking: 'text-silver-ink', working: 'text-silver-ink', waiting: 'text-gold-ink', stuck: 'text-neg', idle: 'text-muted', done: 'text-muted',
+  thinking: 'text-silver-ink', working: 'text-silver-ink', waiting: 'text-gold-ink', stuck: 'text-neg', idle: 'text-muted', still: 'text-muted', done: 'text-muted',
 };
 
 /** «چراغ حال»: a shape and a word. The arc of «کار میکند» turns only while this is shown, which is only while work is live. */
@@ -65,7 +71,7 @@ export function MoodLight({ mood, word, size = 14, className }: { mood: MoodKey;
   return (
     <span className={cx('hq-m2 inline-flex flex-none items-center gap-1.5 whitespace-nowrap text-[12px] font-semibold', MOOD_TONE[mood], className)} data-testid="mood-light" data-mood={mood}>
       <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden className="flex-none">
-        {mood === 'thinking' ? <circle cx={7} cy={7} r={5} fill="none" stroke="currentColor" strokeWidth={1.6} />
+        {mood === 'thinking' || mood === 'still' ? <circle cx={7} cy={7} r={5} fill="none" stroke="currentColor" strokeWidth={1.6} />
           : mood === 'working' ? (
             <>
               <circle cx={7} cy={7} r={5} fill="none" stroke="var(--hq-line-strong)" strokeWidth={1.6} />
@@ -172,8 +178,27 @@ export function LiveTail({ a, shown = 3 }: { a: SessionActivity | null | undefin
 // ================================================================================================ the «الان» bar ==
 type W = Worker;
 const isTurn = (w: W) => (w.kind === 'workshop' || w.kind === 'direct') && !!w.cap_s;
+/** ⟨2026-11-11⟩ An outside model or voice working for the session: shown like a run, never as a ring, never stopped from the bar. */
+export const isCall = (w: W) => w.kind === 'call';
 const KIND_FA: Partial<Record<NonNullable<W['kind']>, string>> = { workshop: 'کارگاه', server: 'سرور شرکت' };
 const sentenceOf = (w: W) => plain(w.last_fa || w.doing_fa || w.work_title_fa);
+/** The worker the bar speaks of: a turn first (its ring is the bar's mark), else the hub's own run before an outside call it waits on. */
+export const leadWorker = (working: W[]): W | null => working.find(isTurn) ?? working.find((w) => !isCall(w)) ?? working[0] ?? null;
+/** The model a call's mark is drawn from: its name as the hub says it, a Persian name read as its key. */
+const CALL_MODEL: Record<string, string> = { 'جی‌پی‌تی': 'gpt', 'چت‌جی‌پی‌تی': 'gpt', 'جمنای': 'gemini', 'جمینای': 'gemini', 'دیپ‌سیک': 'deepseek' };
+export const callModel = (w: W) => CALL_MODEL[w.who_fa.trim()] ?? w.who_fa.trim();
+
+/** One worker's mark: the holder's own turn wears the manager's ring, an outside call its model's logo on a tile, the rest a colleague. */
+function WorkerMark({ w, size }: { w: W; size: number }) {
+  if (isCall(w)) {
+    return (
+      <span role="img" aria-label={w.who_fa} data-call-mark className="flex flex-none items-center justify-center rounded-full bg-tile shadow-[inset_0_0_0_1px_var(--hq-line-divider)]" style={{ width: size, height: size }}>
+        <ModelMark model={callModel(w)} size={Math.round(size * 0.52)} />
+      </span>
+    );
+  }
+  return <Avatar kind={w.kind === 'direct' ? 'manager' : 'employee'} size={size} state="working" label={w.who_fa} />;
+}
 
 /** The work a «نگه دار» stops: the task in hand, else the live workspace, else the first open task that names its work, else the last one that does. */
 export function liveWorkRef(r: SessionReport): string | null {
@@ -227,9 +252,10 @@ export function NowBar({ refId, a, r, onOpen }: { refId: string; a: SessionActiv
   const live = working.length > 0;
   const now = useTick(1000, live);
   if (!live && !held) return null;
-  const w = working.find(isTurn) ?? working[0] ?? null;
+  const w = leadWorker(working);
   const direct = w?.kind === 'direct';
-  const workRef = liveWorkRef(r);
+  // An outside call that is all that works is not the hub's to stop.
+  const workRef = working.length && working.every(isCall) ? null : liveWorkRef(r);
   const hold = () => {
     if (!workRef || stop.isPending) return;
     stop.mutate(workRef, {
@@ -250,7 +276,7 @@ export function NowBar({ refId, a, r, onOpen }: { refId: string; a: SessionActiv
             : isTurn(w) ? <BuildRing w={w} now={now} />
             : (
               <span className="flex flex-none items-center" data-workers={working.length}>
-                {working.slice(0, 3).map((x, i) => <span key={`${x.who_fa}-${i}`} className={cx('rounded-full bg-card', i > 0 && '-ms-2.5')}><Avatar kind={x.kind === 'direct' ? 'manager' : 'employee'} size={32} state="working" label={x.who_fa} /></span>)}
+                {working.slice(0, 3).map((x, i) => <span key={`${x.who_fa}-${i}`} className={cx('rounded-full bg-card', i > 0 && '-ms-2.5')}><WorkerMark w={x} size={32} /></span>)}
               </span>
             )}
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -289,10 +315,10 @@ export function NowBar({ refId, a, r, onOpen }: { refId: string; a: SessionActiv
 }
 
 /**
- * A quiet session, in its details: when it last worked, and one tap that tells its holder to take the work up again (the hub's
- * nudge). Nothing while someone works, and nothing on the page itself: a quiet session has no bar of its own.
+ * A quiet session, in its details and the live sheet: when it last worked, and one tap that tells its holder to take the work up again
+ * (the hub's nudge). Nothing while someone works. [button] false: the page's still card already carries «ادامه بده»; the line stays.
  */
-export function IdleNudge({ refId, a }: { refId: string; a: SessionActivity | null | undefined }) {
+export function IdleNudge({ refId, a, button = true }: { refId: string; a: SessionActivity | null | undefined; button?: boolean }) {
   const toast = useToast();
   const nudge = useNudge(refId);
   if (!a || a.working.length) return null;
@@ -303,14 +329,18 @@ export function IdleNudge({ refId, a }: { refId: string; a: SessionActivity | nu
   );
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="idle-nudge">
-      <span className="min-w-0 flex-1 text-[12px] leading-5 text-sec">{a.idle_since ? `آخرین کار ${ago(a.idle_since)}` : 'الان کسی روی این جلسه کار نمیکند.'}</span>
-      <Button variant="secondary" size="sm" loading={nudge.isPending} onClick={go}>ادامه بده</Button>
+      <span className="min-w-0 flex-1 text-[12px] leading-5 text-sec">{a.idle_since ? `آخرین کار ${ago(a.idle_since)}` : `${STILL_FA}.`}</span>
+      {button ? <Button variant="secondary" size="sm" loading={nudge.isPending} onClick={go}>ادامه بده</Button> : null}
     </div>
   );
 }
 
-/** The live-work sheet: who works on what, each with its own line and time, then every step so far. */
-export function LiveSheet({ open, onOpenChange, a }: { open: boolean; onOpenChange: (v: boolean) => void; a: SessionActivity | null | undefined }) {
+/**
+ * The live-work sheet: who works on what, each with its own line and time, then every step so far; ⟨2026-11-11⟩ and, when nobody
+ * works, what the session waits on (as Android's): the owner is asked, it is stuck (with «ادامه بده»), or it is quiet since a time
+ * (with «ادامه بده», unless it waits for his OK, [ready]).
+ */
+export function LiveSheet({ open, onOpenChange, a, refId, ready = false }: { open: boolean; onOpenChange: (v: boolean) => void; a: SessionActivity | null | undefined; refId?: string; ready?: boolean }) {
   const name = useCompanyName();
   const working = a?.working ?? [];
   const lines = a?.last ?? [];
@@ -322,7 +352,7 @@ export function LiveSheet({ open, onOpenChange, a }: { open: boolean; onOpenChan
           <ul aria-label="چه کسی کار میکند" className="flex flex-col gap-2">
             {working.map((w, i) => (
               <li key={`${w.who_fa}-${i}`} data-worker={w.kind ?? 'run'} className="flex items-center gap-3 rounded-[12px] bg-card p-3">
-                {isTurn(w) ? <BuildRing w={w} now={now} size={64} /> : <Avatar kind={w.kind === 'direct' ? 'manager' : 'employee'} size={36} state="working" label={w.who_fa} />}
+                {isTurn(w) ? <BuildRing w={w} now={now} size={64} /> : <WorkerMark w={w} size={36} />}
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-[11px] leading-5 text-muted"><Facts>{w.who_fa}{w.company_fa && !w.who_fa.includes(w.company_fa) ? w.company_fa : null}{KIND_FA[w.kind ?? 'run'] ?? null}</Facts></span>
                   <span className="text-[13px] font-semibold leading-6 text-ink [overflow-wrap:anywhere]"><FaText text={sentenceOf(w)} /></span>
@@ -339,9 +369,32 @@ export function LiveSheet({ open, onOpenChange, a }: { open: boolean; onOpenChan
             <ul className="flex flex-col" data-lines={lines.length}>{lines.map((l, i) => <LiveLine key={lineKey(l, i)} l={l} now={now} draw={false} name={name} />)}</ul>
           </section>
         ) : <p className="text-[13px] text-muted">هنوز قدمی ثبت نشده.</p>}
+        {a && !working.length && refId ? <LiveWhy refId={refId} a={a} ready={ready} /> : null}
       </div>
     </SpringSheet>
   );
+}
+
+/** The end of the live sheet while nobody works: why, and «ادامه بده» where it helps. */
+function LiveWhy({ refId, a, ready }: { refId: string; a: SessionActivity; ready: boolean }) {
+  const toast = useToast();
+  const nudge = useNudge(refId);
+  const go = () => void nudge.mutateAsync().then(
+    () => { haptic('tick'); toast({ tone: 'ok', text: 'گفتم ادامه بدهد.' }); },
+    (e: unknown) => { haptic('error'); toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'نشد؛ دوباره بزن.' }); },
+  );
+  if (a.waiting_fa) {
+    return <p className="flex items-start gap-2.5 border-t border-div pt-3 text-[13px] leading-6 text-ink" data-testid="live-why"><MoodLight mood="waiting" className="mt-1" /><span className="min-w-0 flex-1"><PlainText text={a.waiting_fa} /></span></p>;
+  }
+  if (a.stuck_fa) {
+    return (
+      <div className="flex flex-col items-start gap-2.5 border-t border-div pt-3" data-testid="live-why">
+        <p className="flex items-start gap-2.5 text-[13px] leading-6 text-ink"><MoodLight mood="stuck" className="mt-1" /><span className="min-w-0 flex-1"><PlainText text={a.stuck_fa} /></span></p>
+        <Button variant="secondary" size="sm" loading={nudge.isPending} onClick={go}>ادامه بده</Button>
+      </div>
+    );
+  }
+  return ready ? null : <div className="border-t border-div pt-3"><IdleNudge refId={refId} a={a} /></div>;
 }
 
 // ============================================================================================ the «منتظر تو» card ==
@@ -429,6 +482,96 @@ export function KnotCard({ refId, stuckFa, blockers, company, run, lead }: {
           ))}
         </ul>
       ) : null}
+    </section>
+  );
+}
+
+// ================================================================================================= «ایستاده» ==
+/** How long an open session may stand with nobody at work before the page says so itself. */
+export const STILL_MINUTES = 20;
+/** The still card's own words, when the hub gave no reason of its own. */
+export const STILL_FA = 'الان کسی روی این جلسه کار نمیکند';
+/** An open session that stands still: the last thing done (its last words when it is long) and when; the hub's own reason (a `stuck` badge's cause). */
+export type Still = { line_fa: string | null; at: string | null; reason_fa: string | null };
+/** The run's own envelope lines (it began, it ended, it was woken, someone joined): never «the last work». */
+const ENVELOPE = new Set(['start', 'end', 'wake', 'join']);
+const SYSTEM_FA = 'سامانه';
+const oneLine = (t: string) => plain(t).replace(/\s*\n+\s*/g, ' ').trim();
+const msOf = (iso: string | null | undefined) => { const t = Date.parse(iso ?? ''); return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY; };
+
+/** The words of a long line that matter most, its end: the last sentences that fit in [max], after «… ». */
+export function lastWordsFa(text: string, max = 140): string {
+  const t = oneLine(text);
+  if (t.length <= max) return t;
+  let out = '';
+  for (const p of t.split(/(?<=[.!؟?])\s+/).filter(Boolean).reverse()) {
+    const next = out ? `${p} ${out}` : p;
+    if (next.length > max) break;
+    out = next;
+  }
+  if (!out) { const tail = t.slice(-max); const i = tail.indexOf(' '); out = i >= 0 ? tail.slice(i + 1) : tail; }
+  return `… ${out}`;
+}
+
+/** The last thing done in the session: the newest of the activity's last step and the report's last step (the hub's own lines aside). */
+export function lastWorkOf(r: SessionReport, a: SessionActivity | null | undefined): { text: string; at: string } | null {
+  const line = [...(a?.last ?? [])].reverse().find((l) => l.text_fa.trim() && !ENVELOPE.has(l.kind ?? ''));
+  const step = [...(r.steps ?? [])].reverse().find((x) => x.who_fa.trim() !== SYSTEM_FA && x.what_fa.trim() && x.what_fa.trim() !== '-');
+  const pick = !line ? (step ? { text: step.what_fa, at: step.at } : null)
+    : !step || msOf(line.at) >= msOf(step.at) ? { text: line.text_fa, at: line.at } : { text: step.what_fa, at: step.at };
+  return pick ? { text: lastWordsFa(pick.text), at: pick.at } : null;
+}
+
+/**
+ * The page's own safety net, when the hub has not said why a session stands (the owner's 12-hour stall read «آرام» and offered nothing
+ * to press): null unless it is open, nothing waits for the owner (no question, no card, not ready), there is no knot, nobody works, the
+ * activity says neither «waiting» nor «stuck», its plan is not done, and [STILL_MINUTES] have passed since the hub's idle time (else the
+ * last line's, else the report's last move). A `stuck` badge's reason is the card's sentence; a `moving` badge's only echoes the last step.
+ */
+export function stillOf(r: SessionReport, a: SessionActivity | null | undefined, badge: Badge, now = Date.now()): Still | null {
+  if (!a || r.session?.state === 'closed' || r.turn || (r.cards ?? []).length || (r.blockers ?? []).length) return null;
+  if (badge === 'ready' || badge === 'your_turn' || badge === 'closed') return null;
+  if (a.working.length || a.waiting_fa || a.stuck_fa) return null;
+  const live = (r.tasks ?? []).filter((t) => t.state !== 'dropped');
+  if (live.length && live.every((t) => t.state === 'done')) return null;
+  const since = a.idle_since || a.last.at(-1)?.at || r.updated_at;
+  if (now - msOf(since) < STILL_MINUTES * 60_000) return null;
+  const last = lastWorkOf(r, a);
+  const reason = badge === 'stuck' && r.session?.reason_fa?.trim() ? oneLine(r.session.reason_fa) : null;
+  return { line_fa: last?.text ?? null, at: last?.at ?? null, reason_fa: reason };
+}
+
+/** «آخرین کار: … (دیشب 22:28)», the clock time a Latin figure; null when nothing was done yet. */
+function StillLast({ still, now }: { still: Still; now: number }) {
+  const line = still.line_fa?.trim().replace(/[.،؛]+$/, '');
+  if (!line) return null;
+  const day = deskDayFa(still.at, now);
+  return <>آخرین کار: <FaText text={line} />{day ? <> ({day} <Ltr>{jTime(still.at)}</Ltr>)</> : null}</>;
+}
+
+/**
+ * An open session nobody works on, and the hub has not said why: ONE calm card right above the composer, the shape of the knot's with
+ * a silver edge: «ایستاده», one sentence (the hub's reason, else «الان کسی روی این جلسه کار نمیکند؛ آخرین کار: … (دیشب 22:28)»), and
+ * «ادامه بده», the page's one full gold when nothing else holds it ([lead]).
+ */
+export function StillCard({ refId, still, now, lead }: { refId: string; still: Still; now: number; lead: boolean }) {
+  const toast = useToast();
+  const nudge = useNudge(refId);
+  const go = () => void nudge.mutateAsync().then(
+    () => { haptic('tick'); toast({ tone: 'ok', text: 'گفتم ادامه بدهد.' }); },
+    (e: unknown) => { haptic('error'); toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'نشد؛ دوباره بزن.' }); },
+  );
+  const last = still.line_fa ? <StillLast still={still} now={now} /> : null;
+  return (
+    <section aria-label="ایستاده" data-testid="still-card" data-edge="silver" className="hq-edge hq-m1 flex flex-none flex-col gap-2 rounded-[14px] bg-card p-3">
+      <p role="status" className="text-[13.5px] font-semibold leading-6 text-ink [overflow-wrap:anywhere]" data-still-sentence>
+        <MoodLight mood="still" className="me-2 align-[-1px]" />
+        {still.reason_fa ? <PlainText text={still.reason_fa} /> : last ? <>{STILL_FA}؛ {last}</> : `${STILL_FA}.`}
+      </p>
+      {still.reason_fa && last ? <p className="text-[12px] leading-5 text-muted [overflow-wrap:anywhere]" data-still-last>{last}</p> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant={lead ? 'primary' : 'secondary'} loading={nudge.isPending} onClick={go}>ادامه بده</Button>
+      </div>
     </section>
   );
 }

@@ -55,6 +55,7 @@ from hq_api.domain import humanize as HZ
 from hq_api.domain import no_silence as NS
 from hq_api.domain import notify
 from hq_api.domain import order_report as OR
+from hq_api.domain import work as W
 
 log = logging.getLogger("hq_api.session_activity")
 
@@ -90,8 +91,9 @@ STUCK_CALL_FA = "{who} {seat} را آماده نکرد ({why}) و بعد از آ
 READY_WAITING_FA = "منتظر تأیید تو"
 REOPENED_FA = "کار مسئول دوباره باز شد: کار {n} از برنامه مانده است"
 PLAN_DONE_FA = "همه‌ی کارهای برنامه انجام شد؛ خروجی آماده‌ی تأیید توست"
-CLAUDE_WAIT_FA = "هر دو اکانت Claude پر است؛ {when} شروع میکند"
-CLAUDE_WAIT_SOON_FA = "هر دو اکانت Claude پر است؛ تا یکی جا باز کند شروع میکند"
+CLAUDE_WAIT_PREFIX = "هر دو اکانت Claude پر است"
+CLAUDE_WAIT_FA = CLAUDE_WAIT_PREFIX + "؛ {when} شروع میکند"
+CLAUDE_WAIT_SOON_FA = CLAUDE_WAIT_PREFIX + "؛ تا یکی جا باز کند شروع میکند"
 # an outside call or a voice job working for the session (kind `call`)
 CALL_DOING_FA = "{seat} را آماده میکند"
 CALL_QUEUED_FA = "در صف {player}: {seat}"
@@ -401,10 +403,8 @@ async def _names(tx: Tx, hints: set[str]) -> dict[str, str]:
 # ---------------------------------------------------------------- reading --
 # ⟨2026-11-11⟩ when a quota stopped a run, the time its account has room again, if the run carries
 # it (read by name from the row: a column the runner may or may not have)
-RESET_SQL = (
-    "COALESCE(to_jsonb(r) ->> 'retry_after', to_jsonb(r) ->> 'retry_at', "
-    "to_jsonb(r) ->> 'reset_at', to_jsonb(r) ->> 'resets_at')"
-)
+RESET_KEYS = ("retry_after", "retry_at", "reset_at", "resets_at")
+RESET_SQL = "COALESCE(" + ", ".join(f"to_jsonb(r) ->> '{k}'" for k in RESET_KEYS) + ")"
 RUNS_SQL = f"""
 SELECT r.id, r.state, r.error_code, r.partial, r.queued_at, r.started_at, r.finished_at, r.steps,
        r.reason, w.ref AS work_ref, w.title AS work_title, e.title_fa, c.name_fa AS company_fa,
@@ -665,7 +665,7 @@ WORKSHOP_WHO_FA = "کارگاه هلدینگ"
 SERVER_WHO_FA = "Claude روی سرور شرکت"
 TURN_DOING_FA = "دارد میسازد؛ هر نوبت تا ۶۰ دقیقه"
 TURN_QUEUED_FA = "در صف کارگاه"
-DIRECT_DOING_FA = "دارد روی فرمان شما کار میکند؛ هر نوبت تا ۶۰ دقیقه"
+DIRECT_DOING_FA = "دارد روی فرمان تو کار میکند؛ هر نوبت تا ۶۰ دقیقه"
 DIRECT_QUEUED_FA = "همین حالا شروع میکند"
 
 
@@ -766,7 +766,9 @@ async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
 async def read_pulse(
     tx: Tx, rep: dict[str, Any], works: list[dict[str, Any]], *, minutes: int | None = None
 ) -> Pulse:
-    """§41.3 where the session stands: live, idle (since the clock), woken this period, stuck."""
+    """§41.3 where the session stands: live, idle (since the clock), woken this period, stuck.
+    ⟨2026-11-11⟩ An outside call or a voice job within its deadline is live too; the session is
+    open while a root or a plan task is; stuck comes at once when the idle wakes are spent."""
     ids = [w["id"] for w in works]
     now = datetime.now(UTC)
     clock = clock_of(rep)
@@ -780,8 +782,17 @@ async def read_pulse(
         if last is not None:
             doing = step_text(last["summary_fa"], OR._j(last["actions"]) or [])
     turns = await live_turns(tx, ids) if live is None else []
+    wait_fa = None
     if turns:
         doing = TURN_DOING_FA if turns[0]["state"] == "running" else TURN_QUEUED_FA
+        wait_fa = await claude_wait_fa(tx, turns, await owner_zone(tx), now)
+        if wait_fa and turns[0]["state"] == "queued":
+            doing = wait_fa
+    calls = await pending_outside(tx, works, now) if live is None and not turns else []
+    if calls:
+        c = calls[0]
+        doing = c["doing_fa"] if c["who_fa"] in c["doing_fa"] else f"{c['who_fa']}: {c['doing_fa']}"
+    tasks = await open_tasks_of(tx, rep.get("order_id"))
     woken = None
     if ids:
         row = await tx.first(
@@ -797,45 +808,340 @@ async def read_pulse(
     T = timedelta(minutes=IDLE_MINUTES if minutes is None else minutes)
     stuck = None
     open_roots = [w for w in works if w["is_root"] and w["status"] in OR.OPEN]
+    is_open = (
+        rep.get("ended_at") is None
+        and rep.get("closed_at") is None
+        and bool(open_roots or (tasks and any(w["is_root"] for w in works)))
+    )
+    wakes: list[dict[str, Any]] = []
+    spent = False
+    if is_open and ids:
+        wakes = await idle_wakes(tx, rep, ids, await owner_since(tx, rep, ids))
+        ended = [w for w in wakes if w["state"] not in ("queued", "running")]
+        if ended and len(ended) == len(wakes):
+            last_wake = ended[0]  # newest first
+            narrated = (
+                last_wake["started_at"] is not None
+                and last_wake["state"] in ("done", "failed")
+                and not last_wake["acted"]
+                and not last_wake["ticked"]
+            )
+            spent = len(ended) >= IDLE_WAKES_MAX or narrated
     if (
         live is None
         and not turns
-        and open_roots
-        and rep.get("ended_at") is None
+        and not calls
+        and is_open
         and not OR._j(rep.get("turn"))
-        and idle >= 2 * T
+        and (idle >= 2 * T or spent)
     ):
-        stuck = await stuck_cause(tx, rep, works, clock)
-    return Pulse(live=live is not None or bool(turns), clock=clock, idle=idle, woken=woken,
-                 stuck_fa=stuck, doing_fa=doing)  # fmt: skip
+        stuck = await stuck_cause(tx, rep, works, clock, wakes=len(wakes), tasks=tasks)
+    return Pulse(live=live is not None or bool(turns) or bool(calls), clock=clock, idle=idle,
+                 woken=woken, stuck_fa=stuck, doing_fa=doing, open_tasks=tasks, calls=calls,
+                 wakes=len(wakes), spent=spent, claude_wait_fa=wait_fa)  # fmt: skip
+
+
+# ------------------------------------------------- ⟨2026-11-11⟩ what keeps it open --
+async def open_tasks_of(tx: Tx, order_id: Any) -> list[dict[str, Any]]:
+    """The plan's open tasks (doing first, then todo by number)."""
+    if order_id is None:
+        return []
+    rows = await tx.all(
+        """SELECT n, title_fa, state FROM owner.session_tasks WHERE order_id = :o
+             AND state IN ('doing', 'todo') ORDER BY (state = 'doing') DESC, n""",
+        o=order_id,
+    )
+    return [dict(r) for r in rows]
+
+
+OWNER_WORD_LIKE = tuple(f"{p}%" for p in OR.OWNER_WORD_REASONS)
+
+
+async def owner_since(tx: Tx, rep: dict[str, Any], ids: list[Any]) -> datetime:
+    """When the owner last spoke on the order: his last step in the story (his word, «ادامه بده»,
+    a pace), a run his word started, else the order's receipt. The idle wakes count from here."""
+    since: datetime = rep.get("created_at") or datetime.now(UTC)
+    for s in OR._j(rep.get("steps")) or []:
+        if not isinstance(s, dict) or s.get("who_fa") != OWNER_FA:
+            continue
+        try:
+            at = datetime.fromisoformat(str(s.get("at")))
+        except ValueError:
+            continue
+        at = at if at.tzinfo is not None else at.replace(tzinfo=UTC)
+        since = max(since, at)
+    if ids:
+        run_at = await tx.scalar(
+            """SELECT max(queued_at) FROM agents.runs
+               WHERE work_id = ANY(:ids) AND reason LIKE ANY(CAST(:w AS text[]))""",
+            ids=ids,
+            w=list(OWNER_WORD_LIKE),
+        )
+        if run_at is not None:
+            since = max(since, run_at)
+    return since
+
+
+async def idle_wakes(
+    tx: Tx, rep: dict[str, Any], ids: list[Any], since: datetime
+) -> list[dict[str, Any]]:
+    """The idle wakes of this order since `since`, newest first: each run's state, whether it did
+    anything but read and report (`acted`) and whether it ticked a plan task (`ticked`)."""
+    rows = await tx.all(
+        """SELECT r.id, r.state, r.started_at, r.finished_at, r.queued_at,
+                  EXISTS (SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+                          WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
+                            AND NOT (a ->> 'tool' = ANY(CAST(:narr AS text[])))) AS acted,
+                  EXISTS (SELECT 1 FROM owner.session_tasks t
+                          WHERE t.order_id = :o AND t.state = 'done' AND r.started_at IS NOT NULL
+                            AND t.updated_at >= r.started_at
+                            AND t.updated_at <= COALESCE(r.finished_at, now())) AS ticked
+           FROM agents.runs r
+           WHERE r.work_id = ANY(:ids) AND r.reason = :reason AND r.queued_at > :since
+           ORDER BY r.queued_at DESC""",
+        ids=ids,
+        reason=IDLE_REASON.format(ref=rep["ref"]),
+        since=since,
+        narr=list(NARRATION_TOOLS),
+        o=rep.get("order_id"),
+    )
+    return [dict(r) for r in rows]
+
+
+async def owner_zone(tx: Tx) -> Any:
+    """The owner's time zone (owner.settings), for a time he reads."""
+    from hq_api.domain import gov_common as G
+
+    try:
+        async with tx.conn.begin_nested():
+            return G.zone(await G.owner_tz(tx))
+    except Exception:  # noqa: BLE001 - a time is shown in the default zone rather than fail
+        return G.zone(G.DEFAULT_TZ)
+
+
+async def claude_wait_fa(
+    tx: Tx, turns: list[dict[str, Any]], zone: Any, now: datetime
+) -> str | None:
+    """⟨2026-11-11⟩ When a queued Claude Code turn waits because both Claude accounts are full,
+    the owner's sentence with the time one has room again; else None. Never fails the caller."""
+    if not any(t.get("state") == "queued" and t.get("kind") == "claude" for t in turns):
+        return None
+    from hq_api.domain import servers as SV
+
+    try:
+        async with tx.conn.begin_nested():
+            keys = [k for k, _ in SV.RUNNER_ACCOUNTS]
+            rows = [dict(r) for r in await tx.all(SV.ACCOUNTS_SQL, keys=keys)]
+    except Exception:  # noqa: BLE001
+        log.warning("the Claude accounts could not be read")
+        return None
+    usable = [r for r in rows if r.get("connection_status") in ("enabled", "ready", "quota_exhausted")]
+    if not usable:
+        return None
+    resets: list[datetime] = []
+    for r in usable:
+        exhausted = r.get("connection_status") == "quota_exhausted" and (
+            r.get("resets_at") is None or r["resets_at"] > now
+        )
+        if not (exhausted or SV.account_full(r, now)):
+            return None  # one has room: the turn starts as soon as the runner asks
+        if r.get("resets_at") is not None:
+            resets.append(r["resets_at"])
+    when = NS.when_fa(min(resets), zone, now) if resets else None
+    return CLAUDE_WAIT_FA.format(when=when) if when else CLAUDE_WAIT_SOON_FA
+
+
+# ----------------------------------------- ⟨2026-11-11⟩ outside calls, voice jobs --
+async def _substitute_calls(
+    tx: Tx, works: list[dict[str, Any]], now: datetime, since: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Per work: the substitute calls it made, pending (`since` None) or ended without an answer
+    since `since` (substitutes.pending_for / ended_since), each with its work."""
+    from hq_api.domain import substitutes as S
+
+    out: list[dict[str, Any]] = []
+    for w in works:
+        if since is None and w["status"] not in (*OR.OPEN, "delivered"):
+            continue
+        try:
+            async with tx.conn.begin_nested():
+                rows = (
+                    await S.pending_for(tx, [w["id"]], now)
+                    if since is None
+                    else await S.ended_since(tx, [w["id"]], since)
+                )
+        except Exception:  # noqa: BLE001 - the session's view never fails on an outside call
+            log.warning("the outside calls could not be read", extra={"work": str(w["ref"])})
+            continue
+        out += [{**dict(r), "work": w} for r in rows]
+    return out
+
+
+VOICE_SQL = """
+SELECT DISTINCT ON (a ->> 'ref') a ->> 'ref' AS job, r.work_id, r.company_id, s.at AS asked_at,
+       st.at AS started_at,
+       (SELECT e.summary FROM audit.entries e
+         WHERE e.company_id = r.company_id AND e.action = 'speech.made' AND e.at >= st.at
+           AND strpos(e.summary, a ->> 'ref') > 0
+         ORDER BY e.at LIMIT 1) AS end_summary,
+       (SELECT e.at FROM audit.entries e
+         WHERE e.company_id = r.company_id AND e.action = 'speech.made' AND e.at >= st.at
+           AND strpos(e.summary, a ->> 'ref') > 0
+         ORDER BY e.at LIMIT 1) AS ended_at
+FROM agents.runs r JOIN agents.steps s ON s.run_id = r.id
+CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+JOIN audit.entries st ON st.company_id = r.company_id AND st.action = 'speech.make'
+     AND st.target_ref = a ->> 'ref' AND st.at >= CAST(:since AS timestamptz) - interval '1 hour'
+WHERE r.work_id = ANY(:ids) AND s.at > :since AND a ->> 'tool' = 'speech.make'
+  AND a ->> 'outcome' = 'ok' AND a ->> 'ref' IS NOT NULL
+ORDER BY a ->> 'ref', s.at
+"""
+
+
+async def _voice_jobs(tx: Tx, ids: list[Any], since: datetime) -> list[dict[str, Any]]:
+    """The voice jobs (`speech.make`) the order's works started since `since`: the job id is the
+    ref its first answer gave (the start's own audit row confirms it), its end the `speech.made`
+    row that names it (domain/speech_make)."""
+    if not ids:
+        return []
+    try:
+        async with tx.conn.begin_nested():
+            return [dict(r) for r in await tx.all(VOICE_SQL, ids=ids, since=since)]
+    except Exception:  # noqa: BLE001 - the session's view never fails on a voice job
+        log.warning("the voice jobs could not be read")
+        return []
+
+
+def _voice_failed(summary: str | None) -> str | None:
+    """The refusal code of an ended voice job (its `speech.made` summary), None when it is done."""
+    m = re.search(r"failed: ([a-z_]+)", summary or "")
+    return m.group(1) if m else None
+
+
+async def pending_outside(
+    tx: Tx, works: list[dict[str, Any]], now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """⟨2026-11-11⟩ What works for the session outside a run: the substitute calls of its works
+    (queued or running, within their deadline) and its voice jobs (within VOICE_DEADLINE), each as
+    {who_fa, company_fa, work_title, doing_fa, created_at, cap_s, last_at, deadline_at}, oldest
+    first."""
+    now = now or datetime.now(UTC)
+    out: list[dict[str, Any]] = []
+    for c in await _substitute_calls(tx, works, now):
+        w = c["work"]
+        player, seat = str(c.get("player_fa") or "بازیکن بیرونی"), str(c.get("seat_fa") or "کار")
+        created, deadline = c.get("created_at") or now, c.get("deadline_at")
+        out.append({
+            "who_fa": player,
+            "company_fa": str(w.get("company_fa") or ""),
+            "work_title": w.get("title"),
+            "doing_fa": (CALL_DOING_FA.format(seat=seat) if c.get("state") == "running"
+                         else CALL_QUEUED_FA.format(player=player, seat=seat)),
+            "created_at": created,
+            "cap_s": max(int((deadline - created).total_seconds()), 1) if deadline else None,
+            "last_at": c.get("claimed_at") or created,
+            "deadline_at": deadline,
+        })  # fmt: skip
+    by_id = {w["id"]: w for w in works}
+    for v in await _voice_jobs(tx, list(by_id), now - VOICE_DEADLINE):
+        start = v["started_at"] or v["asked_at"]
+        if v["ended_at"] is not None or start + VOICE_DEADLINE <= now:
+            continue
+        w = by_id.get(v["work_id"]) or {}
+        out.append({
+            "who_fa": VOICE_WHO_FA,
+            "company_fa": str(w.get("company_fa") or ""),
+            "work_title": w.get("title"),
+            "doing_fa": CALL_DOING_FA.format(seat=VOICE_SEAT_FA),
+            "created_at": start,
+            "cap_s": int(VOICE_DEADLINE.total_seconds()),
+            "last_at": start,
+            "deadline_at": start + VOICE_DEADLINE,
+        })  # fmt: skip
+    out.sort(key=lambda c: c["created_at"])
+    return out
+
+
+async def ended_outside(
+    tx: Tx, works: list[dict[str, Any]], since: datetime, now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """⟨2026-11-11⟩ The outside calls and voice jobs of the order's works that ended without an
+    answer at or after `since` (failed, skipped, or a voice past its deadline), newest first:
+    {who_fa, seat_fa, state, code, why_fa, at}."""
+    now = now or datetime.now(UTC)
+    out: list[dict[str, Any]] = []
+    for c in await _substitute_calls(tx, works, now, since):
+        out.append({
+            "who_fa": str(c.get("player_fa") or "بازیکن بیرونی"),
+            "seat_fa": str(c.get("seat_fa") or "کار"),
+            "state": str(c.get("state") or "failed"),
+            "code": c.get("state_reason"),
+            "why_fa": str(c.get("reason_fa") or VOICE_WHY_DEFAULT_FA),
+            "at": c.get("finished_at") or now,
+        })  # fmt: skip
+    for v in await _voice_jobs(tx, [w["id"] for w in works], since - VOICE_DEADLINE):
+        start = v["started_at"] or v["asked_at"]
+        code = _voice_failed(v["end_summary"]) if v["ended_at"] is not None else None
+        if v["ended_at"] is None and start + VOICE_DEADLINE <= now:
+            code, at = "timeout", start + VOICE_DEADLINE
+        elif code is not None:
+            at = v["ended_at"]
+        else:
+            continue  # done, or still within its deadline
+        if at < since:
+            continue
+        out.append({
+            "who_fa": VOICE_WHO_FA, "seat_fa": VOICE_SEAT_FA, "state": "failed", "code": code,
+            "why_fa": VOICE_WHY_FA.get(code, VOICE_WHY_DEFAULT_FA), "at": at,
+        })  # fmt: skip
+    out.sort(key=lambda c: c["at"], reverse=True)
+    return out
 
 
 # ----------------------------------------------------------------- the cause --
 async def stuck_cause(
-    tx: Tx, rep: dict[str, Any], works: list[dict[str, Any]], clock: datetime
+    tx: Tx,
+    rep: dict[str, Any],
+    works: list[dict[str, Any]],
+    clock: datetime,
+    *,
+    wakes: int = 0,
+    tasks: list[dict[str, Any]] | None = None,
 ) -> str:
-    """Why the session does not move, in the owner's words, with what fixes it: the last refused or
-    failed run, a blocker of the report, a sign-in or key a step needed, an empty seat of the
-    company's working group; else «نمیدانیم چرا»."""
+    """Why the session does not move, in the owner's words, with what fixes it: ⟨2026-11-11⟩ an
+    outside call or a voice job that ended without an answer, the last refused or failed run, a
+    blocker of the report, a sign-in or key a step needed, an empty seat of the company's working
+    group; else what was last done and which task of the plan is left (`wakes`: how many times the
+    holder was woken for nothing), and only with no plan «نمیدانیم چرا»."""
     ids = [w["id"] for w in works]
+    since = clock - timedelta(minutes=10)
+    for c in await ended_outside(tx, works, since):
+        return STUCK_CALL_FA.format(who=c["who_fa"], seat=c["seat_fa"], why=c["why_fa"])
     last = await tx.first(
         # ⟨2026-11-10⟩ only what ended since the session last moved (an old refusal the order got
         # past is not why it stands now), and never the hold for the owner's own answer
-        """SELECT state, error_code, note FROM agents.runs
-           WHERE work_id = ANY(:ids) AND state IN ('refused', 'failed') AND trigger NOT IN ('talk', 'direct')
-             AND error_code IS NOT NULL AND error_code <> 'owner_turn'
-             AND COALESCE(finished_at, queued_at) >= CAST(:since AS timestamptz) - interval '10 minutes'
-           ORDER BY COALESCE(finished_at, queued_at) DESC LIMIT 1""",
+        f"""SELECT r.state, r.error_code, r.note, r.finished_at, {RESET_SQL} AS reset_raw
+           FROM agents.runs r
+           WHERE r.work_id = ANY(:ids) AND r.state IN ('refused', 'failed')
+             AND r.trigger NOT IN ('talk', 'direct')
+             AND r.error_code IS NOT NULL AND r.error_code <> 'owner_turn'
+             AND COALESCE(r.finished_at, r.queued_at) >= CAST(:since AS timestamptz) - interval '10 minutes'
+           ORDER BY COALESCE(r.finished_at, r.queued_at) DESC LIMIT 1""",  # noqa: S608
         ids=ids,
         since=clock,
     )
     if last is not None and last["error_code"] not in SKIP_END:
         code = str(last["error_code"])
+        now = datetime.now(UTC)
+        reset = NS.parse_at(last.get("reset_raw"), last["finished_at"])
+        quota = NS.quota_why_fa(code, NS.when_fa(reset, await owner_zone(tx), now))
+        if quota is not None:
+            return quota
         if code in NS.RUN_WHY_FA:
             why, fix = NS.RUN_WHY_FA[code]
             return f"{why} {fix}"
         if code in END_WHY_FA:
-            return f"{END_WHY_FA[code]} «ادامه بده» را بزنید."
+            return f"{END_WHY_FA[code]} «ادامه بده» را بزن."
     for b in OR._j(rep.get("blockers")) or []:
         if not isinstance(b, dict):
             continue
@@ -867,7 +1173,7 @@ async def stuck_cause(
             # (2026-11-08) never «اینستاگرام وصل نیست» and never the owner's step
             return "یک اتصال فنی هنوز آماده نیست؛ تیم فنی هلدینگ خودش آن را تنظیم میکند."
         if code in ("signed_out", "not_ready", "unavailable", "expired", "limited"):
-            return "بازیکن بیرونی وارد حسابش نیست؛ در صفحه‌ی بازیکن‌ها واردش کنید."
+            return "بازیکن بیرونی وارد حسابش نیست؛ در صفحه‌ی بازیکن‌ها واردش کن."
     seat = await tx.first(
         """SELECT g.title_fa AS group_fa, s ->> 'title_fa' AS seat_fa, s -> 'blocked' ->> 'why_fa' AS why
            FROM growth.memberships m JOIN growth.groups g ON g.id = m.group_id
@@ -882,7 +1188,27 @@ async def stuck_cause(
             f"جایگاه «{seat['seat_fa'] or 'کارمند'}» در کارگروه «{seat['group_fa'] or ''}» خالی ماند: "
             f"{seat['why'] or ''}"
         ).strip()
+    tasks = await open_tasks_of(tx, rep.get("order_id")) if tasks is None else tasks
+    if tasks:  # ⟨2026-11-11⟩ what was last done, and what is left
+        nxt = tasks[0]
+        last_fa = _cut(_last_step_fa(rep) or GENERIC_FA, 90)
+        title = _cut(str(nxt["title_fa"]), 60)
+        if wakes:
+            return STUCK_IDLE_FA.format(k=wakes, last=last_fa, n=nxt["n"], title=title)
+        return STUCK_PLAN_FA.format(last=last_fa, n=nxt["n"], title=title)
     return UNKNOWN_WHY_FA
+
+
+def _last_step_fa(rep: dict[str, Any]) -> str | None:
+    """The story's last step written by someone working on it (not the system's own lines, not
+    the owner's word)."""
+    for s in reversed(OR._j(rep.get("steps")) or []):
+        if not isinstance(s, dict) or s.get("who_fa") in (SYSTEM_FA, OWNER_FA, "منشی هلدینگ"):
+            continue
+        said = plain(str(s.get("what_fa") or ""))
+        if said:
+            return said
+    return None
 
 
 # ------------------------------------------------------------------ the stream --
@@ -986,7 +1312,10 @@ async def on_run(
                 text = step_text(summary, actions or [])
                 lid, lkind, lstate = line_id(rid, int(n or 0)), "step", "running"
             else:
-                text = end_text(state or "done", code, partial)
+                raw = next((run.get(k) for k in RESET_KEYS if run.get(k) is not None), None)
+                now = datetime.now(UTC)
+                reset = NS.when_fa(NS.parse_at(raw, now), await owner_zone(tx), now)
+                text = end_text(state or "done", code, partial, reset_fa=reset)
                 lid, lkind = end_id(rid), "end"
                 lstate = "done" if state == "done" else "failed"
             if text is None:
@@ -1026,6 +1355,16 @@ async def wake_holder(
         return {"run_id": None, "work_ref": None, "why_fa": "این فرمان پیدا نشد"}
     h = await OT.holder(tx, ref)
     out: dict[str, Any] = {"run_id": None, "work_ref": None, "why_fa": None}
+    if (
+        h is not None
+        and h.get("work_id") is not None
+        and h.get("work_status") not in OR.OPEN
+        and rep.get("ended_at") is None
+        and await open_tasks_of(tx, rep.get("order_id"))
+    ):
+        # ⟨2026-11-11⟩ the root was delivered with the plan unfinished: it opens again first
+        if await reopen_for_plan(tx, ref) is not None:
+            h = await OT.holder(tx, ref)
     if h is None or h.get("work_id") is None:
         out["why_fa"] = "کار مسئولی ندارد"
     elif h.get("work_status") not in OR.OPEN:
@@ -1090,10 +1429,64 @@ async def _told_stuck(tx: Tx, rep: dict[str, Any], clock: datetime) -> bool:
     )
 
 
+async def reopen_for_plan(tx: Tx, ref: str) -> dict[str, Any] | None:
+    """⟨2026-11-11⟩ The order's delivered root goes back to `in_progress` when its plan still has
+    an open task (order_turns._reopen_delivered), with a step naming the task left. Answers the
+    root reopened, or None (nothing delivered to reopen, or nothing left in the plan)."""
+    from hq_api.domain import order_turns as OT
+
+    rep = await OR.ensure(tx, ref)
+    order = await OR.load_order(tx, ref)
+    if rep is None or order is None or rep.get("ended_at") is not None:
+        return None
+    tasks = await open_tasks_of(tx, rep.get("order_id"))
+    if not tasks:
+        return None
+    works = await OR.tree(tx, OR.root_refs(order))
+    if any(w["is_root"] and w["status"] in OR.OPEN for w in works):
+        return None
+    root = await OT._reopen_delivered(tx, ref, works)
+    if root is not None:
+        await OR._append_steps(
+            tx, rep["id"], [OR._step(SYSTEM_FA, REOPENED_FA.format(n=tasks[0]["n"]))]
+        )
+    return root
+
+
+async def finish_plan(tx: Tx, works: list[dict[str, Any]]) -> list[str]:
+    """⟨2026-11-11⟩ Every plan task is done and nothing runs: an open root whose last output is a
+    complete one is delivered now (work.delivered_status still decides: an open child or a
+    progress under 100 keeps it open). Answers the refs delivered."""
+    done: list[str] = []
+    for w in works:
+        if not w["is_root"] or w["status"] not in OR.OPEN:
+            continue
+        last = await tx.scalar(
+            """SELECT title FROM cartable.deliverables WHERE work_id = :w
+               ORDER BY created_at DESC, ref DESC LIMIT 1""",
+            w=w["id"],
+        )
+        if last is None or W.is_partial_title(last):
+            continue
+        status = await W.set_status(
+            tx, w, "delivered", plan_open=False, delivered_at=datetime.now(UTC)
+        )
+        if status == "delivered":
+            await W.event(tx, w, "delivered", OR.SERVICE, {"why": "plan_done"})
+            await W.close_delivered_children(tx, w, OR.SERVICE)
+            done.append(str(w["ref"]))
+    return done
+
+
 async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
     """§41.3 the sweep of one session (order_report.tick, every few minutes): idle → the holder
     woken once («مسئول دوباره سر کار آمد: ادامه از کار N»); still idle a threshold later → `stuck`,
-    a step and ONE owner notification naming the cause. What fired: idle_wake, stuck."""
+    a step and ONE owner notification naming the cause. What fired: idle_wake, stuck.
+    ⟨2026-11-11⟩ also: `reopened` (the root was delivered with the plan unfinished: open again and
+    the holder woken), `plan_done` (every task done and a complete output: the root delivered,
+    the session ready), `claude_wait` (a turn waits for a Claude account: one step with the time).
+    The wakes are capped (IDLE_WAKES_MAX since the owner's last word; none after a woken run that
+    only narrated): then the session is stuck at once."""
     rep = await OR.ensure(tx, ref)
     if rep is None or rep.get("ended_at") is not None or rep.get("closed_at") is not None:
         return []
@@ -1103,16 +1496,43 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
     if order is None:
         return []
     works = await OR.tree(tx, OR.root_refs(order))
-    if not any(w["is_root"] and w["status"] in OR.OPEN for w in works):
-        return []
     T = IDLE_MINUTES if minutes is None else minutes
+    fired: list[str] = []
+    if not any(w["is_root"] and w["status"] in OR.OPEN for w in works):
+        # ⟨2026-11-11⟩ open = an open root OR an open plan task: a root delivered with tasks
+        # left opens again and its holder is woken (once: the wake counts against the cap)
+        if await reopen_for_plan(tx, ref) is None:
+            return []
+        fired.append("reopened")
+        rep = await OR.ensure(tx, ref) or rep
+        works = await OR.tree(tx, OR.root_refs(order))
+        pulse = await read_pulse(tx, rep, works, minutes=T)
+        if not pulse.live and not pulse.spent:
+            await wake_holder(tx, ref, IDLE_REASON.format(ref=ref), step_fa=WOKEN_FA)
+            fired.append("idle_wake")
+        await OR.refresh(tx, ref)
+        return fired
     pulse = await read_pulse(tx, rep, works, minutes=T)
     if pulse.live:
-        return []
-    fired: list[str] = []
+        if pulse.claude_wait_fa and not _stepped_since(rep, pulse.clock, CLAUDE_WAIT_PREFIX):
+            await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, pulse.claude_wait_fa)])
+            fired.append("claude_wait")
+            await OR.refresh(tx, ref)
+        return fired
+    if not pulse.open_tasks and await tx.scalar(
+        "SELECT 1 FROM owner.session_tasks WHERE order_id = :o AND state = 'done' LIMIT 1",
+        o=rep["order_id"],
+    ):
+        # ⟨2026-11-11⟩ the plan is done and nothing runs: a complete output makes it ready
+        if await finish_plan(tx, works):
+            await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, PLAN_DONE_FA)])
+            await OR.refresh(tx, ref)
+            return ["plan_done"]
     threshold = timedelta(minutes=T)
     if (
-        pulse.woken is None
+        not pulse.spent
+        and pulse.wakes < IDLE_WAKES_MAX
+        and pulse.woken is None
         and pulse.idle >= threshold
         and not _stepped_since(rep, pulse.clock, "مسئول دوباره سر کار آمد", "مسئول بیدار نشد")
     ):
@@ -1126,6 +1546,7 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
             )
         holding = await OR._holding(tx)
         text = " ".join((order.get("text") or "").split())[:80]
+        idle_m = int(pulse.idle.total_seconds() // 60)
         await notify.raise_notification(
             tx,
             company_id=holding["id"],
@@ -1133,9 +1554,10 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
             level="decision",
             title_fa=STUCK_TITLE_FA.format(text=HZ.humanize(text) or text)[:300],
             body_fa=HZ.plain(
-                f"از {int(pulse.idle.total_seconds() // 60)} دقیقه پیش کسی روی این فرمان کار نمیکند",
+                (f"از {idle_m} دقیقه پیش کسی روی این فرمان کار نمیکند" if idle_m >= 1
+                 else "مسئول دوباره سر کار آمد ولی کار جلو نرفت"),
                 pulse.stuck_fa,
-                "در جلسه‌ی فرمان «ادامه بده» را بزنید یا آنچه لازم است را درست کنید",
+                "در جلسه‌ی فرمان «ادامه بده» را بزن یا آنچه لازم است را درست کن",
             )[:4000],
             link_kind="order",
             link_ref=ref,
