@@ -540,8 +540,11 @@ async def transcribe(
         out = await workflows_client.transcribe(
             ctx.hub, str(fid), ctx.hub.settings.transcribe_wait_s
         )
-    except WorkflowFailureError as exc:
-        kind = _failure_type(exc)
+    except Exception as exc:
+        # a failed workflow maps by its failure type; anything else (no Temporal
+        # client, Temporal unreachable or restarting) is the 503 — and the key
+        # stores that answer, so it never stays "still running"
+        kind = _failure_type(exc) if isinstance(exc, WorkflowFailureError) else None
         if kind == "TooLong":
             err = ApiError(413, "validation_failed", fields={"duration": "too long"})
         elif kind == "SttBusy":  # up, but its queue stayed full: try again shortly (06.1 §3)

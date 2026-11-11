@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -365,3 +366,45 @@ async def test_a_sourced_letter_is_published_as_it_is(
         )
         assert n["owner_visible"] and "نامه" in n["body_fa"]
         assert r.json()["deliverable"] not in n["body_fa"]
+
+
+async def test_a_refused_delivery_never_uses_up_the_letters_send_back(
+    hub: Hub, su: Any, client: httpx.AsyncClient, new_company: Callable[..., Any]
+) -> None:
+    """Audit g17: the attempt counts only with a delivery that commits. A
+    sourced letter refused for another reason, or a deliver by an agent that is
+    not the letter's CEO, leaves the one send-back for the first unsourced one."""
+    co = await new_company()
+    at = datetime(2031, 5, 17, 6, 0, tzinfo=UTC)  # Saturday 09:30 Tehran
+    acts = MgmtActivities(hub, lambda: _ScopedTx(hub))
+    async with holding_switch(su, "released"):
+        await acts.ceo_letters(at.isoformat())
+        letter = await su.fetchrow(
+            "SELECT * FROM reports.ceo_letters WHERE company_id = $1 AND week = $2",
+            co["id"],
+            date(2031, 5, 17),
+        )
+        url = f"/internal/v1/work/{letter['work_id']}/deliver"
+        ceo = await agent_headers(f"{co['code']}-CEO")
+        good = {"title": "نامه‌ی هفتگی", "body": "این هفته 0 خروجی داشتیم و همه‌چیز آرام بود."}
+        bad = {"title": "نامه‌ی هفتگی", "body": "این هفته 98765 کاربر تازه آمدند."}
+        # sourced, but refused inside the delivery (an unknown attachment)
+        r = await client.post(
+            url, headers={**ceo, **idem()}, json={**good, "attachments": [str(uuid4())]}
+        )
+        assert r.status_code == 422 and "attachments" in r.text, r.text
+        # an agent that is not the letter's CEO
+        other = await agent_headers(f"{co['code']}-TECH-MGR")
+        r = await client.post(url, headers={**other, **idem()}, json=bad)
+        assert r.status_code == 403, r.text
+        row = await su.fetchrow(
+            "SELECT state, attempts FROM reports.ceo_letters WHERE id = $1", letter["id"]
+        )
+        assert row["attempts"] == 0 and row["state"] != "returned"
+        # the first unsourced attempt is still sent back
+        r = await client.post(url, headers={**ceo, **idem()}, json=bad)
+        assert r.status_code == 422 and "98765" in r.text
+        row = await su.fetchrow(
+            "SELECT state, attempts FROM reports.ceo_letters WHERE id = $1", letter["id"]
+        )
+        assert row["state"] == "returned" and row["attempts"] == 1

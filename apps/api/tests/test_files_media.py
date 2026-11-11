@@ -481,6 +481,32 @@ async def test_transcribe_silence_too_long_and_off(
     assert r.status_code == 503 and r.json()["code"] == "channel_not_configured"
 
 
+async def test_transcribe_with_temporal_down_is_503_and_the_key_is_not_stuck(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    media_acts: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No Temporal client (or Temporal unreachable): the mapped 503, stored on
+    the key, so a retry with the same key replays it instead of a 409."""
+
+    async def no_temporal(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:
+        raise RuntimeError("no Temporal client")
+
+    monkeypatch.setattr(workflows_client, "transcribe", no_temporal)
+    body = audio(tmp_path, "wav", 2)
+    key = idem()
+    for _ in range(2):
+        r = await client.post(
+            "/api/v1/transcribe",
+            content=body,
+            headers={**owner, **key, "Content-Type": "audio/wav"},
+        )
+        assert r.status_code == 503, r.text
+        assert r.json()["code"] == "channel_not_configured"
+
+
 def test_the_punctuation_guard_counts_words_not_marks() -> None:
     from hq_common import persian
 
