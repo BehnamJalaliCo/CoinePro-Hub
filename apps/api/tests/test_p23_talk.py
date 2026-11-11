@@ -23,8 +23,11 @@ import asyncio
 import json
 import secrets
 from collections.abc import AsyncIterator, Callable
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -585,3 +588,138 @@ async def test_rls_on_the_talk_tables(
             await tx.exec(
                 "INSERT INTO talk.memory (company_id, fact_fa) VALUES (:co, 'x')", co=holding.id
             )
+
+
+# ------------------------------------------------- audit 2026-11-11 (fix-g26) --
+async def test_a_retry_after_a_bad_answer_speaks_from_its_own_start(
+    client: httpx.AsyncClient, owner: dict[str, str], talk: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    """A streamed attempt cut off (not JSON) is retried: the retry's sentences are spoken whole,
+    never sliced at the void attempt's offset."""
+    router = talk["router"]
+    first = json.dumps(answer("این نسخه‌ی اول پاسخ است. و ادامه‌ی آن", "**متن اول**"),
+                       ensure_ascii=False)  # fmt: skip
+    cut = first[: first.index("و ادامه") + 3]
+    real_stream = router.stream
+    calls = {"n": 0}
+
+    async def stream(
+        body: dict[str, Any], timeout_s: int, on_delta: Callable[[str], Any]
+    ) -> ModelCall:
+        calls["n"] += 1
+        if calls["n"] > 1:
+            return await real_stream(body, timeout_s, on_delta)
+        router.bodies.append(body)
+        for i in range(0, len(cut), 12):
+            r = on_delta(cut[i : i + 12])
+            if asyncio.iscoroutine(r):
+                await r
+        return ModelCall(True, "ok", None, "call-1", "fake", "medium", "fake", None, cut,
+                         input_tokens=120, output_tokens=40, equiv_cost_usd="0.001")  # fmt: skip
+
+    monkeypatch.setattr(router, "stream", stream)
+    router.answers = [answer("پاسخ درست. جمله‌ی دوم.", "**پاسخ درست**")]
+    cv = await open_cv(client, owner)
+    out = await say(client, owner, cv["ref"], "خلاصه بگو")
+    a = out["answer"]
+    assert calls["n"] == 2 and a["state"] == "done" and a["show_md"] == "**پاسخ درست**"
+    said = [s.text for s in talk["voice"].said if s.text != "این نسخه‌ی اول پاسخ است."]
+    assert said == ["پاسخ درست.", "جمله‌ی دوم."]
+
+
+async def _offered_card(
+    client: httpx.AsyncClient, owner: dict[str, str], su: Any, kind: str, payload: dict[str, Any]
+) -> str:
+    """A card offered on a fresh conversation's answer turn (written straight to the table)."""
+    cv = await open_cv(client, owner)
+    out = await say(client, owner, cv["ref"], "سلام")
+    return str(
+        await su.fetchval(
+            """INSERT INTO talk.cards (conversation_id, turn_id, company_id, kind, title_fa, payload)
+               SELECT t.conversation_id, t.id, t.company_id, $2, 'کارت آزمایشی', CAST($3 AS jsonb)
+               FROM talk.turns t WHERE t.id = $1 RETURNING id""",
+            UUID(out["answer"]["id"]),
+            kind,
+            json.dumps(payload, ensure_ascii=False),
+        )
+    )
+
+
+async def test_one_run_of_a_card_at_a_time(
+    client: httpx.AsyncClient, owner: dict[str, str], talk: dict[str, Any], su: Any
+) -> None:
+    card = await _offered_card(client, owner, su, "planner",
+                               {"title_fa": "یادآوری آزمایشی", "at": "2026-11-12T09:00:00+03:30"})  # fmt: skip
+    lock = f"talk.card:{card}"
+    await su.execute("SELECT pg_advisory_lock(hashtextextended($1, 0))", lock)
+    try:  # a run still going (here: the lock held): a second run is refused, nothing is made
+        r = await client.post(f"/api/v1/talk/cards/{card}/run", json={},
+                              headers={**owner, **idem()})  # fmt: skip
+        assert r.status_code == 409 and r.json()["message_fa"]
+    finally:
+        await su.execute("SELECT pg_advisory_unlock(hashtextextended($1, 0))", lock)
+    assert await su.fetchval("SELECT state FROM talk.cards WHERE id = $1", UUID(card)) == "offered"
+    r = await client.post(f"/api/v1/talk/cards/{card}/run", json={}, headers={**owner, **idem()})
+    assert r.status_code == 200, r.text
+    made = r.json()["made"]
+    again = await client.post(f"/api/v1/talk/cards/{card}/run", json={},
+                              headers={**owner, **idem()})  # fmt: skip
+    assert again.status_code == 200 and again.json()["made"] == made
+
+
+async def test_a_planner_time_without_an_offset_is_the_owners(
+    client: httpx.AsyncClient, owner: dict[str, str], talk: dict[str, Any], su: Any
+) -> None:
+    card = await _offered_card(client, owner, su, "planner",
+                               {"title_fa": "یادآوری آزمایشی", "at": "2026-11-12T09:00:00"})  # fmt: skip
+    r = await client.post(f"/api/v1/talk/cards/{card}/run", json={}, headers={**owner, **idem()})
+    assert r.status_code == 200, r.text
+    (ref,) = r.json()["made"]
+    at = await su.fetchval("SELECT at FROM owner.planner_items WHERE ref = $1", ref)
+    tz = await su.fetchval("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+    assert at == datetime(2026, 11, 12, 9, 0, tzinfo=ZoneInfo(tz))
+
+
+async def test_any_fault_in_a_card_run_leaves_it_failed_with_a_reason(
+    client: httpx.AsyncClient, owner: dict[str, str], talk: dict[str, Any], su: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    from hq_api.talk import cards as K
+
+    card = await _offered_card(client, owner, su, "planner",
+                               {"title_fa": "یادآوری آزمایشی", "at": "2026-11-12T09:00:00+03:30"})  # fmt: skip
+
+    async def boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("not an ApiError")
+
+    monkeypatch.setattr(K, "_carry_out", boom)
+    try:
+        r = await client.post(f"/api/v1/talk/cards/{card}/run", json={},
+                              headers={**owner, **idem()})  # fmt: skip
+        assert r.status_code == 500
+    except RuntimeError:
+        pass  # the transport may raise the app's exception after the 500 is sent
+    row = await su.fetchrow("SELECT state, reason_fa FROM talk.cards WHERE id = $1", UUID(card))
+    assert row["state"] == "failed" and row["reason_fa"]
+
+
+async def test_the_summary_never_passes_a_turn_still_streaming(
+    client: httpx.AsyncClient, owner: dict[str, str], talk: dict[str, Any], hub: Hub, su: Any
+) -> None:
+    from hq_api.talk import summary
+
+    cv = await open_cv(client, owner)
+    for i in range(5):
+        await say(client, owner, cv["ref"], f"موضوع شماره {i}")
+    cid = await su.fetchval("SELECT id FROM talk.conversations WHERE ref = $1", cv["ref"])
+    # the first answer is still being written (a player's, say) while the later turns are done
+    await su.execute("UPDATE talk.turns SET state = 'streaming', finished_at = NULL "
+                     "WHERE conversation_id = $1 AND n = 2", cid)  # fmt: skip
+    try:
+        assert (await summary.summarise(hub, talk["router"], cv["ref"]))["summarised"] is True
+        upto = await su.fetchval("SELECT summary_upto FROM talk.conversations WHERE id = $1", cid)
+        assert upto == 1
+    finally:
+        await su.execute("UPDATE talk.turns SET state = 'done', finished_at = now() "
+                         "WHERE conversation_id = $1 AND n = 2", cid)  # fmt: skip
