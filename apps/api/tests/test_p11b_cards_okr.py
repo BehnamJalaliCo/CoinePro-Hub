@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from hq_api.domain import gov_common as G
 from hq_api.domain import gov_kpis as K
 from hq_api.domain import gov_okr as OKR
 from hq_api.domain import oversight_checks as OC
@@ -205,6 +206,18 @@ async def test_revenue_without_a_source_is_no_source_never_zero(
     k = await card_of(client, owner, co["code"], "revenue.commission_7d_usdt")
     assert (k["state"], k["value"], k["at"], k["source_ref"]) == ("no_source", None, None, None)
     assert all(v is None for v in k["trend"])
+
+
+async def test_a_number_in_free_text_reads_thousands_separators() -> None:
+    """A founding KPI target in free text: ',' and '٬' group thousands; '.'
+    and '٫' (or a lone comma) are the decimal mark."""
+    assert G.number("10,000 کاربر فعال") == 10000.0
+    assert G.number("۱۰٬۰۰۰ کاربر") == 10000.0
+    assert G.number("1,250,000") == 1250000.0
+    assert G.number("1,250,000.5 دلار") == 1250000.5
+    assert G.number("۱٫۵") == 1.5 and G.number("1,5") == 1.5
+    assert G.number("-2,000") == -2000.0 and G.number("80%") == 80.0
+    assert G.number("هیچ") is None and G.number(None) is None
 
 
 async def test_the_scorecard_is_paged_and_searchable(

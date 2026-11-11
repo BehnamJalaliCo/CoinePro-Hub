@@ -17,8 +17,12 @@ from hq_api.db import Tx
 from hq_api.worker.jalali import to_jalali
 
 DEFAULT_TZ = "Asia/Tehran"
-_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩٫", "01234567890123456789.")
-_NUMBER = re.compile(r"-?[0-9]+(?:[.,][0-9]+)?")
+_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩٫٬", "01234567890123456789.,")
+# Comma-grouped thousands first ("10,000", "۱۰٬۰۰۰", "1,250,000.5"); otherwise a
+# lone comma between digits is still read as a decimal mark ("1,5").
+_NUMBER = re.compile(
+    r"(?P<grouped>-?[0-9]{1,3}(?:,[0-9]{3})+(?![0-9])(?:\.[0-9]+)?)|-?[0-9]+(?:[.,][0-9]+)?"
+)
 QUARTER = r"^1[3-9][0-9]{2}-Q[1-4]$"
 
 
@@ -92,7 +96,11 @@ def number(text: Any) -> float | None:
     if isinstance(text, int | float | Decimal):
         return float(text)
     m = _NUMBER.search(str(text or "").translate(_DIGITS))
-    return float(m.group(0).replace(",", ".")) if m else None
+    if m is None:
+        return None
+    if m.group("grouped"):
+        return float(m.group(0).replace(",", ""))
+    return float(m.group(0).replace(",", "."))
 
 
 def canonical_json(value: Any) -> str:
