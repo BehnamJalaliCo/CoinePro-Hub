@@ -330,6 +330,7 @@ class ClaudeRunner:
             signals.subtype = result.subtype
             signals.stop_reason = result.stop_reason
             signals.api_error_status = result.api_error_status
+            signals.structured = result.structured_output is not None
             if result.model_usage:
                 model = next(iter(result.model_usage), model)
         signals.text = text or error_text

@@ -56,6 +56,17 @@ PUBLISHING = ("instagram", "telegram", "youtube", "x")
 KEY = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 WORK_DONE = ("done", "delivered")
 WORK_FAILED = ("failed", "cancelled")
+# ⟨2026-11-11⟩ a routine that cannot run for an empty seat says why on the working group's page,
+# in one plain line, and the company's CEO gets a work to fill the seat (once per seat a day)
+EMPTY_SEAT_FA = "جایگاه «{seat}» هنوز خالی است؛ استخدام خودکار آن را پر میکند."
+EMPTY_OPTIONAL_FA = (
+    "جایگاه «{seat}» اختیاری است و خالی مانده؛ این روال تا پر شدن آن اجرا نمیشود."
+)
+EMPTY_CEO_FA = (
+    "جایگاه «{seat}» هنوز خالی است؛ مدیرعامل شرکت آن را پر میکند و روال از نوبت بعد اجرا میشود."
+)
+SEAT_FILL_TITLE_FA = "پر کردن جایگاه «{seat}» در کارگروه «{group}»"
+SEAT_FILL_AGAIN = timedelta(hours=24)
 
 
 # ------------------------------------------------------------------ shapes --
@@ -687,6 +698,70 @@ async def _record_run(
     return rid
 
 
+def fill_brief(
+    g: Group, seat: Seat, r: Routine, m: dict[str, Any], occurrence: datetime
+) -> str:
+    code = str(m.get("company") or m.get("code"))
+    name = m.get("name_fa") or code
+    return (
+        f"The working group «{g.title_fa}» ({g.key}) could not run its routine «{r.title_fa}» "
+        f"({r.key}) for {occurrence.isoformat()}: its seat «{seat.title_fa}» (charter "
+        f"`{seat.role}`) has no active employee in {name} ({code}). Fill the seat today, inside "
+        f"this month's envelope: propose a `hire` with `role: {seat.role}`, or decide the hire "
+        "card already waiting for you (hire.decide). Once the seat has its employee the routine "
+        "runs by itself at its next time. When it cannot be filled now (hiring closed, the "
+        "envelope too small, no such charter for this company), say why in one plain Persian "
+        "line in this work's result and deliver it. Never ask the owner anything technical."
+    )
+
+
+async def fill_seat_work(
+    tx: Tx, g: Group, m: dict[str, Any], seat: Seat, r: Routine, occurrence: datetime
+) -> str | None:
+    """⟨2026-11-11⟩ A required seat left a routine unrun: one work for the company's CEO to fill
+    it, once per seat per day (an open one, or one made within SEAT_FILL_AGAIN, stands). The
+    work's ref, or None when there is no CEO to take it. Never raises (a tick is not undone)."""
+    from hq_api.domain import work as W
+
+    key = f"{g.key}:{seat.seat}"
+    try:
+        async with tx.conn.begin_nested():
+            found = await tx.scalar(
+                """SELECT ref FROM work.work
+                   WHERE company_id = :co AND run_meta ->> 'seat_fill' = :k
+                     AND (status = ANY(CAST(:open AS text[]))
+                          OR created_at > now() - CAST(:again AS interval))
+                   ORDER BY created_at DESC LIMIT 1""",
+                co=m["company_id"],
+                k=key,
+                open=list(W.OPEN),
+                again=SEAT_FILL_AGAIN,
+            )
+            if found is not None:
+                return str(found)
+            # no assignee named: the work goes to the company's CEO (none: refused, None)
+            w = await W.create(
+                tx,
+                SERVICE,
+                company_id=m["company_id"],
+                company_code=str(m["company"]),
+                title=SEAT_FILL_TITLE_FA.format(seat=seat.title_fa, group=g.title_fa)[:300],
+                brief=fill_brief(g, seat, r, m, occurrence),
+                kind="one_off",
+                priority="P2",
+            )
+            await tx.exec(
+                """UPDATE work.work SET run_meta = COALESCE(run_meta, '{}'::jsonb) || CAST(:m AS jsonb)
+                   WHERE id = :id""",
+                id=w["id"],
+                m=json.dumps({"seat_fill": key}),
+            )
+            return str(w["ref"])
+    except Exception:  # noqa: BLE001 - the run keeps its line; the next day asks again
+        log.warning("seat fill work could not be made", extra={"group": g.key, "seat": seat.seat})
+        return None
+
+
 async def run_routine(
     tx: Tx,
     grow: dict[str, Any],
@@ -706,13 +781,26 @@ async def run_routine(
     seat = next(s for s in g.seats if s.seat == r.seat)
     emp = next((s.get("employee") for s in m["seats"] or [] if s.get("seat") == r.seat), None)
     note = None
+    empty = False
     if r.needs == "sealed_series" and not await has_sealed_series(tx, m["company_id"]):
         note = "سری انتشار مُهرشده‌ای نیست؛ چیزی برای انتشار نیست."
     elif emp is None:
-        note = f"جایگاه «{seat.title_fa}» هنوز خالی است؛ استخدام خودکار آن را پر میکند."
+        empty = True
+        note = (
+            EMPTY_OPTIONAL_FA if seat.optional else EMPTY_SEAT_FA
+        ).format(seat=seat.title_fa)
     if note is not None:
         rid = await _record_run(tx, grow, m, r, occurrence, "skipped", note, None)
         if rid is not None:
+            if empty and not seat.optional:
+                # ⟨2026-11-11⟩ a routine that cannot run is not silent: the company's CEO gets a
+                # work to fill the seat (once per seat per day); the run's line says so
+                if await fill_seat_work(tx, g, m, seat, r, occurrence) is not None:
+                    await tx.exec(
+                        "UPDATE growth.routine_runs SET note_fa = :n WHERE id = :id",
+                        id=rid,
+                        n=EMPTY_CEO_FA.format(seat=seat.title_fa),
+                    )
             await events.emit(
                 tx, m["company"], "group.run", None,
                 {"group": g.key, "routine": r.key, "state": "skipped"},

@@ -45,6 +45,11 @@ import androidx.compose.ui.unit.sp
 import com.coinepro.hq.core.data.HELD_FA
 import com.coinepro.hq.core.data.HELD_HINT_FA
 import com.coinepro.hq.core.data.MOOD_FA
+import com.coinepro.hq.core.data.STILL_FA
+import com.coinepro.hq.core.data.Still
+import com.coinepro.hq.core.data.callModel
+import com.coinepro.hq.core.data.holdable
+import com.coinepro.hq.core.data.isCall
 import com.coinepro.hq.core.data.isTurn
 import com.coinepro.hq.core.data.leadKnot
 import com.coinepro.hq.core.data.leadWorker
@@ -52,6 +57,8 @@ import com.coinepro.hq.core.data.nowFacts
 import com.coinepro.hq.core.data.quietLine
 import com.coinepro.hq.core.data.segmentsFa
 import com.coinepro.hq.core.data.sentenceOf
+import com.coinepro.hq.core.data.stillLastFa
+import com.coinepro.hq.core.data.stillSentenceFa
 import com.coinepro.hq.core.data.timerFig
 import com.coinepro.hq.core.data.turnTime
 import com.coinepro.hq.core.data.waitedFa
@@ -74,6 +81,7 @@ import com.coinepro.hq.designsystem.DrawnMark
 import com.coinepro.hq.designsystem.Expand
 import com.coinepro.hq.designsystem.Fig
 import com.coinepro.hq.designsystem.HqButton
+import com.coinepro.hq.designsystem.ModelMark
 import com.coinepro.hq.designsystem.Ring
 import com.coinepro.hq.designsystem.RingTone
 import com.coinepro.hq.designsystem.Text
@@ -84,6 +92,7 @@ import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.designsystem.rememberHaptics
 import com.coinepro.hq.designsystem.ringColor
 import com.coinepro.hq.designsystem.settle
+import com.coinepro.hq.designsystem.silverLine
 import com.coinepro.hq.designsystem.smoothSize
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
@@ -101,9 +110,10 @@ import kotlinx.coroutines.launch
 //   own direct turn shows [BuildRing]: real elapsed time out of the turn's cap, amber from 90 percent;
 // - [WaitingCard]: the ONE place of the holder's question, with its ready answers (one tap answers); [AnswerSent] for a moment after;
 // - [KnotCard]: one sentence of why the session stands still, and one action;
+// - [StillCard]: ⟨2026-11-11⟩ an open session nobody works on and the hub has not explained: «ایستاده», one sentence, «ادامه بده»;
 // - [SessionCards]: the cards of the session that wait for his word, answered in place;
 // - [LiveTail], [LiveSheetBody]: the live steps as thin lines; [EndLeaf]: the end of a closed session; [IdleNudge] for its details.
-// One full gold per page: none of these is gold but the knot's action when the page has no decision bar ([KnotCard] `lead`).
+// One full gold per page: none of these is gold but the knot's action, or the still card's, when the page has no decision bar (`lead`).
 
 // ====================================================================================================== the mood ==
 /** «چراغ حال»: a shape and a word. The arc of «کار میکند» turns only while this is shown, which is only while work is live. */
@@ -128,6 +138,8 @@ fun MoodLight(mood: String, modifier: Modifier = Modifier, word: String? = null,
                     val r = this.size.minDimension / 2
                     when (mood) {
                         "thinking" -> drawCircle(ink, r - 1.dp.toPx(), style = Stroke(1.6.dp.toPx()))
+                        // «ایستاده»: a grey hollow ring, nothing turning in it
+                        "still" -> drawCircle(ink, r - 1.dp.toPx(), style = Stroke(1.6.dp.toPx()))
                         "waiting" -> drawCircle(ink, r * 0.52f)
                         "stuck" -> drawCircle(ink, r - 1.dp.toPx(), style = Stroke(1.8.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(r * 0.75f, r * 0.38f))))
                         else -> drawCircle(ink.copy(alpha = 0.7f), r * 0.43f)
@@ -171,15 +183,25 @@ fun BuildRing(w: SessionWorker, now: Long, modifier: Modifier = Modifier, size: 
     }
 }
 
-/** The marks of those at work, side by side (at most three); the holder's own turn wears the manager's ring. */
+/** One worker's mark: the holder's own turn wears the manager's ring, an outside call its model's logo on a tile, the rest a colleague. */
+@Composable
+private fun WorkerMark(w: SessionWorker, size: Dp) {
+    val c = Divan.colors
+    if (isCall(w)) Box(
+        Modifier.size(size).clip(CircleShape).background(c.tile).border(1.dp, c.lineDivider, CircleShape).testTag("call-mark")
+            .semantics { contentDescription = w.whoFa },
+        contentAlignment = Alignment.Center,
+    ) { ModelMark(callModel(w), size = size * 0.52f) }
+    else Avatar(if (w.kind == "direct") "manager" else "employee", size = size, state = "working", label = w.whoFa)
+}
+
+/** The marks of those at work, side by side (at most three). */
 @Composable
 private fun WorkerMarks(working: List<SessionWorker>) {
     val c = Divan.colors
     Row(verticalAlignment = Alignment.CenterVertically) {
         working.take(3).forEachIndexed { i, w ->
-            Box(Modifier.offset(x = if (i == 0) 0.dp else (-10 * i).dp).clip(CircleShape).background(c.card).padding(1.dp)) {
-                Avatar(if (w.kind == "direct") "manager" else "employee", size = 32.dp, state = "working", label = w.whoFa)
-            }
+            Box(Modifier.offset(x = if (i == 0) 0.dp else (-10 * i).dp).clip(CircleShape).background(c.card).padding(1.dp)) { WorkerMark(w, 32.dp) }
         }
     }
 }
@@ -230,7 +252,8 @@ fun NowBar(
             }
             when {
                 stopped -> HqButton("ادامه بده", onResume, variant = BtnVariant.SECONDARY, size = BtnSize.LG, loading = resuming)
-                canHold -> HqButton("نگه دار", onHold, variant = BtnVariant.DANGER, size = BtnSize.LG, loading = holding, label = "کار زنده را نگه دار")
+                // an outside call that is all that works is not the hub's to stop
+                canHold && holdable(working) -> HqButton("نگه دار", onHold, variant = BtnVariant.DANGER, size = BtnSize.LG, loading = holding, label = "کار زنده را نگه دار")
             }
         }
         // The silver work line moves only while the work is live.
@@ -417,7 +440,7 @@ fun LiveSheetBody(a: SessionActivity, now: Long, companyName: (String?) -> Strin
             Modifier.fillMaxWidth().testTag("live-worker").clip(RoundedCornerShape(12.dp)).background(c.card).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (isTurn(w)) BuildRing(w, now, size = 64.dp) else Avatar(if (w.kind == "direct") "manager" else "employee", size = 36.dp, state = "working", label = w.whoFa)
+            if (isTurn(w)) BuildRing(w, now, size = 64.dp) else WorkerMark(w, 36.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     remember(w) { facts(w.whoFa.trim().ifBlank { "یک همکار" }, w.companyFa?.trim()?.ifBlank { null }?.takeIf { it !in w.whoFa }, workerKindFa(w)) },
@@ -437,16 +460,43 @@ fun LiveSheetBody(a: SessionActivity, now: Long, companyName: (String?) -> Strin
 }
 
 /**
- * A quiet session, in its details: when it last worked, and one tap that tells its holder to take the work up again (the hub's
- * nudge). Nothing while someone works.
+ * A quiet session, in its details and the live sheet: when it last worked, and one tap that tells its holder to take the work up again
+ * (the hub's nudge). Nothing while someone works. [button] false: the page's still card already carries «ادامه بده»; the line stays.
  */
 @Composable
-fun IdleNudge(a: SessionActivity?, nudging: Boolean, onNudge: () -> Unit, modifier: Modifier = Modifier) {
+fun IdleNudge(a: SessionActivity?, nudging: Boolean, onNudge: () -> Unit, modifier: Modifier = Modifier, button: Boolean = true) {
     if (a == null || a.working.isNotEmpty()) return
     val c = Divan.colors
     Row(modifier.fillMaxWidth().testTag("idle-nudge"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(a.idleSince?.let { "آخرین کار ${ago(it)}" } ?: "الان کسی روی این جلسه کار نمیکند.", style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
-        HqButton("ادامه بده", onNudge, variant = BtnVariant.SECONDARY, size = BtnSize.SM, loading = nudging)
+        Text(a.idleSince?.let { "آخرین کار ${ago(it)}" } ?: "$STILL_FA.", style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
+        if (button) HqButton("ادامه بده", onNudge, variant = BtnVariant.SECONDARY, size = BtnSize.SM, loading = nudging)
+    }
+}
+
+// ================================================================================================= «ایستاده» ==
+/**
+ * An open session nobody works on, and the hub has not said why ([com.coinepro.hq.core.data.stillOf]): ONE calm card right above the
+ * composer, the shape of the knot's with a silver edge: «ایستاده», one sentence (the hub's reason, else «الان کسی روی این جلسه کار
+ * نمیکند؛ آخرین کار: … (دیشب 22:28)»), and «ادامه بده», the page's one full gold when nothing else holds it ([lead]). [canNudge] false:
+ * a hub that does not take the nudge; the card only says it.
+ */
+@Composable
+fun StillCard(still: Still, now: Long, canNudge: Boolean, nudging: Boolean, onNudge: () -> Unit, modifier: Modifier = Modifier, lead: Boolean = true) {
+    val c = Divan.colors
+    val sentence = remember(still, now / 60_000) { stillSentenceFa(still, now) }
+    // with the hub's own reason as its sentence, the last work is a quiet line under it
+    val last = remember(still, now / 60_000) { if (still.reasonFa != null) stillLastFa(still, now) else null }
+    EdgeCard("still-card", modifier.smoothSize(), edge = silverLine()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MoodLight("still", Modifier.padding(top = 3.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(plain(sentence), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                    last?.let { Text(plain(it), style = Divan.type.micro, color = c.textMuted) }
+                }
+            }
+            if (canNudge) HqButton("ادامه بده", onNudge, variant = if (lead) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.SM, loading = nudging)
+        }
     }
 }
 

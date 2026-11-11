@@ -38,6 +38,7 @@ import kotlinx.coroutines.delay
 // is the «الان» bar over the composer and the thin lines at the end of the thread (`ui/look/Session.kt`); a tap on the bar opens
 // «کار زنده», drawn here: who works on what, each with its own line and time (a workshop or direct turn with its build ring), then
 // every step so far, and, when nobody works, why: the owner is asked, it is stuck (with «ادامه بده»), or it is quiet since a time.
+// ⟨2026-11-11⟩ An outside call (ChatGPT drafting the text, the AI narrator) is one of those at work, with its model's mark.
 
 /**
  * «کار زنده»: who works, every step so far, and at the end what the session waits on when nobody works. [canNudge]: the hub takes

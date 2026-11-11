@@ -87,6 +87,7 @@ import com.coinepro.hq.core.data.sessionBadge
 import com.coinepro.hq.core.data.sessionClosed
 import com.coinepro.hq.core.data.sessionTimeline
 import com.coinepro.hq.core.data.standingTaskFa
+import com.coinepro.hq.core.data.stillOf
 import com.coinepro.hq.core.data.taskFa
 import com.coinepro.hq.core.data.taskOf
 import com.coinepro.hq.core.data.taskProgress
@@ -147,6 +148,7 @@ import com.coinepro.hq.ui.look.MoodLight
 import com.coinepro.hq.ui.look.NowBar
 import com.coinepro.hq.ui.look.SegmentLine
 import com.coinepro.hq.ui.look.SessionCards
+import com.coinepro.hq.ui.look.StillCard
 import com.coinepro.hq.ui.look.WaitingCard
 import com.coinepro.hq.ui.media.FileThumbs
 import com.coinepro.hq.ui.media.MessageMedia
@@ -185,7 +187,9 @@ import kotlinx.serialization.json.JsonObject
 //   end, and a closed session's end leaf;
 // - right above the composer: the «الان» bar while something works (with the build ring of a workshop or direct turn, and «نگه دار»),
 //   then the owner's own thing: the «منتظر تو» card with its ready answers, the session's cards, the «گره» card with its one action,
-//   or the decision bar («تأیید و انتشار» of what the session waits on, else «تأیید و بستن»): the page's one full gold.
+//   or the decision bar («تأیید و انتشار» of what the session waits on, else «تأیید و بستن»): the page's one full gold;
+// - ⟨2026-11-11⟩ an open session that nobody works on and that none of those explains is «ایستاده» after twenty minutes: one calm card
+//   there says so, with the last thing done and «ادامه بده».
 // Nothing technical and no ref is shown: the ref is the key only.
 
 private enum class SessionSheet { NONE, DETAILS, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE, ROUTINE }
@@ -409,7 +413,11 @@ fun OrderSessionScreen(ref: String) {
     val working = shown?.working.orEmpty()
     val now = rememberTicker(1_000, on = working.isNotEmpty())
     val badge = o?.let(::sessionBadge) ?: "moving"
-    val mood = moodOf(shown, closed, badge, asked)
+    // ⟨2026-11-11⟩ An open session nobody works on, that the hub has not explained, is «ایستاده» with its own card (looked at again
+    // every minute); never «آرام» for hours with nothing to press.
+    val minute = rememberTicker(60_000, on = o != null && !closed && working.isEmpty())
+    val still = if (o == null || closed || stopped) null else remember(o, shown, minute) { stillOf(o, shown, minute) }
+    val mood = if (still != null) "still" else moodOf(shown, closed, badge, asked)
     val pace = paceAsked ?: o?.pace ?: "auto"
 
     // The outputs of the session with their files, and the ONE thing of the owner's above the composer (where the page's gold is).
@@ -533,6 +541,8 @@ fun OrderSessionScreen(ref: String) {
                     canNudge = liveOn && sessionsOn, nudging = nudge.busy, onNudge = { nudgeNow() }, modifier = side,
                     onFixed = { scope.launch { q.refresh() } },
                 )
+                // Nobody works and nothing above says why: one calm card and «ادامه بده».
+                still?.let { StillCard(it, minute, canNudge = liveOn && sessionsOn, nudging = nudge.busy, onNudge = { nudgeNow() }, modifier = side, lead = !bar) }
             }
             if (bar) {
                 val revise = QuietAction("اصلاح", enabled = !closed) { runCatching { focus.requestFocus() } }
@@ -553,8 +563,8 @@ fun OrderSessionScreen(ref: String) {
                     files = attach.takeIf { cv != null && filesOn }, pick = pick,
                     onFilesSent = { scope.launch { q.refresh(); env.cache.invalidate("sessions", "office") } },
                     seed = ComposerSeeds.peek(ref), onSeeded = { ComposerSeeds.take(ref) },
-                    // The page's one gold is the decision bar's, or the knot's action; the send steps back beside them.
-                    quietSend = bar || knot, quietMic = true, placeholder = "به مسئول بگو چه بکند…", focus = focus,
+                    // The page's one gold is the decision bar's, the knot's action or the still card's; the send steps back beside them.
+                    quietSend = bar || knot || (still != null && liveOn && sessionsOn), quietMic = true, placeholder = "به مسئول بگو چه بکند…", focus = focus,
                 )
             } else if (closeState == DecisionState.IDLE) {
                 Text(CLOSED_FA, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).testTag("session-closed"))
@@ -794,7 +804,8 @@ internal fun SessionDetailsBody(
     val playbooksOn = served(HubFeature.PLAYBOOKS)
     val eraseOn = served(HubFeature.ERASE)
     val asked = o.turn != null && !closed
-    val mood = moodOf(activity, closed, sessionBadge(o), asked)
+    val still = remember(o, activity, closed) { if (closed) null else stillOf(o, activity) }
+    val mood = if (still != null) "still" else moodOf(activity, closed, sessionBadge(o), asked)
     val outs = rememberSessionOutputs(o.outputs)
     val made = outs.flatMap { it.files }
     Column(Modifier.testTag("details-order"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -834,8 +845,9 @@ internal fun SessionDetailsBody(
             PaceRow(pace, enabled = !closed && sessionsOn, onPace = onPace)
             // ⟨1.0.1⟩ §54 a direct session: its holder is one session with the hub's tools; nothing else changes for the owner.
             if (o.direct) Text(DIRECT_FA, style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.testTag("direct-session"))
-            // §41 a quiet session never stalls unseen: when it last worked, and one tap that takes it up again.
-            if (!closed && !asked && mood == "idle" && canNudge) IdleNudge(activity, nudging, onNudge)
+            // §41 a quiet session never stalls unseen: when it last worked, and one tap that takes it up again (the page's still card
+            // carries that tap once the session stands still; the line stays here).
+            if (!closed && !asked && (mood == "idle" || mood == "still") && canNudge) IdleNudge(activity, nudging, onNudge, button = still == null)
         }
     }
     PeopleBar(participants, open = !closed && sessionsOn, addressee = addressee, onPick = onPick, onAddPerson = onAddPerson, onAddModel = onAddModel)

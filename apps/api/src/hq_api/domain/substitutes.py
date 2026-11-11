@@ -33,6 +33,7 @@ nothing here signs in by itself, and no credential ever passes through it
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -146,6 +147,8 @@ DEFAULT_SEATS: dict[str, list[dict[str, Any]]] = {
         {"seat": "code_review", "via": "cli", "model": "gpt-5.5", "enabled": False, "per_day": 10},
         {"seat": "overseer_cross_check", "via": "web", "model": "gpt-5.5", "enabled": True, "per_day": 20},
         {"seat": "assistant_errand", "via": "web", "model": "gpt-5.3", "enabled": True, "per_day": 30},
+        # ⟨2026-11-11⟩ the owner's reels order: «ChatGPT متن ... آماده کند» (migration 0062)
+        {"seat": "content_draft", "via": "web", "model": "gpt-5.5", "enabled": True, "per_day": 30},
         {"seat": "creative", "via": "web", "model": "gpt-5.5", "enabled": True, "per_day": 20,
          "per_day_video": 0},
     ],
@@ -167,6 +170,21 @@ WEB_PACE = timedelta(seconds=60)
 LOGIN_MINUTES = 10
 CALL_TIMEOUT_S = {"code_review": 900, "creative": 900, "long_read": 600}
 TEXT_LIMIT = 200_000  # a question's characters
+# ⟨2026-11-11⟩ the stall of 2026-11-10: every call has a deadline, and its end (done, failed,
+# skipped) always reaches whoever asked. A call nobody took by its deadline ends `not_claimed`;
+# a running one its runner never answered ends `timeout` (expire_stale, every minute).
+QUEUE_DEADLINE = timedelta(minutes=15)  # a text call
+QUEUE_DEADLINE_MEDIA = timedelta(minutes=30)  # an image or a video (seat creative)
+RUN_GRACE_S = 120  # past claimed_at + timeout_s + this, a running call is lost
+WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitutes_web.WebIn)
+# The deadline of a call row `c` in SQL (constants only), the same rule as deadline_at().
+DEADLINE_SQL = (
+    "(CASE WHEN c.state = 'running' THEN COALESCE(c.claimed_at, c.created_at)"
+    f" + make_interval(secs => c.timeout_s + {RUN_GRACE_S})"
+    " WHEN c.seat = 'creative' OR c.task IN ('image', 'video')"
+    f" THEN c.created_at + make_interval(mins => {int(QUEUE_DEADLINE_MEDIA.total_seconds()) // 60})"
+    f" ELSE c.created_at + make_interval(mins => {int(QUEUE_DEADLINE.total_seconds()) // 60}) END)"
+)
 # ⟨1.10.1⟩ an answer comes back whole (the runner reads a CLI's output in full,
 # up to its 20 MB stop); beyond INLINE_TEXT it lives in the file store and the
 # call keeps a reference (full_text() reads it back), never cut
@@ -740,12 +758,16 @@ async def seat_call(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """One seat call: `queued` for its runner, or `skipped` with its reason
-    (holding_locked, off, signed_out, expired, limited, per_day). The input
-    is checked by `guard` first (the caller decides what a refusal means)."""
+    (holding_locked, off, signed_out, expired, limited, per_day, too_long). The
+    input is checked by `guard` first (the caller decides what a refusal means).
+    ⟨2026-11-11⟩ nothing is queued that could never run: a CLI seat while the
+    substitutes runner is off (or its player has no CLI) is `off`, and a web
+    seat's question longer than egress takes is `too_long`."""
     now = now or datetime.now(UTC)
     day = owner_day(now)
     found = await holder(tx, seat, player, task)
     lock = await gate.automation_lock(tx)
+    masked = scrub(input_md)
     reason: str | None
     s_row: dict[str, Any] | None
     if found is None:
@@ -754,6 +776,11 @@ async def seat_call(
         p, s_row = found
         p_name = p["player"]
         reason = _skip_reason(p, s_row, now)
+        runner_on = bool(getattr(getattr(hub, "settings", None), "substitutes_runner", False))
+        if reason is None and s_row["via"] == "cli" and (p["runner"] is None or not runner_on):
+            reason = "off"  # nothing would ever claim it (infra/substitutes/dispatch.sh is off)
+        if reason is None and s_row["via"] == "web" and len(masked) > WEB_PROMPT_LIMIT:
+            reason = "too_long"
     if lock is not None:  # the launch gate first: nothing is called while locked
         reason = gate.REASONS.get(lock, lock)
     if reason is None and s_row is not None:
@@ -774,7 +801,6 @@ async def seat_call(
             reason = "per_day"
     via = s_row["via"] if s_row is not None else "cli"
     model = s_row["model"] if s_row is not None else None
-    masked = scrub(input_md)
     row = await tx.one(
         """INSERT INTO substitutes.calls (company_id, player, seat, via, task, model, state, state_reason,
                caller_kind, caller_code, purpose_kind, purpose_ref, input_md, input_sha256, checkout,
@@ -816,6 +842,15 @@ async def seat_call(
 
 def refusal(reason: str) -> ApiError:
     """A skipped call as the tool's refusal (contract §21.13)."""
+    if reason == "too_long":  # ⟨2026-11-11⟩ the caller shortens it and asks again
+        return ApiError(
+            422,
+            "validation_failed",
+            f"a web seat takes at most {WEB_PROMPT_LIMIT} characters: shorten the question and "
+            "ask again, or carry on with your own model",
+            fields={"input_md": f"at most {WEB_PROMPT_LIMIT} characters for this player"},
+            message_fa="متن برای این بازیکن بلندتر از حد است؛ کوتاهش کن و دوباره بپرس.",
+        )
     if reason in ("limited", "per_day"):
         return ApiError(429, "rate_limited", f"the substitute seat is {reason}")
     if reason in ("holding_locked", "company_locked", "deploy_freeze"):
@@ -834,19 +869,20 @@ def source(call: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------- the CLI queue --
-async def claim(tx: Tx) -> dict[str, Any]:
+async def claim(tx: Tx, hub: Any = None) -> dict[str, Any]:
     """The dispatcher's next CLI job (one at a time for both players), or none
-    (always none while the holding's kill switch is engaged)."""
+    (always none while the holding's kill switch is engaged). ⟨2026-11-11⟩ the
+    reaper first (also while locked): a job the dispatcher lost (claimed, never
+    answered) ends `timeout` and reaches its caller like any other end."""
+    if hub is not None:
+        try:
+            async with tx.conn.begin_nested():
+                await expire_stale(tx, hub)
+        except Exception:  # noqa: BLE001 - the reaper never stops a claim
+            log.exception("the substitutes' reaper failed at a claim")
     lock = await gate.holding_lock(tx)
     if lock is not None:
         return {"job": None, "skipped": gate.REASONS.get(lock, lock)}
-    # A job the dispatcher lost (claimed, never answered) ends as failed.
-    await tx.exec(
-        """UPDATE substitutes.calls SET state = 'failed', state_reason = 'timeout', finished_at = now(),
-               input_md = NULL
-           WHERE via = 'cli' AND state = 'running'
-             AND claimed_at < now() - make_interval(secs => timeout_s + 120)"""
-    )
     if await tx.scalar(
         "SELECT 1 FROM substitutes.calls WHERE via = 'cli' AND state = 'running' LIMIT 1"
     ):
@@ -1170,12 +1206,15 @@ def needs_persian(c: dict[str, Any], body: DoneIn) -> bool:
 async def _retry_language(tx: Tx, hub: Any, c: dict[str, Any]) -> dict[str, Any]:
     """The answer was not Persian: the same call once more, its question with
     the Persian instruction repeated (the first answer stays in the run log)."""
+    # ⟨2026-11-11⟩ the instruction always fits: a web question stays within egress's limit
+    room = (WEB_PROMPT_LIMIT if c["via"] == "web" else TEXT_LIMIT) - len(PERSIAN_AGAIN)
     row: dict[str, Any] = await tx.one(
         """UPDATE substitutes.calls SET state = 'queued', lang_retried = true, claimed_at = NULL,
                state_reason = 'not_persian: asked again in Persian',
-               input_md = left(COALESCE(input_md, '') || :again, 200000)
+               input_md = left(COALESCE(input_md, ''), :room) || :again
            WHERE id = :id RETURNING *""",
         again=PERSIAN_AGAIN,
+        room=room,
         id=c["id"],
     )
     holding = await hub.companies.holding()
@@ -1305,9 +1344,19 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         from hq_api.talk import player
 
         await player.on_call(tx, hub, call)
+    elif call["purpose_kind"] == "creative" and call["kind"] == "call":
+        # ⟨2026-11-11⟩ an agent's image or video came back (or did not): its work wakes
+        name = PLAYER_NAMES.get(call["player"], call["player"])
+        what = seat_fa("creative", call.get("task") or "image")
+        said = (
+            f"{what} {name} آماده شد."
+            if call["state"] == "done"
+            else f"{what} {name} ساخته نشد ({reason_fa(call['state_reason'])})."
+        )
+        await wake_for_creative(tx, str(call["purpose_ref"]), said_fa=said)
 
 
-REPLY_TOKENS = 20_000
+REPLY_TOKENS = 60_000  # ⟨2026-11-11⟩ a holder's whole brief and the answer (was 20 000: too small)
 REPLY_BRIEF = 48_000  # a work brief holds 50 000; a longer answer goes whole into a file
 REPLY_HEAD = 6_000
 # ⟨2026-11-06⟩ an agent's substitute.call names the work of the run that made it (purpose_ref: the
@@ -1315,6 +1364,82 @@ REPLY_HEAD = 6_000
 CALLER_WORK = "caller_work"
 TALK_SNIPPET = 280
 PLAYER_NAMES = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
+CREATIVE_DONE = "creative_done:"  # ⟨2026-11-11⟩ the reason of the run an ended creative wakes
+# ⟨2026-11-11⟩ why a call ended without an answer: the owner's words (the session's line) and
+# the agent's (its reply work). The machine's word is the reason's first part ("timeout: …").
+REASON_FA = {
+    "not_claimed": "نوبتش نرسید",
+    "timeout": "جوابش طول کشید",
+    "browser_unavailable": "مرورگرش در دسترس نبود",
+    "expired": "از حسابش بیرون افتاده بود",
+    "signed_out": "از حسابش بیرون افتاده بود",
+    "limited": "سهم امروزش تمام شده بود",
+    "per_day": "سهم امروزش تمام شده بود",
+    "worker_error": "خطای داخلی",
+    "too_long": "متن بلندتر از حد بود",
+    "holding_locked": "کارها قفل بود",
+    "company_locked": "کارها قفل بود",
+    "deploy_freeze": "هاب در حال به‌روزرسانی بود",
+    "off": "خاموش بود",
+    "error": "چند بار پشت هم خطا داده بود",
+    "busy": "مرورگرش سرگرم کار دیگری بود",
+    "recipe_failed": "صفحه‌اش آن‌طور که باید نبود",
+    "model_refused": "مدلش در دسترس نبود",
+    "not_persian": "جوابش فارسی نبود",
+    "abandoned": "دیگر کسی منتظرش نبود",
+    "unavailable": "در دسترس نبود",
+    "no_access": "به آن دسترسی نداشت",
+}
+REASON_FA_DEFAULT = "به خطا خورد"
+REASON_EN = {
+    "not_claimed": "nobody picked it up within its deadline (the player's queue never reached it)",
+    "timeout": "it took longer than its time limit",
+    "browser_unavailable": "the player's browser on the hub was not available",
+    "expired": "the player's account is signed out",
+    "signed_out": "the player's account is signed out",
+    "limited": "the player's quota is used up for now",
+    "per_day": "the seat's daily cap is used up",
+    "worker_error": "an internal error of the hub's worker",
+    "too_long": f"the question is longer than a web seat takes ({WEB_PROMPT_LIMIT} characters)",
+    "holding_locked": "the holding is locked (the kill switch)",
+    "company_locked": "the company is locked",
+    "deploy_freeze": "the hub is in a deploy freeze",
+    "off": "the seat or the player is off",
+    "error": "the player failed several times in a row",
+    "busy": "the player's browser was busy with another job",
+    "recipe_failed": "the player's page was not as expected",
+    "model_refused": "the player refused the model",
+    "not_persian": "its answer was not in Persian, twice",
+    "abandoned": "its asker stopped waiting",
+}
+SEAT_FA = {
+    "advisor_second_opinion": "نظر دوم",
+    "third_opinion": "نظر سوم",
+    "code_review": "بازبینی کد",
+    "overseer_cross_check": "بررسی دوباره‌ی یک ادعا",
+    "assistant_errand": "کار کوتاه",
+    "content_draft": "پیش‌نویس متن",
+    "long_read": "خواندن متن بلند",
+    "quick_search": "جستجوی کوتاه",
+    "creative": "تصویر",
+}
+
+
+def reason_key(reason: str | None) -> str:
+    """The machine's word of a call's state_reason ("recipe_failed: paste" -> recipe_failed)."""
+    return str(reason or "").split(":", 1)[0].strip()
+
+
+def reason_fa(reason: str | None) -> str:
+    """Why a call ended without an answer, as a short Persian phrase for the owner."""
+    return REASON_FA.get(reason_key(reason), REASON_FA_DEFAULT)
+
+
+def seat_fa(seat: str | None, task: str | None = "text") -> str:
+    """What the seat makes, as a short Persian noun phrase («پیش‌نویس متن», «تصویر»)."""
+    if seat == "creative" and task == "video":
+        return "ویدیو"
+    return SEAT_FA.get(str(seat or ""), "کار")
 
 
 async def run_work(tx: Tx, who: Principal) -> UUID | None:
@@ -1342,48 +1467,78 @@ async def _caller_work(tx: Tx, call: dict[str, Any], company_id: UUID) -> dict[s
     )
 
 
+async def _say_in_session(tx: Tx, work_id: UUID, code: str, text: str) -> bool:
+    """One line in the live session of the order `work_id` belongs to (if it has an open one),
+    said by `code`. Never fails its caller: a savepoint of its own, a warning in the log."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import order_turns as OT
+
+    try:
+        async with tx.conn.begin_nested():
+            ref = await OR.order_of_work(tx, work_id)
+            rep = await OR.ensure(tx, ref) if ref is not None else None
+            if rep is None or rep.get("closed_at") is not None or rep.get("ended_at") is not None:
+                return False
+            return await OT.to_talk(tx, rep, code, text)
+    except Exception:  # noqa: BLE001 - the session's line never fails the delivery
+        log.warning("a substitute line did not reach the session", extra={"work": str(work_id)})
+        return False
+
+
 async def _answer_to_talk(
     tx: Tx, work_id: UUID, caller_code: str, player: str, answer: str
 ) -> None:
     """The order the caller's work belongs to hears one line in its live session (if open)."""
-    from hq_api.domain import order_report as OR
-    from hq_api.domain import order_turns as OT
-
-    ref = await OR.order_of_work(tx, work_id)
-    if ref is None:
-        return
-    rep = await OR.ensure(tx, ref)
-    if rep is None or rep.get("closed_at") is not None or rep.get("ended_at") is not None:
-        return
     flat = " ".join(scrub(answer).split())
     head = flat[:TALK_SNIPPET] + ("…" if len(flat) > TALK_SNIPPET else "")
     name = PLAYER_NAMES.get(player, player)
-    await OT.to_talk(tx, rep, caller_code, f"جواب {name} رسید: {head}")
+    await _say_in_session(tx, work_id, caller_code, f"جواب {name} رسید: {head}")
 
 
 async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
-    """An agent's call that answered after substitute.call said `queued`: the
-    labelled answer (or why it was skipped) goes back to the caller as a work
+    """An agent's call that ended after substitute.call said `queued`: the
+    labelled answer (or why there is none) goes back to the caller as a work
     item (work is a record; the caller sleeps until it arrives). ⟨2026-11-06⟩ The
     reply work is requested by the caller's own work (the same order sees it), and
-    the order's live session hears that the answer came."""
+    the order's live session hears that the answer came. ⟨2026-11-11⟩ every end
+    reaches both: a call with no answer tells the caller plainly why and to carry
+    on with its own model now, and the session hears it in one line; a caller no
+    longer active is logged and the session still hears it."""
+    from hq_api.domain import order_report as OR
     from hq_api.domain import work as W
 
     if call["delivered_at"] is not None:
         return
+    name = PLAYER_NAMES.get(call["player"], call["player"])
+    done = call["state"] == "done"
     emp = await tx.first(
-        """SELECT e.code, e.company_id, c.code AS company FROM core.employees e
-           JOIN core.companies c ON c.id = e.company_id
+        """SELECT e.code, e.company_id, e.title_fa, c.code AS company, c.name_fa AS company_fa
+           FROM core.employees e JOIN core.companies c ON c.id = e.company_id
            WHERE e.code = :c AND e.status = 'active'""",
         c=call["caller_code"],
     )
     if emp is None:
+        log.warning(
+            "a substitute call ended for a caller that is not active",
+            extra={"call": str(call["id"]), "caller": call["caller_code"], "state": call["state"]},
+        )
+        gone = await _caller_work(tx, call, call["company_id"])
+        if gone is not None:
+            heard = "جواب داد" if done else f"جواب نداد ({reason_fa(call['state_reason'])})"
+            await _say_in_session(
+                tx, gone["id"], call["caller_code"],
+                f"{name} {heard}، ولی کسی که پرسیده بود دیگر فعال نیست و جواب به او نمیرسد.",
+            )  # fmt: skip
+        await tx.exec(
+            "UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id", id=call["id"]
+        )
         return
     mine = await _caller_work(tx, call, emp["company_id"])
     for_work = f" Asked for your work {mine['ref']}." if mine is not None else ""
     res = call["result"] or {}
     answer = ""
-    if call["state"] == "done":
+    title = f"پاسخ بازیکن ذخیره ({call['seat']})"
+    if done:
         answer = await full_text(tx, hub, res) or json.dumps(
             res.get("findings") or [], ensure_ascii=False
         )
@@ -1405,16 +1560,26 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
                 "Its beginning:\n\n" + str(answer)[:REPLY_HEAD]
             )
     else:
+        key = reason_key(call["state_reason"])
+        why = REASON_EN.get(key, "the player gave no answer")
         body = (
-            f"Your substitute.call ({call['seat']}, call {call['id']}) was {call['state']}: "
-            f"{call['state_reason'] or 'no answer'}.{for_work} Carry on with your own model."
+            f"Your substitute.call to {name} ({call['seat']}, call {call['id']}) ended "
+            f"{call['state']} with no answer: {why} [{call['state_reason'] or 'no reason given'}]."
+            f"{for_work} Do not wait for it: carry on with the task now with your own model."
+            + (
+                f" To ask {name} again, shorten the question to at most {WEB_PROMPT_LIMIT} "
+                "characters."
+                if key == "too_long"
+                else ""
+            )
         )
+        title = f"{name} جواب نداد ({seat_fa(call['seat'], call.get('task'))})"
     w = await W.create(
         tx,
         SERVICE,
         company_id=emp["company_id"],
         company_code=emp["company"],
-        title=f"پاسخ بازیکن ذخیره ({call['seat']})"[:300],
+        title=title[:300],
         brief=body,
         kind="one_off",
         priority="P3",
@@ -1422,13 +1587,42 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         budget=W.BudgetIn(tokens=REPLY_TOKENS),
         requested_by_work_id=mine["id"] if mine is not None else None,
     )
-    if mine is not None and call["state"] == "done" and answer:
+    if mine is not None and done and answer:
         await _answer_to_talk(tx, mine["id"], emp["code"], call["player"], str(answer))
+    elif mine is not None and not done:
+        who = OR.who_fa(emp["title_fa"], emp["company_fa"])
+        await _say_in_session(
+            tx, mine["id"], emp["code"],
+            f"{name} جواب نداد ({reason_fa(call['state_reason'])})؛ {who} با مدل خودش ادامه میدهد.",
+        )  # fmt: skip
     await tx.exec(
         "UPDATE substitutes.calls SET delivered_at = now(), reply_work_id = :w WHERE id = :id",
         w=w["id"],
         id=call["id"],
     )
+
+
+async def wake_for_creative(tx: Tx, ref: str, *, said_fa: str | None = None) -> None:
+    """⟨2026-11-11⟩ An agent's creative ended (made, not made, accepted, rejected): the work it
+    was made for wakes, its assignee gets one run (`creative_done:<ref>`), as a workshop turn's
+    end wakes its work (work.wake_assignee). When nobody can be woken (a lock, the work closed),
+    the order's session hears `said_fa`. Never fails its caller."""
+    try:
+        async with tx.conn.begin_nested():
+            cr = await tx.first(
+                """SELECT work_id, requested_by_kind, requested_by_code FROM substitutes.creatives
+                   WHERE ref = :ref""",
+                ref=ref,
+            )
+            if cr is None or cr["work_id"] is None or cr["requested_by_kind"] != "agent":
+                return
+            woke = await tx.scalar(
+                "SELECT work.wake_assignee(:w, :r)", w=cr["work_id"], r=f"{CREATIVE_DONE}{ref}"
+            )
+            if woke is None and said_fa:
+                await _say_in_session(tx, cr["work_id"], cr["requested_by_code"], said_fa)
+    except Exception:  # noqa: BLE001 - the wake never fails the creative's end
+        log.warning("a creative's end did not wake its work", extra={"creative": ref})
 
 
 async def ask_models(tx: Tx, hub: Any) -> int:
@@ -1892,6 +2086,7 @@ async def pick_creative(tx: Tx, hub: Any, who: Principal, ref: str) -> dict[str,
         ref,
         {"state": "accepted", "picked": True, "company": r["company"]},
     )
+    await wake_for_creative(tx, ref)  # ⟨2026-11-11⟩ the agent that asked for it goes on
     return row
 
 
@@ -1961,6 +2156,7 @@ async def decide_creative(
     await events.emit(
         tx, holding.code, "creative.updated", ref, {"state": row["state"], "company": r["company"]}
     )
+    await wake_for_creative(tx, ref)  # ⟨2026-11-11⟩ the agent that asked for it goes on
     return row
 
 
@@ -2034,9 +2230,199 @@ async def behind_check(tx: Tx, hub: Any, now: datetime | None = None) -> int:
 
 
 # -------------------------------------------------------------- the web path --
+def queue_deadline(seat: str | None, task: str | None) -> timedelta:
+    """How long a call may wait in its queue: longer for an image or a video."""
+    return QUEUE_DEADLINE_MEDIA if seat == "creative" or task in ("image", "video") else QUEUE_DEADLINE
+
+
+def deadline_at(c: dict[str, Any]) -> datetime:
+    """When a queued or running call is past saving (the same rule as DEADLINE_SQL)."""
+    if c["state"] == "running":
+        start = c.get("claimed_at") or c["created_at"]
+        return start + timedelta(seconds=int(c["timeout_s"]) + RUN_GRACE_S)
+    created: datetime = c["created_at"]
+    return created + queue_deadline(c.get("seat"), c.get("task"))
+
+
+async def end_call(
+    tx: Tx, hub: Any, call_id: UUID, state: str, reason: str, *, why: str | None = None
+) -> dict[str, Any] | None:
+    """⟨2026-11-11⟩ A queued or running call ends `failed` or `skipped` with its reason, and
+    whatever waits on it hears it (`_applied`: the agent's reply work and its session's line, a
+    memo, a council, a creative). None when the call had ended already."""
+    row = await tx.first(
+        """UPDATE substitutes.calls SET state = :st, state_reason = :r, finished_at = now(),
+               input_md = NULL
+           WHERE id = :id AND state IN ('queued', 'running') RETURNING *""",
+        st=state,
+        r=reason[:300],
+        id=call_id,
+    )
+    if row is None:
+        return None
+    if row["purpose_kind"] == "creative":
+        await tx.exec(
+            """UPDATE substitutes.creatives SET state = 'failed', review_md = :why, updated_at = now()
+               WHERE ref = :ref AND state IN ('queued', 'generating')""",
+            why=(why or f"not made: {reason}")[:500],
+            ref=row["purpose_ref"],
+        )
+    await _applied(tx, hub, row)
+    holding = await hub.companies.holding()
+    await events.emit(
+        tx,
+        holding.code,
+        "substitute.updated",
+        row["player"],
+        {"call": str(row["id"]), "state": state, "reason": reason},
+    )
+    return row
+
+
+async def _end_safely(
+    tx: Tx, hub: Any, call_id: UUID, state: str, reason: str, *, why: str | None = None
+) -> bool:
+    """end_call in a savepoint of its own: if what waits on the call fails, the call still ends
+    (without its delivery, logged) and the next one goes on."""
+    try:
+        async with tx.conn.begin_nested():
+            return await end_call(tx, hub, call_id, state, reason, why=why) is not None
+    except Exception:  # noqa: BLE001 - one call never stops the others
+        log.exception("a substitute call's end could not be delivered", extra={"call": str(call_id)})
+    try:
+        async with tx.conn.begin_nested():
+            n = await tx.exec(
+                """UPDATE substitutes.calls SET state = :st, state_reason = :r, finished_at = now(),
+                       input_md = NULL
+                   WHERE id = :id AND state IN ('queued', 'running')""",
+                st=state,
+                r=reason[:300],
+                id=call_id,
+            )
+        return n > 0
+    except Exception:  # noqa: BLE001
+        log.exception("a substitute call could not be ended", extra={"call": str(call_id)})
+        return False
+
+
+async def expire_stale(tx: Tx, hub: Any, now: datetime | None = None) -> int:
+    """⟨2026-11-11⟩ The reaper (every minute from the web pass, and at every CLI claim; also
+    while the holding is locked): a queued call past its deadline ends `failed` `not_claimed`
+    (QUEUE_DEADLINE after it was made, QUEUE_DEADLINE_MEDIA for an image or a video); a running
+    one (web or CLI) past claimed_at + timeout_s + RUN_GRACE_S ends `failed` `timeout`; while the
+    holding's kill switch is engaged an agent's queued call ends `skipped` (holding_locked): it
+    would not run. Every one through `_applied`, so its caller hears it. How many ended."""
+    now = now or datetime.now(UTC)
+    stale = await tx.all(
+        f"""SELECT c.id, c.state FROM substitutes.calls c
+            WHERE c.state IN ('queued', 'running') AND (c.kind = 'call' OR c.state = 'running')
+              AND {DEADLINE_SQL} <= CAST(:now AS timestamptz)
+            ORDER BY c.created_at FOR UPDATE SKIP LOCKED""",  # noqa: S608 - constants only
+        now=now,
+    )
+    ended = 0
+    for c in stale:
+        reason = "timeout" if c["state"] == "running" else "not_claimed"
+        ended += await _end_safely(tx, hub, c["id"], "failed", reason)
+    if await gate.holding_lock(tx) == "holding":
+        for c in await tx.all(
+            """SELECT id FROM substitutes.calls
+               WHERE state = 'queued' AND kind = 'call' AND caller_kind = 'agent'
+               ORDER BY created_at FOR UPDATE SKIP LOCKED"""
+        ):
+            ended += await _end_safely(tx, hub, c["id"], "skipped", gate.REASONS["holding"])
+    if ended:
+        log.info("substitute calls ended by the reaper", extra={"ended": ended})
+    return ended
+
+
+async def abandon(tx: Tx, hub: Any, call_id: UUID) -> bool:
+    """⟨2026-11-11⟩ Its asker stopped waiting (a lines step at its deadline): the call ends
+    `failed` `abandoned`, so it neither waits in the queue nor counts against the daily cap.
+    False when it had ended already."""
+    return await _end_safely(tx, hub, call_id, "failed", "abandoned")
+
+
+CALLS_OF_WORKS = """
+    FROM substitutes.calls c
+    LEFT JOIN substitutes.creatives cr ON c.purpose_kind = 'creative' AND cr.ref = c.purpose_ref
+    WHERE c.kind = 'call'
+      AND ((c.purpose_kind = 'caller_work' AND c.purpose_ref = ANY(CAST(:refs AS text[])))
+           OR (c.purpose_kind = 'creative' AND cr.work_id = ANY(CAST(:ids AS uuid[]))))
+"""
+
+
+async def pending_for(
+    tx: Tx, work_ids: list[UUID], now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Calls made for these works (purpose_kind 'caller_work', purpose_ref = str(work id); and an
+    agent's creative made for one of them) that are queued or running and not past their deadline:
+    [{id, player, player_fa, seat, seat_fa, state, created_at, claimed_at, deadline_at}], oldest
+    first. player_fa: ChatGPT / Gemini / DeepSeek. seat_fa: a short Persian noun phrase of what it
+    makes (content_draft «پیش‌نویس متن», creative «تصویر», long_read «خواندن متن بلند», …). The
+    deadline is the reaper's own (DEADLINE_SQL): pending and reaped never disagree."""
+    if not work_ids:
+        return []
+    rows = await tx.all(
+        f"""SELECT c.id, c.player, c.seat, c.task, c.state, c.created_at, c.claimed_at,
+                   {DEADLINE_SQL} AS deadline_at
+            {CALLS_OF_WORKS}
+              AND c.state IN ('queued', 'running')
+              AND {DEADLINE_SQL} > CAST(:now AS timestamptz)
+            ORDER BY c.created_at, c.id""",  # noqa: S608 - constants only
+        refs=[str(w) for w in work_ids],
+        ids=[str(w) for w in work_ids],
+        now=now or datetime.now(UTC),
+    )
+    return [
+        {
+            "id": r["id"],
+            "player": r["player"],
+            "player_fa": PLAYER_NAMES.get(r["player"], r["player"]),
+            "seat": r["seat"],
+            "seat_fa": seat_fa(r["seat"], r["task"]),
+            "state": r["state"],
+            "created_at": r["created_at"],
+            "claimed_at": r["claimed_at"],
+            "deadline_at": r["deadline_at"],
+        }
+        for r in rows
+    ]
+
+
+async def ended_since(tx: Tx, work_ids: list[UUID], since: datetime) -> list[dict[str, Any]]:
+    """Such calls that ended failed or skipped at or after `since`: [{id, player_fa, seat_fa,
+    state, state_reason, reason_fa, finished_at}], newest first (reason_fa: REASON_FA's phrase)."""
+    if not work_ids:
+        return []
+    rows = await tx.all(
+        f"""SELECT c.id, c.player, c.seat, c.task, c.state, c.state_reason, c.finished_at
+            {CALLS_OF_WORKS}
+              AND c.state IN ('failed', 'skipped') AND c.finished_at >= :since
+            ORDER BY c.finished_at DESC, c.id""",  # noqa: S608 - constants only
+        refs=[str(w) for w in work_ids],
+        ids=[str(w) for w in work_ids],
+        since=since,
+    )
+    return [
+        {
+            "id": r["id"],
+            "player_fa": PLAYER_NAMES.get(r["player"], r["player"]),
+            "seat_fa": seat_fa(r["seat"], r["task"]),
+            "state": r["state"],
+            "state_reason": r["state_reason"],
+            "reason_fa": reason_fa(r["state_reason"]),
+            "finished_at": r["finished_at"],
+        }
+        for r in rows
+    ]
+
+
 async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[str, Any]:
     """The worker's pass over queued web calls (one per player at a time, at
-    least 60 s apart). Nothing while the holding's kill switch is engaged."""
+    least 60 s apart; ⟨2026-11-11⟩ different players' jobs at the same time).
+    The reaper first, every pass, also while locked; otherwise nothing while
+    the holding's kill switch is engaged."""
     now = now or datetime.now(UTC)
     # The owner's sealed web sign-out: egress wipes the profile (local, no
     # outside call, so it runs while the holding is locked too).
@@ -2056,10 +2442,16 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
                     p=w["player"],
                 )
             wiped += 1
+    expired = 0
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            expired = await expire_stale(tx, hub, now)
+    except Exception:  # noqa: BLE001 - the reaper never stops the pass
+        log.exception("the substitutes' reaper failed")
     async with hub.db.tx(await hub.companies.ids()) as tx:
         lock = await gate.holding_lock(tx)
         if lock is not None:
-            return gate.skipped(lock, ran=0, wiped=wiped)
+            return gate.skipped(lock, ran=0, wiped=wiped, expired=expired)
         picked = []
         for player in PLAYERS:
             p = await tx.first(
@@ -2081,9 +2473,14 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
             if c is None:
                 continue
             if p["web_state"] != "signed_in":
-                await _skip_web(
-                    tx, hub, c, "expired" if p["web_state"] == "expired" else "signed_out"
-                )
+                # every waiting call of a signed-out profile ends now, each told to its caller
+                why = "expired" if p["web_state"] == "expired" else "signed_out"
+                for q in await tx.all(
+                    """SELECT * FROM substitutes.calls WHERE player = :p AND via = 'web'
+                       AND state = 'queued' ORDER BY created_at FOR UPDATE SKIP LOCKED""",
+                    p=player,
+                ):
+                    await _skip_web(tx, hub, q, why)
                 continue
             await tx.exec(
                 "UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = :id",
@@ -2095,35 +2492,43 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
                 id=p["id"],
             )
             picked.append((dict(c), p["web_account"]))
-    ran = 0
-    for c, account in picked:
+    ran = await asyncio.gather(*(_web_job(hub, egress, c, account) for c, account in picked))
+    return {"ran": sum(ran), "wiped": wiped, "expired": expired}
+
+
+async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> int:
+    """⟨2026-11-11⟩ One picked web job: egress, then its answer. Anything that goes wrong here
+    ends the call `failed` `worker_error` (its caller hears it) and never stops the other
+    players' jobs. 1 when egress answered and the answer was applied."""
+    try:
         retry = {"reload": True} if int(c.get("attempt") or 1) > 1 else {}
         answer = await egress.web(
             account=account,
             task=c["task"],
-            prompt=c["input_md"] or "",
+            prompt=(c["input_md"] or "")[:WEB_PROMPT_LIMIT],
             timeout_s=c["timeout_s"],
             **retry,
         )
         await apply_web(hub, c, account, answer)
-        ran += 1
-    return {"ran": ran, "wiped": wiped}
+        return 1
+    except Exception:  # noqa: BLE001 - one job never stops the others
+        log.exception(
+            "a substitute web job failed in the worker",
+            extra={"call": str(c["id"]), "player": c["player"]},
+        )
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await _end_safely(tx, hub, c["id"], "failed", "worker_error")
+    except Exception:  # noqa: BLE001 - the reaper ends it at its deadline
+        log.exception("a failed substitute web job could not be ended", extra={"call": str(c["id"])})
+    return 0
 
 
 async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
-    await tx.exec(
-        """UPDATE substitutes.calls SET state = 'skipped', state_reason = :r, finished_at = now(), input_md = NULL
-           WHERE id = :id""",
-        r=reason,
-        id=c["id"],
+    """⟨2026-11-11⟩ skipped, and delivered like every other end (`_applied`)."""
+    await _end_safely(
+        tx, hub, c["id"], "skipped", reason, why=f"not made: the browser profile is {reason}"
     )
-    if c["purpose_kind"] == "creative":
-        await tx.exec(
-            """UPDATE substitutes.creatives SET state = 'failed', review_md = :why, updated_at = now()
-               WHERE ref = :ref""",
-            why=f"not made: the browser profile is {reason}",
-            ref=c["purpose_ref"],
-        )
 
 
 async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str, Any]) -> None:
@@ -2153,6 +2558,17 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
             except creative_overlay.Refused as exc:
                 ok, error = False, f"refused: {exc}"[:120]
     async with hub.db.tx(await hub.companies.ids()) as tx:
+        # ⟨2026-11-11⟩ the call first (the order finish and the reaper lock in): an answer
+        # that comes after the reaper ended the call changes nothing
+        now_state = await tx.scalar(
+            "SELECT state FROM substitutes.calls WHERE id = :id FOR UPDATE", id=c["id"]
+        )
+        if now_state != "running":
+            log.info(
+                "a substitute web answer came after its call ended",
+                extra={"call": str(c["id"]), "state": now_state, "ok": ok},
+            )
+            return
         p = await _player(tx, c["player"], lock=True)
         if ok:
             await tx.exec(
@@ -2204,7 +2620,12 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
                 await _skip_web(tx, hub, other, "expired")
             return
         if error == "off":
-            await _skip_web(tx, hub, c, "off")
+            # ⟨2026-11-11⟩ the profile browser is not running, or egress did not answer: a
+            # failure its caller hears (never a silent skip)
+            await _end_safely(
+                tx, hub, c["id"], "failed", "browser_unavailable",
+                why="not made: the hub's browser was not available",
+            )  # fmt: skip
             return
         if error == "recipe_failed" and int(c.get("attempt") or 1) < 2:
             # ⟨1.10⟩ §28.4 once more, the profile's page reloaded (the next pass)

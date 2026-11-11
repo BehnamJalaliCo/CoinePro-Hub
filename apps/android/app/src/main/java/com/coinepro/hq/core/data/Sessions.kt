@@ -149,8 +149,9 @@ fun sessionStatusLine(r: OrderReport): String {
 /** Who the hub's own steps are by (`order_report._step`). */
 const val SYSTEM_FA = "سامانه"
 
-/** The lead of a holder's question in the talk (`order_turns.to_talk(ask=True)`): a question is a bubble, never a quiet line. */
-private const val ASK_LEAD = "**سؤال از شما**"
+/** The lead of a holder's question in the talk (`order_turns.to_talk(ask=True)`): a question is a bubble, never a quiet line. The hub
+ *  says «سؤال از تو» since 2026-11-11; an older hub «سؤال از شما». */
+private val ASK_LEADS = listOf("**سؤال از تو**", "**سؤال از شما**")
 
 /** The hub's line for a result that arrived (`order_report`, «خروجی رسید: …» / «خروجی ناقص رسید: …»). */
 private val ARRIVED = listOf("خروجی رسید:", "خروجی ناقص رسید:")
@@ -180,7 +181,7 @@ sealed interface SessionEntry {
 fun isStepTurn(t: TalkTurn): Boolean {
     if (t.owner || t.source != "system" || t.state != "done" || t.cards.isNotEmpty() || t.files.isNotEmpty() || t.audio.isNotEmpty()) return false
     val s = t.shown.trim()
-    return s.isNotEmpty() && !s.startsWith(ASK_LEAD) && !s.startsWith("سلام")
+    return s.isNotEmpty() && ASK_LEADS.none { s.startsWith(it) } && !s.startsWith("سلام")
 }
 
 /** An instant of the hub's ISO times, read here (pure JVM: the unit tests run it without Android's calendar). */

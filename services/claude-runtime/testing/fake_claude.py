@@ -12,6 +12,7 @@ chosen by a marker in the prompt:
     [[fake:auth401]]  API error 401 only (no assistant error)
     [[fake:sleep]]    never answers (timeouts)
     [[fake:warning]]  "OK" after a rate_limit_event allowed_warning (85% of five_hour)
+    [[fake:notice]]   the CLI's limit notice as a plain answer (no error flag, no 429)
     anything else     "OK" with usage and total_cost_usd
 If FAKE_CLAUDE_RECORD is set, argv and selected env go to that JSON file.
 Never used in production: only when RUNTIME_CLI_PATH points here.
@@ -120,6 +121,17 @@ def answer(prompt: str) -> None:
                 is_error=True, api_error_status=429, result=f"Claude AI usage limit reached|{reset}"
             )
         )
+        return
+    if "[[fake:notice]]" in prompt:
+        notice = "You've hit your limit · resets 5pm (UTC)"
+        emit(
+            {
+                "type": "assistant",
+                "session_id": SESSION,
+                "message": {"model": model, "content": [{"type": "text", "text": notice}]},
+            }
+        )
+        emit(result(result=notice))
         return
     if "[[fake:warning]]" in prompt:
         emit(

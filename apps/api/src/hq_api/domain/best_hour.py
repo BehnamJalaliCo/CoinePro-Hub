@@ -227,9 +227,10 @@ async def read_one(
     tx: Tx, conn: dict[str, Any], account: str, now: datetime
 ) -> Literal["asked", "read", "waiting", "failed", "fresh", "skipped"]:
     """One account's daily read: collect the job that was asked, or ask a new one when the last
-    read is old. The command is the company's own publish command with `posts <account>`."""
+    read is old. The command is the company's own publish command (⟨2026-11-11⟩ else the
+    holding's IG-Hub command, connections.publish_command_of) with `posts <account>`."""
     cfg = _cfg(conn["config"])
-    base = str(cfg.get("publish_command") or "").strip()
+    base = CN.publish_command_of(cfg) or ""
     handle = account.lstrip("@").lower()
     if not base or not handle:
         return "skipped"
@@ -293,20 +294,23 @@ async def read_one(
 
 
 async def read_due(hub: Any, now: datetime | None = None) -> dict[str, int]:
-    """Every company whose Instagram publish path is registered: each account's posts, once a
-    day. Each account in its own savepoint; never raises."""
+    """Every company whose Instagram publish path is registered (its accounts, and its own
+    publish command or ⟨2026-11-11⟩ the holding's): each account's posts, once a day. Each
+    account in its own savepoint; never raises."""
     now = now or datetime.now(UTC)
     out = {"asked": 0, "read": 0, "waiting": 0, "failed": 0}
     async with hub.db.tx(await hub.companies.ids()) as tx:
         conns = await tx.all(
             """SELECT c.company_id, c.config FROM growth.connections c
                JOIN core.companies co ON co.id = c.company_id
-               WHERE c.kind = 'instagram' AND co.status = 'active'
-                 AND c.config ->> 'publish_command' IS NOT NULL"""
+               WHERE c.kind = 'instagram' AND co.status = 'active' ORDER BY co.code"""
         )
         for conn in conns:
             cfg = _cfg(conn["config"])
-            for account in [str(a) for a in cfg.get("accounts") or []][:20]:
+            accounts = cfg.get("accounts") if isinstance(cfg.get("accounts"), list) else []
+            if not CN.publish_command_of(cfg):
+                continue
+            for account in [str(a) for a in accounts][:20]:
                 try:
                     async with tx.conn.begin_nested():
                         got = await read_one(tx, dict(conn), account, now)

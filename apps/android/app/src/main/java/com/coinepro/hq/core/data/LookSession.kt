@@ -2,6 +2,7 @@ package com.coinepro.hq.core.data
 
 import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.format.instant
+import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.net.Blocker
 import com.coinepro.hq.core.net.OrderReport
 import com.coinepro.hq.core.net.SessionActivity
@@ -13,30 +14,38 @@ import com.coinepro.hq.core.net.SessionWorker
 // work a «نگه دار» stops, the one sentence of a knot, and how long a closed session took. Pure functions: the unit tests read them.
 
 // ====================================================================================================== the mood ==
-/** The mood as the page says it: the hub's five, and «تمام» for a closed session. */
-val MOOD_FA = mapOf("thinking" to "فکر میکند", "working" to "کار میکند", "waiting" to "منتظر تو", "stuck" to "گیر کرده", "idle" to "آرام", "done" to "تمام")
+/** The mood as the page says it: the hub's five, «ایستاده» (the app's own: an open session nobody works on, [stillOf]), and «تمام»
+ *  for a closed session. */
+val MOOD_FA = mapOf(
+    "thinking" to "فکر میکند", "working" to "کار میکند", "waiting" to "منتظر تو", "stuck" to "گیر کرده", "idle" to "آرام", "still" to "ایستاده",
+    "done" to "تمام",
+)
 
 private val KNOWN_MOODS = setOf("thinking", "working", "waiting", "stuck", "idle")
 
 /**
  * The session's mood: the hub's own word when it sends one (§55.1); on an older hub it is read from what the activity says (`stuck_fa`
  * → stuck, `waiting_fa` → waiting, someone works → working, else idle); with no activity at all, from the session's badge. A closed
- * session is «تمام». [asked]: the holder's question is open.
+ * session is «تمام». A session ready for his OK waits for him: never «آرام», whatever an older hub says. [asked]: the holder's question
+ * is open. The page puts «ایستاده» over an «آرام» that has stood too long ([stillOf]).
  */
 fun moodOf(a: SessionActivity?, closed: Boolean, badge: String? = null, asked: Boolean = false): String {
     if (closed) return "done"
-    if (a != null) {
-        a.mood?.takeIf { it in KNOWN_MOODS }?.let { return it }
-        return when {
+    val mood = if (a != null) {
+        a.mood?.takeIf { it in KNOWN_MOODS } ?: when {
             !a.stuckFa.isNullOrBlank() -> "stuck"
             !a.waitingFa.isNullOrBlank() -> "waiting"
             a.working.isNotEmpty() -> "working"
             asked -> "waiting"
             else -> "idle"
         }
+    } else when {
+        asked || badge == "your_turn" -> "waiting"
+        badge == "stuck" -> "stuck"
+        badge == "moving" -> "working"
+        else -> "idle"
     }
-    if (asked || badge == "your_turn") return "waiting"
-    return when (badge) { "stuck" -> "stuck"; "moving" -> "working"; else -> "idle" }
+    return if (mood == "idle" && badge == "ready") "waiting" else mood
 }
 
 /** The word beside the light: the hub's own (`mood_fa`) when it sent the mood, else the app's. */
@@ -124,12 +133,24 @@ fun turnTime(w: SessionWorker, now: Long = HqClock.millis()): TurnTime {
     return TurnTime(share, minOf(capMin, (spent / 60).toInt()), capMin, share >= 0.9f)
 }
 
+/** ⟨2026-11-11⟩ An outside model or voice working for the session (`kind` = `call`: ChatGPT drafting the text, the AI narrator): shown
+ *  like a run (its mark, who and for whom, the sentence, a timer), never as a ring, and never stopped from the bar. */
+fun isCall(w: SessionWorker): Boolean = w.kind == "call"
+
+/** The model a call's mark is drawn from: its name as the hub says it («ChatGPT», «Gemini»), a Persian name read as its key. */
+fun callModel(w: SessionWorker): String = when (val who = w.whoFa.trim()) {
+    "جی‌پی‌تی", "چت‌جی‌پی‌تی" -> "gpt"
+    "جمنای", "جمینای" -> "gemini"
+    "دیپ‌سیک" -> "deepseek"
+    else -> who
+}
+
 /** What the worker does, as one whole sentence: the last thing a live turn did, else what it is doing, else its work's title. */
 fun sentenceOf(w: SessionWorker): String =
     w.lastFa?.trim()?.ifBlank { null } ?: w.doingFa.trim().ifBlank { null } ?: w.workTitleFa.trim()
 
-/** What a worker's turn is, in a word beside his name: «کارگاه», «سرور شرکت»; nothing for a run, and nothing for a direct turn (the
- *  holder himself works). */
+/** What a worker's turn is, in a word beside his name: «کارگاه», «سرور شرکت»; nothing for a run or a call, and nothing for a direct
+ *  turn (the holder himself works). */
 fun workerKindFa(w: SessionWorker): String? = when (w.kind) { "workshop" -> "کارگاه"; "server" -> "سرور شرکت"; else -> null }
 
 const val DIRECT_NOW_FA = "دارد روی فرمان تو کار میکند"
@@ -142,8 +163,13 @@ fun nowFacts(w: SessionWorker, count: Int): List<String> = listOfNotNull(
     if (count > 1) "و ${count - 1} نفر دیگر" else null,
 )
 
-/** The worker the bar speaks of: a turn first (its ring is the bar's mark), else the first one. */
-fun leadWorker(working: List<SessionWorker>): SessionWorker? = working.firstOrNull(::isTurn) ?: working.firstOrNull()
+/** The worker the bar speaks of: a turn first (its ring is the bar's mark), else the first one at work in the hub (a run before an
+ *  outside call it waits on), else the first. */
+fun leadWorker(working: List<SessionWorker>): SessionWorker? =
+    working.firstOrNull(::isTurn) ?: working.firstOrNull { !isCall(it) } ?: working.firstOrNull()
+
+/** «نگه دار» stops the hub's own live work: nothing to stop while only outside calls are pending. */
+fun holdable(working: List<SessionWorker>): Boolean = working.any { !isCall(it) }
 
 private val WORKSPACE_LIVE = setOf("starting", "working", "awaiting_seal", "idle")
 
@@ -173,6 +199,88 @@ fun knotWhy(stuckFa: String?, blockers: List<Blocker>): String? {
     val b = leadKnot(blockers) ?: return null
     return listOfNotNull(b.titleFa.trim().ifBlank { null }, b.detailFa.trim().ifBlank { null }).joinToString("؛ ").ifBlank { null }
 }
+
+// ================================================================================================= «ایستاده» ==
+// ⟨2026-11-11⟩ The owner, after twelve hours of a session that said «آرام» and offered nothing: an open session never goes silent. When
+// the hub has not said why it stands (no question, no knot, not ready) and nobody works on it, the page says so itself after a while:
+// the mood «ایستاده» and one calm card above the composer with «ادامه بده».
+
+/** How long an open session may stand with nobody at work before the page says so itself. */
+const val STILL_MINUTES = 20
+
+/** The still card's own words, when the hub gave no reason of its own. */
+const val STILL_FA = "الان کسی روی این جلسه کار نمیکند"
+
+/**
+ * An open session that stands still: [lineFa] the last thing done (its last words when it is long), [at] when; [reasonFa] the hub's own
+ * sentence for it (a `stuck` badge's cause), which the card says instead of its own.
+ */
+data class Still(val lineFa: String?, val at: String?, val reasonFa: String?)
+
+/** The run's own envelope lines (it began, it ended, it was woken, someone joined): never «the last work». */
+private val ENVELOPE = setOf("start", "end", "wake", "join")
+
+/** The words of a long line that matter most, its end: the last sentences that fit in [max], after «… ». */
+fun lastWordsFa(text: String, max: Int = 140): String {
+    val t = quietLine(text).trim()
+    if (t.length <= max) return t
+    var out = ""
+    for (p in t.split(Regex("(?<=[.!؟?])\\s+")).filter { it.isNotBlank() }.asReversed()) {
+        val next = if (out.isEmpty()) p else "$p $out"
+        if (next.length > max) break
+        out = next
+    }
+    if (out.isEmpty()) t.takeLast(max).let { tail -> out = tail.substringAfter(' ', tail) }
+    return "… $out"
+}
+
+/** The last thing done in the session: the newest of the activity's last step and the report's last step (the hub's own lines aside). */
+fun lastWorkOf(o: OrderReport, a: SessionActivity?): Pair<String, String>? {
+    val line = a?.last?.lastOrNull { it.textFa.isNotBlank() && it.kind !in ENVELOPE }?.let { it.textFa to it.at }
+    val step = o.steps.lastOrNull { it.whoFa.trim() != SYSTEM_FA && it.whatFa.isNotBlank() && it.whatFa.trim() != "-" }?.let { it.whatFa to it.at }
+    val pick = when {
+        line == null -> step
+        step == null -> line
+        (instant(step.second)?.toEpochMilli() ?: Long.MIN_VALUE) > (instant(line.second)?.toEpochMilli() ?: Long.MIN_VALUE) -> step
+        else -> line
+    } ?: return null
+    return lastWordsFa(pick.first) to pick.second
+}
+
+/**
+ * The client's own safety net, when the hub has not said why a session stands: null unless it is open, nothing waits for the owner (no
+ * question, no card, not ready), there is no knot, nobody works, the activity says neither «waiting» nor «stuck», its plan is not done,
+ * and [STILL_MINUTES] have passed since the hub's idle time (else the last line's, else the report's last move). A `stuck` badge's
+ * reason is the card's sentence; a `moving` badge's reason only echoes the last step (the card already names it).
+ */
+fun stillOf(o: OrderReport, a: SessionActivity?, now: Long = HqClock.millis()): Still? {
+    if (a == null || sessionClosed(o) || o.turn != null || o.cards.isNotEmpty() || o.blockers.isNotEmpty()) return null
+    val badge = sessionBadge(o)
+    if (badge == "ready" || badge == "your_turn" || badge == "closed") return null
+    if (a.working.isNotEmpty() || !a.waitingFa.isNullOrBlank() || !a.stuckFa.isNullOrBlank()) return null
+    if (planProgress(o.tasks)?.finished == true) return null
+    val since = a.idleSince?.ifBlank { null } ?: a.last.lastOrNull()?.at?.ifBlank { null } ?: o.updatedAt.ifBlank { null } ?: return null
+    val t = instant(since)?.toEpochMilli() ?: return null
+    if (now - t < STILL_MINUTES * 60_000L) return null
+    val last = lastWorkOf(o, a)
+    val reason = o.session?.reasonFa?.trim()?.ifBlank { null }?.takeIf { badge == "stuck" }?.let(::oneLine)
+    return Still(last?.first, last?.second, reason)
+}
+
+/** «({day} {HH:MM})» of a moment: the day as the owner says it and the clock time (a Latin figure where it is drawn). */
+fun stillWhenFa(at: String?, now: Long = HqClock.millis()): String? {
+    val day = deskDayFa(at, now).ifBlank { return null }
+    return "$day ${jTime(at)}"
+}
+
+/** «آخرین کار: … (دیشب 22:28)»; null when nothing was done yet. */
+fun stillLastFa(s: Still, now: Long = HqClock.millis()): String? = s.lineFa?.trim()?.trimEnd('.', '،', '؛')?.ifBlank { null }?.let { line ->
+    "آخرین کار: $line" + (stillWhenFa(s.at, now)?.let { " ($it)" } ?: "")
+}
+
+/** The card's sentence: the hub's reason when it gave one, else «الان کسی روی این جلسه کار نمیکند؛ آخرین کار: … (دیشب 22:28)». */
+fun stillSentenceFa(s: Still, now: Long = HqClock.millis()): String =
+    s.reasonFa ?: stillLastFa(s, now)?.let { "$STILL_FA؛ $it" } ?: "$STILL_FA."
 
 // ==================================================================================================== the details ==
 /** §54 what a direct session's details say; nothing else changes for the owner. */

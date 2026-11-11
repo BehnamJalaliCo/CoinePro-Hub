@@ -37,6 +37,9 @@ class SessionChatTest {
         assertFalse(isStepTurn(turn(3, "owner", "خوب است", "2026-11-06T08:00:00Z", source = "system")))
         assertFalse(isStepTurn(turn(4, "ceo@TY", "شنیدم", "2026-11-06T08:00:00Z")))
         assertFalse(isStepTurn(turn(5, "ceo@TY", "**سؤال از شما** · اول کدام؟", "2026-11-06T08:00:00Z", source = "system")))
+        // ⟨2026-11-11⟩ the hub's lead says «تو» now; an older hub's «شما» is still a question
+        assertFalse(isStepTurn(turn(5, "ceo@TY", "**سؤال از تو** · گام ۱ انجام شد؛ گام ۲ را شروع کنم؟", "2026-11-06T08:00:00Z", source = "system")))
+        assertTrue(isStepTurn(turn(5, "ceo@TY", "سؤال از تو پرسیده شد و جوابش آمد.", "2026-11-06T08:00:00Z", source = "system")))
         assertFalse(isStepTurn(turn(6, "ceo@TY", "سلام، مدیرعامل تریدیار هستم و این فرمان با من است.", "2026-11-06T08:00:00Z", source = "system")))
         assertFalse(isStepTurn(turn(7, "ceo@TY", "استخدام لازم است", "2026-11-06T08:00:00Z", source = "system", cards = listOf(TalkCard(kind = "hire")))))
         assertFalse(isStepTurn(turn(8, "ceo@TY", "", "2026-11-06T08:00:00Z", source = "system")))

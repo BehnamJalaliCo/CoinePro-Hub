@@ -152,7 +152,14 @@ async def ask_seat(
         if row is not None and row["state"] in ("failed", "skipped", "cancelled"):
             raise StepFailed(skip_fa(row.get("state_reason"), who), code="seat_failed", retry=True)
         if waited >= deadline:
-            raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
+            # ⟨2026-11-11⟩ the step stops waiting: its call ends too (`abandoned`), so it neither
+            # waits in the player's queue nor counts against the daily cap; one that ended just
+            # now is read once more above
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                ended = await S.abandon(tx, hub, call["id"])
+            if ended:
+                raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
+            continue
         await sleep(POLL_S)
         waited += POLL_S
 

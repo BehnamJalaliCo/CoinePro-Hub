@@ -2,6 +2,13 @@ package com.coinepro.hq
 
 import com.coinepro.hq.core.data.DESK_EMPTY_FA
 import com.coinepro.hq.core.data.DIRECT_NOW_FA
+import com.coinepro.hq.core.data.MOOD_FA
+import com.coinepro.hq.core.data.STILL_FA
+import com.coinepro.hq.core.data.callModel
+import com.coinepro.hq.core.data.holdable
+import com.coinepro.hq.core.data.isCall
+import com.coinepro.hq.core.data.lastWordsFa
+import com.coinepro.hq.core.data.lastWorkOf
 import com.coinepro.hq.core.data.MEMBER_STILL_FA
 import com.coinepro.hq.core.data.deskDayFa
 import com.coinepro.hq.core.data.deskEmpty
@@ -34,6 +41,9 @@ import com.coinepro.hq.core.data.sentenceOf
 import com.coinepro.hq.core.data.sheetBest
 import com.coinepro.hq.core.data.soonestRun
 import com.coinepro.hq.core.data.standingTaskFa
+import com.coinepro.hq.core.data.stillLastFa
+import com.coinepro.hq.core.data.stillOf
+import com.coinepro.hq.core.data.stillSentenceFa
 import com.coinepro.hq.core.data.stands
 import com.coinepro.hq.core.data.summaryIsNew
 import com.coinepro.hq.core.data.taskFa
@@ -43,6 +53,7 @@ import com.coinepro.hq.core.data.tookFa
 import com.coinepro.hq.core.data.turnTime
 import com.coinepro.hq.core.data.workerKindFa
 import com.coinepro.hq.core.format.jDate
+import com.coinepro.hq.core.net.ActivityLine
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.BestHour
 import com.coinepro.hq.core.net.Blocker
@@ -50,12 +61,16 @@ import com.coinepro.hq.core.net.DeskCard
 import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.core.net.Fix
 import com.coinepro.hq.core.net.HubFeature
+import com.coinepro.hq.core.net.OrderCard
 import com.coinepro.hq.core.net.OrderReport
+import com.coinepro.hq.core.net.OrderTurn
 import com.coinepro.hq.core.net.PublishDesk
 import com.coinepro.hq.core.net.PublishPanel
+import com.coinepro.hq.core.net.ReportStep
 import com.coinepro.hq.core.net.RoutineRun
 import com.coinepro.hq.core.net.SessionActivity
 import com.coinepro.hq.core.net.SessionPublish
+import com.coinepro.hq.core.net.SessionState
 import com.coinepro.hq.core.net.SessionTask
 import com.coinepro.hq.core.net.SessionWorker
 import com.coinepro.hq.core.net.TokenSource
@@ -102,6 +117,111 @@ class Look2Test {
 
     private fun json(code: Int, body: String) = MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").body(body).build()
 
+    // ---------------------------------------------------------------------------- ⟨2026-11-11⟩ «ایستاده», the still card --
+    /** The owner's 12-hour stall: Pro-Chart's daily reels, «با من», task 3 of 18, the holder's last word at 22:28 the night before. */
+    private val stalled = "گام ۲ در جریان است. موضوع اول («معرفی ابزارهای ترسیم روی نمودار پرو-چارت») ثبت شد. گوینده‌ی ثابت پرو-چارت " +
+        "(Kore، فارسی معیار و گرم) یک‌بار برای همیشه تنظیم شد. پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و " +
+        "کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است."
+    private val lastWords = "… پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است."
+    private val night = "2026-11-05T18:58:00Z"
+    private fun plan(done: Int, total: Int) = (1..total).map { SessionTask("t$it", it, state = if (it <= done) "done" else if (it == done + 1) "doing" else "todo") }
+    private fun minAgo(m: Long) = java.time.Instant.ofEpochMilli(now - m * 60_000).toString()
+    private val quietOrder = OrderReport(
+        ref = "F-0095", state = "in_progress", tasks = plan(2, 18), updatedAt = night,
+        session = SessionState(badge = "moving", reasonFa = "مدیرعامل پرو-چارت: $stalled"),
+        steps = listOf(ReportStep(minAgo(830), "منشی هلدینگ", "فرمان را سپرد."), ReportStep(night, "مدیرعامل پرو-چارت", stalled)),
+    )
+    private val quietActivity = SessionActivity(
+        last = listOf(ActivityLine(minAgo(813), "مدیرعامل پرو-چارت", "شروع کرد", kind = "start"), ActivityLine(night, "مدیرعامل پرو-چارت", stalled, kind = "step"), ActivityLine(night, "مدیرعامل پرو-چارت", "این دور کارش را تمام کرد", kind = "end")),
+        idleSince = night, mood = "idle", moodFa = "آرام",
+    )
+
+    @Test
+    fun anOpenSessionNobodyWorksOnStandsStillOnceTwentyMinutesHavePassed() {
+        val s = stillOf(quietOrder, quietActivity, now)
+        assertNotNull(s)
+        // the last thing done, not the run's end: its last words when it is long, and when
+        assertEquals(lastWords, s!!.lineFa)
+        assertEquals(night, s.at)
+        // a moving badge's reason only echoes the last step: the card keeps its own sentence
+        assertNull(s.reasonFa)
+        assertEquals("$STILL_FA؛ آخرین کار: ${lastWords.trimEnd('.')} (دیشب 22:28)", stillSentenceFa(s, now))
+        // the twenty-minute edge, from the hub's idle time
+        assertNull(stillOf(quietOrder, quietActivity.copy(idleSince = minAgo(19)), now))
+        assertNotNull(stillOf(quietOrder, quietActivity.copy(idleSince = minAgo(20)), now))
+        // without it, from the last line's time; without a line, from the report's last move
+        assertNotNull(stillOf(quietOrder, quietActivity.copy(idleSince = null), now))
+        assertNull(stillOf(quietOrder, quietActivity.copy(idleSince = null, last = listOf(ActivityLine(minAgo(5), "مدیرعامل پرو-چارت", "یک قدم برداشت"))), now))
+        assertNull(stillOf(quietOrder.copy(updatedAt = minAgo(3)), SessionActivity(), now))
+        assertNotNull(stillOf(quietOrder.copy(updatedAt = minAgo(30)), SessionActivity(), now))
+        // nothing done yet: the card only says that nobody works
+        assertEquals("$STILL_FA.", stillSentenceFa(stillOf(quietOrder.copy(updatedAt = minAgo(30), steps = emptyList()), SessionActivity(), now)!!, now))
+        // a plan not written yet is not a plan that is done
+        assertNotNull(stillOf(quietOrder.copy(tasks = emptyList()), quietActivity, now))
+        // a short line is said whole; the newest of the activity's step and the report's step is the last work
+        assertEquals("متن را نوشت" to minAgo(25), lastWorkOf(quietOrder.copy(steps = listOf(ReportStep(minAgo(25), "نویسنده", "متن را نوشت."))), quietActivity).let { it!!.first.trimEnd('.') to it.second })
+        assertEquals("… dd", lastWordsFa("aaaa. bbbb. cc dd", max = 4))
+        assertEquals("bbbb. cc dd", lastWordsFa("aaaa. bbbb. cc dd", max = 12).removePrefix("… "))
+    }
+
+    @Test
+    fun whatAlreadySaysWhyASessionStandsWinsOverTheStillCard() {
+        val a = quietActivity
+        val o = quietOrder
+        assertNotNull(stillOf(o, a, now))
+        // closed, or never read yet
+        assertNull(stillOf(o.copy(session = SessionState(state = "closed", badge = "closed")), a, now))
+        assertNull(stillOf(o, null, now))
+        // the owner is asked: a question, a card of his, ready for his OK
+        assertNull(stillOf(o.copy(turn = OrderTurn(questionFa = "گام ۲ را شروع کنم؟", at = night)), a, now))
+        assertNull(stillOf(o.copy(cards = listOf(OrderCard(ref = "D-1", titleFa = "استخدام سناریست", seal = "tap"))), a, now))
+        assertNull(stillOf(o.copy(session = SessionState(badge = "ready")), a, now))
+        assertNull(stillOf(o.copy(session = SessionState(badge = "your_turn")), a, now))
+        // a knot: a blocker, or the hub's own stuck sentence
+        assertNull(stillOf(o.copy(blockers = listOf(Blocker("budget", "بودجه کم است"))), a, now))
+        assertNull(stillOf(o, a.copy(stuckFa = "ChatGPT جواب نداد؛ «ادامه بده» را بزن."), now))
+        assertNull(stillOf(o, a.copy(waitingFa = "منتظر تأیید تو"), now))
+        // someone works, an outside call among them
+        assertNull(stillOf(o, a.copy(working = listOf(SessionWorker(whoFa = "ChatGPT", kind = "call", doingFa = "در صف ChatGPT: پیش‌نویس متن"))), now))
+        // the plan is done
+        assertNull(stillOf(o.copy(tasks = plan(18, 18)), a, now))
+        // a stuck badge's reason is the card's sentence, the last work a quiet line under it
+        val stuck = stillOf(o.copy(session = SessionState(badge = "stuck", reasonFa = " از 2 ساعت پیش قدمی برداشته نشده ")), a, now)!!
+        assertEquals("از 2 ساعت پیش قدمی برداشته نشده", stillSentenceFa(stuck, now))
+        assertEquals("آخرین کار: ${lastWords.trimEnd('.')} (دیشب 22:28)", stillLastFa(stuck, now))
+        // the mood the page shows then is «ایستاده», a word of its own
+        assertEquals("ایستاده", MOOD_FA["still"])
+    }
+
+    @Test
+    fun anOutsideCallIsShownLikeARunAndNeverHeld() {
+        val call = SessionWorker(whoFa = "ChatGPT", companyFa = "پرو-چارت", workTitleFa = "پیش‌نویس متن ریلز اول", startedAt = "2026-11-06T08:26:00Z", doingFa = "در صف ChatGPT: پیش‌نویس متن", kind = "call", capS = 900)
+        val run = SessionWorker(whoFa = "مدیرعامل پرو-چارت", companyFa = "پرو-چارت", doingFa = "کاور را آماده میکند", startedAt = "2026-11-06T08:28:00Z")
+        assertTrue(isCall(call))
+        assertFalse(isTurn(call))
+        assertNull(workerKindFa(call))
+        assertEquals(listOf("ChatGPT", "پرو-چارت"), nowFacts(call, 1))
+        assertEquals("در صف ChatGPT: پیش‌نویس متن", sentenceOf(call))
+        assertEquals("4:00", timerFig(call.startedAt, now))
+        // the bar speaks of the hub's own run before the call it waits on; nothing to hold while only calls are pending
+        assertEquals(run, leadWorker(listOf(call, run)))
+        assertEquals(call, leadWorker(listOf(call)))
+        assertFalse(holdable(listOf(call)))
+        assertTrue(holdable(listOf(call, run)))
+        // its mark is its model's
+        assertEquals("ChatGPT", callModel(call))
+        assertEquals("gpt", callModel(call.copy(whoFa = "جی‌پی‌تی")))
+        assertEquals("گوینده‌ی هوش مصنوعی", callModel(call.copy(whoFa = "گوینده‌ی هوش مصنوعی")))
+        // as the hub writes it
+        val a = Api.json.decodeFromString(
+            SessionActivity.serializer(),
+            """{"working":[{"who_fa":"ChatGPT","company_fa":"پرو-چارت","work_title_fa":"پیش‌نویس متن","started_at":"2026-11-06T08:26:00Z","step":0,
+                "doing_fa":"در صف ChatGPT: پیش‌نویس متن","kind":"call","cap_s":900,"last_fa":null,"last_at":"2026-11-06T08:26:00Z"}],"last":[],"mood":"working","mood_fa":"کار میکند"}""",
+        )
+        assertTrue(isCall(a.working.single()))
+        assertEquals("working", moodOf(a, false, "moving"))
+    }
+
     // ------------------------------------------------------------------------------------------ C2.2 the mood --
     @Test
     fun theMoodIsTheHubsOwnWordAndOnAnOlderHubReadFromItsActivity() {
@@ -118,7 +238,15 @@ class Look2Test {
         // a word this app does not know is read like an older hub's
         assertEquals("working", moodOf(SessionActivity(working = someone, mood = "dancing"), false))
         // no activity at all: from the session's badge
-        assertEquals(listOf("waiting", "stuck", "working", "idle"), listOf("your_turn", "stuck", "moving", "ready").map { moodOf(null, false, it) })
+        assertEquals(listOf("waiting", "stuck", "working", "idle"), listOf("your_turn", "stuck", "moving", "closed").map { moodOf(null, false, it) })
+        // ⟨2026-11-11⟩ a session ready for his OK waits for him, never «آرام», whatever an older hub says; the hub's other words stand
+        assertEquals("waiting", moodOf(null, false, "ready"))
+        assertEquals("waiting", moodOf(SessionActivity(mood = "idle", moodFa = "آرام"), false, "ready"))
+        assertEquals("waiting", moodOf(SessionActivity(), false, "ready"))
+        assertEquals("منتظر تو", moodWordFa("waiting", SessionActivity(mood = "idle", moodFa = "آرام")))
+        assertEquals("working", moodOf(SessionActivity(working = someone, mood = "working"), false, "ready"))
+        assertEquals("idle", moodOf(SessionActivity(mood = "idle"), false, "moving"))
+        assertEquals("ایستاده", moodWordFa("still", SessionActivity(mood = "idle", moodFa = "آرام")))
         // a closed session is «تمام», whatever its last activity said
         assertEquals("done", moodOf(SessionActivity(working = someone, mood = "working"), closed = true))
         assertEquals("تمام", moodWordFa("done", SessionActivity(mood = "idle", moodFa = "آرام")))

@@ -169,17 +169,45 @@ def ig_hub() -> dict[str, str]:
     }
 
 
+def ig_hub_command() -> str | None:
+    """⟨2026-11-11⟩ The holding's own IG-Hub command (`publish_command` of the `ig_hub` setting):
+    what every company's Instagram publishes with (`publish`), lists its accounts with
+    (`accounts`) and reads its posts with (`posts <account>`), unless its connection names its
+    own. None when the setting names none."""
+    try:
+        data = channels_file().get("ig_hub") or {}
+    except OSError:
+        data = {}
+    cmd = str(data.get("publish_command") or "").strip()
+    return cmd or None
+
+
+def publish_command_of(config: dict[str, Any] | None) -> str | None:
+    """The command a company's Instagram publishes with: its connection's own `publish_command`,
+    else, when it goes through IG-Hub (`via: ig_hub`, or no `via`: every company's Instagram is on
+    IG-Hub by the owner's decision of 2026-11-08), the holding's setting."""
+    cfg = config or {}
+    own = str(cfg.get("publish_command") or "").strip()
+    if own:
+        return own
+    if cfg.get("via") in (None, "", "ig_hub"):
+        return ig_hub_command()
+    return None
+
+
 def ig_hub_note(company_code: str | None = None) -> str:
     """What an agent reads when a company's Instagram connection is not connected: the account is
     on IG-Hub; who registers it here and how; publishing goes through IG-Hub's API."""
     hub = ig_hub()
     who = f"{company_code}'s" if company_code else "the company's"
+    cmd = ig_hub_command()
+    listed = f" (`{cmd} accounts` there lists them, read-only)" if cmd else ""
     return (
         f"the Instagram account is on {hub['server']} (company {hub['company']}'s server, with "
         f"Meta's official API); it is NOT missing. {hub['company']}'s technical team (or {who} own "
-        "technical role, under the linked rule) reads it there with server.map / server.read and "
-        "registers it here with connection.set {kind: instagram, accounts: [handles], via: "
-        f"ig_hub, server: {{company: {hub['company']}, name: {hub['server']}}}, read_command?}}; "
+        "technical role, under the linked rule) reads it there with server.map / server.read"
+        f"{listed} and registers it here with connection.set {{kind: instagram, accounts: "
+        f"[handles], via: ig_hub, server: {{company: {hub['company']}, name: {hub['server']}}}}}; "
         f"publishing goes through {hub['server']}'s API (docs/server-prompts/IGHUB_PUBLISH_API.md) "
         "whose key the owner stores once. Never tell the owner Instagram is not connected."
     )
@@ -204,37 +232,97 @@ def ig_hub_line(row: dict[str, Any] | None) -> str:
     srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
     server = str((srv or {}).get("name") or hub["server"])
     accounts = [str(a) for a in cfg.get("accounts") or []] if row is not None else []
-    if accounts and cfg.get("command"):
+    # ⟨2026-11-11⟩ through IG-Hub the accounts are all it takes (the command is the holding's)
+    if accounts and not missing("instagram", cfg, True):
         return IG_HUB_LINE_FA.format(server=server) + f" ({len(accounts)} حساب)."
     return IG_HUB_TEAM_FA.format(server=server) + "."
 
 
-def ig_setup_brief(company_code: str) -> str:
+def _who_fa(company_code: str, details: dict[str, Any] | None) -> str:
+    """How the brief names a company so its accounts can be told from the others'."""
+    d = details or {}
+    names = [str(d[k]) for k in ("name_fa", "name_en") if d.get(k)]
+    sites = [str(s) for s in d.get("sites") or []][:5]
+    said = f"{company_code}" + (f" («{'», «'.join(names)}»)" if names else "")
+    return said + (f", its sites: {', '.join(sites)}" if sites else "")
+
+
+def _register_steps(company_code: str, details: dict[str, Any] | None, n: int = 1) -> str:
+    """⟨2026-11-11⟩ The steps that register a company's accounts, learnt from IG-Hub by code: the
+    holding's command lists them, the technical role matches them to this company and registers
+    them (`connection.set`). Nothing here is the owner's. `n`: the number of the first step."""
+    hub = ig_hub()
+    cmd = ig_hub_command()
+    srv = f"{{company: {hub['company']}, name: {hub['server']}}}"
+    if cmd:
+        listing = (
+            f"({n}) server.exec on {hub['company']}'s server {hub['server']} (server.map lists "
+            f"it): `{cmd} accounts`. It is read-only, publishes nothing and prints one JSON line "
+            '{"accounts": [...], "paused": [...]}: the Instagram accounts IG-Hub\'s key reaches. '
+        )
+    else:
+        listing = (
+            f"({n}) server.map, then server.read / server.exec (read-only) on "
+            f"{hub['company']}'s server {hub['server']}: run IG-Hub's `deploy/hq_publish.py "
+            "accounts` (read-only, publishes nothing) to list the accounts IG-Hub's key reaches. "
+        )
+    return (
+        listing
+        + f"({n + 1}) Match each listed account to the company it belongs to: this work is for "
+        f"{_who_fa(company_code, details)}. Match by the company's name, its site and the "
+        "handle itself. An account listed under `paused` (or marked paused) is never registered. "
+        f"({n + 2}) connection.set {{company: {company_code}, kind: instagram, via: ig_hub, "
+        f"accounts: [{company_code}'s handles only], server: {srv}}}"
+        + (
+            f" (no command is needed: the hub publishes and reads posts with the holding's own "
+            f"`{cmd}`). "
+            if cmd
+            else ". "
+        )
+        + f"({n + 3}) Deliver one Persian line: the accounts registered. If no listed account is "
+        f"clearly {company_code}'s, register nothing and say so in this work's result in one "
+        "line (which accounts IG-Hub lists and why none fits); never guess, never register "
+        "another company's account. Never ask the owner for anything here and never say "
+        "Instagram is not connected: it is, through IG-Hub."
+    )
+
+
+def ig_setup_brief(company_code: str, details: dict[str, Any] | None = None) -> str:
+    """⟨2026-11-11⟩ The technical work that registers a company's Instagram accounts here: they
+    are learnt from IG-Hub by code (its `accounts` command), never asked of the owner.
+    `details`: {name_fa, name_en, sites} of the company, to tell its accounts apart."""
     hub = ig_hub()
     return (
         f"Register {company_code}'s Instagram accounts on the hub. Instagram, for every company, is "
         f"read and published through {hub['server']} (company {hub['company']}'s server, Meta's "
-        f"official API); the accounts are there already. Steps: (1) server.map, then server.read / "
-        f"server.exec (read-only) on {hub['company']}'s server {hub['server']} to find "
-        f"{company_code}'s account handles and the read-only command that prints their daily "
-        f"figures as JSON ({{accounts: [{{account, followers, reach, views}}]}}); (2) connection.set "
-        f"{{company: {company_code}, kind: instagram, accounts: [handles], via: ig_hub, server: "
-        f"{{company: {hub['company']}, name: {hub['server']}}}, read_command}}; (3) deliver one "
-        f"Persian line: the accounts registered. When you can also find (or write there) the one "
-        f"command that publishes a file on {hub['server']} and prints {{external_id, url}}, pass it "
-        "in the same call as publish_command (the owner's «تأیید و انتشار» runs it through that "
-        "server's own runner). Never ask the owner for anything here and never say Instagram is "
-        "not connected: it is, through IG-Hub."
+        "official API); the accounts are there already and the hub needs only their names. "
+        "Steps: " + _register_steps(company_code, details)
     )
 
 
 IG_PUBLISH_TITLE_FA = "وصل کردن مسیر انتشار اینستاگرام {company} (از راه {server})"
 
 
-def ig_publish_brief(company_code: str) -> str:
+def ig_publish_brief(company_code: str, details: dict[str, Any] | None = None) -> str:
     """⟨2026-11-10⟩ §44.5 what the technical team registers so the owner's «تأیید و انتشار»
-    publishes: the company's handles and the command IG-Hub's own runner runs."""
+    publishes: the company's handles and the command IG-Hub's own runner runs. ⟨2026-11-11⟩
+    With the holding's command set (the `ig_hub` setting), only the handles are missing."""
     hub = ig_hub()
+    if ig_hub_command():
+        return (
+            f"Connect {company_code}'s Instagram PUBLISHING on the hub. The owner's «تأیید و "
+            f"انتشار» (or his standing word for a working group) could not send a file: "
+            f"{company_code}'s Instagram accounts are not registered here. Instagram, for every "
+            f"company, is published through {hub['server']} (company {hub['company']}'s server, "
+            f"Meta's official API): the hub sends that server's own runner one `publish` job "
+            "that runs the holding's command with HQ_PUBLISH_FILE_1, HQ_PUBLISH_FILE_2 (a reel's "
+            "cover), HQ_PUBLISH_CAPTION_FILE and HQ_PUBLISH_META; the command is set already, "
+            "so the publish_command of connection.set is only for a company that publishes "
+            "through a command of its own. Steps: "
+            + _register_steps(company_code, details)
+            + " Once they are registered, a working group's waiting package goes out by itself "
+            "and a file tapped in a session goes out with the next tap."
+        )
     return (
         f"Connect {company_code}'s Instagram PUBLISHING on the hub. The owner tapped «تأیید و "
         f"انتشار» on a file in his session and nothing could go out. Instagram, for every company, "
@@ -271,26 +359,66 @@ def ig_publish_brief(company_code: str) -> str:
     )
 
 
-async def ensure_ig_publish_work(
-    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None
+# ⟨2026-11-11⟩ a technical work that was delivered while the route is still not ready is made
+# again, at most once in this long per company (never one a tick)
+TECH_AGAIN = timedelta(hours=24)
+
+
+async def _tech_work(tx: Tx, tag: str, code: Any, *, recent: bool = True) -> str | None:
+    """The technical work of this kind (`run_meta.<tag>`) for this company that stands: an open
+    one (queued, in progress, waiting); else, with `recent`, the newest one made within
+    TECH_AGAIN whatever its state. A delivered work is not open: the route it was for may still
+    be missing, and then a new one is made (once a day at most)."""
+    from hq_api.domain import work as W
+
+    ref: str | None = await tx.scalar(
+        """SELECT ref FROM work.work
+           WHERE run_meta ->> CAST(:tag AS text) = :code
+             AND (status = ANY(CAST(:open AS text[]))
+                  OR (CAST(:recent AS boolean) AND created_at > now() - CAST(:again AS interval)))
+           ORDER BY status = ANY(CAST(:open AS text[])) DESC, created_at DESC LIMIT 1""",
+        tag=tag,
+        code=code,
+        open=list(W.OPEN),
+        recent=recent,
+        again=TECH_AGAIN,
+    )
+    return ref
+
+
+async def _company_details(tx: Tx, company_id: UUID) -> dict[str, Any] | None:
+    """{code, name_fa, name_en, sites} of a company, what a brief tells its accounts apart by."""
+    co = await tx.first(
+        "SELECT code, name_fa, name_en FROM core.companies WHERE id = :c", c=company_id
+    )
+    if co is None:
+        return None
+    sites = await tx.all(
+        """SELECT url FROM ops.sites WHERE company_id = :co AND kind = 'web' AND enabled
+             AND NOT canary ORDER BY created_at LIMIT 5""",
+        co=company_id,
+    )
+    return {**dict(co), "sites": [str(r["url"]) for r in sites]}
+
+
+async def _ensure_tech_work(
+    tx: Tx,
+    company_id: UUID,
+    *,
+    tag: str,
+    title_fa: str,
+    brief: Any,
+    priority: str,
+    requested_by: UUID | None,
 ) -> str | None:
-    """⟨2026-11-10⟩ §44.5 A company whose publish command is not registered gets the technical
-    work made by code, once (one open work per company), under the order's work when
-    `requested_by` names one (the session sees the step; its holder is woken when it is
-    delivered). The work's ref, or None when nobody can take it."""
     from hq_api.domain import work as W
     from hq_api.principal import Principal
 
     code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
-    found: str | None = await tx.scalar(
-        """SELECT ref FROM work.work WHERE run_meta ->> 'ig_publish' = :code
-             AND status <> ALL(CAST(:closed AS text[])) ORDER BY created_at LIMIT 1""",
-        code=code,
-        closed=list(W.CLOSED),
-    )
+    found = await _tech_work(tx, tag, code)
     if found is not None:
         return found
-    co = await tx.first("SELECT code, name_fa FROM core.companies WHERE id = :c", c=company_id)
+    co = await _company_details(tx, company_id)
     who = await ig_setup_assignee(tx)
     if co is None or who is None:
         return None
@@ -300,10 +428,10 @@ async def ensure_ig_publish_work(
         Principal(kind="service", code="connections", role="service"),
         company_id=who["company_id"],
         company_code=str(who["company"]),
-        title=IG_PUBLISH_TITLE_FA.format(company=co["name_fa"] or co["code"], server=hub["server"]),
-        brief=ig_publish_brief(str(co["code"])),
+        title=title_fa.format(company=co["name_fa"] or co["code"], server=hub["server"]),
+        brief=brief(str(co["code"]), co),
         kind="one_off",
-        priority="P1",
+        priority=priority,
         assignee_code=str(who["code"]),
         requested_by_work_id=requested_by,
     )
@@ -311,9 +439,23 @@ async def ensure_ig_publish_work(
         """UPDATE work.work SET run_meta = COALESCE(run_meta, '{}'::jsonb) || CAST(:m AS jsonb)
            WHERE id = :id""",
         id=w["id"],
-        m=json.dumps({"ig_publish": co["code"]}),
+        m=json.dumps({tag: co["code"]}),
     )
     return str(w["ref"])
+
+
+async def ensure_ig_publish_work(
+    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None
+) -> str | None:
+    """⟨2026-11-10⟩ §44.5 A company whose publish route is not ready gets the technical work made
+    by code, once (one open work per company), under the order's work when `requested_by` names
+    one (the session sees the step; its holder is woken when it is delivered). ⟨2026-11-11⟩ A
+    delivered one is not open: while the route is still not ready a new one is made, once a day at
+    most. The work's ref, or None when nobody can take it."""
+    return await _ensure_tech_work(
+        tx, company_id, tag="ig_publish", title_fa=IG_PUBLISH_TITLE_FA, brief=ig_publish_brief,
+        priority="P1", requested_by=requested_by,
+    )  # fmt: skip
 
 
 async def ig_setup_assignee(tx: Tx) -> dict[str, Any] | None:
@@ -332,17 +474,10 @@ async def ig_setup_assignee(tx: Tx) -> dict[str, Any] | None:
 
 
 async def ig_setup_work(tx: Tx, company_id: UUID) -> str | None:
-    """The open technical work that registers this company's Instagram here, or None."""
-    from hq_api.domain import work as W
-
+    """The open technical work that registers this company's Instagram here, or None (⟨2026-11-11⟩
+    a delivered one is not open)."""
     code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
-    ref: str | None = await tx.scalar(
-        """SELECT ref FROM work.work WHERE run_meta ->> 'ig_setup' = :code
-             AND status <> ALL(CAST(:closed AS text[])) ORDER BY created_at LIMIT 1""",
-        code=code,
-        closed=list(W.CLOSED),
-    )
-    return ref
+    return await _tech_work(tx, "ig_setup", code, recent=False)
 
 
 async def ensure_ig_setup_work(
@@ -350,40 +485,16 @@ async def ensure_ig_setup_work(
 ) -> str | None:
     """The owner, 2026-11-08: a company whose Instagram accounts are not registered on the hub
     gets the technical work made by code, once (one open work per company): IG-Hub's CTO (else
-    the holding's AIOPS) reads the accounts on IG-Hub (`server.*` by the linked rule, H1) and
-    registers them with `connection.set` (H2). Under an order's work when `requested_by` names
-    one, so the session sees the step and the holder is woken when it is delivered. The work's
-    ref, or None when nobody can take it."""
-    from hq_api.domain import work as W
-    from hq_api.principal import Principal
-
-    found = await ig_setup_work(tx, company_id)
-    if found is not None:
-        return found
-    co = await tx.first("SELECT code, name_fa FROM core.companies WHERE id = :c", c=company_id)
-    who = await ig_setup_assignee(tx)
-    if co is None or who is None:
-        return None
-    hub = ig_hub()
-    w = await W.create(
-        tx,
-        Principal(kind="service", code="connections", role="service"),
-        company_id=who["company_id"],
-        company_code=str(who["company"]),
-        title=IG_SETUP_TITLE_FA.format(company=co["name_fa"] or co["code"], server=hub["server"]),
-        brief=ig_setup_brief(str(co["code"])),
-        kind="one_off",
-        priority=IG_SETUP_PRIORITY,
-        assignee_code=str(who["code"]),
-        requested_by_work_id=requested_by,
-    )
-    await tx.exec(
-        """UPDATE work.work SET run_meta = COALESCE(run_meta, '{}'::jsonb) || CAST(:m AS jsonb)
-           WHERE id = :id""",
-        id=w["id"],
-        m=json.dumps({"ig_setup": co["code"]}),
-    )
-    return str(w["ref"])
+    the holding's AIOPS) lists the accounts on IG-Hub (the holding's command, `accounts`, by the
+    linked rule, H1) and registers this company's with `connection.set` (H2). Under an order's
+    work when `requested_by` names one, so the session sees the step and the holder is woken when
+    it is delivered. ⟨2026-11-11⟩ A delivered one is not open: while the accounts are still not
+    registered a new one is made, once a day at most. The work's ref, or None when nobody can
+    take it."""
+    return await _ensure_tech_work(
+        tx, company_id, tag="ig_setup", title_fa=IG_SETUP_TITLE_FA, brief=ig_setup_brief,
+        priority=IG_SETUP_PRIORITY, requested_by=requested_by,
+    )  # fmt: skip
 
 
 # ⟨2026-11-08⟩ H2 connection.set: what an agent may write of a connection (never a secret)
@@ -559,11 +670,14 @@ def missing(kind: str, config: dict[str, Any], secret_set: bool) -> list[str]:
     elif kind == "ga4" and not str(config.get("property_id") or "").isdigit():
         need.append("شماره‌ی ویژگی Analytics")
     elif kind == "instagram":
-        if config.get("via") == "ig_hub" and not (config.get("accounts") and config.get("command")):
+        if config.get("via") == "ig_hub":
             # ⟨2026-11-08⟩ H3: the account exists on IG-Hub; registering it here is the technical
-            # team's step (connection.set), never the owner's
-            srv = (config.get("server") or {}) if isinstance(config.get("server"), dict) else {}
-            need.append(IG_HUB_OWNER_FA.format(server=srv.get("name") or ig_hub()["server"]))
+            # team's step (connection.set), never the owner's. ⟨2026-11-11⟩ The accounts are all
+            # it takes: the command is the holding's (the `ig_hub` setting), a figures command is
+            # optional
+            if not config.get("accounts"):
+                srv = (config.get("server") or {}) if isinstance(config.get("server"), dict) else {}
+                need.append(IG_HUB_OWNER_FA.format(server=srv.get("name") or ig_hub()["server"]))
         else:
             if not config.get("accounts"):
                 need.append("نام حساب‌های اینستاگرام")
@@ -1171,7 +1285,11 @@ async def read_instagram(ctx: ReadCtx) -> list[Figure]:
     collect its stdout when it is done (the next tick)."""
     from hq_api.domain import servers as SV
 
-    cmd = str(ctx.config["command"])
+    cmd = str(ctx.config.get("command") or "").strip()
+    if not cmd:
+        # ⟨2026-11-11⟩ through IG-Hub with its accounts and no figures command of its own:
+        # nothing to read here (each account's posts are read for the best hour, best_hour.py)
+        return []
     if not read_only(cmd):
         raise ReadError("دستور خواندن IG-Hub فقط‌خواندنی نیست؛ هاب آن را اجرا نمیکند.")
     srv_cfg = ctx.config.get("server") or {}

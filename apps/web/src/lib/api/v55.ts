@@ -159,9 +159,10 @@ export function readyAnswers(question: string | null | undefined, quick?: Array<
 
 // ============================================================================================ C2.2 the session (§55.1) ==
 export type { Mood, WorkerKind } from './v41';
-/** The mood as the page says it: the hub's five, and «تمام» for a closed session. */
-export type MoodKey = Mood | 'done';
-export const MOOD_FA: Record<MoodKey, string> = { thinking: 'فکر میکند', working: 'کار میکند', waiting: 'منتظر تو', stuck: 'گیر کرده', idle: 'آرام', done: 'تمام' };
+/** The mood as the page says it: the hub's five, «ایستاده» (the page's own: an open session nobody works on and nothing explains,
+ *  `stillOf` in components/look/session.tsx) and «تمام» for a closed session. */
+export type MoodKey = Mood | 'still' | 'done';
+export const MOOD_FA: Record<MoodKey, string> = { thinking: 'فکر میکند', working: 'کار میکند', waiting: 'منتظر تو', stuck: 'گیر کرده', idle: 'آرام', still: 'ایستاده', done: 'تمام' };
 /** §54 what a direct session adds to its report: the holder does the work himself, in one session with the hub's tools. */
 export type DirectReport = { direct?: boolean };
 export const DIRECT_FA = 'مسئول این جلسه خودش کار را انجام میدهد (جلسه‌ی مستقیم)';

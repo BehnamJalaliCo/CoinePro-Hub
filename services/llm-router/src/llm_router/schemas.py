@@ -242,3 +242,6 @@ class RunResponse(BaseModel):
     equiv_cost_usd: str | None = None
     latency_ms: int | None = None
     error_class: str | None = None
+    # ⟨2026-11-11⟩ a quota refusal: seconds until the subscription may be tried again (its
+    # reported reset, else the breaker's next probe), so the caller can come back then
+    retry_after: int | None = None

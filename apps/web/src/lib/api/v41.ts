@@ -14,8 +14,10 @@ const enc = encodeURIComponent;
 
 /** ⟨1.0.1⟩ §55.1 «چراغ حال»: the session's mood, by the hub's own code. */
 export type Mood = 'thinking' | 'working' | 'waiting' | 'stuck' | 'idle';
-/** ⟨1.0.1⟩ §55.1 what works: an agent's run, the workshop's turn, the holder's own direct turn (§54), a company server's turn. */
-export type WorkerKind = 'run' | 'workshop' | 'direct' | 'server';
+/** ⟨1.0.1⟩ §55.1 what works: an agent's run, the workshop's turn, the holder's own direct turn (§54), a company server's turn;
+ *  ⟨2026-11-11⟩ an outside model or voice working for the session (`call`: ChatGPT drafting the text, the AI narrator), its
+ *  `started_at` the moment it was asked and its `cap_s` its deadline. */
+export type WorkerKind = 'run' | 'workshop' | 'direct' | 'server' | 'call';
 /**
  * ⟨1.0.1⟩ §55.1 adds `kind`, `cap_s` (a turn's time cap in seconds, null for a run: the build ring fills against it) and `last_fa`,
  * `last_at` (the last thing a live turn did, in the owner's words; null when it said nothing he can read: `doing_fa` is shown). An

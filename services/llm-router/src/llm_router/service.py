@@ -934,6 +934,7 @@ class RouterService:
             equiv_cost_usd=str(equiv) if equiv is not None else None,
             latency_ms=latency_ms,
             error_class=result.error_class,
+            retry_after=self._retry_after(plan, result, now),
         )
         await self.events.publish(
             events.call_subject(code, "finished"),
@@ -963,52 +964,120 @@ class RouterService:
         self.scheduler.release()
         self._gauges()
 
+    def _retry_after(self, plan: Plan, result: BackendResult, now: datetime) -> int | None:
+        """A quota refusal's wait: the reset the provider reported, else the breaker's probe."""
+        if result.status != QUOTA:
+            return None
+        if result.quota_resets_at is not None:
+            left = int(result.quota_resets_at - now.timestamp())
+            if left > 0:
+                return left
+        return plan.breaker.retry_after_s() or None
+
+    # ⟨2026-11-11⟩ A call the subscription refused (its usage limit, audit C1b) is made once more on
+    # the owner's other subscription when that one can take it now, instead of the agent's run
+    # failing `usage_limit`. Only a refusal that came back quickly (the caller's own deadline is
+    # timeout_s + 30 s) and, for a stream, only before its first delta.
+    RETRY_WITHIN_S = 25.0
+
+    def _may_retry(self, plan: Plan, result: BackendResult) -> bool:
+        return (
+            result.status == QUOTA
+            and plan.connection.kind == "claude_subscription"
+            and "retry_of" not in plan.row.meta
+            and time.monotonic() - plan.started_mono <= self.RETRY_WITHIN_S
+        )
+
+    async def _admit_twin(self, plan: Plan, caller: str, max_input_chars: int) -> Plan | None:
+        """The same request admitted again (a new ledger row naming the refused one), when the
+        other subscription can take it now; None otherwise (the refusal stands)."""
+        snap = await self.registry.get()
+        if self._twin_subscription(snap, plan.connection, plan.req.priority) is None:
+            return None
+        try:
+            again = await self.admit(plan.req, caller, max_input_chars, retry_of=plan.row.id)
+        except RouterError:
+            return None
+        log.info(
+            "refused call moved to the other subscription",
+            extra={
+                "call_id": again.row.id,
+                "retry_of": plan.row.id,
+                "from": plan.connection.key,
+                "to": again.connection.key,
+            },
+        )
+        return again
+
+    async def _attempt(self, plan: Plan) -> BackendResult:
+        try:
+            return await self._backend(plan).run(self._call(plan))
+        except Exception:
+            log.exception("backend raised", extra={"call_id": plan.row.id})
+            return BackendResult(ERROR, error_class="backend_exception")
+
     # ----------------------------------------------------------------- run --
     async def run(self, req: RunRequest, caller: str, max_input_chars: int) -> RunResponse:
         plan = await self.admit(req, caller, max_input_chars)
         try:
-            try:
-                result = await self._backend(plan).run(self._call(plan))
-            except Exception:
-                log.exception("backend raised", extra={"call_id": plan.row.id})
-                result = BackendResult(ERROR, error_class="backend_exception")
-            return await self.complete(plan, result)
+            result = await self._attempt(plan)
+            response = await self.complete(plan, result)
         finally:
             self.release(plan)
+        if not self._may_retry(plan, result):
+            return response
+        again = await self._admit_twin(plan, caller, max_input_chars)
+        if again is None:
+            return response
+        try:
+            return await self.complete(again, await self._attempt(again))
+        finally:
+            self.release(again)
 
     async def stream(
         self, req: RunRequest, caller: str, max_input_chars: int
     ) -> AsyncIterator[str]:
         plan = await self.admit(req, caller, max_input_chars)
 
+        def started(p: Plan) -> str:
+            return _sse(
+                "start", {"call_id": p.row.id, "connection": p.connection.key, "model": p.model}
+            )
+
         async def gen() -> AsyncIterator[str]:
-            result: BackendResult | None = None
+            cur, released = plan, False
             try:
-                yield _sse(
-                    "start",
-                    {
-                        "call_id": plan.row.id,
-                        "connection": plan.connection.key,
-                        "model": plan.model,
-                    },
-                )
-                async for item in self._backend(plan).stream(self._call(plan)):
-                    if isinstance(item, Delta):
-                        yield _sse("delta", {"text": item.text})
-                    else:
-                        result = item
-                response = await self.complete(
-                    plan, result or BackendResult(ERROR, error_class="stream_without_result")
-                )
+                yield started(cur)
+                while True:
+                    result: BackendResult | None = None
+                    streamed = False
+                    async for item in self._backend(cur).stream(self._call(cur)):
+                        if isinstance(item, Delta):
+                            streamed = True
+                            yield _sse("delta", {"text": item.text})
+                        else:
+                            result = item
+                    result = result or BackendResult(ERROR, error_class="stream_without_result")
+                    response = await self.complete(cur, result)
+                    if streamed or not self._may_retry(cur, result):
+                        break
+                    self.release(cur)
+                    released = True
+                    again = await self._admit_twin(cur, caller, max_input_chars)
+                    if again is None:
+                        break
+                    cur, released = again, False
+                    yield started(cur)
                 yield _sse("end", response.model_dump(by_alias=True))
             except (asyncio.CancelledError, GeneratorExit):
-                if not plan.finished:
+                if not released and not cur.finished:
                     await asyncio.shield(
-                        self.complete(plan, BackendResult(ERROR, error_class="client_disconnected"))
+                        self.complete(cur, BackendResult(ERROR, error_class="client_disconnected"))
                     )
                 raise
             finally:
-                self.release(plan)
+                if not released:
+                    self.release(cur)
 
         return gen()
 

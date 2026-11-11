@@ -415,7 +415,9 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
     its `source` and is never evidence. Refusals: channel_not_configured
     (signed out or off), rate_limited (the seat's daily cap, or the player
     is limited), policy_denied (a seat the role may not use, or input the
-    data guard refuses); 423 while the holding is locked."""
+    data guard refuses), validation_failed (a web seat's question over 20 000
+    characters); 423 while the holding is locked. `queued` is not an answer:
+    the call's end reaches the caller as a work item by its `deadline_at`."""
     who = ctx.who
     if not who.is_agent or who.company_id is None:
         raise ApiError(403, "policy_denied", "agents only")
@@ -515,7 +517,18 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
             return {"text_md": res.get("text_md") or "", "source": S.source(c)}
         if c["state"] in ("failed", "skipped"):
             raise S.refusal(str(c["state_reason"] or "failed"))
-    return {"state": "queued", "call": str(call["id"])}
+    # ⟨2026-11-11⟩ not an answer: the call has a deadline, and its end (the answer, or why there
+    # is none) comes back to the caller as a work item by then
+    return {
+        "state": "queued",
+        "call": str(call["id"]),
+        "deadline_at": S.deadline_at(call).isoformat(),
+        "note": (
+            "Not answered yet: this step is not done. The answer, or why there is none, comes "
+            "back to you as a new work item by deadline_at; until then go on with what does not "
+            "need it, or end this run."
+        ),
+    }
 
 
 # ---------------------------------------------------- the runner's dispatcher --
@@ -528,10 +541,11 @@ async def _service(ctx: Ctx) -> None:
 @internal_router.post("/substitutes/jobs/claim", responses=E)
 async def claim_job(ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
     """The next CLI job, one at a time for both players; none while the
-    holding's kill switch is engaged."""
+    holding's kill switch is engaged. ⟨2026-11-11⟩ stale calls are ended first
+    (S.expire_stale), each told to whoever asked."""
     await _service(ctx)
     async with ctx.tx() as tx:
-        return await S.claim(tx)
+        return await S.claim(tx, ctx.hub)
 
 
 @internal_router.post("/substitutes/jobs/{id}/done", responses=E)

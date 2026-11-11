@@ -99,8 +99,10 @@ async def a_day(
     texts: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """The routine's run of `day`: its work, a workshop turn that leaves `files` in `out/`
-    (one output of the work), and the work delivered by its holder. `texts`: what a `.txt`
-    file says (the caption otherwise)."""
+    (one output of the work), and ⟨2026-11-11⟩ the work delivered by the end of that turn (a
+    routine's work is no session's: its package follows by itself). `deliver=False`: the
+    membership is held while the turn ends, so the standing word cannot send it then (the
+    owner may tap it first). `texts`: what a `.txt` file says (the caption otherwise)."""
     async with holding_switch(su, "released"):
         ticked = await GR.tick(hub, now=at(day, 8, 0), only={g["company"]["id"]})
     assert ticked["queued"] >= 1, ticked  # its own routine (and the file groups' of that hour)
@@ -127,6 +129,10 @@ async def a_day(
         assert r.status_code == 201, r.text
         ids.append(r.json()["id"])
     await refuse_queued(su, str(run["work_id"]))
+    member = """UPDATE growth.memberships SET state = $3
+                WHERE group_id = (SELECT id FROM growth.groups WHERE key = $1) AND company_id = $2"""
+    if not deliver:
+        await su.execute(member, g["key"], g["company"]["id"], "paused")
     r = await client.post(
         f"/api/v1/runners/jobs/{job['id']}/result",
         json={"exit_code": 0, "summary_fa": "تمام شد.",
@@ -134,20 +140,16 @@ async def a_day(
         headers=g["rn"]["h"],
     )  # fmt: skip
     assert r.status_code == 200, r.text
+    if not deliver:
+        await su.execute(member, g["key"], g["company"]["id"], "on")
     output = await su.fetchval(
         "SELECT ref FROM cartable.deliverables WHERE work_id = $1 ORDER BY created_at DESC LIMIT 1",
         run["work_id"],
     )
     assert output is not None
-    if deliver:
-        await refuse_queued(su, str(run["work_id"]))
-        r = await client.post(
-            f"/internal/v1/work/{run['work_id']}/deliver",
-            headers={**await agent_headers(g["writer"]), **idem()},
-            json={"title": "ریلز امروز آماده است", "body": "بسته در خروجی کارگاه است."},
-        )
-        assert r.status_code == 200, r.text
-        assert r.json()["work"]["status"] == "delivered", r.json()["work"]
+    # the routine's work is delivered by its turn: nobody waits for its holder's deliver
+    status = await su.fetchval("SELECT status FROM work.work WHERE id = $1", run["work_id"])
+    assert status == "delivered", status
     return {"run": run["id"], "work_id": run["work_id"], "work": run["ref"], "brief": run["brief"],
             "output": output, "files": dict(zip(files, ids, strict=True))}  # fmt: skip
 
@@ -372,9 +374,10 @@ async def test_a_word_given_later_covers_only_what_comes_after_and_waits_for_the
     assert ticked["published"] == 0 and await jobs_of(su, old["run"]) == []
 
     # a company whose publish path is not registered: the technical team's work, made once, and
-    # the run goes out by itself on a later tick, when the path is there
+    # the run goes out by itself on a later tick, when the path is there (⟨2026-11-11⟩ the
+    # holding's IG-Hub command is every company's: its accounts are what makes the path)
     await su.execute(
-        "UPDATE growth.connections SET config = config - 'publish_command' "
+        "UPDATE growth.connections SET config = config - 'publish_command' - 'accounts' "
         "WHERE company_id = $1 AND kind = 'instagram'",
         g["company"]["id"],
     )
@@ -406,23 +409,18 @@ async def test_a_word_given_later_covers_only_what_comes_after_and_waits_for_the
     assert args["kind"] == "reel" and args["meta"]["cover"] is False
     assert args["caption"] == caption_of(day2)
 
-    # he taps a package himself before its work is delivered: his standing word never sends
-    # that file a second time
+    # he taps a package himself before his standing word sends it: that word never sends the
+    # file a second time
     day3 = day2 + timedelta(days=1)
     own = await a_day(client, hub, su, g, day3, ("reel.mp4", "caption.txt"), deliver=False)
+    assert await jobs_of(su, own["run"]) == []
     r = await client.post(
         f"/api/v1/deliverables/{own['output']}/publish",
         headers={**owner, **idem()},
         json={"file_id": own["files"]["reel.mp4"], "caption": caption_of(day3)},
     )
     assert r.status_code == 202 and r.json()["auto"] is False, r.text
-    await refuse_queued(su, str(own["work_id"]))
-    r = await client.post(
-        f"/internal/v1/work/{own['work_id']}/deliver",
-        headers={**await agent_headers(g["writer"]), **idem()},
-        json={"title": "ریلز امروز آماده است", "body": "بسته در خروجی کارگاه است."},
-    )
-    assert r.status_code == 200, r.text
+    assert await SPB.after_delivered(hub, own["work_id"]) == "sent"
     assert await jobs_of(su, own["run"]) == []
     note = await su.fetchval("SELECT note_fa FROM growth.routine_runs WHERE id = $1", own["run"])
     assert note == SPB.ALREADY_FA

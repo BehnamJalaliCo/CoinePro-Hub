@@ -24,6 +24,14 @@ on his Pro-Chart reels session F-0011: «جاهایی که کار انجام د�
                     cause.
     nudge           §41.3 `POST /orders/{ref}/nudge`: «ادامه بده»; the holder is woken now.
 
+⟨2026-11-11⟩ An open, unfinished session never goes silent (the owner's order session F-0011 read
+«آرام» for twelve hours while a ChatGPT draft sat in a queue). Open = not closed and an open root
+or an open plan task. An outside call (ChatGPT, Gemini, DeepSeek) or a voice job of the order's
+works is someone working (a Worker of kind `call`) until its deadline; past it, it is not live
+and the cause names it. The idle wake is an explicit turn (the brief says nothing runs and what
+to do) and is capped: at most IDLE_WAKES_MAX since the owner's last word, and a woken run that
+only narrated makes the session `stuck` at once, with one sentence and one notification.
+
 Rule-based, no model. Nothing here is stored in a column of its own: the wake is the run it
 queued, the notification its row, the step its line.
 """
@@ -33,7 +41,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -63,8 +71,41 @@ WOKEN_NO_TASK_FA = "مسئول دوباره سر کار آمد"
 NOT_WOKEN_FA = "مسئول بیدار نشد: {why}"
 NUDGED_FA = "مدیر کل گفت ادامه بده"
 STUCK_FA = "گیر کرد: {why}"
-STUCK_TITLE_FA = "فرمان شما گیر کرده است: {text}"
-UNKNOWN_WHY_FA = "نمیدانیم چرا؛ «ادامه بده» را بزنید."
+STUCK_TITLE_FA = "فرمان تو گیر کرده است: {text}"
+UNKNOWN_WHY_FA = "نمیدانیم چرا؛ «ادامه بده» را بزن."
+# ⟨2026-11-11⟩ the idle wake is capped: at most this many since the owner's last word, then stuck
+IDLE_WAKES_MAX = 2
+# what a woken run may do and still have done nothing (narration): reading and reporting
+NARRATION_TOOLS = (
+    "order.progress", "activity.set", "work.progress", "memory.write", "memory.read", "work.get",
+    "message.owner", "message.thread", "knowledge.search", "files.read", "company.state",
+    "connection.read",
+)  # fmt: skip
+STUCK_IDLE_FA = (
+    "مسئول {k} بار دوباره سر کار آمد ولی کار جلو نرفت؛ آخرین قدم: {last}؛ "
+    "کار {n} («{title}») مانده است."
+)
+STUCK_PLAN_FA = "کسی روی این جلسه کار نمیکند؛ آخرین قدم: {last}؛ کار {n} («{title}») مانده است."
+STUCK_CALL_FA = "{who} {seat} را آماده نکرد ({why}) و بعد از آن کار جلو نرفت."
+READY_WAITING_FA = "منتظر تأیید تو"
+REOPENED_FA = "کار مسئول دوباره باز شد: کار {n} از برنامه مانده است"
+PLAN_DONE_FA = "همه‌ی کارهای برنامه انجام شد؛ خروجی آماده‌ی تأیید توست"
+CLAUDE_WAIT_FA = "هر دو اکانت Claude پر است؛ {when} شروع میکند"
+CLAUDE_WAIT_SOON_FA = "هر دو اکانت Claude پر است؛ تا یکی جا باز کند شروع میکند"
+# an outside call or a voice job working for the session (kind `call`)
+CALL_DOING_FA = "{seat} را آماده میکند"
+CALL_QUEUED_FA = "در صف {player}: {seat}"
+VOICE_WHO_FA = "گوینده‌ی هوش مصنوعی"
+VOICE_SEAT_FA = "صدا"
+VOICE_DEADLINE = timedelta(minutes=12)  # the SpeechMake activity's 600 s and a margin
+VOICE_WHY_FA: dict[str, str] = {
+    "signed_out": "از حسابش بیرون افتاده بود",
+    "channel_not_configured": "مرورگرش در دسترس نبود",
+    "company_locked": "کارها قفل بود",
+    "timeout": "جوابش طول کشید",
+    "invalid_args": "متن درست نبود",
+}
+VOICE_WHY_DEFAULT_FA = "خطای داخلی"
 PLAYER_FA = {
     "gpt": "ChatGPT",
     "gemini": "Gemini",
@@ -77,8 +118,8 @@ STARTED_FA = "شروع کرد: {title}"
 # woke, and he could not tell whether he was heard. A run says why it started (agents.runs.reason, the
 # wake's reason); the first run of a work, or one woken for no named reason, still says what it began.
 START_WHY_FA: tuple[tuple[str, str], ...] = (
-    ("owner_reply:", "حرف شما را گرفت و دارد فکر میکند"),
-    ("nudge:", "گفتید ادامه بده؛ دارد فکر میکند"),
+    ("owner_reply:", "حرف تو را گرفت و دارد فکر میکند"),
+    ("nudge:", "گفتی ادامه بده؛ دارد فکر میکند"),
     ("pace:step:", "روش کار «با من» شد؛ دارد فکر میکند"),
     ("pace:auto:", "روش کار «خودکار» شد؛ دارد فکر میکند"),
     ("child_", "بخشی از کار رسید؛ دارد فکر میکند"),
@@ -88,8 +129,12 @@ START_WHY_FA: tuple[tuple[str, str], ...] = (
     ("uncapped:", "سقف مصرف برداشته شد؛ ادامه میدهد"),
     # ⟨2026-11-09⟩ §43 the workshop
     ("workshop_done:", "کارگاه کارش را تحویل داد؛ نگاهش میکند"),
-    ("owner_turn_over:", "شما جواب دادید؛ کارش را ادامه میدهد"),
+    ("owner_turn_over:", "تو جواب دادی؛ کارش را ادامه میدهد"),
     ("workspace_failed:", "کار کارگاه به نتیجه نرسید؛ دلیلش را میگوید"),
+    # ⟨2026-11-11⟩ an outside call or a voice ended after the run that asked for it
+    ("speech_done:", "صدای گوینده آماده شد؛ کارش را ادامه میدهد"),
+    ("speech_failed:", "ساخت صدا به نتیجه نرسید؛ با بقیه‌ی کار ادامه میدهد"),
+    ("creative_done:", "تصویر بازیکن بیرونی رسید؛ نگاهش میکند"),
 )
 STOPPED_FA = "کار متوقف شد: {why}"
 GENERIC_FA = "کار کرد"
@@ -100,13 +145,14 @@ END_WHY_FA: dict[str, str] = {
     "budget": "سقف مصرف این دور رسید.",
     "invalid_output": "مدل جواب درستی نداد.",
     "model_error": "مدل جواب نداد.",
-    "quota_throttled": "سهمیه‌ی مدل پر بود.",
     "company_locked": "کلید توقف شرکت روشن بود.",
     "no_reply": "جوابی نوشته نشد.",
     "player_call": "کار را به بازیکن بیرونی داد.",
     # ⟨2026-11-09⟩ «با من»: the session waits for the owner's answer
-    "owner_turn": "منتظر جواب شما ماند؛ با جواب شما ادامه میدهد.",
+    "owner_turn": "منتظر جواب تو ماند؛ با جواب تو ادامه میدهد.",
 }
+# ⟨2026-11-11⟩ the quota codes are said by no_silence.quota_why_fa, with the reset time when the
+# run carries it («اکانت‌های Claude پر است؛ از ساعت 03:30 دوباره کار میکند»)
 SKIP_END = ("work_closed", "meeting_gone")
 # (with a hint, without one): the tools of a step in words; «…» never a tool key, a ref or a code.
 TOOLS_FA: dict[str, tuple[str, str]] = {
@@ -121,14 +167,14 @@ TOOLS_FA: dict[str, tuple[str, str]] = {
     "deliver": ("خروجی تحویل داد", "خروجی تحویل داد"),
     "order.ack": ("برنامه‌اش را ثبت کرد", "برنامه‌اش را ثبت کرد"),
     "order.progress": ("یک قدم را گزارش داد", "یک قدم را گزارش داد"),
-    "order.ask": ("از شما پرسید", "از شما پرسید"),
+    "order.ask": ("از تو پرسید", "از تو پرسید"),
     "work.delegate": ("کار را به {x} سپرد", "کار را به یکی از همکاران سپرد"),
     "work.request": ("کار را به {x} سپرد", "کار را به شرکت دیگری سپرد"),
     "work.split": ("کار را چند بخش کرد", "کار را چند بخش کرد"),
     "work.accept": ("کار را گرفت", "کار را گرفت"),
     "work.progress": ("پیشرفت کار را ثبت کرد", "پیشرفت کار را ثبت کرد"),
     "hire.decide": ("درباره‌ی استخدام تصمیم گرفت", "درباره‌ی استخدام تصمیم گرفت"),
-    "propose": ("پیشنهادی برای شما نوشت", "پیشنهادی برای شما نوشت"),
+    "propose": ("پیشنهادی برای تو نوشت", "پیشنهادی برای تو نوشت"),
     "files.read": ("فایل را خواند", "فایل را خواند"),
     "linked.read": ("داده‌ی شرکت {x} را خواند", "داده‌ی شرکت دیگری را خواند"),
     "connection.read": ("اتصال‌های شرکت را دید", "اتصال‌های شرکت را دید"),
@@ -146,7 +192,7 @@ TOOLS_FA: dict[str, tuple[str, str]] = {
     "workshop.run": ("کار را به کارگاه داد تا بسازد", "کار را به کارگاه داد تا بسازد"),
     "workshop.stop": ("کار کارگاه را متوقف کرد", "کار کارگاه را متوقف کرد"),
     "automation.propose": ("خودکارسازی پیشنهاد داد", "خودکارسازی پیشنهاد داد"),
-    "message.owner": ("برای شما پیام نوشت", "برای شما پیام نوشت"),
+    "message.owner": ("برای تو پیام نوشت", "برای تو پیام نوشت"),
     "message.thread": ("پیامی نوشت", "پیامی نوشت"),
     "inquiry.ask": ("از همکاری پرسید", "از همکاری پرسید"),
     "inquiry.answer": ("به پرسشی جواب داد", "به پرسشی جواب داد"),
@@ -176,7 +222,7 @@ class ActivityLine(BaseModel):
     task_n: int | None = None
 
 
-WorkerKind = Literal["run", "workshop", "direct", "server"]
+WorkerKind = Literal["run", "workshop", "direct", "server", "call"]
 Mood = Literal["thinking", "working", "waiting", "stuck", "idle"]
 MOOD_FA: dict[str, str] = {
     "thinking": "فکر میکند",
@@ -190,7 +236,9 @@ MOOD_FA: dict[str, str] = {
 class Worker(BaseModel):
     """⟨1.33⟩ §55.1 additive: `kind` (an agent's run, the workshop's turn, the holder's own direct
     turn, a company server's turn), `cap_s` (a turn's time cap; the ring fills against it),
-    `last_fa` and `last_at` (the last thing a live turn did, in the owner's words)."""
+    `last_fa` and `last_at` (the last thing a live turn did, in the owner's words).
+    ⟨2026-11-11⟩ additive kind `call`: an outside model (ChatGPT, Gemini, DeepSeek) or the AI
+    narrator working for the session; `cap_s` is its deadline from `started_at`."""
 
     who_fa: str
     company_fa: str
@@ -294,10 +342,16 @@ def step_text(
     return plain(summary_fa) or tools_text(actions, names)
 
 
-def end_text(state: str, code: str | None, partial: bool = False) -> str | None:
-    """How a run ended, as a line; None when nothing is worth a line."""
+def end_text(
+    state: str, code: str | None, partial: bool = False, *, reset_fa: str | None = None
+) -> str | None:
+    """How a run ended, as a line; None when nothing is worth a line. `reset_fa`: when a quota
+    stopped it, the time its account has room again, in the owner's words («از ساعت 03:30»)."""
     if code in SKIP_END:
         return None
+    quota = NS.quota_why_fa(code, reset_fa)
+    if quota is not None and state != "done":
+        return STOPPED_FA.format(why=quota)
     if state == "done":
         if code in END_WHY_FA and code != "player_call":
             why = END_WHY_FA[code]
@@ -345,15 +399,21 @@ async def _names(tx: Tx, hints: set[str]) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------- reading --
-RUNS_SQL = """
+# ⟨2026-11-11⟩ when a quota stopped a run, the time its account has room again, if the run carries
+# it (read by name from the row: a column the runner may or may not have)
+RESET_SQL = (
+    "COALESCE(to_jsonb(r) ->> 'retry_after', to_jsonb(r) ->> 'retry_at', "
+    "to_jsonb(r) ->> 'reset_at', to_jsonb(r) ->> 'resets_at')"
+)
+RUNS_SQL = f"""
 SELECT r.id, r.state, r.error_code, r.partial, r.queued_at, r.started_at, r.finished_at, r.steps,
        r.reason, w.ref AS work_ref, w.title AS work_title, e.title_fa, c.name_fa AS company_fa,
-       c.code AS company
+       c.code AS company, {RESET_SQL} AS reset_raw
 FROM agents.runs r JOIN work.work w ON w.id = r.work_id
 JOIN core.employees e ON e.id = r.employee_id JOIN core.companies c ON c.id = w.company_id
 WHERE r.work_id = ANY(:ids) AND r.trigger NOT IN ('talk', 'direct')
 ORDER BY r.queued_at DESC LIMIT :lim
-"""
+"""  # noqa: S608 - composed from module constants; values are bound
 STEPS_SQL = """
 SELECT s.run_id, s.n, s.at, s.summary_fa, s.actions FROM agents.steps s
 WHERE s.run_id = ANY(:runs) ORDER BY s.at, s.n
@@ -388,6 +448,8 @@ async def activity(
                 if isinstance(a, dict) and a.get("hint"):
                     hints.add(str(a["hint"]))
     names = await _names(tx, hints) if hints else {}
+    zone = await owner_zone(tx)
+    now = datetime.now(UTC)
     lines: list[ActivityLine] = []
     working: list[Worker] = []
     for r in runs:
@@ -441,7 +503,10 @@ async def activity(
                 )
             )
         elif r["finished_at"] is not None:
-            end = end_text(str(r["state"]), r["error_code"], bool(r.get("partial")))
+            end = end_text(
+                str(r["state"]), r["error_code"], bool(r.get("partial")),
+                reset_fa=NS.when_fa(NS.parse_at(r.get("reset_raw"), r["finished_at"]), zone, now),
+            )  # fmt: skip
             if end:
                 lines.append(
                     ActivityLine(
@@ -454,7 +519,9 @@ async def activity(
                         state=final,
                     )
                 )
-    for t in await live_turns(tx, ids):  # ⟨2026-11-10⟩ the workshop's turn is someone working
+    turns = await live_turns(tx, ids)
+    wait_fa = await claude_wait_fa(tx, turns, zone, now)
+    for t in turns:  # ⟨2026-11-10⟩ the workshop's turn is someone working
         # ⟨1.32⟩ §54 a direct turn is the session's own holder at work, by its own name
         direct = bool(t.get("direct")) and bool(t.get("holder_fa"))
         if direct:
@@ -463,6 +530,8 @@ async def activity(
         else:
             who = WORKSHOP_WHO_FA if t["hands"] else SERVER_WHO_FA
             doing = TURN_DOING_FA if t["state"] == "running" else TURN_QUEUED_FA
+        if t["state"] == "queued" and t.get("kind") == "claude" and wait_fa:
+            doing = wait_fa  # ⟨2026-11-11⟩ both Claude accounts are full: not «همین حالا»
         last_fa, last_at = (
             await last_of_turn(tx, t["job_id"]) if t["state"] == "running" else (None, None)
         )
@@ -480,6 +549,21 @@ async def activity(
                 last_at=last_at,
             )
         )
+    # ⟨2026-11-11⟩ an outside call or a voice job of the order's works, until its deadline
+    for c in await pending_outside(tx, works, now):
+        working.append(
+            Worker(
+                who_fa=c["who_fa"],
+                company_fa=c["company_fa"],
+                work_title_fa=title_text(c["work_title"]),
+                started_at=c["created_at"],
+                step=0,
+                doing_fa=c["doing_fa"],
+                kind="call",
+                cap_s=c["cap_s"],
+                last_at=c["last_at"],
+            )
+        )
     lines.sort(key=lambda x: x.at)
     merged: dict[str, ActivityLine] = {}
     for ln in lines:  # the later line of an id wins
@@ -493,6 +577,14 @@ async def activity(
     if turn:
         who = turn.get("who_fa") or "مسئول"
         waiting = _cut(HZ.humanize(f"{who} میپرسد: {turn.get('question_fa') or ''}"), 300)
+    elif (
+        rep.get("badge") == "ready"
+        and rep.get("closed_at") is None
+        and rep.get("ended_at") is None
+        and not pulse.open_tasks
+    ):
+        # ⟨2026-11-11⟩ the output is delivered and the owner approves it: never «آرام»
+        waiting = READY_WAITING_FA
     idle_since = None
     if not working:
         idle_since = max([pulse.clock, *[x.at for x in lines]]) if lines else pulse.clock
@@ -511,9 +603,13 @@ async def activity(
 
 def mood_of(working: list[Worker], waiting: str | None, stuck: str | None) -> Mood:
     """⟨1.33⟩ §55.1 by code: someone works (a run with no step yet, or a turn that has done
-    nothing yet, is still thinking); else it waits for the owner; else it is stuck; else calm."""
+    nothing yet, is still thinking); else it waits for the owner; else it is stuck; else calm.
+    ⟨2026-11-11⟩ an outside call or a voice job pending is work (`working`)."""
     if working:
-        moving = any(w.step > 0 if w.kind == "run" else w.last_fa is not None for w in working)
+        moving = any(
+            True if w.kind == "call" else (w.step > 0 if w.kind == "run" else w.last_fa is not None)
+            for w in working
+        )
         return "working" if moving else "thinking"
     if waiting:
         return "waiting"
@@ -529,6 +625,14 @@ class Pulse:
     woken: dict[str, Any] | None  # the idle wake of this period (reason session_idle:<ref>)
     stuck_fa: str | None  # idle past two thresholds: the cause in the owner's words
     doing_fa: str | None = None  # the live run's last line
+    # ⟨2026-11-11⟩ the plan's open tasks (todo, doing), the outside calls and voice jobs pending,
+    # the idle wakes since the owner's last word, and whether they are spent (the cap reached,
+    # or the last woken run only narrated): no further wake, the session is stuck
+    open_tasks: list[dict[str, Any]] = field(default_factory=list)
+    calls: list[dict[str, Any]] = field(default_factory=list)
+    wakes: int = 0
+    spent: bool = False
+    claude_wait_fa: str | None = None  # a Claude Code turn waits: both accounts are full
 
     @property
     def threshold(self) -> timedelta:
@@ -645,7 +749,7 @@ async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
         return []
     rows = await tx.all(
         """SELECT ws.work_id, ws.turns, j.id AS job_id, j.timeout_s, j.state, j.created_at,
-                  j.started_at, COALESCE(j.args ->> 'hands', '') = 'true' AS hands,
+                  j.started_at, j.kind, COALESCE(j.args ->> 'hands', '') = 'true' AS hands,
                   COALESCE(j.args ->> 'direct', '') = 'true' AS direct, e.title_fa AS holder_fa,
                   w.title AS work_title, c.name_fa AS company_fa, c.code AS company
            FROM work.workspaces ws JOIN infra.server_jobs j ON j.id = ws.last_job_id

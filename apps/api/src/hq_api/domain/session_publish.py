@@ -102,9 +102,8 @@ AUTO_DONE_FA = "خودکار منتشر شد: {kind} در @{account}"
 AUTO_FAILED_FA = "انتشار خودکار {kind} در @{account} انجام نشد: {why}"
 NO_PACKAGE_FA = "کار این نوبت بسته‌ای برای انتشار نداشت (ویدیو یا تصویر با کپشن)؛ چیزی منتشر نشد."
 NO_CAPTION_FA = "ویدیوی این نوبت کپشن نداشت؛ خودکار منتشر نشد و با یک لمس شما میرود."
-WAIT_SETUP_FA = (
-    "مسیر انتشار اینستاگرام این شرکت هنوز ثبت نشده؛ تیم فنی وصلش میکند و بعد خودش منتشر میشود."
-)
+# ⟨2026-11-11⟩ the very line the working group's page and the desk card say of a route not ready
+WAIT_SETUP_FA = "مسیر انتشار این شرکت را تیم فنی وصل میکند؛ بعد خودش منتشر میشود."
 ALREADY_FA = "این بسته را خودتان پیش‌تر منتشر کرده‌اید؛ دوباره فرستاده نشد."
 PICK_STANDING_FA = "این شرکت چند حساب دارد و حساب انتشار خودکار این کارگروه انتخاب نشده است."
 HELD_TITLE_FA = "انتشار خودکار «{group}» ({company}) منتظر شماست"
@@ -289,7 +288,9 @@ OUTPUT_SQL = """SELECT d.ref, d.title, d.work_id, d.company_id, d.attachments, d
 
 async def _route(tx: Tx, company_id: UUID) -> dict[str, Any]:
     """Where a company's Instagram goes out: its registered accounts, its publish command and
-    IG-Hub's server (the company's own setting, else the holding's default)."""
+    IG-Hub's server (the company's own setting, else the holding's default). ⟨2026-11-11⟩ The
+    command is the connection's own, else the holding's IG-Hub command (the `ig_hub` setting):
+    the route is ready once the technical team has registered at least one account."""
     cfg = _cfg(
         await tx.first(
             "SELECT config FROM growth.connections WHERE company_id = :co AND kind = 'instagram'",
@@ -299,7 +300,7 @@ async def _route(tx: Tx, company_id: UUID) -> dict[str, Any]:
     hubs = CN.ig_hub()
     srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
     accounts = [str(a).lstrip("@") for a in cfg.get("accounts") or []]
-    command = str(cfg.get("publish_command") or "").strip()
+    command = CN.publish_command_of(cfg) or ""
     return {
         "accounts": accounts,
         "command": command,
@@ -1009,10 +1010,12 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
         return await _hold(tx, run, NO_CAPTION_FA, output=d["ref"])
     route = await _route(tx, run["company_id"])
     if not route["ready"]:
-        if (run.get("note_fa") or "") != WAIT_SETUP_FA:
-            # never the owner's step: the technical team registers it; the next tick sends
-            await CN.ensure_ig_publish_work(tx, run["company_id"], requested_by=run["work_id"])
-            await _hold(tx, run, WAIT_SETUP_FA, tell=False)
+        # never the owner's step and never a push: the run (the working group's page) says the
+        # line the desk card says, and an OPEN technical work stands on every tick (⟨2026-11-11⟩ a
+        # delivered one whose route is still not ready is made again, once a day at most); the
+        # next tick after the route is ready sends it
+        await CN.ensure_ig_publish_work(tx, run["company_id"], requested_by=run["work_id"])
+        await _hold(tx, run, WAIT_SETUP_FA, tell=False)
         return "waiting_setup"
     account = str(rule["account"] or (route["accounts"][0] if len(route["accounts"]) == 1 else ""))
     if account not in route["accounts"]:
@@ -1198,7 +1201,8 @@ def brief_block(raw: Any) -> str:
         "exactly these in `out/`. When the reel asks viewers to comment a word or a number, add "
         "`comment.txt` with three lines, `keyword: <that word>`, `reply: <the private message>` "
         "and `link: https://…`: whoever comments it on this post gets the reply with the link. "
-        "Deliver the work only when the package is right; never ask "
+        "The end of that workshop turn delivers this work by itself and the package goes out, so "
+        "give that one turn the whole package (its input files included); never ask "
         "the owner to approve it. Without `caption.txt` nothing is published. A routine that "
         "makes nothing to publish (a report, an analysis) delivers as usual.)"
     )

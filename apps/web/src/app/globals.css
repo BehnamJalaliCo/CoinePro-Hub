@@ -250,6 +250,8 @@ body:has([role="dialog"][data-state="open"]) [data-command-button] { display: no
 .hq-edge { position: relative; }
 .hq-edge::before { content: ''; position: absolute; inset-block: 12px; inset-inline-start: 0; width: 2px; border-radius: 2px; background: var(--hq-gold-ink); }
 .hq-edge[data-edge="neg"]::before { background: var(--hq-negative); }
+/* ⟨2026-11-11⟩ the still card («ایستاده»): a calm silver edge; nothing in it waits for him but its one action. */
+.hq-edge[data-edge="silver"]::before { background: var(--hq-silver-line); }
 /* M14 «پیوستگی»: the tapped card and the header of the page it opens share one name (look/transition.ts). */
 .hq-vt-hero { view-transition-name: hq-hero; }
 ::view-transition-group(hq-hero) { animation-duration: var(--hq-dur-transition); animation-timing-function: cubic-bezier(.22, 1, .36, 1); }

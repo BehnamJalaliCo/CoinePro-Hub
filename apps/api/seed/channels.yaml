@@ -10,7 +10,14 @@
 #   read through IG-Hub's own runner, a fixed read-only job, §29.12).
 # A code that does not exist in the database is skipped; a row is only added,
 # never overwritten (the owner's later config and secret stay as they are).
-ig_hub: {company: IG, server: IG-Hub}
+# - ⟨2026-11-11⟩ `publish_command`: IG-Hub's own command, the holding's setting
+#   (subcommands: the `publish` job, `accounts`, `posts <account> [limit]`).
+#   A company's Instagram publishes with its connection's own publish_command,
+#   else with this one; its route is ready once its accounts are registered.
+ig_hub:
+  company: IG
+  server: IG-Hub
+  publish_command: python3 /srv/ig-hub/deploy/hq_publish.py
 channels:
   - company: TY
     kind: telegram

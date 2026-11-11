@@ -170,7 +170,11 @@ async def test_the_channels_seed_ty_signal_ig_hub_and_unknown_codes_skipped(
     assert tg["config"]["channels"][0]["role"] == "signal"  # the signal channel is TradeYar's
     insta = [c for c in data["channels"] if c["kind"] == "instagram"]
     assert insta and all(c["config"]["via"] == "ig_hub" for c in insta)
-    assert data["ig_hub"] == {"company": "IG", "server": "IG-Hub"}
+    assert data["ig_hub"] == {
+        "company": "IG", "server": "IG-Hub",
+        # ⟨2026-11-11⟩ the holding's IG-Hub command (a company's own publish_command wins)
+        "publish_command": "python3 /srv/ig-hub/deploy/hq_publish.py",
+    }  # fmt: skip
     # as migrated: TY has its signal channel; its Instagram is on IG-Hub
     row = await su.fetchrow(
         """SELECT k.config, k.state, k.origin FROM growth.connections k

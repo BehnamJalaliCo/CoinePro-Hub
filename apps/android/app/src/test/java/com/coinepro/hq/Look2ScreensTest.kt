@@ -32,6 +32,8 @@ import com.coinepro.hq.core.data.DESK_FA
 import com.coinepro.hq.core.data.DIRECT_FA
 import com.coinepro.hq.core.data.DIRECT_NOW_FA
 import com.coinepro.hq.core.data.HELD_FA
+import com.coinepro.hq.core.data.MOOD_FA
+import com.coinepro.hq.core.data.STILL_FA
 import com.coinepro.hq.core.data.VIDEO_FAILED_FA
 import com.coinepro.hq.core.data.orderParticipants
 import com.coinepro.hq.designsystem.Divan
@@ -70,7 +72,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * ⟨1.0.1⟩ Part C, phase 2 of the look, at a phone's height (880dp), night and day, with the demo holding and its pictures drawn.
- * - The session (C2.2): a workshop turn with its build ring (and near its hour: amber, «نزدیک سقف زمان»), the holder's own direct
+ * - The session (C2.2): a workshop turn with its build ring (and near its hour: amber, «نزدیک سقف زمان»), ⟨2026-11-11⟩ a session that
+ *   stands still («ایستاده», its card and «ادامه بده») and one whose draft waits in ChatGPT's queue (an outside call), the holder's own direct
  *   turn, the work held («ادامه بده»), a session ready with a reel (its files as a strip in the thread, «تأیید و انتشار» in the
  *   decision bar), the row of a video that will not play, a closed session's end leaf, the details (the files it made, the direct
  *   session's line) and «کار زنده» of a turn.
@@ -112,6 +115,18 @@ class Look2ScreensTest(private val name: String, private val night: Boolean) {
             "look2-session-video" to Scene(listOf("reel-stoploss.mp4", VIDEO_FAILED_FA, "دانلود")) { Files("O-000967") },
             // A closed session: what it made, how long it took, what it used; read from its top.
             "look2-session-closed" to Scene(listOf("این جلسه تأیید و بایگانی شد", "دوباره باز کن", "ساخته شد", "1 ساعت و 51 دقیقه", "تمام", CLOSED_FA)) { OrderSessionScreen("F-0093") },
+            // ⟨2026-11-11⟩ The owner's 12-hour stall: nobody works and the hub said «آرام». The page says «ایستاده», one calm card with the
+            // last thing done and when, and «ادامه بده» (the page's one gold; the send steps back).
+            "look2-session-still" to Scene(
+                listOf(MOOD_FA.getValue("still"), STILL_FA, "از ChatGPT خواسته شد و در صف است", "دیشب", "22:28", "ادامه بده", "کار 3 از 18", "با من"),
+                hides = listOf(MOOD_FA.getValue("idle"), "نگه دار"),
+            ) { OrderSessionScreen("F-0095") },
+            // …the same session while the draft waits in ChatGPT's queue: an outside call at work in the «الان» bar, its model's mark,
+            // whose it is, the whole sentence and its timer; no ring, and nothing to hold.
+            "look2-session-call" to Scene(
+                listOf("ChatGPT", "پرو-چارت", "در صف ChatGPT: پیش‌نویس متن", "4:00", "کار میکند"),
+                hides = listOf("نگه دار", MOOD_FA.getValue("still"), STILL_FA, "از 60 دقیقه"),
+            ) { OrderSessionScreen("F-0094") },
             // «جزئیات»: everything it made at hand, and (a direct session) who does the work.
             "look2-session-details" to Scene(listOf("متن فرمان", "فایل‌های خروجی", "هر چه در این جلسه ساخته شد", "وضعیت و روش کار")) { Details("F-0092") },
             "look2-session-details-direct" to Scene(listOf("وضعیت و روش کار", DIRECT_FA)) { Details("F-0091") },

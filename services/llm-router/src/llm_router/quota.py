@@ -19,6 +19,12 @@ of them that still holds, so one window being fine never lifts another's
 limit. A non-ok state always ends (prompt 5.1 §2.4): at the reset time the
 provider reported, else at the breaker's retry time (a usage-limit error), else
 HOLD after it was seen. The end is persisted with it, so a restart keeps it.
+
+⟨2026-11-11⟩ The router is not the only one that sees the subscription: a Claude Code job a
+company server's runner (or the workshop) runs on the same account reports the CLI's rate-limit
+events to the api, which writes them into the same row's `windows` (by the same keys). The router
+takes in a window another writer saved when it is newer than its own: on every save (under the
+row's lock, so neither writer loses the other's) and on every periodic scan.
 """
 
 from __future__ import annotations
@@ -290,11 +296,13 @@ class QuotaController:
         )
 
     async def scan(self, subscriptions: dict[str, str], companies: set[str]) -> list[QuotaState]:
-        """Periodic: holds that lapsed, and the ledger windows (when configured).
+        """Periodic: holds that lapsed, the windows another writer saved (a runner's limit, via
+        the api), and the ledger windows (when configured).
         `subscriptions`: connection id -> key; `companies`: every company id (the
         subscription is shared by all of them). Returns the states it saved."""
         changed: list[QuotaState] = []
         for cid, key in subscriptions.items():
+            await self.absorb(cid)
             cur = self.states.get(cid)
             first = False
             if self.thresholds.on and self.db is not None:
@@ -317,6 +325,49 @@ class QuotaController:
             if first or (cur is not None and new.status != cur.status):
                 changed.append(await self._commit(cid, key, new))
         return changed
+
+    async def absorb(self, connection_id: str) -> bool:
+        """The windows saved for this connection that are newer than ours (another writer's).
+        True when one was taken; a database error only leaves our own view."""
+        if self.db is None:
+            return False
+        try:
+            async with self.db.scoped(set()) as conn:
+                raw = await conn.fetchval(
+                    "SELECT windows FROM llm.quota_status WHERE connection_id = $1::uuid",
+                    connection_id,
+                )
+        except Exception:
+            log.exception("quota windows not read", extra={"connection_id": connection_id})
+            return False
+        return self._merge(connection_id, raw)
+
+    def _merge(self, connection_id: str, raw: Any) -> bool:
+        saved = json.loads(raw) if isinstance(raw, str) else raw
+        if not isinstance(saved, dict):
+            return False
+        now = self.now()
+        windows = self.windows.setdefault(connection_id, {})
+        took = False
+        for k, v in list(saved.items())[: MAX_WINDOWS * 2]:
+            if not isinstance(k, str) or not isinstance(v, dict):
+                continue
+            try:
+                w = QuotaState.from_json(connection_id, v)
+            except (ValueError, ArithmeticError, TypeError, KeyError):
+                continue
+            if w.observed_at.tzinfo is None or (w.resets_at and w.resets_at.tzinfo is None):
+                continue
+            mine = windows.get(k)
+            if mine is not None and w.observed_at <= mine.observed_at:
+                continue
+            if mine is None and not w.holds(now) and now - w.observed_at >= SDK_FRESH:
+                continue  # an old window that tells nothing (we pruned it, or nobody kept it)
+            if w.status != OK and w.resets_at is None:
+                w = replace(w, resets_at=w.observed_at + HOLD, estimated=True)  # never for good
+            windows[k] = w
+            took = True
+        return took
 
     def _sdk_fresh(self, connection_id: str) -> bool:
         now = self.now()
@@ -374,11 +425,8 @@ class QuotaController:
         """Save the connection's state (and its windows); announce a change once."""
         now = self.now()
         prev = self.states.get(connection_id) or QuotaState(connection_id)
+        new = await self._persist(new, prev, now)
         changed = new.status != prev.status
-        new = replace(new, changed_at=now if changed else prev.changed_at)
-        self.states[connection_id] = new
-        self._prune(connection_id, now)
-        await self._persist(new, self.windows.get(connection_id, {}))
         if changed:
             log.info(
                 "subscription quota state changed",
@@ -420,11 +468,29 @@ class QuotaController:
             )
         self.windows[connection_id] = keep
 
-    async def _persist(self, s: QuotaState, windows: dict[str, QuotaState]) -> None:
+    def _settle(self, new: QuotaState, prev: QuotaState, now: datetime) -> QuotaState:
+        new = replace(new, changed_at=now if new.status != prev.status else prev.changed_at)
+        self.states[new.connection_id] = new
+        self._prune(new.connection_id, now)
+        return new
+
+    async def _persist(self, new: QuotaState, prev: QuotaState, now: datetime) -> QuotaState:
+        """The state kept and saved with its windows. ⟨2026-11-11⟩ Under the row's lock, the
+        windows another writer saved meanwhile (newer than ours) are taken in first, so the save
+        never drops a runner's limit the api wrote a moment before."""
+        cid = new.connection_id
         if self.db is None:
-            return
+            return self._settle(new, prev, now)
         try:
             async with self.db.scoped(set()) as conn:
+                raw = await conn.fetchval(
+                    "SELECT windows FROM llm.quota_status WHERE connection_id = $1::uuid FOR UPDATE",
+                    cid,
+                )
+                if self._merge(cid, raw):
+                    new = self.state(cid)
+                s = new = self._settle(new, prev, now)
+                windows = self.windows.get(cid, {})
                 await conn.execute(
                     """INSERT INTO llm.quota_status (connection_id, status, window_kind,
                            utilization, resets_at, source, observed_at, changed_at,
@@ -448,7 +514,10 @@ class QuotaController:
                     json.dumps({k: w.as_json() for k, w in windows.items()}),
                 )
         except Exception:
-            log.exception("quota state not saved", extra={"connection_id": s.connection_id})
+            log.exception("quota state not saved", extra={"connection_id": cid})
+            if self.states.get(cid) is not new:
+                new = self._settle(new, prev, now)
+        return new
 
 
 def _key(source: str, window: str | None) -> str:

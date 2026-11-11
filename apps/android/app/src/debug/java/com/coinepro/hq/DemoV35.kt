@@ -85,7 +85,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
                 step(188, "مدیرعامل تریدیار", "فرمان را گرفت و برنامه‌ی هفته را نوشت."),
                 *tyFiles.map { step(120, "مدیر کل", "فایل از مدیر کل: ${it.str("name")}") }.toTypedArray(),
                 step(100, "سامانه", "به مدیر رسانه‌ی تریدیار سپرده شد"),
-                step(95, "مدیر رسانه", "سه ریلز آموزشی ساخته شد."), step(6, "مدیرعامل تریدیار", "سؤال از شما: اول ریلزها یا پست‌ها؟"),
+                step(95, "مدیر رسانه", "سه ریلز آموزشی ساخته شد."), step(6, "مدیرعامل تریدیار", "سؤال از تو: اول ریلزها یا پست‌ها؟"),
             ),
             files = tyFiles.toMutableList(),
             memory = TY_MEMORY,
@@ -220,7 +220,38 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             steps = mutableListOf(step(3_014, "منشی هلدینگ", "فرمان را به رسانه‌ی تریدیار سپرد."), step(2_921, "سامانه", "خروجی رسید: ریلز: سطوح کلیدی طلا")),
             listed = false,
         ),
+        // ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states: F-0094 while the
+        // draft waits in ChatGPT's queue (an outside call at work, in the «الان» bar), F-0095 the next morning, when nothing ran after
+        // «… از ChatGPT خواسته شد و در صف است» and the hub still said «آرام» (the page says «ایستاده» with «ادامه بده»).
+        S(
+            "F-0094", "هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو.", "moving", "مدیرعامل پرو-چارت: $DRAFT_ASKED_FA", "step",
+            Triple("ceo@PC", "مدیرعامل پرو-چارت", "PC"),
+            mutableListOf(person("ceo@PC", "holder", "مدیرعامل پرو-چارت", "PC")),
+            reelsPlan("q"), null,
+            Triple("سناریست استخدام شد و گوینده یک‌بار برای همیشه تنظیم شد.", "پیش‌نویس متن ریلز اول در صف ChatGPT است.", "فعلاً چیزی لازم نیست."),
+            opened = 40, last = 4,
+            steps = mutableListOf(step(38, "منشی هلدینگ", "فرمان را به مدیرعامل پرو-چارت سپرد."), step(4, "مدیرعامل پرو-چارت", DRAFT_ASKED_FA)),
+            listed = false,
+        ),
+        S(
+            "F-0095", "به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من.", "moving", "مدیرعامل پرو-چارت: $STALLED_FA", "step",
+            Triple("ceo@PC", "مدیرعامل پرو-چارت", "PC"),
+            mutableListOf(person("ceo@PC", "holder", "مدیرعامل پرو-چارت", "PC")),
+            reelsPlan("s"), null,
+            Triple("سناریست استخدام شد و گوینده یک‌بار برای همیشه تنظیم شد.", "پیش‌نویس متن ریلز اول از ChatGPT خواسته شد.", "فعلاً چیزی لازم نیست."),
+            opened = 830, last = 812,
+            steps = mutableListOf(
+                step(828, "منشی هلدینگ", "فرمان را به مدیرعامل پرو-چارت سپرد."),
+                step(815, "مدیرعامل پرو-چارت", "سؤال از تو: گام ۱ انجام شد؛ گام ۲ را شروع کنم؟"),
+                step(813, "مدیر کل", "خودت تصمیم بگیر و ادامه بده"),
+                step(812, "مدیرعامل پرو-چارت", STALLED_FA),
+            ),
+            listed = false,
+        ),
     )
+
+    /** The eighteen tasks of the daily reels' plan, two done and the third in hand. */
+    private fun reelsPlan(id: String) = REELS_PLAN.mapIndexed { i, t -> task("$id${i + 1}", i + 1, t, when { i < 2 -> "done"; i == 2 -> "doing"; else -> "todo" }, who = "مدیرعامل پرو-چارت") }.toMutableList()
 
     // ------------------------------------------------------------- the talk --
     // ⟨0.17.0⟩ [source] `system`: a step the hub wrote into the talk by itself (a progress line, «… آمد.»), drawn as one quiet line.
@@ -273,6 +304,20 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             turn("CV-0593", 1, "owner", "برای تریدیار ریلز «سطوح کلیدی طلا» را بساز و منتشر کن.", 3_016),
             turn("CV-0593", 2, "media@TY", "ریلز ساخته شد؛ با کاور و متن گوینده در همین جلسه است و منتشر شد.", 2_920),
             turn("CV-0593", 3, "owner", "خوب است؛ ببند.", 2_910),
+        ),
+        "CV-0594" to mutableListOf(
+            turn("CV-0594", 1, "owner", "هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو.", 40),
+            turn("CV-0594", 2, "ceo@PC", "سلام. سناریست را استخدام میکنم، گوینده را یک‌بار تنظیم میکنم و هر قدم را با تو جلو میبرم.", 38),
+            turn("CV-0594", 3, "owner", "خودت تصمیم بگیر و ادامه بده", 6),
+            turn("CV-0594", 4, "ceo@PC", DRAFT_ASKED_FA, 4, source = "system"),
+        ),
+        "CV-0595" to mutableListOf(
+            turn("CV-0595", 1, "owner", "به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من.", 830),
+            turn("CV-0595", 2, "ceo@PC", "روش موضوع بدون تکرار: سناریست هر روز با ChatGPT موضوع پیشنهاد میدهد و با دفتر موضوعات ثبت میکند؛ موضوع تکراری خودکار رد میشود.", 818, source = "system"),
+            turn("CV-0595", 3, "ceo@PC", "**سؤال از تو** · گام ۱ انجام شد (استخدام سناریست و روش موضوع روزانه). تأیید یا اصلاح؟ اگر تأیید است، گام ۲ (متن گوینده و تنظیم یک‌بارِ صدا) را شروع کنم؟", 815, source = "system"),
+            turn("CV-0595", 4, "ceo@PC", "سناریست ریلز پرو-چارت استخدام شد و به همین جلسه آمد.", 815, source = "system"),
+            turn("CV-0595", 5, "owner", "خودت تصمیم بگیر و ادامه بده", 813),
+            turn("CV-0595", 6, "ceo@PC", STALLED_FA, 812, source = "system"),
         ),
         "CV-0500" to mutableListOf(
             turn("CV-0500", 1, "owner", REELS_STEPS.mapIndexed { i, t -> "${i + 1} - $t" }.joinToString("\n", prefix = "این کارگروه ریلز پرو-چارت است؛ مرحله به مرحله:\n"), 70),
@@ -595,6 +640,14 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             script = ArrayDeque(listOf("مدیر رسانه‌ی تریدیار" to "کپشن ریلز دوم را مینویسد", "مدیر رسانه‌ی تریدیار" to "فایل «caption.md» را مینویسد")),
             loop = true,
         ),
+        // ⟨2026-11-11⟩ an outside call at work: the draft of the text waits in ChatGPT's queue (its deadline is its cap)
+        "F-0094" to Live(
+            workers = mutableListOf(worker("ChatGPT", "پرو-چارت", "پیش‌نویس متن ریلز اول", 4, 0, "در صف ChatGPT: پیش‌نویس متن", kind = "call", cap = 900)),
+            lines = mutableListOf(
+                line(at(5), "مدیرعامل پرو-چارت", "دوباره سر کار آمد", "F-0094-1", "done"),
+                line(at(4), "مدیرعامل پرو-چارت", "از ChatGPT پرسید", "F-0094-2", "done"),
+            ),
+        ),
         "F-0100" to Live(
             workers = mutableListOf(
                 worker("مدیر رسانه‌ی پرو-چارت", "پرو-چارت", "ریلز آزمایشی «سه اشتباه رایج در چارت طلا»", 22, 7, "زیرنویس ریلز آزمایشی را مینویسد"),
@@ -639,7 +692,13 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         // by the hub's own rule: someone works (still thinking until a run's first step, or a turn's first act); else it waits for
         // the owner; else it is stuck; else calm
         val mood = when {
-            working -> if (l.workers.any { w -> if ((w.str("kind") ?: "run") == "run") ((w["step"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0) > 0 else w.str("last_fa") != null }) "working" else "thinking"
+            working -> if (l.workers.any { w ->
+                when (w.str("kind") ?: "run") {
+                    "run" -> ((w["step"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0) > 0
+                    "call" -> true
+                    else -> w.str("last_fa") != null
+                }
+            }) "working" else "thinking"
             waiting != null -> "waiting"
             stuck != null -> "stuck"
             else -> "idle"
@@ -714,6 +773,8 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         val out = mutableListOf<com.coinepro.hq.core.net.StreamEvent>()
         for ((ref, l) in live) {
             val s = sessions.firstOrNull { it.ref == ref && it.closedAt == null } ?: continue
+            // an outside call takes no steps of its own: it is there until its answer comes
+            if (l.workers.isNotEmpty() && l.workers.all { it.str("kind") == "call" }) continue
             val nowIso = HqClock.now().toString()
             val step = l.script.removeFirstOrNull()
             if (step == null) {
@@ -838,6 +899,21 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             "- **آدم‌ها:** برای صداگذاری و برش یک صداپیشه و یک تدوینگر لازم است؛ کارت استخدام هر دو را برای مدیرعامل گذاشتم.\n" +
             "- **زمان انتشار:** ساعت ۱۸ بیشترین بازدید را دارد؛ آخر هفته‌ها یک ریلز بیشتر.\n\n" +
             "اول یک ریلز آزمایشی میسازم تا لحن و طول را با هم ببینیم؛ بعد بقیه را پشت سر هم."
+
+        /** ⟨2026-11-11⟩ The holder's last word of the owner's 12-hour stall, as it was (F-0095), and the same word while the draft is in
+         *  ChatGPT's queue (F-0094). */
+        const val STALLED_FA = "گام ۲ در جریان است. موضوع اول («معرفی ابزارهای ترسیم روی نمودار پرو-چارت») ثبت شد. گوینده‌ی ثابت پرو-چارت " +
+            "(Kore، فارسی معیار و گرم) یک‌بار برای همیشه تنظیم شد. پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و " +
+            "کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است."
+        const val DRAFT_ASKED_FA = "پیش‌نویس متن ریلز اول از ChatGPT خواسته شد و در صف است؛ تا جوابش برسد، کاور را آماده میکنم."
+
+        /** The eighteen steps of Pro-Chart's daily reels («با من»). */
+        val REELS_PLAN = listOf(
+            "استخدام سناریست و روش موضوع روزانه", "متن گوینده و تنظیم یک‌بار صدا", "پیش‌نویس متن ریلز اول با ChatGPT", "خواندن متن با صدای گوینده",
+            "موشن‌گرافی ریلز اول", "کاور ریلز اول", "کپشن و کلمه‌ی کامنت", "تأیید و انتشار ریلز اول", "خواندن بازخورد ریلز اول",
+            "موضوع روز دوم", "متن روز دوم", "صدا و موشن‌گرافی روز دوم", "انتشار روز دوم", "پیدا کردن بهترین ساعت انتشار",
+            "کارگروه روزانه‌ی ریلز", "انتشار خودکار هر روز", "گزارش هفته‌ی اول", "جمع‌بندی و بستن",
+        )
 
         /** ⟨1.33⟩ §55.1 the mood in a word, as the hub says it. */
         val MOOD_FA = mapOf("thinking" to "فکر میکند", "working" to "کار میکند", "waiting" to "منتظر تو", "stuck" to "گیر کرده", "idle" to "آرام")

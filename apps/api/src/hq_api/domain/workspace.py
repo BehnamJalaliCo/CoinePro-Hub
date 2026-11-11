@@ -270,6 +270,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     deliverable; a failure sends the work back to the hub; a cancel is a stop."""
     from hq_api.domain import players as PL
 
+    routine_delivered: UUID | None = None
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await SV.load_job(tx, job_id)
         if j["kind"] != "claude" or not (j.get("args") or {}).get("workspace"):
@@ -323,8 +324,12 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             if files and not answer:
                 answer = OUT_ONLY_FA
             state: State = "idle"
-            # a workshop turn of the order itself leaves it open: its holder shows the owner
-            close = not (hands and w["parent_id"] is None)
+            # a workshop turn of the order itself leaves it open: its holder shows the owner.
+            # ⟨2026-11-11⟩ A working group's routine work is no order's and nobody is shown it in
+            # a session: its turn delivers it, and its package follows on the owner's standing
+            # word (session_publish.after_delivered) without waiting for the agent's deliver
+            routine = hands and w["parent_id"] is None and await routine_work(tx, w["id"])
+            close = not (hands and w["parent_id"] is None) or routine
             # ⟨1.32⟩ §54 a direct turn is the session's own holder: what it says is its word in
             # the session, and only what it made (files in `out/`) is an output
             direct = hands and bool((j.get("args") or {}).get("direct"))
@@ -380,6 +385,8 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 if close:
                     await SP.after_part(tx, w["id"])
                     await SP.after_parent(tx, w["id"])
+                    if routine:
+                        routine_delivered = w["id"]
                 else:  # the holder tells the owner what is ready and asks «تأیید یا اصلاح؟»
                     await _wake_or_say(tx, w, f"{DONE_REASON}{w['ref']}")
             await _set(tx, ws, state, None)
@@ -426,6 +433,24 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
         await events.emit(tx, w["company"], "work.updated", w["ref"], {"workspace": ws["state"]})
+    if routine_delivered is not None:
+        # after the commit, as the agent's own deliver does (it never raises; the groups' tick
+        # sweeps what this misses)
+        from hq_api.domain import session_publish as SPB
+
+        await SPB.after_delivered(hub, routine_delivered)
+
+
+async def routine_work(tx: Tx, work_id: UUID) -> bool:
+    """⟨2026-11-11⟩ A working group's routine work that belongs to no order (session): the work
+    of a routine run, which no session shows."""
+    from hq_api.domain import order_report as OR
+
+    if not await tx.scalar(
+        "SELECT 1 FROM growth.routine_runs WHERE work_id = :w LIMIT 1", w=work_id
+    ):
+        return False
+    return await OR.order_of_work(tx, work_id) is None
 
 
 async def _close_direct(tx: Tx, j: dict[str, Any]) -> None:

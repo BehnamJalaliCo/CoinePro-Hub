@@ -7,8 +7,10 @@ advisor_sweep          every 2 min: memos whose run ended without memo.write
                        wake the advisor: while the holding is locked no memo
                        is made and every new trigger is recorded `deferred`.
 substitute_web_jobs    every minute: the queued web seat calls, one per player
-                       at a time and >= 60 s apart, through egress's signed-in
-                       browser profiles. Nothing while the holding is locked
+                       at a time and >= 60 s apart (different players at once),
+                       through egress's signed-in browser profiles. First the
+                       reaper (stale calls end, each told to its caller), also
+                       while the holding is locked; nothing else while locked
                        (the owner's sealed profile wipes still run: local only).
 substitute_daily       daily 09:15 (Tehran): on the 15th of the Jalali month a
                        signed-in paid player behind its value ratio gets one
@@ -40,14 +42,28 @@ class EgressWeb:
         self._transport = transport
 
     async def _post(self, path: str, body: dict[str, Any], limit_s: float) -> dict[str, Any]:
+        """Egress's answer; never raises. ⟨2026-11-11⟩ every failure is an answer the hub turns
+        into the call's end: past the limit `timeout`, no answer or an error page `off` (the
+        browser not available), a refused request `failed`."""
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=limit_s) as http:
                 resp = await http.post(self.base + path, json=body)
             out = resp.json()
+        except httpx.TimeoutException as exc:
+            log.warning("substitute web call timed out", extra={"error": type(exc).__name__})
+            return {"ok": False, "error": "timeout", "detail": "egress did not answer in time"}
         except (httpx.HTTPError, ValueError) as exc:
             log.warning("substitute web call failed", extra={"error": type(exc).__name__})
             return {"ok": False, "error": "off", "detail": "egress did not answer"}
-        return out if isinstance(out, dict) else {"ok": False, "error": "failed"}
+        if isinstance(out, dict) and "ok" in out:
+            return out
+        status = resp.status_code
+        log.warning("substitute web call refused", extra={"status": status})
+        return {
+            "ok": False,
+            "error": "off" if status >= 500 else "failed",
+            "detail": f"egress answered HTTP {status}",
+        }
 
     async def web(
         self, *, account: str, task: str, prompt: str, timeout_s: int, reload: bool = False
