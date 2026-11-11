@@ -41,6 +41,19 @@ class Idem:
             k=self.key,
         )
 
+    async def release(self, tx: Tx) -> None:
+        """Give the key back when the request failed after its claim was committed
+        (a route whose work runs between two transactions): a retry with the same
+        key then runs again instead of a 409 «still running» for 24 h. The claim is
+        aged past the 24 h window (the app roles may not DELETE): `claim` takes it
+        over and the worker's purge removes it."""
+        await tx.exec(
+            """UPDATE core.idempotency_keys SET created_at = now() - make_interval(hours => 25)
+               WHERE principal = :p AND key = :k AND status_code IS NULL""",
+            p=self.principal,
+            k=self.key,
+        )
+
 
 def read_key(request: Request, *, required: bool) -> UUID | None:
     raw = request.headers.get("idempotency-key")
