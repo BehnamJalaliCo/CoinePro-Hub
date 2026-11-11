@@ -906,11 +906,11 @@ async def test_a_roas_floor_on_a_hub_campaign_waits_for_the_settled_revenue(
     async with holding_switch(su, "released"):
         out = await AD.evaluate_due(hub)
     assert out["checked"] == 2 and out["tripped"] == 0  # today's spend is not revenue 0
-    clean_rules.append(await add_rule(su, co, daily_cap=None, min_roas=1.5, window_days=1,
+    clean_rules.append(await add_rule(su, co, daily_cap=None, min_roas=2, window_days=1,
                                       action="notify"))  # fmt: skip
     async with holding_switch(su, "released"):
         out = await AD.evaluate_due(hub)
-    assert out["notified"] == 2  # 50 / 40 = 1.25 < 1.5: each campaign has half of the day
+    assert out["notified"] == 2  # 50 / 40 = 1.25 < 2: each campaign has half of the day
     trips = await su.fetch("SELECT day, detail_fa FROM growth.ad_trips WHERE company_id = $1",
                            co["id"])  # fmt: skip
     assert {t["day"] for t in trips} == {today - timedelta(days=2)}
