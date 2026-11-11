@@ -162,9 +162,12 @@ def _reply(
     *,
     sender: str = "support@example.com",
     files: list[tuple[str, str, bytes]] | None = None,
+    auto: str | None = None,
 ) -> bytes:
     m = EmailMessage()
     m["From"] = sender
+    if auto:
+        m["Auto-Submitted"] = auto
     m["To"] = ADDRESS
     m["Subject"] = "Re: Appeal: direct message replies limited"
     m["Message-ID"] = f"<{secrets.token_hex(8)}@example.com>"
@@ -477,6 +480,51 @@ async def test_a_reply_reaches_its_case_and_wakes_the_counsel_unrelated_mail_doe
     # The counsel reads the case's mail, masked.
     mail = await client.get(f"/internal/v1/legal/cases/{case['ref']}/mail", headers=lgl)
     assert mail.status_code == 200 and len(mail.json()["emails"]) == 2
+
+
+async def test_an_out_of_office_reply_is_kept_but_neither_reopens_nor_wakes(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    mailbox: FakeMail,
+    wk: dict[str, Any],
+    su: Any,
+) -> None:
+    """RFC 3834: an Auto-Submitted reply is on the timeline, but the case
+    keeps waiting for a real answer and the counsel is not woken for it."""
+    await su.execute(
+        "UPDATE legal.mailbox SET last_uid = 0, uidvalidity = NULL WHERE account = 'mail'"
+    )
+    co = await new_company()
+    lgl = await agent_headers("HQ-LGL")
+    case = await _case(client, lgl, co["code"])
+    out = await _draft(client, lgl, case["ref"])
+    assert (
+        await _approve(client, hub, owner_session, out["decision"], out["digest"])
+    ).status_code == 200
+    await wk["acts"].decision_apply_effect(out["decision"])
+    sent_mid = BytesParser(policy=email_policy.default).parsebytes(mailbox.sent[-1][1])[
+        "Message-ID"
+    ]
+    before = (
+        await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])
+    ).json()["status"]
+    assert before == "waiting_reply"
+    mailbox.inbox = [(201, _reply(sent_mid, "I am out of the office.", auto="auto-replied"))]
+    got = await L.poll(hub, txf(hub))
+    assert got["ok"] and got["matched"] == [case["ref"]]
+    full = (
+        await client.get(f"/api/v1/legal/cases/{case['ref']}", headers=owner_session["headers"])
+    ).json()
+    assert full["status"] == "waiting_reply"
+    assert [e for e in full["emails"] if e["direction"] == "in"]
+    assert "خودکار" in full["timeline"][-1]["summary_fa"]
+    assert not await su.fetchval(
+        """SELECT 1 FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
+           WHERE e.code = 'HQ-LGL' AND w.title LIKE $1""",
+        f"{case['ref']}: پاسخ%",
+    )
 
 
 async def test_the_poller_does_nothing_while_the_holding_is_locked(
