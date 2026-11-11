@@ -1024,15 +1024,9 @@ async def test_owner_session_on_a_company_server(
     assert nxt["id"] in r.json()["cancels"]
 
 
-async def test_publish_through_a_runner(
-    client: httpx.AsyncClient,
-    hub: Hub,
-    owner_session: dict[str, Any],
-    new_company: Callable[..., Any],
-    su: Any,
-) -> None:
-    co = await new_company()
-    rn = await pair(client, hub, owner_session, co, "ig-hub")
+async def runner_item(su: Any, co: dict[str, Any]) -> tuple[str, uuid.UUID]:
+    """A sealed series' due item that publishes through the `ig-hub` runner of `co` (and its
+    render's file id)."""
     target = {"channel": "runner", "account": "runner-ig-hub", "placement": "instagram_post",
               "server": "ig-hub", "command": "/home/ig/bin/publish"}  # fmt: skip
     fid = await su.fetchval(
@@ -1071,6 +1065,19 @@ async def test_publish_through_a_runner(
             ]
         ),
     )
+    return str(ref), fid
+
+
+async def test_publish_through_a_runner(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co, "ig-hub")
+    ref, fid = await runner_item(su, co)
     out = await P.publish_due(hub, only=ref)
     assert out["published"] == [ref], out
     job = await take(client, rn)
@@ -1101,6 +1108,89 @@ async def test_publish_through_a_runner(
         "ok",
         "1789",
     )
+
+
+async def test_a_publish_job_that_never_ends_tells_its_item(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """The runner dies while it publishes: the sweep fails the job and the item hears it at once
+    (a publish_failed card), instead of waiting 7 days and publishing everything again."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co, "ig-hub")
+    ref, _ = await runner_item(su, co)
+    out = await P.publish_due(hub, only=ref)
+    assert out["published"] == [ref], out
+    job = await take(client, rn)
+    assert job["kind"] == "publish"
+    await su.execute(
+        "UPDATE infra.server_jobs SET dispatched_at = now() - interval '3 hours' WHERE id = $1",
+        uuid.UUID(job["id"]),
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await SV.sweep(tx)
+    j = await su.fetchrow(
+        "SELECT state, error_code FROM infra.server_jobs WHERE id = $1", uuid.UUID(job["id"])
+    )
+    assert (j["state"], j["error_code"]) == ("failed", "timed_out")
+    row = await su.fetchrow(
+        "SELECT state, publish_at, decision_id FROM media.items WHERE ref = $1", ref
+    )
+    assert row["state"] == "waiting_owner" and row["publish_at"] is None
+    assert row["decision_id"] is not None
+    log = await su.fetchrow(
+        """SELECT outcome, error FROM media.publish_log
+           WHERE item_id = (SELECT id FROM media.items WHERE ref = $1)""",
+        ref,
+    )
+    assert (log["outcome"], log["error"]) == ("error", "timed_out")
+
+
+async def test_a_sealed_command_of_a_dead_runner_is_swept(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A claude job waits for the seal of one of its commands and its runner dies: past its time
+    the sweep fails it (the session is no longer busy for ever) and withdraws the card."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co, "repo-box")
+    h = owner_session["headers"]
+    r = await client.post(
+        "/api/v1/workshop/sessions",
+        json={"runtime": "company_server", "server": rn["server"]["id"], "company": co["code"],
+              "driver": None, "title": "پاک‌سازی", "brief": "حجم‌ها را پاک کن", "attachments": [],
+              "cwd": "/home/forex/app"},
+        headers={**h, **idem()},
+    )  # fmt: skip
+    assert r.status_code == 201, r.text
+    job = await take(client, rn)
+    r = await client.post(
+        "/api/v1/runners/classify",
+        json={"cmd": "docker volume prune -f"},
+        headers={**rn["h"], "X-HQ-Runner-Job": job["id"]},
+    )
+    ref = r.json()["decision_ref"]
+    assert ref
+    jid = uuid.UUID(job["id"])
+    state = await su.fetchval("SELECT state FROM infra.server_jobs WHERE id = $1", jid)
+    assert state == "awaiting_seal"
+    await su.execute(
+        "UPDATE infra.server_jobs SET dispatched_at = now() - interval '3 hours' WHERE id = $1", jid
+    )
+    ended: list[uuid.UUID] = []
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await SV.sweep(tx, ended=ended)
+    assert jid in ended
+    j = await su.fetchrow("SELECT state, error_code FROM infra.server_jobs WHERE id = $1", jid)
+    assert (j["state"], j["error_code"]) == ("failed", "timed_out")
+    status = await su.fetchval("SELECT status FROM cartable.decisions WHERE ref = $1", ref)
+    assert status == "withdrawn"
 
 
 # ---------------------------------------------------------- classification --

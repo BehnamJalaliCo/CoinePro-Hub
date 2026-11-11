@@ -1086,6 +1086,24 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
     )
 
 
+async def _withdraw_seal(tx: Tx, j: dict[str, Any], note: str) -> None:
+    """A job that ended while its `server_destructive` card waits: the card is withdrawn."""
+    if not j.get("decision_id"):
+        return
+    d = await tx.first(
+        """UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now(),
+               decided_by_kind = 'service', decided_by_code = 'system', note = :n
+           WHERE id = :id AND status = 'pending' AND kind = 'server_destructive' RETURNING ref""",
+        id=j["decision_id"],
+        n=note[:500],
+    )
+    if d is not None:
+        await events.emit(
+            tx, j["company"], "decision.decided", d["ref"],
+            {"status": "withdrawn", "kind": "server_destructive"},
+        )  # fmt: skip
+
+
 async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[str, Any]:
     """Cancelled (the runner sees it on its next poll if it runs it)."""
     if j["state"] in FINAL:
@@ -1099,6 +1117,8 @@ async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[
         s=summary_fa[:2000],
     )
     j = await load_job(tx, j["id"])
+    if j["kind"] == "publish":  # its media item learns it (not 7 days later)
+        await _apply_publish(tx, j, {}, False, code)
     await audit.record(
         tx,
         audit.SYSTEM,
@@ -1807,8 +1827,10 @@ async def sweep(tx: Tx, *, ended: list[UUID] | None = None) -> int:
         await emit_state(tx, await load_server(tx, s["id"]), prev="online")
         n += 1
     for j in await tx.all(
+        # a dispatched claude job whose command waits for the seal is past its time too when its
+        # runner died meanwhile (a live runner ends it itself at its timeout)
         JOB_SQL
-        + """ WHERE j.state = 'running' AND j.dispatched_at IS NOT NULL
+        + """ WHERE j.state IN ('running', 'awaiting_seal') AND j.dispatched_at IS NOT NULL
               AND j.dispatched_at < now() - make_interval(secs => j.timeout_s + :g)
               FOR UPDATE OF j SKIP LOCKED""",
         g=DISPATCH_GRACE_S,
@@ -1819,7 +1841,11 @@ async def sweep(tx: Tx, *, ended: list[UUID] | None = None) -> int:
                WHERE id = :id""",
             id=j["id"],
         )
+        if j["state"] == "awaiting_seal":
+            await _withdraw_seal(tx, j, "کار در زمانش تمام نشد")
         j = await load_job(tx, j["id"])
+        if j["kind"] == "publish":  # its media item learns it (not 7 days later)
+            await _apply_publish(tx, j, {}, False, "timed_out")
         if j["session_id"]:
             await _session_end(tx, j, "failed", "timed_out", "کار در زمانش تمام نشد")
         await emit_call(tx, j)
