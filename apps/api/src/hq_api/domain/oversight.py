@@ -1138,6 +1138,10 @@ async def issue_challenge(
     tz: str,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
+    if due_at.tzinfo is None:
+        # a time with no offset (common in model-written JSON) is the hub's local time;
+        # compared as is, naive against aware, it raised a TypeError (500)
+        due_at = due_at.replace(tzinfo=ZoneInfo(tz))
     if due_at <= now:
         raise ApiError(422, "validation_failed", fields={"due_at": "in the future"})
     key = (

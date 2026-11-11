@@ -629,6 +629,13 @@ async def test_challenges_and_compliance(
 ) -> None:
     co = (await new_company())["code"]
     ovr = await agent_headers(OVR)
+    # a due time with no offset is read (the hub's local time), not a 500 (naive vs aware)
+    r = await client.post(
+        "/internal/v1/oversight/challenges",
+        headers={**ovr, **idem()},
+        json={"company": co, "title_fa": "دیر", "due_at": "2020-01-01T10:00:00"},
+    )
+    assert r.status_code == 422 and "due_at" in r.text, r.text
     due = (datetime.now(UTC) + timedelta(days=5)).isoformat()
     r = await client.post(
         "/internal/v1/oversight/challenges",
