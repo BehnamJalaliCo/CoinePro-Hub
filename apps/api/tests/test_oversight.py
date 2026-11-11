@@ -411,6 +411,8 @@ async def test_a_held_agent_only_reads_and_a_held_tool_never_runs(
     mgr = f"{co}-TECH-MGR"
     assert (await _hold(client, "employee", mgr)).status_code == 201
     assert (await _hold(client, "tool", f"{mgr}:knowledge.search")).status_code == 201
+    # a tool hold names its tool (`EMP:tool`); one without it made every gate of EMP a 500
+    assert (await _hold(client, "tool", mgr)).status_code == 422
     await order(client, owner, co, department="TECH")
     row = (await runs_of(su, mgr))[-1]
     agents.fake.enqueue(

@@ -1316,9 +1316,10 @@ async def holds_for_run(tx: Tx, employee: str, work_ref: str | None) -> list[str
     )
     out = []
     for r in rows:
-        if r["target_kind"] == "tool":
-            out.append(f"tool:{r['target_ref'].split(':', 1)[1]}")
-        else:
+        tool = r["target_ref"].partition(":")[2] if r["target_kind"] == "tool" else ""
+        if tool:
+            out.append(f"tool:{tool}")
+        else:  # a tool hold with no tool part (placed before it was refused) holds the employee
             out.append(r["ref"])
     return out
 
@@ -1334,6 +1335,9 @@ async def target_company(tx: Tx, kind: str, ref: str) -> tuple[UUID, str, str]:
         "tool": "SELECT e.company_id, e.title_fa AS summary FROM core.employees e"
         " WHERE e.code = split_part(:r, ':', 1)",
     }.get(kind)
+    if kind == "tool" and not all(ref.partition(":")[::2]):
+        # a tool hold is `EMP:tool`; without the tool part every gate of EMP failed (500)
+        raise ApiError(422, "validation_failed", fields={"target.ref": "EMP:tool"})
     if q is None:
         if kind == "story" and await tx.scalar("SELECT to_regclass('owner.stories') IS NOT NULL"):
             q = "SELECT s.company_id, s.title_fa AS summary FROM owner.stories s WHERE s.ref = :r"
