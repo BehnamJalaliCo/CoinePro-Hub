@@ -79,7 +79,7 @@ async def create_run(
     if (
         t["escrow_status"] != "active"
         or occurrence_at > t["expires_at"]
-        or t["status"] in ("cancelled", "failed")
+        or t["status"] in ("done", "cancelled", "failed")  # a closed order: no run
     ):
         return None
     row = await tx.first(
