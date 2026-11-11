@@ -292,7 +292,7 @@ function StandingRow({ group, company, value }: { group: string; company: string
       {editing ? (
         <div className="flex flex-col gap-2">
           <StandingChoice value={editing} onChange={setEditing} company={company} />
-          {badHour ? <p className="text-[11px] text-muted">ساعت را به شکل ۱۸:۳۰ بنویسید.</p> : null}
+          {badHour ? <p className="text-[11px] text-muted">ساعت را به شکل ۱۸:۳۰ بنویس.</p> : null}
           <Button variant="secondary" size="sm" className="self-start" disabled={badHour} loading={set.isPending} onClick={() => say(editing)}>ذخیره</Button>
         </div>
       ) : null}

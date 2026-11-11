@@ -35,7 +35,7 @@ export function BestHourChoice({ company, value, onChange }: { company: string |
       ) : (
         <>
           {b.note_fa ? <p className="text-[11px] leading-5 text-sec"><FaText text={b.note_fa} /></p> : null}
-          {on ? <p className="text-[11px] leading-5 text-muted">{clockOf(value.at) ? 'تا آن وقت: ساعت ثابت شما' : 'تا آن وقت: همان لحظه‌ی آماده شدن'}</p> : null}
+          {on ? <p className="text-[11px] leading-5 text-muted">{clockOf(value.at) ? 'تا آن وقت: ساعت ثابت خودت' : 'تا آن وقت: همان لحظه‌ی آماده شدن'}</p> : null}
         </>
       )}
     </div>

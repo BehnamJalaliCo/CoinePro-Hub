@@ -37,7 +37,7 @@ export type TopicEntry = {
 };
 /** One page, newest first. `topics` and `references` count the whole ledger, whatever the filter. */
 export type TopicLedger = { items: TopicEntry[]; topics: number; references: number; next_cursor: string | null };
-export const SOURCE_FA: Record<TopicSource, string> = { claim: 'ثبت کارمند', package: 'از بسته‌ی منتشرشده', owner: 'افزوده‌ی شما' };
+export const SOURCE_FA: Record<TopicSource, string> = { claim: 'ثبت کارمند', package: 'از بسته‌ی منتشرشده', owner: 'افزوده‌ی تو' };
 /** «42 موضوع · 40 نمونه», or that nothing is written yet. */
 export const ledgerCountsFa = (l: Pick<TopicLedger, 'topics' | 'references'>) =>
   (l.topics || l.references ? `${l.topics} موضوع · ${l.references} نمونه` : 'هنوز چیزی ثبت نشده');
@@ -81,7 +81,7 @@ export type Narrator = {
 export const GENDER_FA: Record<string, string> = { female: 'زن', male: 'مرد' };
 export const NARRATOR_UNSET_FA = 'تنظیم نشده؛ هر بار مدل انتخاب میکند';
 /** The only step of the owner here: his one sign-in in the hub's browser. */
-export const AISTUDIO_OUT_FA = 'گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود شما لازم است.';
+export const AISTUDIO_OUT_FA = 'گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود خودت لازم است.';
 export const STYLE_MAX = 500;
 /** `GET /companies/{code}/narrator`; null on a hub before §48. */
 export const useNarrator = (company: string | null | undefined) => useQuery({

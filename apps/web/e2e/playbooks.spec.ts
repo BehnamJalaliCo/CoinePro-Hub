@@ -90,7 +90,7 @@ test('a draft: edit lightly (title, a seat and a rule removed, a routine brief),
     // ⟨0.20.0⟩ §46 the hour each day's package goes out at: «تنظیم», Persian digits taken as they are typed
     await mine.getByRole('button', { name: 'تنظیم' }).click();
     await mine.getByLabel('ساعت انتشار').fill('25:00');
-    await expect(mine.getByText('ساعت را به شکل ۱۸:۳۰ بنویسید.')).toBeVisible();
+    await expect(mine.getByText('ساعت را به شکل ۱۸:۳۰ بنویس.')).toBeVisible();
     await expect(mine.getByRole('button', { name: 'ذخیره' })).toBeDisabled();
     await mine.getByLabel('ساعت انتشار').fill('۱۸:۳۰');
     await mine.getByRole('button', { name: 'ذخیره' }).click();

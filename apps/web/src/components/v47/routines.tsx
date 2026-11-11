@@ -40,7 +40,7 @@ function Row({ order, x, closed }: { order: string; x: SessionRoutine; closed: b
           : <Switch checked={x.state === 'on'} disabled={closed || set.isPending} onChange={turn} label={`روال ${x.when_fa || x.sentence_fa}`} />}
       </div>
       <span className="text-[11px] text-muted">
-        {x.state === 'on' ? (x.next_at ? <>نوبت بعد: <WhenAt iso={x.next_at} /></> : 'روشن') : x.state === 'off' ? 'خاموش' : 'با مُهر شما روشن میشود'}
+        {x.state === 'on' ? (x.next_at ? <>نوبت بعد: <WhenAt iso={x.next_at} /></> : 'روشن') : x.state === 'off' ? 'خاموش' : 'با مُهر تو روشن میشود'}
       </span>
       {x.note_fa ? <span className="text-[11px] leading-5 text-sec"><PlainText text={x.note_fa} /></span> : null}
     </li>

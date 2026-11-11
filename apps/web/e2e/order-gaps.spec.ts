@@ -26,7 +26,7 @@ test('the ledger: counts on the member row; open, more, search, add (refused whe
     const topics = sheet.getByRole('list', { name: 'موضوع‌های ثبت‌شده' }).getByRole('listitem');
     // Newest first: his own line, with where it came from and its day; a page, then «بیشتر».
     await expect(topics.first()).toContainText('هشدار قیمت در پرو-چارت');
-    await expect(topics.first()).toContainText('افزوده‌ی شما');
+    await expect(topics.first()).toContainText('افزوده‌ی تو');
     await expect(topics.nth(1)).toContainText('ثبت کارمند');
     await expect(sheet.getByText('از بسته‌ی منتشرشده').first()).toBeVisible();
     await expect(topics).toHaveCount(30);
@@ -87,7 +87,7 @@ test('the narrator: set for one company, not for another (with the sign-in line)
     await expect(pc.locator('[data-aistudio]')).toHaveCount(0);
     const fx = page.locator('[data-narrator="FX"]');
     await expect(fx).toContainText('تنظیم نشده؛ هر بار مدل انتخاب میکند');
-    await expect(fx).toContainText('گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود شما لازم است.');
+    await expect(fx).toContainText('گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود خودت لازم است.');
     await page.getByRole('button', { name: 'گوینده‌ی محتوای کوینه‌پرو اف‌ایکس' }).click();
     const sheet = page.getByRole('dialog', { name: 'گوینده‌ی محتوا' });
     // Nothing is chosen for him; each voice says who it is.
@@ -136,7 +136,7 @@ test('the best hour: a member on it says its hour; the switch says what the hub 
     await thin.getByLabel('بهترین ساعت، خودکار').check();
     await expect(thin).toContainText('تا آن وقت: همان لحظه‌ی آماده شدن');
     await fx.getByLabel('ساعت انتشار').fill('18:30');
-    await expect(thin).toContainText('تا آن وقت: ساعت ثابت شما');
+    await expect(thin).toContainText('تا آن وقت: ساعت ثابت خودت');
     await fx.getByRole('button', { name: 'ذخیره' }).click();
     await expect(fx).toContainText('خودکار، بهترین ساعت، تا آن وقت ساعت 18:30');
   }, [/validation_failed/]);
