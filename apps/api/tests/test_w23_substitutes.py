@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 from collections.abc import Callable
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -348,7 +347,7 @@ async def test_the_cli_reaper_delivers_and_a_cli_seat_is_never_queued_while_the_
         assert "longer than its time limit" in reply["brief"] and "own model" in reply["brief"]
         await refuse_queued(su, reply["ref"])
         # the substitutes runner is off: a CLI seat is skipped at once, never queued for ever
-        hub.settings = replace(hub.settings, substitutes_runner=False)
+        S.RUNNER_OVERRIDE = False  # (the bench puts it back)
         r = await client.post("/internal/v1/substitutes/call", headers=pa,
                               json={"seat": "assistant_errand", "input_md": "یکی دیگر را خلاصه کن."})  # fmt: skip
         assert r.status_code == 503 and r.json()["code"] == "channel_not_configured", r.text

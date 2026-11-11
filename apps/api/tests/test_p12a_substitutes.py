@@ -34,17 +34,24 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
     test database), nothing else queued, the holding unlocked; then signed out
     and off again, as they are on the hub. ⟨20.1⟩ GPT named in `cli` has its
     text seats on Codex for the block (the CLI path the code review keeps; by
-    default its text runs on the web); ⟨2026-11-11⟩ its web-only content_draft
-    seat is off for the block (a GPT work's text takes the Codex seat) and the
-    substitutes runner is on (a CLI seat is never queued while it is off)."""
+    default its text runs on the web); ⟨2026-11-11⟩ its content_draft seat (a
+    GPT work's first text seat, migration 0062) runs there too, as its errand
+    seat (gpt-5.3), and the substitutes runner is on for the block (a CLI seat
+    is never queued while it is off)."""
+    draft_model = None
     if "gpt" in cli:
         await su.execute(
             """UPDATE substitutes.seats SET via = 'cli' WHERE player = 'gpt'
                  AND seat IN ('advisor_second_opinion', 'overseer_cross_check', 'assistant_errand')"""
         )
-        await su.execute(
-            "UPDATE substitutes.seats SET enabled = false WHERE player = 'gpt' AND seat = 'content_draft'"
+        draft_model = await su.fetchval(
+            "SELECT model FROM substitutes.seats WHERE player = 'gpt' AND seat = 'content_draft'"
         )
+        await su.execute(
+            """UPDATE substitutes.seats SET via = 'cli', model = 'gpt-5.3'
+               WHERE player = 'gpt' AND seat = 'content_draft'"""
+        )
+        await per_day(su, "gpt", "content_draft", 10)
         await su.execute(
             """UPDATE substitutes.players SET capabilities = jsonb_set(capabilities, '{text}', '"cli"')
                WHERE player = 'gpt'"""
@@ -63,17 +70,24 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
         list(web),
     )
     saved = hub.settings
-    hub.settings = replace(saved, substitute_wait_s=wait_s, substitutes_runner=bool(cli))
+    hub.settings = replace(saved, substitute_wait_s=wait_s)
+    S.RUNNER_OVERRIDE = bool(cli)
     try:
         async with holding_switch(su, "released"):
             yield
     finally:
         hub.settings = saved
+        S.RUNNER_OVERRIDE = None
         await su.execute(
             """UPDATE substitutes.players SET login_state = 'signed_out', status = 'off', web_state = 'signed_out',
                    limited_until = NULL, status_reason = NULL, web_last_failure = NULL"""
         )
         await restore_seats(su)
+        if draft_model is not None:
+            await su.execute(
+                "UPDATE substitutes.seats SET model = $1 WHERE player = 'gpt' AND seat = 'content_draft'",
+                draft_model,
+            )
 
 
 async def restore_seats(su: Any) -> None:

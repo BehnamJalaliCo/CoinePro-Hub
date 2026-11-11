@@ -1610,7 +1610,9 @@ async def tick(hub: Any) -> dict[str, Any]:
                 # ⟨1.23⟩ §41.3 never a silent stall: idle → the holder woken; still idle → stuck
                 try:
                     async with tx.conn.begin_nested():
-                        fired += await SA.sweep(tx, ref, minutes=hub.settings.session_idle_minutes)
+                        fired += await SA.sweep(
+                            tx, ref, minutes=hub.settings.session_idle_minutes, hub=hub
+                        )
                 except Exception:  # one session's sweep never stops the tick
                     failed = True
                     log.exception("session sweep failed", extra={"order": ref})

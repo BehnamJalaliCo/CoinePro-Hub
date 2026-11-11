@@ -195,6 +195,8 @@ INLINE_TEXT = 256_000
 SERVICE = Principal(kind="service", code="substitutes", role="service")
 OWNER_TZ = "Asia/Tehran"
 RESIDUE_FILE = Path(__file__).resolve().parents[3] / "seed" / "web_residue.yaml"
+# Tests set it (the CLI runner on or off for every hub of the process); production leaves it None.
+RUNNER_OVERRIDE: bool | None = None
 
 
 # ------------------------------------------------------------------ shapes --
@@ -776,8 +778,7 @@ async def seat_call(
         p, s_row = found
         p_name = p["player"]
         reason = _skip_reason(p, s_row, now)
-        runner_on = bool(getattr(getattr(hub, "settings", None), "substitutes_runner", False))
-        if reason is None and s_row["via"] == "cli" and (p["runner"] is None or not runner_on):
+        if reason is None and s_row["via"] == "cli" and (p["runner"] is None or not runner_on(hub)):
             reason = "off"  # nothing would ever claim it (infra/substitutes/dispatch.sh is off)
         if reason is None and s_row["via"] == "web" and len(masked) > WEB_PROMPT_LIMIT:
             reason = "too_long"
@@ -838,6 +839,15 @@ async def seat_call(
         {"seat": seat, "call": str(row["id"]), "state": row["state"], "reason": reason},
     )
     return row
+
+
+def runner_on(hub: Any) -> bool:
+    """⟨2026-11-11⟩ The substitutes' CLI runner is on (SUBSTITUTES_RUNNER: hq.sh sets it while the
+    profile `substitutes` runs, the one infra/substitutes/dispatch.sh needs): else nothing would
+    ever claim a CLI job."""
+    if RUNNER_OVERRIDE is not None:
+        return RUNNER_OVERRIDE
+    return bool(getattr(getattr(hub, "settings", None), "substitutes_runner", False))
 
 
 def refusal(reason: str) -> ApiError:

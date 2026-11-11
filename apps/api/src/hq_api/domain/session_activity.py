@@ -776,7 +776,12 @@ async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
 
 
 async def read_pulse(
-    tx: Tx, rep: dict[str, Any], works: list[dict[str, Any]], *, minutes: int | None = None
+    tx: Tx,
+    rep: dict[str, Any],
+    works: list[dict[str, Any]],
+    *,
+    minutes: int | None = None,
+    hub: Any = None,
 ) -> Pulse:
     """§41.3 where the session stands: live, idle (since the clock), woken this period, stuck.
     ⟨2026-11-11⟩ An outside call or a voice job within its deadline is live too; the session is
@@ -797,7 +802,7 @@ async def read_pulse(
     wait_fa = None
     if turns:
         doing = TURN_DOING_FA if turns[0]["state"] == "running" else TURN_QUEUED_FA
-        wait_fa = await claude_wait_fa(tx, turns, await owner_zone(tx), now)
+        wait_fa = await claude_wait_fa(tx, turns, await owner_zone(tx), now, hub)
         if wait_fa and turns[0]["state"] == "queued":
             doing = wait_fa
     calls = await pending_outside(tx, works, now) if live is None and not turns else []
@@ -936,37 +941,64 @@ async def owner_zone(tx: Tx) -> Any:
 
 
 async def claude_wait_fa(
-    tx: Tx, turns: list[dict[str, Any]], zone: Any, now: datetime
+    tx: Tx, turns: list[dict[str, Any]], zone: Any, now: datetime, hub: Any = None
 ) -> str | None:
     """⟨2026-11-11⟩ When a queued Claude Code turn waits because both Claude accounts are full,
-    the owner's sentence with the time one has room again; else None. Never fails the caller."""
+    the owner's sentence with the time one has room again; else None. With the hub (its stored
+    accounts): servers.runner_claude_pick / room_at, the dispatcher's own rule; without it, every
+    account the hub knows, read the same way. Never fails the caller."""
     if not any(t.get("state") == "queued" and t.get("kind") == "claude" for t in turns):
         return None
     from hq_api.domain import servers as SV
 
+    at: datetime | bool | None
     try:
         async with tx.conn.begin_nested():
-            keys = [k for k, _ in SV.RUNNER_ACCOUNTS]
-            rows = [dict(r) for r in await tx.all(SV.ACCOUNTS_SQL, keys=keys)]
+            if hub is not None:
+                if not (await SV.runner_claude_pick(tx, hub)).hold:
+                    return None
+                at = await SV.room_at(tx, hub)
+            else:
+                at = await _room_at_known(tx, now)
+                if at is False:
+                    return None
     except Exception:  # noqa: BLE001
         log.warning("the Claude accounts could not be read")
         return None
+    when = NS.when_fa(at, zone, now) if isinstance(at, datetime) else None
+    return CLAUDE_WAIT_FA.format(when=when) if when else CLAUDE_WAIT_SOON_FA
+
+
+async def _room_at_known(tx: Tx, now: datetime) -> datetime | bool | None:
+    """Without the hub's secrets: False when an account the hub knows has room, else when the
+    first one has room again (servers.room_at's reading: the latest reset of its full windows,
+    the earliest such account; None when unknown)."""
+    from hq_api.domain import servers as SV
+
+    rows = [dict(r) for r in await tx.all(SV.ACCOUNTS_SQL, keys=[k for k, _ in SV.RUNNER_ACCOUNTS])]
     usable = [
         r for r in rows if r.get("connection_status") in ("enabled", "ready", "quota_exhausted")
     ]
     if not usable:
-        return None
-    resets: list[datetime] = []
+        return False
+    best: datetime | None = None
     for r in usable:
         exhausted = r.get("connection_status") == "quota_exhausted" and (
             r.get("resets_at") is None or r["resets_at"] > now
         )
         if not (exhausted or SV.account_full(r, now)):
-            return None  # one has room: the turn starts as soon as the runner asks
-        if r.get("resets_at") is not None:
-            resets.append(r["resets_at"])
-    when = NS.when_fa(min(resets), zone, now) if resets else None
-    return CLAUDE_WAIT_FA.format(when=when) if when else CLAUDE_WAIT_SOON_FA
+            return False  # one has room: the turn starts as soon as the runner asks
+        full = [
+            w for w in SV._windows(r).values() if isinstance(w, dict) and SV._window_full(w, now)
+        ]
+        if r.get("status") is not None and SV._window_full(r, now):
+            full.append(r)
+        ends = [e for e in (SV._at(w.get("resets_at")) for w in full) if e is not None]
+        if not ends and r.get("resets_at") is not None:
+            ends = [r["resets_at"]]
+        if ends and (best is None or max(ends) < best):
+            best = max(ends)
+    return best
 
 
 # ----------------------------------------- ⟨2026-11-11⟩ outside calls, voice jobs --
@@ -1500,7 +1532,7 @@ async def finish_plan(tx: Tx, works: list[dict[str, Any]]) -> list[str]:
     return done
 
 
-async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
+async def sweep(tx: Tx, ref: str, *, minutes: int | None = None, hub: Any = None) -> list[str]:
     """§41.3 the sweep of one session (order_report.tick, every few minutes): idle → the holder
     woken once («مسئول دوباره سر کار آمد: ادامه از کار N»); still idle a threshold later → `stuck`,
     a step and ONE owner notification naming the cause. What fired: idle_wake, stuck.
@@ -1534,7 +1566,7 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
             fired.append("idle_wake")
         await OR.refresh(tx, ref)
         return fired
-    pulse = await read_pulse(tx, rep, works, minutes=T)
+    pulse = await read_pulse(tx, rep, works, minutes=T, hub=hub)
     if pulse.live:
         if pulse.claude_wait_fa and not _stepped_since(rep, pulse.clock, CLAUDE_WAIT_PREFIX):
             await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, pulse.claude_wait_fa)])

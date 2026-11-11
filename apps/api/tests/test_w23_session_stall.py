@@ -607,7 +607,13 @@ def test_quota_codes_are_said_in_plain_words_with_the_reset_time() -> None:
     assert NS.quota_why_fa("usage_limit", "از ساعت 03:30") == (
         "اکانت‌های Claude پر است؛ از ساعت 03:30 دوباره کار میکند."
     )
-    for code in ("quota_exhausted", "usage_limit", "circuit_open", "quota_throttled"):
+    for code in (
+        "quota_exhausted",
+        "usage_limit",
+        "billing_error",
+        "circuit_open",
+        "quota_throttled",
+    ):
         assert NS.quota_why_fa(code) and "{" not in (NS.quota_why_fa(code) or "")
         line = SA.end_text("failed", code, reset_fa="از ساعت 03:30")
         assert line is not None and line.startswith("کار متوقف شد: ") and "03:30" in line, line
