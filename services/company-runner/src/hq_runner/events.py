@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
 import shutil
@@ -15,7 +16,7 @@ import tempfile
 from collections.abc import Callable
 from typing import Any
 
-from hq_runner.hub import Hub, HubError, JobGone, Transient, with_retry
+from hq_runner.hub import Hub, HubError, JobGone, Revoked, Transient, Unauthorized, with_retry
 
 log = logging.getLogger("hq_runner.events")
 
@@ -23,7 +24,8 @@ MAX_OUTPUT_BYTES = 10 * 1024 * 1024
 SPOOL_MAX_BYTES = 512 * 1024 * 1024
 FLUSH_EVERY_S = 0.5
 MAX_BATCH_EVENTS = 200
-MAX_BATCH_BYTES = 512 * 1024
+MAX_BATCH_BYTES = 512 * 1024  # a backlog this large is flushed at once
+POST_MAX_BYTES = 4 * 1024 * 1024  # one events body, well under the hub proxy's 32 MB
 
 
 class EventSink:
@@ -131,11 +133,23 @@ class EventSink:
             self._wake.clear()
             await self.flush()
 
+    def _take(self) -> list[dict[str, Any]]:
+        """The next batch: at most MAX_BATCH_EVENTS events and POST_MAX_BYTES of JSON (at least
+        one event), so a backlog of large events never makes a body the hub's proxy refuses."""
+        n, size = 0, 0
+        for e in self._buf[:MAX_BATCH_EVENTS]:
+            size += len(json.dumps(e, ensure_ascii=False).encode())
+            if n and size > POST_MAX_BYTES:
+                break
+            n += 1
+        batch, rest = self._buf[:n], self._buf[n:]
+        self._buf, self._buf_bytes = rest, sum(len(str(e["data"])) for e in rest)
+        return batch
+
     async def flush(self) -> None:
         async with self._lock:
             while self._buf and not self.dead:
-                batch, rest = self._buf[:MAX_BATCH_EVENTS], self._buf[MAX_BATCH_EVENTS:]
-                self._buf, self._buf_bytes = rest, sum(len(str(e["data"])) for e in rest)
+                batch = self._take()
 
                 async def post(b: list[dict[str, Any]] = batch) -> None:
                     await self.hub.post_events(self.job_id, b)
@@ -148,12 +162,21 @@ class EventSink:
                         self.on_gone()
                 except Transient as exc:
                     log.warning("job %s: events could not be delivered (%s)", self.job_id, exc)
-                except HubError as exc:
+                except (Unauthorized, Revoked) as exc:
                     self.dead = True
                     if self.on_fatal:
                         self.on_fatal(exc)
                     else:  # pragma: no cover
                         log.warning("job %s: events refused (%s)", self.job_id, exc)
+                except HubError as exc:
+                    # one batch the hub would not take (413, 422): that batch is lost, the job
+                    # is not; its later events and its result still go
+                    log.warning(
+                        "job %s: a batch of %d events was refused (%s)",
+                        self.job_id,
+                        len(batch),
+                        exc,
+                    )
 
     async def close(self) -> None:
         self._closed = True
