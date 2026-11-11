@@ -248,8 +248,46 @@ print(bcrypt.hashpw(os.environ["NE_PW"].encode(), bcrypt.gensalt(10)).decode())'
 fi
 
 # ------------------------------------------------------------ KV secrets ----
-kv_exists() { [[ "$(api GET "kv/data/$1" </dev/null)" == 200 ]]; }
+# kv_exists PATH -- 200: exists; 404: absent; anything else (5xx, 429, a lost
+# connection = 000) stops the run: read as "absent" it would regenerate and
+# overwrite live config (hq-api/config's service_tokens, the VAPID keys, the
+# llm-router callers). On 404 the version a cas write must name is kept in
+# KV_CAS[PATH] (a soft-deleted path answers 404 with its metadata; never
+# written: 0).
+declare -A KV_CAS=()
+kv_exists() {
+  local code ver
+  code="$(api GET "kv/data/$1" </dev/null)" || code="${code:-000}"
+  case "$code" in
+    200) return 0 ;;
+    404)
+      ver="$(jq -r '.data.metadata.version // 0' "$WORK/resp" 2>/dev/null)" || ver=0
+      [[ "$ver" =~ ^[0-9]+$ ]] || ver=0
+      KV_CAS["$1"]="$ver"
+      return 1
+      ;;
+    *) die "kv/$1: OpenBao answered HTTP $code; nothing written (run again)" ;;
+  esac
+}
 kv_put() { expect "$(api POST "kv/data/$1")" 200 204; }  # body on stdin
+# kv_create PATH -- the first write of a path kv_exists just found absent (body
+# on stdin): a KV check-and-set on that version, so OpenBao itself refuses it
+# if a version was written in between, whatever the read answered.
+kv_create() {
+  local code
+  code="$(jq -c --argjson v "${KV_CAS["$1"]:-0}" '. + {options: {cas: $v}}' |
+    api POST "kv/data/$1")" || code="${code:-000}"
+  case "$code" in
+    200 | 204) ;;
+    400)
+      if grep -q 'check-and-set' "$WORK/resp"; then
+        die "kv/$1 was written meanwhile (check-and-set refused); nothing overwritten (run again)"
+      fi
+      die "kv/$1: OpenBao refused the write (HTTP 400)"
+      ;;
+    *) die "kv/$1: OpenBao refused the write (HTTP $code)" ;;
+  esac
+}
 
 prom_token="$SECRETS_DIR/services/prometheus/llm-metrics.token"
 if ! kv_exists llm-router/config || ! installed "$prom_token"; then
@@ -270,7 +308,7 @@ fi
 if ! kv_exists llm-router/callers; then
   caller_token="$(newtoken)"
   TH="$(printf '%s' "$caller_token" | sha256)" jq -n '{data: {callers: {"hq-ops": {
-      token_sha256: env.TH, rpm: 30, max_input_chars: 100000}}}}' | kv_put llm-router/callers
+      token_sha256: env.TH, rpm: 30, max_input_chars: 100000}}}}' | kv_create llm-router/callers
   printf '%s' "$caller_token" >"$CALLER_FILE"
   chmod 600 "$CALLER_FILE"
   unset caller_token
@@ -280,7 +318,7 @@ fi
 for key in "${API_CONNECTIONS[@]}"; do
   if ! kv_exists "llm-connections/$key"; then
     jq -n '{data: {api_key: "", note: "set by the owner when this connection is enabled"}}' |
-      kv_put "llm-connections/$key"
+      kv_create "llm-connections/$key"
   fi
 done
 log "key paths ready: kv/llm-connections/{$(IFS=,; echo "${API_CONNECTIONS[*]}")}"
@@ -290,7 +328,7 @@ log "key paths ready: kv/llm-connections/{$(IFS=,; echo "${API_CONNECTIONS[*]}")
 # verified by the api; service tokens are added per caller when needed.
 if ! kv_exists hq-api/config; then
   AK="$(openssl rand -hex 32)" jq -n '{data: {agent_token_key: env.AK, service_tokens: {}}}' |
-    kv_put hq-api/config
+    kv_create hq-api/config
   log "hq-api config created (agent token key)"
 fi
 
@@ -301,7 +339,7 @@ if ! kv_exists hq-api/webpush; then
   pub="$(openssl ec -in "$WORK/vapid.pem" -pubout -outform DER 2>/dev/null | tail -c 65 |
     base64 -w0 | tr '+/' '-_' | tr -d '=')"
   PEM="$(cat "$WORK/vapid.pem")" PUB="$pub" jq -n '{data: {private_key_pem: env.PEM, public_key: env.PUB, subject: ""}}' |
-    kv_put hq-api/webpush
+    kv_create hq-api/webpush
   rm -f "$WORK/vapid.pem"
   unset pub
   log "Web Push (VAPID) keys created"
@@ -313,7 +351,7 @@ for channel in fcm telegram; do
       fcm) placeholder='{"data": {"service_account_json": "", "note": "set by the owner to switch FCM on"}}' ;;
       telegram) placeholder='{"data": {"bot_token": "", "chat_id": "", "note": "set by the owner; backup only, never approvals"}}' ;;
     esac
-    printf '%s' "$placeholder" | kv_put "hq-api/channels/$channel"
+    printf '%s' "$placeholder" | kv_create "hq-api/channels/$channel"
   fi
 done
 log "channel paths ready: kv/hq-api/channels/{fcm,telegram} (off until filled)"
@@ -347,7 +385,7 @@ if ! kv_exists provisioner/config; then
   expect "$(api GET kv/data/hq-api/config </dev/null)" 200
   PH="$(printf '%s' "$prov_token" | sha256)" jq '{data: (.data.data | .service_tokens =
       ((.service_tokens // {}) + {provisioner: env.PH}))}' "$WORK/resp" | kv_put hq-api/config
-  PT="$prov_token" jq -n '{data: {api_token: env.PT}}' | kv_put provisioner/config
+  PT="$prov_token" jq -n '{data: {api_token: env.PT}}' | kv_create provisioner/config
   unset prov_token
   log "provisioner: its api service token created (digest in hq-api/config; restart the api)"
 fi
@@ -361,7 +399,7 @@ if ! kv_exists tts/config; then
   expect "$(api GET kv/data/hq-api/config </dev/null)" 200
   TH="$(printf '%s' "$tts_token" | sha256)" jq '{data: (.data.data | .service_tokens =
       ((.service_tokens // {}) + {tts: env.TH}))}' "$WORK/resp" | kv_put hq-api/config
-  TT="$tts_token" jq -n '{data: {api_token: env.TT}}' | kv_put tts/config
+  TT="$tts_token" jq -n '{data: {api_token: env.TT}}' | kv_create tts/config
   unset tts_token
   log "tts: its api service token created (digest in hq-api/config; restart the api)"
 fi
@@ -375,7 +413,7 @@ if ! kv_exists media/config; then
   expect "$(api GET kv/data/hq-api/config </dev/null)" 200
   MH="$(printf '%s' "$media_token" | sha256)" jq '{data: (.data.data | .service_tokens =
       ((.service_tokens // {}) + {media: env.MH}))}' "$WORK/resp" | kv_put hq-api/config
-  MT="$media_token" jq -n '{data: {api_token: env.MT}}' | kv_put media/config
+  MT="$media_token" jq -n '{data: {api_token: env.MT}}' | kv_create media/config
   unset media_token
   log "media: its api service token created (digest in hq-api/config; restart the api)"
 fi
@@ -390,7 +428,7 @@ if ! kv_exists hq-agents/connector; then
   expect "$(api GET kv/data/hq-api/config </dev/null)" 200
   CH="$(printf '%s' "$conn_token" | sha256)" jq '{data: (.data.data | .service_tokens =
       ((.service_tokens // {}) + {worker: env.CH}))}' "$WORK/resp" | kv_put hq-api/config
-  CT="$conn_token" jq -n '{data: {api_token: env.CT}}' | kv_put hq-agents/connector
+  CT="$conn_token" jq -n '{data: {api_token: env.CT}}' | kv_create hq-agents/connector
   unset conn_token
   log "worker: its api service token for the connector created (digest in hq-api/config; restart the api)"
 fi
