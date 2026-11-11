@@ -341,14 +341,6 @@ async def release(tx: Tx, h: dict[str, Any], step_up_id: UUID) -> dict[str, Any]
 
 
 # ================================================================== sweep ==
-# what the sweep has nothing left to do for: retention_due fired, and its
-# review item made, or it is on a card, kept by the owner or held
-_HANDLED = """r.due_seen_at IS NOT NULL AND (
-                 (x.then_do = 'review' AND r.review_work_ref IS NOT NULL)
-                 OR (x.then_do = 'dispose_card' AND (r.disposal_ref IS NOT NULL OR r.disposal_kept
-                     OR cardinality(archive.held_by(r.id)) > 0)))"""
-
-
 async def due(
     tx: Tx, today: date | None = None, *, limit: int = 500, pending: bool = False
 ) -> list[dict[str, Any]]:
@@ -362,11 +354,17 @@ async def due(
                   x.then_do, archive.held_by(r.id) AS holds, r.disposal_ref, r.review_work_ref, r.disposal_kept
            FROM archive.records r JOIN core.companies co ON co.id = r.company_id
            JOIN archive.retention_rules x ON x.id = r.retention_rule_id
-           WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.due_at IS NOT NULL AND r.due_at <= :d"""
-        + (f" AND NOT ({_HANDLED})" if pending else "")
-        + " ORDER BY r.due_at, r.ref LIMIT :lim",
+           WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.due_at IS NOT NULL AND r.due_at <= :d
+             -- pending: not what the sweep has nothing left to do for (retention_due
+             -- fired, and its review item made, or on a card, kept by the owner or held)
+             AND NOT (CAST(:p AS boolean) AND r.due_seen_at IS NOT NULL AND (
+                 (x.then_do = 'review' AND r.review_work_ref IS NOT NULL)
+                 OR (x.then_do = 'dispose_card' AND (r.disposal_ref IS NOT NULL OR r.disposal_kept
+                     OR cardinality(archive.held_by(r.id)) > 0))))
+           ORDER BY r.due_at, r.ref LIMIT :lim""",
         d=today,
         lim=limit,
+        p=pending,
     )
     return [
         {
