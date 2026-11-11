@@ -152,3 +152,14 @@ def test_off_palette_allows_the_brand_and_neutrals_only() -> None:
         "#ff0000",
         "named:red",
     ]
+
+
+def test_an_out_of_range_hsl_is_clamped_and_never_breaks_off_palette() -> None:
+    # hsl(0, 200%, 50%) once made '#17e-80-80' and off_palette raised (a 500 on
+    # every brand check of the item); CSS clamps it to pure red.
+    rep = C.check("html", "<style>div{color:hsl(0, 200%, 50%);background:hsl(0,0%,150%)}</style>")
+    assert {"#ff0000", "#ffffff"} <= set(rep.colors)
+    assert all(len(c) == 7 for c in rep.colors), rep.colors
+    assert C.off_palette(rep.colors, ["#ff0000"]) == []
+    # a malformed value already stored in an older report counts as off-palette
+    assert C.off_palette(["#17e-80-80", "#ff0000"], ["#ff0000", "bad"]) == ["#17e-80-80"]
