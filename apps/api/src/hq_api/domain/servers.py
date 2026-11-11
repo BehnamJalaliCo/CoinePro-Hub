@@ -1197,8 +1197,8 @@ ACCOUNT_NEAR_FULL = Decimal("0.99")
 # an older "ok" observation no longer decides (the router's SDK_FRESH)
 ACCOUNT_SDK_FRESH = timedelta(hours=6)
 # ⟨2026-11-11⟩ every window the router (and a runner, below) saw, not only the summary row
-ACCOUNTS_SQL = """SELECT c.key, c.status AS connection_status, q.status, q.utilization,
-       q.resets_at, q.observed_at, q.windows
+ACCOUNTS_SQL = """SELECT c.key, c.status AS connection_status, c.quota_reset_at, q.status,
+       q.utilization, q.resets_at, q.observed_at, q.windows
   FROM llm.connections c LEFT JOIN llm.quota_status q ON q.connection_id = c.id
  WHERE c.key = ANY(CAST(:keys AS text[]))"""
 
@@ -1335,6 +1335,11 @@ async def _room_at(tx: Tx, keys: list[str]) -> datetime | None:
         full = [w for w in _windows(row).values() if isinstance(w, dict) and _window_full(w, now)]
         if row.get("status") is not None and _window_full(row, now):
             full.append(row)
+        if row["connection_status"] == "quota_exhausted":
+            # refused by the provider (as runner_claude_pick reads it): full until its reset
+            end = row.get("quota_reset_at") or row.get("resets_at")
+            if end is None or end > now:
+                full.append({"resets_at": end})
         ends = [e for e in (_at(w.get("resets_at")) for w in full) if e is not None]
         if not full:
             return None  # this one has room now
@@ -1400,18 +1405,22 @@ QUOTA_RANK = {"ok": 0, "warning": 1, "limited": 2}
 QUOTA_HOLD = timedelta(hours=5)  # the router's HOLD: a limit whose end is unknown
 QUOTA_MAX_WINDOWS = 16
 _WINDOW_KIND = re.compile(r"[a-z0-9_]{2,40}")
-# The CLI's own notice when the subscription is out: limit wording, short, AND the reset marker
-# every real notice carries ("|<epoch>", "resets 5pm"). The same rule as claude-runtime's
-# quota.limit_notice. Limit wording alone ("Disk usage limit reached; cleaned /var/log.", "disk
-# quota exceeded") is a turn's own word: taken for the subscription's limit it would mark the
-# account full, move the turn, mark the other one full too, and stop every Claude Code job.
+# The CLI's own notice when the subscription is out, in its own form only: the limit phrase at the
+# very start ("Claude AI usage limit reached|<epoch>", "5-hour limit reached ∙ resets 3pm",
+# "You've hit your limit · resets 5pm") and its reset marker ("|<epoch>", "∙ resets", "· resets"),
+# short. The same rule as claude-runtime's quota.limit_notice. Any other text about a limit
+# ("Disk usage limit reached; cleaned /var/log.", "Instagram publishing limit reached (25/25);
+# resets at 14:00 UTC.") is a turn's own word: taken for the subscription's limit it would mark
+# the account full, move the turn, mark the other one full too, and stop every Claude Code job.
 _LIMIT_NOTICE = re.compile(
-    r"\blimit (?:reached|hit)\b|\byou(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
-    r"|\bout of (?:extra )?usage\b|\busage limit\b",
+    r"^(?:claude(?: ai)? usage limit reached"
+    r"|(?:(?:5-hour|five-hour|weekly|daily|session|opus|sonnet)(?: weekly)? )?limit reached"
+    r"|you(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit"
+    r"|you(?:'|\u2019)?re out of (?:extra )?usage)\b",
     re.IGNORECASE,
 )
 NOTICE_CHARS = 400
-_RESET_MARK = re.compile(r"\|\d{10}\b|\bresets?\b", re.IGNORECASE)
+_RESET_MARK = re.compile(r"\|\d{10}\b|[\u2219\u00b7\u2022]\s*resets?\b", re.IGNORECASE)
 _EPOCH = re.compile(r"\|(\d{10})\b")
 USAGE_LIMIT = "usage_limit"
 MOVED_FA = "حساب Claude به سقف مصرفش رسید؛ همین نوبت روی حساب دیگر دوباره اجرا میشود."
@@ -1432,8 +1441,8 @@ NO_REQUEUE_ACTORS = ("catalogue", "secretary")  # they follow their jobs by id
 
 
 def limit_notice(text: str | None) -> bool:
-    """The CLI's own short usage-limit notice (limit wording with its reset marker), never an
-    answer that merely mentions a limit."""
+    """The CLI's own short usage-limit notice, in its own form (the limit phrase first, its reset
+    marker in it), never an answer that merely mentions a limit and a reset."""
     t = (text or "").strip()
     return (
         0 < len(t) <= NOTICE_CHARS
@@ -1787,6 +1796,18 @@ async def finish(
     stored, its kind's effect applied (the map, a read's content, the links
     of a netcheck, a publish's external id), its usage recorded."""
     if j["state"] in FINAL:
+        # ⟨2026-11-11⟩ the runner sends a result again when it did not hear the answer: a turn
+        # already moved to the other account is still that (what follows a turn's end waits for
+        # the new job, never runs for this one)
+        if flagged_usage_limit(j):
+            again = await tx.scalar(
+                """SELECT id::text FROM infra.server_jobs
+                   WHERE server_id = :s AND usage->>'retry_of' = :id LIMIT 1""",
+                s=j["server_id"],
+                id=str(j["id"]),
+            )
+            if again is not None:
+                return {**j, "requeued_as": str(again)}
         return j
     ok = error is None and exit_code is not None and (j["kind"] == "exec" or exit_code == 0)
     state = "done" if ok else "failed"
@@ -1811,7 +1832,7 @@ async def finish(
         other = await _other_account(tx, hub, j, book)
         # only a turn that did nothing yet runs again whole; one that did ends here (the holder is
         # woken as for any failed turn) and its next turn takes the other account
-        moved = other if other is not None and await _untouched(tx, j) else None
+        moved = other if other is not None and await _untouched(tx, j, data) else None
         summary_fa = (
             MOVED_FA if moved is not None else MIDWAY_FA if other is not None else LIMIT_FAILED_FA
         )
@@ -1926,13 +1947,22 @@ async def _other_account(
     return other if other.key and other.key != account else None
 
 
-async def _untouched(tx: Tx, j: dict[str, Any]) -> bool:
+async def _untouched(tx: Tx, j: dict[str, Any], data: dict[str, Any]) -> bool:
     """Whether a refused turn may run again whole: it did nothing on its server yet (no command,
-    no file change, no tool call). A workshop turn that is not a direct one may always: its folder
-    is its state, and the next turn goes on from it."""
+    no file change, no tool call), by its events and by its result (an event batch the runner
+    could not deliver is lost, its result is not: hub tool calls, files changed, more than one
+    turn). A workshop turn that is not a direct one may always: its folder is its state, and the
+    next turn goes on from it."""
     args = j.get("args") or {}
     if args.get("hands") and not args.get("direct"):
         return True
+    calls, turns = data.get("tool_calls"), data.get("num_turns")
+    if isinstance(calls, int) and not isinstance(calls, bool) and calls > 0:
+        return False
+    if data.get("files_changed"):
+        return False
+    if isinstance(turns, int) and not isinstance(turns, bool) and turns > 1:
+        return False
     return not await tx.scalar(DID_SQL, j=j["id"])
 
 

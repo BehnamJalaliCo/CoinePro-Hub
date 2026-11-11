@@ -35,7 +35,7 @@ from hq_api.hub import Hub
 from .p10_fakes import holding_switch
 from .test_p17_runners import pair, poll, take
 from .test_p21_groups import TEHRAN, at, channel
-from .test_p21_routing_orders import all_tx, auto_hiring  # noqa: F401 - the fixture
+from .test_p21_routing_orders import all_tx, auto_hiring, set_hiring  # noqa: F401 - the fixture
 from .test_p21_secretary import no_model  # noqa: F401 - the fixture
 from .test_p23_talk import talk  # noqa: F401 - the fixture
 from .test_w18_standing_publish import a_day, a_group, args_of, jobs_of
@@ -174,39 +174,70 @@ async def test_the_best_hour_reads_the_posts_with_the_holdings_command(
     assert job["kind"] == "exec" and job["args"]["cmd"] == f"{HUB_COMMAND} posts pro.chart 100"
 
 
-# ================================ 3. a delivered technical work is not open; once a day again ==
-async def test_a_delivered_tech_work_with_the_route_not_ready_is_made_again_once_a_day(
+# ======== 3 + review. one registration work per company; the daily read never remakes it by itself ==
+async def ig_works(su: Any, code: str) -> list[Any]:
+    return list(
+        await su.fetch(
+            """SELECT ref, status FROM work.work
+               WHERE run_meta ->> 'ig_setup' = $1 OR run_meta ->> 'ig_publish' = $1
+               ORDER BY created_at""",
+            code,
+        )
+    )
+
+
+async def test_one_tech_work_per_company_and_a_delivered_one_is_made_again_only_on_demand(
     hub: Hub, su: Any, new_company: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     co = await new_company()
     code = co["code"]
     async with await all_tx(hub) as tx:
-        first = await CN.ensure_ig_publish_work(tx, co["id"])
+        first = await CN.ensure_ig_publish_work(tx, co["id"])  # a tap
         assert first is not None
         assert await CN.ensure_ig_publish_work(tx, co["id"]) == first  # open: the same one
-    # the technical team delivered it, and the route is still not ready: within the day it stands
+        # the daily read and an order's blocker take the same work: one per company
+        assert await CN.ensure_ig_setup_work(tx, co["id"], daily=True) == first
+        assert await CN.ensure_ig_setup_work(tx, co["id"]) == first
+        assert await CN.ig_setup_work(tx, co["id"]) == first
+        assert await SPB._setup_fa(tx, first) == SPB.SETUP_FA
+    # the technical team delivered it and the accounts are still not registered
     await su.execute("UPDATE work.work SET status = 'delivered' WHERE ref = $1", first)
-    async with await all_tx(hub) as tx:
-        assert await CN.ensure_ig_publish_work(tx, co["id"]) == first
-    assert len(await tech_works(su, "ig_publish", code)) == 1
-    # a day later: a new open one
     monkeypatch.setattr(CN, "TECH_AGAIN", timedelta(0))
     async with await all_tx(hub) as tx:
-        again = await CN.ensure_ig_publish_work(tx, co["id"])
-        assert again is not None and again != first
-        assert await CN.ensure_ig_publish_work(tx, co["id"]) == again
-    works = await tech_works(su, "ig_publish", code)
-    assert [w["ref"] for w in works] == [first, again] and works[1]["status"] in W.OPEN
-    # the same for the registration of the accounts
-    async with await all_tx(hub) as tx:
-        setup = await CN.ensure_ig_setup_work(tx, co["id"])
-    assert setup is not None
-    await su.execute("UPDATE work.work SET status = 'delivered' WHERE ref = $1", setup)
-    async with await all_tx(hub) as tx:
+        # the daily read by itself: a delivered one stands, however old (never a work a day)
+        assert await CN.ensure_ig_setup_work(tx, co["id"], daily=True) == first
         assert await CN.ig_setup_work(tx, co["id"]) is None  # delivered is not open
-        made = await CN.ensure_ig_setup_work(tx, co["id"])
-    assert made is not None and made != setup
-    brief = await su.fetchval("SELECT brief FROM work.work WHERE ref = $1", made)
+    assert len(await ig_works(su, code)) == 1
+    monkeypatch.setattr(CN, "TECH_AGAIN", timedelta(hours=24))
+    async with await all_tx(hub) as tx:
+        # a demand within the day: it stands, and the session says honestly that none is open
+        assert await CN.ensure_ig_publish_work(tx, co["id"]) == first
+        assert await SPB._setup_fa(tx, first) == SPB.SETUP_AGAIN_FA
+    assert "شما" not in SPB.SETUP_AGAIN_FA and H.check(SPB.SETUP_AGAIN_FA.format(
+        company="پروچارت", server="IG-Hub")) == []  # fmt: skip
+    monkeypatch.setattr(CN, "TECH_AGAIN", timedelta(0))
+    async with await all_tx(hub) as tx:
+        again = await CN.ensure_ig_publish_work(tx, co["id"])  # a demand a day later: a new one
+        assert again is not None and again != first
+        assert await CN.ensure_ig_publish_work(tx, co["id"]) == again  # open: it stands
+    assert [w["ref"] for w in await ig_works(su, code)] == [first, again]
+    # a failed or cancelled one never stands: a new one at once, within the day too
+    monkeypatch.setattr(CN, "TECH_AGAIN", timedelta(hours=24))
+    other = await new_company()
+    async with await all_tx(hub) as tx:
+        one = await CN.ensure_ig_setup_work(tx, other["id"], daily=True)
+    await su.execute("UPDATE work.work SET status = 'cancelled' WHERE ref = $1", one)
+    async with await all_tx(hub) as tx:
+        two = await CN.ensure_ig_setup_work(tx, other["id"])  # an order's blocker
+        assert two is not None and two != one
+        assert await SPB._setup_fa(tx, two) == SPB.SETUP_FA
+    await su.execute("UPDATE work.work SET status = 'failed' WHERE ref = $1", two)
+    async with await all_tx(hub) as tx:
+        three = await CN.ensure_ig_publish_work(tx, other["id"])  # a tap
+        assert three is not None and three not in (one, two)
+    works = await ig_works(su, other["code"])
+    assert [w["ref"] for w in works] == [one, two, three] and works[2]["status"] in W.OPEN
+    brief = await su.fetchval("SELECT brief FROM work.work WHERE ref = $1", two)
     assert f"`{HUB_COMMAND} accounts`" in brief and "شرکت آزمایشی" in brief
 
 
@@ -239,6 +270,20 @@ async def test_a_routines_output_goes_out_and_a_held_one_keeps_an_open_tech_work
     )
     assert woken == 0
 
+    # review 1: a turn that left less than a package (no caption: a render half done) keeps the
+    # routine's work open and wakes its holder to finish it; nothing goes out, nothing is lost
+    day2 = day + timedelta(days=1)
+    half = await a_day(client, hub, su, g, day2, ("reel.mp4", "cover.png"), deliver=False)
+    assert half["status"] in W.OPEN and await jobs_of(su, half["run"]) == []
+    woken = await su.fetchval(
+        "SELECT count(*) FROM agents.runs WHERE work_id = $1 AND reason = $2",
+        half["work_id"],
+        f"workshop_done:{half['work']}",
+    )
+    assert woken == 1
+    ws = await su.fetchval("SELECT state FROM work.workspaces WHERE work_id = $1", half["work_id"])
+    assert ws == "idle"
+
     # 4. the accounts are gone (not registered): held, with the desk's own line on the run, an
     # open technical work, and no notification
     await su.execute(
@@ -246,7 +291,7 @@ async def test_a_routines_output_goes_out_and_a_held_one_keeps_an_open_tech_work
         "WHERE company_id = $1 AND kind = 'instagram'",
         cid,
     )
-    day2 = day + timedelta(days=1)
+    day2 = day2 + timedelta(days=1)
     held = await a_day(client, hub, su, g, day2, ("reel.mp4", "cover.png", "caption.txt"))
     assert await jobs_of(su, held["run"]) == []
     note = await su.fetchval("SELECT note_fa FROM growth.routine_runs WHERE id = $1", held["run"])
@@ -266,6 +311,12 @@ async def test_a_routines_output_goes_out_and_a_held_one_keeps_an_open_tech_work
         desk = await PD.desk(tx, hub, cid)
     card = next(c for c in desk.ready if c.output == held["output"])
     assert card.route_ready is False
+    # review 3: the hook after a deliver and the groups' tick never both send one run (it is
+    # locked for the call; the other says "busy")
+    async with await all_tx(hub) as tx:
+        await tx.scalar("SELECT 1 FROM growth.routine_runs WHERE id = :r FOR UPDATE", r=held["run"])
+        assert await SPB.after_delivered(hub, held["work_id"]) == "busy"
+    assert await SPB.after_delivered(hub, held["work_id"]) == "waiting_setup"
     # the technical team delivered its work and the route is still not ready: every tick keeps
     # it as it is within the day, and a day later a new open one is made, still without a push
     await su.execute("UPDATE work.work SET status = 'delivered' WHERE ref = $1", tech["ref"])
@@ -298,33 +349,19 @@ async def test_an_empty_seat_says_why_and_asks_the_ceo_to_fill_it_once_a_day(
     code = co["code"]
     await channel(client, hub, owner_session, code)
     day = datetime.now(TEHRAN).date() + timedelta(days=1)
-    async with holding_switch(su, "released"):
-        out = await GR.tick(hub, now=at(day, 8, 0), only={co["id"]})
-    assert out["skipped"] >= 1, out
-    run = await su.fetchrow(
-        """SELECT x.state, x.note_fa FROM growth.routine_runs x
-           WHERE x.company_id = $1 AND x.routine = 'numbers' ORDER BY x.occurrence_at DESC LIMIT 1""",
-        co["id"],
-    )
-    assert run["state"] == "skipped"
-    assert run["note_fa"] == GR.EMPTY_CEO_FA.format(seat="تحلیلگر عملکرد")
-    assert H.check(run["note_fa"]) == []
-    # the working group's page shows the line
-    r = await client.get("/api/v1/groups/content/runs", headers=owner_session["headers"],
-                         params={"company": code, "routine": "numbers"})  # fmt: skip
-    assert r.json()["items"][0]["note_fa"] == run["note_fa"], r.json()
-    fills = await su.fetch(
-        """SELECT w.ref, w.title, w.brief, w.priority, w.status, e.code, e.kind FROM work.work w
-           JOIN core.employees e ON e.id = w.assignee_id
-           WHERE w.company_id = $1 AND w.run_meta ->> 'seat_fill' = 'content:content_analyst'""",
-        co["id"],
-    )
-    assert len(fills) == 1
-    fill = fills[0]
-    assert fill["kind"] == "ceo" and fill["status"] in W.OPEN and fill["priority"] == "P2"
-    assert "تحلیلگر عملکرد" in fill["title"] and H.check(fill["title"]) == []
-    assert "`hire`" in fill["brief"] and "content_analyst" in fill["brief"]
-    assert "Never ask the owner" in fill["brief"]
+
+    async def tick(n: int) -> None:
+        async with holding_switch(su, "released"):
+            await GR.tick(hub, now=at(day + timedelta(days=n), 8, 0), only={co["id"]})
+
+    async def numbers_note() -> str:
+        return str(
+            await su.fetchval(
+                """SELECT note_fa FROM growth.routine_runs WHERE company_id = $1
+                     AND routine = 'numbers' ORDER BY occurrence_at DESC LIMIT 1""",
+                co["id"],
+            )
+        )
 
     async def fills_now() -> int:
         return int(
@@ -335,20 +372,67 @@ async def test_an_empty_seat_says_why_and_asks_the_ceo_to_fill_it_once_a_day(
             )
         )
 
-    # the next day's run is skipped too: the open work stands, nothing new
-    async with holding_switch(su, "released"):
-        await GR.tick(hub, now=at(day + timedelta(days=1), 8, 0), only={co["id"]})
-    assert await fills_now() == 1
-    # the CEO delivered it and the seat is still empty: within the day nothing new; a day later
-    # one more
-    await su.execute("UPDATE work.work SET status = 'delivered' WHERE ref = $1", fill["ref"])
-    async with holding_switch(su, "released"):
-        await GR.tick(hub, now=at(day + timedelta(days=2), 8, 0), only={co["id"]})
-    assert await fills_now() == 1
-    monkeypatch.setattr(GR, "SEAT_FILL_AGAIN", timedelta(0))
-    async with holding_switch(su, "released"):
-        await GR.tick(hub, now=at(day + timedelta(days=3), 8, 0), only={co["id"]})
-    assert await fills_now() == 2
+    # hiring is open (the CEO decides hire cards) but not automatic: the seat is the CEO's to fill
+    await set_hiring(su, "open", "delegated")
+    try:
+        await tick(0)
+        run = await su.fetchrow(
+            """SELECT x.state, x.note_fa FROM growth.routine_runs x WHERE x.company_id = $1
+                 AND x.routine = 'numbers' ORDER BY x.occurrence_at DESC LIMIT 1""",
+            co["id"],
+        )
+        assert run["state"] == "skipped"
+        assert run["note_fa"] == GR.EMPTY_CEO_FA.format(seat="تحلیلگر عملکرد")
+        assert H.check(run["note_fa"]) == []
+        # the working group's page shows the line
+        r = await client.get("/api/v1/groups/content/runs", headers=owner_session["headers"],
+                             params={"company": code, "routine": "numbers"})  # fmt: skip
+        assert r.json()["items"][0]["note_fa"] == run["note_fa"], r.json()
+        fills = await su.fetch(
+            """SELECT w.ref, w.title, w.brief, w.priority, w.status, e.code, e.kind FROM work.work w
+               JOIN core.employees e ON e.id = w.assignee_id
+               WHERE w.company_id = $1 AND w.run_meta ->> 'seat_fill' = 'content:content_analyst'""",
+            co["id"],
+        )
+        assert len(fills) == 1
+        fill = fills[0]
+        assert fill["kind"] == "ceo" and fill["status"] in W.OPEN and fill["priority"] == "P2"
+        assert "تحلیلگر عملکرد" in fill["title"] and H.check(fill["title"]) == []
+        assert "`hire`" in fill["brief"] and "content_analyst" in fill["brief"]
+        assert "Never ask the owner" in fill["brief"]
+        # the next day's run is skipped too: the open work stands, nothing new
+        await tick(1)
+        assert await fills_now() == 1
+        # the CEO delivered it and the seat is still empty: within the day nothing new; a day
+        # later one more
+        await su.execute("UPDATE work.work SET status = 'delivered' WHERE ref = $1", fill["ref"])
+        await tick(2)
+        assert await fills_now() == 1
+        monkeypatch.setattr(GR, "SEAT_FILL_AGAIN", timedelta(0))
+        await tick(3)
+        assert await fills_now() == 2
+        # review 2: hiring closed, which the CEO cannot clear: no work for him, and the run says
+        # why as it is
+        await su.execute(
+            """UPDATE work.work SET status = 'delivered'
+               WHERE company_id = $1 AND run_meta ->> 'seat_fill' = 'content:content_analyst'""",
+            co["id"],
+        )
+        await set_hiring(su, "closed", None)
+        await tick(4)
+        assert await fills_now() == 2
+        note = await numbers_note()
+        assert note == GR.EMPTY_STUCK_FA.format(seat="تحلیلگر عملکرد", why=GR.HIRING_SHUT_FA)
+        assert H.check(note) == [] and "مدیرعامل" not in note
+    finally:
+        await set_hiring(su, "closed", None)
+    async with await all_tx(hub) as tx:
+        assert await GR.seat_stuck_fa(tx, None) is None
+        assert await GR.seat_stuck_fa(tx, "hiring_closed") == GR.HIRING_SHUT_FA
+        assert await GR.seat_stuck_fa(tx, "envelope_exceeded") == (
+            "پاکت ماه شرکت برای این استخدام جا ندارد."
+        )
+        assert await GR.seat_stuck_fa(tx, "internal_error") is None
     # an optional seat is never a hire of its own: its run says so plainly
     assert (
         "اختیاری" in GR.EMPTY_OPTIONAL_FA and H.check(GR.EMPTY_OPTIONAL_FA.format(seat="x")) == []

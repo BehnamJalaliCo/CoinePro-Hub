@@ -350,6 +350,7 @@ async def work_tree_events(
                           'agent', coalesce(emp.code, ''),
                           jsonb_build_object(
                               'run_id', r.id, 'n', s.n, 'summary_fa', s.summary_fa,
+                              'any_failed', (s.usage->>'any_failed') = 'true',
                               'actions', coalesce((
                                   SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
                                       'tool', a->'tool', 'class', a->'class',
@@ -380,12 +381,26 @@ async def work_tree_events(
                 depth=r["depth"],
                 actor_kind=r["actor_kind"],
                 actor_code=r["actor_code"],
-                data=dict(r["data"] or {}),
+                data=_step_data(r),
             )
             for r in items
         ],
         next_cursor=nxt,
     )
+
+
+def _step_data(r: dict[str, Any]) -> dict[str, Any]:
+    """⟨2026-11-11⟩ A step with an action that did not happen is told by its tools' real outcome
+    («… (نشد)»), never by the summary the model wrote before it knew (as the session tells it)."""
+    data = dict(r["data"] or {})
+    if r["kind"] != "run.step":
+        return data
+    if data.pop("any_failed", None):
+        from hq_api.domain import session_activity as SA
+
+        acts = data.get("actions")
+        data["summary_fa"] = SA.tools_text(acts if isinstance(acts, list) else [])
+    return data
 
 
 @router.post("/work", response_model=W.Work, status_code=201, responses=E)

@@ -325,6 +325,101 @@ async def test_a_turn_that_already_did_something_is_never_run_again_whole(
     assert again is not None and (await take(client, rn))["claude_oauth"] == SECOND
 
 
+async def test_a_result_sent_again_never_ends_a_moved_turn_twice(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner did not hear the answer to a moved turn's result and sends it again: the job is
+    still the moved one (its workspace, its direct run and its holder are left to the new job),
+    and nothing is moved a second time."""
+    from hq_api.routes import servers as RS
+
+    ended: list[Any] = []
+
+    async def after_job(hub_: Any, job_id: Any) -> None:
+        ended.append(job_id)
+
+    monkeypatch.setattr(RS.WS, "after_job", after_job)
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    jid = await _claude_job(hub, rn["server"]["id"], hands=True, workspace="W-0")
+    await take(client, rn)
+    notice = {"result_fa": f"Claude AI usage limit reached|{int(time.time()) + 600}"}
+    for _ in range(3):
+        assert await _result(client, rn, jid, exit_code=1, data=notice) == "failed"
+    assert ended == []
+    moved = await su.fetch(
+        "SELECT id FROM infra.server_jobs WHERE usage->>'retry_of' = $1", jid
+    )
+    assert len(moved) == 1
+
+
+async def test_a_turn_whose_result_shows_work_is_never_run_again_whole(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+) -> None:
+    """Its event batches may be lost; its result is not: hub tool calls, files changed or more
+    than one turn mean it did something, and it ends instead of running again."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    notice = f"Claude AI usage limit reached|{int(time.time()) + 600}"
+    for shown in ({"tool_calls": 2}, {"files_changed": ["app/config.py"]}, {"num_turns": 3}):
+        await _clear(su)
+        jid = await _claude_job(hub, rn["server"]["id"])
+        await take(client, rn)
+        await _result(client, rn, jid, exit_code=1, data={"result_fa": notice, **shown})
+        j = await _job(su, jid)
+        assert (j["error_code"], j["summary_fa"]) == (SV.USAGE_LIMIT, SV.MIDWAY_FA), shown
+        assert await _moved(su, jid) is None, shown
+    # nothing shown at all: it moves
+    await _clear(su)
+    jid = await _claude_job(hub, rn["server"]["id"])
+    await take(client, rn)
+    await _result(client, rn, jid, exit_code=1, data={"result_fa": notice, "num_turns": 1})
+    assert await _moved(su, jid) is not None
+
+
+async def test_room_at_counts_an_account_out_of_quota_as_full(
+    hub: Hub, su: asyncpg.Connection, accounts: Any
+) -> None:
+    """The main account refused by the provider (connection quota_exhausted), the second one full:
+    the jobs wait, and the room comes back at the earlier of the two resets."""
+    now = await su.fetchval("SELECT now()")
+    await su.execute(
+        """UPDATE llm.connections SET status = 'quota_exhausted',
+               quota_reset_at = now() + interval '2 hours' WHERE key = 'claude-max'"""
+    )
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await SV.observe_quota(
+                tx, "claude-max-2",
+                *SV._state("limited", None, None, now + timedelta(hours=1), "quota_guard", now),
+            )  # fmt: skip
+            assert (await SV.runner_claude_pick(tx, hub)).hold
+            room = await SV.room_at(tx, hub)
+            worker_room = await SV.accounts_room_at(tx)
+        assert room is not None and abs((room - now).total_seconds() - 3600) < 5
+        assert worker_room == room
+        # the second one's window resets: room now
+        await _clear(su)
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await SV.room_at(tx, hub) is None
+            assert not (await SV.runner_claude_pick(tx, hub)).hold
+    finally:
+        await su.execute(
+            "UPDATE llm.connections SET quota_reset_at = NULL WHERE key = 'claude-max'"
+        )
+
+
 async def test_a_servers_own_limit_is_never_the_subscriptions(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -386,12 +481,23 @@ def test_a_limit_notice_is_not_an_answer() -> None:
     assert SV.limit_notice("Claude AI usage limit reached|1800000000")
     assert SV.limit_notice("5-hour limit reached ∙ resets 3pm")
     assert SV.limit_notice("You\u2019ve hit your limit · resets 5pm")
-    assert SV.limit_notice("Claude usage limit reached. Your limit will reset at 3pm.")
+    assert SV.limit_notice("Weekly limit reached ∙ resets Mon 9am")
+    assert SV.limit_notice("You're out of extra usage · resets 3am")
     assert not SV.limit_notice("## ساخته شد\nکاور و متن آماده است.")
-    assert not SV.limit_notice("usage limit reached, resets 3pm " + "x" * 500)  # an answer
-    # a server's own limits are the turn's word, never the subscription's
-    for text in ("Disk usage limit reached; cleaned /var/log.", "disk quota exceeded",
-                 "write failed: Disk quota exceeded", "usage limit", "limit reached"):  # fmt: skip
+    assert not SV.limit_notice("5-hour limit reached ∙ resets 3pm " + "x" * 500)  # an answer
+    # an answer about a limit (a server's, a platform's), never the subscription's
+    for text in (
+        "Instagram publishing limit reached (25/25); resets at 14:00 UTC.",
+        "The IG API usage limit resets hourly; I will retry the publish then.",
+        "Fail2ban limit hit for 1.2.3.4; the ban resets in 10 minutes.",
+        "Disk usage limit reached; cleaned /var/log.",
+        "disk quota exceeded",
+        "write failed: Disk quota exceeded",
+        "Claude usage limit reached. Your limit will reset at 3pm.",
+        "Done. Note: 5-hour limit reached ∙ resets 3pm",
+        "usage limit",
+        "limit reached",
+    ):
         assert not SV.limit_notice(text), text
     assert SV.flagged_usage_limit({"error_code": SV.USAGE_LIMIT})
     assert not SV.flagged_usage_limit({"error_code": "exit_nonzero"})
@@ -637,6 +743,17 @@ async def test_a_step_with_a_refused_action_gets_one_more_step_and_claims_nothin
         for m in c.messages
     )
     assert "did NOT happen" in told and f"order.progress: {R.SKIPPED}" in told
+    # the work's tree tells that step by its tools' real outcome, never by the model's summary
+    r = await client.get(
+        f"/api/v1/work/{w['id']}/tree-events", headers=owner, params={"limit": 200}
+    )
+    assert r.status_code == 200, r.text
+    mine = [e["data"] for e in r.json()["items"] if e["kind"] == "run.step"
+            and e["data"].get("run_id") == str(row["id"])]  # fmt: skip
+    assert [d["n"] for d in mine] == [1, 2]
+    assert "(نشد)" in mine[0]["summary_fa"] and "ChatGPT" not in mine[0]["summary_fa"]
+    assert mine[1]["summary_fa"] == "نشد؛ همین را به مدیر کل میگویم"
+    assert all("any_failed" not in d for d in mine)
 
 
 async def test_an_owners_card_is_waiting_never_did_not_happen(
@@ -646,15 +763,21 @@ async def test_an_owners_card_is_waiting_never_did_not_happen(
     agents: Any,
     new_company: Callable[..., Any],
 ) -> None:
-    """The gateway answers `denied / a3_requires_decision` when it raised the owner's card: the
-    model is told it waits for his decision and must not call it again (a second card), not that
-    it did not happen; alone, it does not keep the run going."""
+    """The gateway answers `denied / a3_requires_decision` when it raised the owner's card, and
+    `denied / awaiting_seal` when a server job or a hub op waits for his seal: the model is told it
+    waits for his decision and must not call it again (a second card; sealing both would run a
+    destructive command twice), not that it did not happen; alone, it does not keep the run going.
+    A failed read alone does not either."""
     real = agents.gateway.call
 
     async def gateway(token: str, step_n: int, index: int, tool: str, args: Any) -> Any:
         if tool == "mcp.card":
             return {"outcome": "denied", "class": "A3", "code": R.DECISION, "ref": "D-0042",
                     "hint_fa": "کارت تصمیم برای مدیر کل رفت"}  # fmt: skip
+        if tool == "server.exec":
+            return {"outcome": "denied", "class": "A2", "code": R.AWAITING_SEAL, "ref": "D-0043"}
+        if tool == "x.read":
+            return {"outcome": "error", "class": "A0", "code": "not_found", "ref": None}
         return await real(token, step_n, index, tool, args)
 
     agents.gateway.call = gateway
@@ -670,6 +793,23 @@ async def test_an_owners_card_is_waiting_never_did_not_happen(
             await su.fetchval("SELECT usage FROM agents.steps WHERE run_id = $1", alone["id"])
         )
         assert "any_failed" not in usage
+
+        # a destructive command waits for the seal; a read failed: the step's done stands
+        sealed = (await new_company())["code"]
+        await order(client, owner, sealed)
+        seal_run = (await runs_of(su, f"{sealed}-CEO"))[-1]
+        agents.fake.enqueue(
+            f"{sealed}-CEO",
+            step("کارت مُهر رفت", ("server.exec", {"cmd": "rm -rf /srv/old"}), ("x.read", {})),
+        )
+        assert (await run(agents, seal_run["id"]))["state"] == "done"
+        acts = json.loads(
+            await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1", seal_run["id"])
+        )
+        assert [a["outcome"] for a in acts] == ["denied", "error"]
+        assert await su.fetchval(
+            "SELECT count(*) FROM agents.steps WHERE run_id = $1", seal_run["id"]
+        ) == 1  # fmt: skip
 
         co2 = (await new_company())["code"]
         await order(client, owner, co2)
@@ -701,6 +841,10 @@ async def test_an_owners_card_is_waiting_never_did_not_happen(
     assert "waits for the owner's decision D-1" in text and "did NOT happen" not in text
     assert R.not_done_text([], True, []) == ""
     assert not R.did_not_happen({"outcome": "denied", "code": R.DECISION})
+    assert not R.did_not_happen({"outcome": "denied", "code": R.AWAITING_SEAL})
+    seal = R.not_done_text([], True, [{"tool": "server.exec", "code": "awaiting_seal", "ref": "D-2"}])
+    assert "server.exec: waits for the owner's decision D-2; a card was raised" in seal
+    assert R.claims("errand.finish")
     assert R.done_lines("کارت رفت", [{"tool": "x", "outcome": "denied", "code": R.DECISION}]) == [
         "کارت رفت"
     ]

@@ -539,7 +539,9 @@ async def _service(ctx: Ctx) -> None:
 
 
 @internal_router.post("/substitutes/jobs/claim", responses=E)
-async def claim_job(background: BackgroundTasks, ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
+async def claim_job(
+    background: BackgroundTasks, ctx: Ctx = Depends(internal_ctx)
+) -> dict[str, Any]:
     """The next CLI job, one at a time for both players; none while the
     holding's kill switch is engaged."""
     # ⟨2026-11-11⟩ stale calls are ended after the answer (S.reap_after_claim), each told to

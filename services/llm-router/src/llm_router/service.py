@@ -225,7 +225,13 @@ class RouterService:
 
     # --------------------------------------------------------------- admit --
     async def admit(
-        self, req: RunRequest, caller: str, max_input_chars: int, *, retry_of: str | None = None
+        self,
+        req: RunRequest,
+        caller: str,
+        max_input_chars: int,
+        *,
+        retry_of: str | None = None,
+        slot_wait_s: float | None = None,
     ) -> Plan:
         snap = await self.registry.get()
         company = snap.companies.get(req.company_code)
@@ -347,7 +353,9 @@ class RouterService:
         await self._check_support_draft(req, company, row, rls, now)
 
         try:
-            await self.scheduler.acquire(req.priority, timeout=req.timeout_s)
+            await self.scheduler.acquire(
+                req.priority, timeout=req.timeout_s if slot_wait_s is None else slot_wait_s
+            )
         except QueueRejected as exc:
             self.metrics.queue_rejections.labels(f"P{req.priority}", exc.reason).inc()
             raise RouterError(
@@ -983,6 +991,9 @@ class RouterService:
     # failing `usage_limit`. Only a refusal that came back quickly (the caller's own deadline is
     # timeout_s + 30 s) and, for a stream, only before its first delta.
     RETRY_WITHIN_S = 25.0
+    # the retry waits this long at most for a slot: with RETRY_WITHIN_S it stays inside the slack
+    # the caller gives the call (its deadline is timeout_s + 30 s), the twin's own run included
+    RETRY_SLOT_WAIT_S = 5.0
 
     def _may_retry(self, plan: Plan, result: BackendResult) -> bool:
         return (
@@ -1000,7 +1011,13 @@ class RouterService:
             twin = self._twin_subscription(snap, plan.connection, plan.req.priority)
             if twin is None:
                 return None
-            again = await self.admit(plan.req, caller, max_input_chars, retry_of=plan.row.id)
+            again = await self.admit(
+                plan.req,
+                caller,
+                max_input_chars,
+                retry_of=plan.row.id,
+                slot_wait_s=self.RETRY_SLOT_WAIT_S,
+            )
         except RouterError:
             return None
         except Exception:  # the refusal already answered stands; never a 500 instead of it

@@ -23,7 +23,7 @@ from hq_api.domain import playbooks as PB
 from hq_api.domain import session_publish as SPB
 from hq_api.hub import Hub
 
-from .conftest import idem
+from .conftest import agent_headers, idem
 from .p10_fakes import holding_switch
 from .test_p13a_media import mp4
 from .test_p17_runners import pair, poll, take
@@ -99,10 +99,11 @@ async def a_day(
     texts: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """The routine's run of `day`: its work, a workshop turn that leaves `files` in `out/`
-    (one output of the work), and ⟨2026-11-11⟩ the work delivered by the end of that turn (a
-    routine's work is no session's: its package follows by itself). `deliver=False`: the
-    membership is held while the turn ends, so the standing word cannot send it then (the
-    owner may tap it first). `texts`: what a `.txt` file says (the caption otherwise)."""
+    (one output of the work), and the work delivered: ⟨2026-11-11⟩ by the end of that turn when
+    it left a whole package (a routine's work is no session's: its package follows by itself),
+    else by its holder. `deliver=False`: the membership is held while the turn ends, so the
+    standing word cannot send it then (the owner may tap it first), and the holder delivers
+    nothing. `texts`: what a `.txt` file says (the caption otherwise)."""
     async with holding_switch(su, "released"):
         ticked = await GR.tick(hub, now=at(day, 8, 0), only={g["company"]["id"]})
     assert ticked["queued"] >= 1, ticked  # its own routine (and the file groups' of that hour)
@@ -147,11 +148,25 @@ async def a_day(
         run["work_id"],
     )
     assert output is not None
-    # the routine's work is delivered by its turn: nobody waits for its holder's deliver
+    # a turn that left the whole package (a video or a picture, and the caption) delivers the
+    # routine's work: nobody waits for its holder's deliver
     status = await su.fetchval("SELECT status FROM work.work WHERE id = $1", run["work_id"])
-    assert status == "delivered", status
+    package = "caption.txt" in files and any(f.endswith((".mp4", ".png")) for f in files)
+    assert (status == "delivered") is package, (status, files)
+    if deliver and status != "delivered":
+        # less than a package: the work stays open and its holder delivers it, as before
+        await refuse_queued(su, str(run["work_id"]))
+        r = await client.post(
+            f"/internal/v1/work/{run['work_id']}/deliver",
+            headers={**await agent_headers(g["writer"]), **idem()},
+            json={"title": "ریلز امروز آماده است", "body": "بسته در خروجی کارگاه است."},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["work"]["status"] == "delivered", r.json()["work"]
+        status = "delivered"
     return {"run": run["id"], "work_id": run["work_id"], "work": run["ref"], "brief": run["brief"],
-            "output": output, "files": dict(zip(files, ids, strict=True))}  # fmt: skip
+            "output": output, "files": dict(zip(files, ids, strict=True)),
+            "status": status}  # fmt: skip
 
 
 async def jobs_of(su: Any, run: Any) -> list[Any]:

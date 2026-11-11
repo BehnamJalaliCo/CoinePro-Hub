@@ -782,14 +782,17 @@ DIRECT_RULE = (
 # ⟨2026-11-11⟩ the owner's session F-0011 went silent for twelve hours after «پیش‌نویس متن از
 # ChatGPT خواسته شد و در صف است»: the holder read a queued call as done and ended its run
 ASYNC_RULE = (
-    "A tool that answers `queued` or `running` (substitute.call, speech.make, hub.ops, a "
-    "workshop turn) has NOT finished. Say so in one plain line, never as done; carry on with the "
-    "plan's other open tasks (or do that part yourself with your own model); then finish the run. "
-    "The hub wakes you when it ends: an outside model's answer comes as a new work, a voice as a "
-    "run `speech_done:`, a workshop turn as `workshop_done:`; a call that failed, was skipped or "
-    "passed its deadline wakes you too, with the reason. Under `waiting_on` are this order's "
-    "calls still pending, under `ended_without_answer` the ones that ended with no answer: never "
-    "wait for those, do that part yourself."
+    "A tool that answers `queued` or `running` has NOT finished: say so in one plain line, never "
+    "as done. Two kinds. (1) substitute.call (an outside model's text or a creative), speech.make "
+    "and workshop.run wake you when they end: carry on with the plan's other open tasks (or do "
+    "that part yourself with your own model) and finish the run; the answer comes as a new work, "
+    "a run `speech_done:` / `creative_done:` / `workshop_done:`, and a call that failed, was "
+    "skipped or passed its deadline wakes you too, with the reason. (2) A tool answered with a "
+    "`job` you poll yourself (server.exec, server.write, server.claude, hub.ops, and speech.make "
+    "while your run still works): call it again with `{job}` until it is `done` or `failed`; "
+    "nothing wakes you for those. Under `waiting_on` are this order's outside calls still "
+    "pending, under `ended_without_answer` the ones that ended with no answer: never wait for "
+    "those, do that part yourself."
 )
 IDLE_WAKE_RULE = (
     "WOKEN BY THE HUB ({k} of at most {cap}): nothing of this order is running — no run, no "
@@ -804,9 +807,11 @@ IDLE_WAKE_RULE = (
 IDLE_STEP_RULE = (
     "WOKEN BY THE HUB ({k} of at most {cap}): nothing of this order is running and the owner is "
     "not asked anything. This order is STEP BY STEP («با من»): task {n} «{title}» is next but the "
-    "owner has not told you to start it. {ended}Do NOT start task {n}. Show the owner what the "
-    "last task produced (or, if nothing is ready, where it stands) in one plain line and ask him "
-    "with `order.ask`: «تأیید یا اصلاح؟», or whether to start task {n}. Do not only narrate: a "
+    "owner has not told you to start it. {ended}Do NOT start task {n}, even if you asked him "
+    "«تأیید یا اصلاح؟» in plain words before: without his word no next task starts. Show the "
+    "owner what the last task produced (or, if nothing is ready, where it stands) in one plain "
+    "line and ask him with `order.ask` (so the session waits for him): «تأیید یا اصلاح؟», or "
+    "whether to start task {n}. Do not only narrate: a "
     "run that only reports with `order.progress` marks this session «گیر کرد» to the owner at "
     "once."
 )

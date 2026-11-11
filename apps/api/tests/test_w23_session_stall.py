@@ -145,7 +145,7 @@ async def backdate(su: Any, ref: str, hours: int) -> None:
 
 async def start_run(su: Any, run_id: Any, *, minutes_ago: int = 0) -> None:
     """A queued run starts (its employee runs one run at a time: the run a test's agent token
-    is bound to ends first; `narrate` mints a new one)."""
+    is bound to ends first; the started run takes the token, so `narrate` speaks inside it)."""
     await su.execute(
         """UPDATE agents.runs o SET state = 'done', finished_at = now()
            FROM agents.runs r
@@ -154,7 +154,8 @@ async def start_run(su: Any, run_id: Any, *, minutes_ago: int = 0) -> None:
         run_id,
     )
     await su.execute(
-        """UPDATE agents.runs SET state = 'running', started_at = now() - make_interval(mins => $2)
+        """UPDATE agents.runs SET state = 'running', started_at = now() - make_interval(mins => $2),
+               token_expires_at = now() + interval '1 hour'
            WHERE id = $1""",
         run_id,
         minutes_ago,
@@ -273,6 +274,7 @@ def no_shoma(*texts: Any) -> None:
 async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_silent(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -297,7 +299,7 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     rep = await report(client, owner, ref)
     assert rep["session"]["badge"] == "moving", rep["session"]
     assert "ChatGPT" in rep["session"]["reason_fa"]
-    assert await sweep(hub, ref) == []  # live: nobody is woken
+    assert await sweep(wk["hub"], ref) == []  # live: nobody is woken
     # past its deadline builder A's reaper ends it `failed` `not_claimed` (simulated here)
     await su.execute(
         """UPDATE substitutes.calls SET state = 'failed', state_reason = 'not_claimed',
@@ -307,7 +309,7 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     await idle_for(su, ref, 11)
     act = await activity(client, owner, ref)
     assert act["working"] == [] and act["mood"] in ("idle", "stuck"), act
-    assert await sweep(hub, ref) == ["idle_wake"]
+    assert await sweep(wk["hub"], ref) == ["idle_wake"]
     [woke] = await runs_with_reason(su, s["root_ref"], "session_idle:")
     assert woke["state"] == "queued"
     # the woken run's brief: an explicit turn, first; the dead call named; task 3 to do now
@@ -331,19 +333,11 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
         talk = await OT.talk_brief(tx, ref)
     assert talk is not None and "wake" not in talk and talk["ended_without_answer"]
     assert "`queued`" in d["async_rule"] and "has NOT finished" in d["async_rule"]
-    # the woken run only narrates: stuck at once, one sentence, one notification
-    await su.execute(
-        "UPDATE agents.runs SET state = 'done', finished_at = now() WHERE id = $1", woke["id"]
-    )
-    await su.execute(
-        """INSERT INTO agents.steps (run_id, company_id, n, at, summary_fa, actions)
-           VALUES ($1, $2, 1, now(), 'پیش‌نویس هنوز در صف است',
-                   '[{"tool": "order.progress", "outcome": "ok"}]'::jsonb)""",
-        woke["id"], co["id"],
-    )  # fmt: skip
+    # the woken run only narrates (inside the run) and ends: stuck at once, one notification
     await narrate(client, s, "پیش‌نویس هنوز در صف است")
-    assert await sweep(hub, ref) == ["stuck"]
-    assert await sweep(hub, ref) == []  # once
+    await finish_run(su, woke["id"], co["id"], [{"tool": "order.progress", "outcome": "ok"}])
+    assert await sweep(wk["hub"], ref) == ["stuck"]
+    assert await sweep(wk["hub"], ref) == []  # once
     act = await activity(client, owner, ref)
     assert act["mood"] == "stuck" and act["working"] == [], act
     assert "ChatGPT" in act["stuck_fa"] and "نوبتش نرسید" in act["stuck_fa"], act["stuck_fa"]
@@ -358,7 +352,7 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     no_shoma(notes[0]["title_fa"], act["stuck_fa"])
     # no further wake: they are spent until the owner speaks
     await idle_for(su, ref, 30)
-    assert await sweep(hub, ref) == []
+    assert await sweep(wk["hub"], ref) == []
     assert len(await runs_with_reason(su, s["root_ref"], "session_idle:")) == 1
     # «ادامه بده» resets the count: the holder now, and later the idle wake again
     r = await client.post(
@@ -377,6 +371,7 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
 async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_two_wakes_then_stuck(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -419,12 +414,12 @@ async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_t
     await pass_time(su, s, 11)
     act = await activity(client, owner, ref)
     assert act["mood"] != "idle" and act["working"], act
-    assert await sweep(hub, ref) == []
+    assert await sweep(wk["hub"], ref) == []
     # it ends having only narrated; the session sits idle: idle wake 1
     await end_run(su, first["id"], co["id"], [{"tool": "order.progress", "outcome": "ok"}])
     await narrate(client, s, "پیش‌نویس را خودم مینویسم")
     await pass_time(su, s, 11)
-    assert await sweep(hub, ref) == ["idle_wake"]
+    assert await sweep(wk["hub"], ref) == ["idle_wake"]
     [w1] = await runs_with_reason(su, s["root_ref"], "session_idle:")
     await start_run(su, w1["id"])
     async with await all_tx(hub) as tx:
@@ -437,12 +432,13 @@ async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_t
     await finish_run(su, w1["id"], co["id"], acted)
     await narrate(client, s, "منبع را خواندم")
     await pass_time(su, s, 11)
-    assert await sweep(hub, ref) == ["idle_wake"]  # wake 2 of 2
+    assert await sweep(wk["hub"], ref) == ["idle_wake"]  # wake 2 of 2
     wakes = await runs_with_reason(su, s["root_ref"], "session_idle:")
     assert len(wakes) == 2
-    await end_run(su, wakes[-1]["id"], co["id"], acted)
+    await start_run(su, wakes[-1]["id"])
     await narrate(client, s, "باز هم منبع را خواندم")
-    assert await sweep(hub, ref) == ["stuck"]
+    await finish_run(su, wakes[-1]["id"], co["id"], acted)
+    assert await sweep(wk["hub"], ref) == ["stuck"]
     p = await pulse_of(hub, ref)
     assert p.stuck_fa is not None and p.stuck_fa.startswith("مسئول 2 بار"), p.stuck_fa
 
@@ -457,7 +453,7 @@ async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_t
 
     assert await notes() == 1
     await pass_time(su, s, 30)
-    assert await sweep(hub, ref) == []  # no third wake, no second notification
+    assert await sweep(wk["hub"], ref) == []  # no third wake, no second notification
     assert len(await runs_with_reason(su, s["root_ref"], "session_idle:")) == 2
     assert await notes() == 1
 
@@ -465,6 +461,7 @@ async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_t
 async def test_two_idle_wakes_that_led_nowhere_make_it_stuck_with_the_plan_named(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -480,19 +477,38 @@ async def test_two_idle_wakes_that_led_nowhere_make_it_stuck_with_the_plan_named
     await idle_for(su, ref, 11)
     p = await pulse_of(hub, ref)
     assert p.wakes == 1 and not p.spent and p.stuck_fa is None
-    assert await sweep(hub, ref) == ["idle_wake"]  # wake 2 of 2
+    assert await sweep(wk["hub"], ref) == ["idle_wake"]  # wake 2 of 2
     wakes = await runs_with_reason(su, s["root_ref"], "session_idle:")
     assert len(wakes) == 2
+    await start_run(su, wakes[-1]["id"])
+    async with await all_tx(hub) as tx:
+        d = await OT.dialogue(tx, s["wid"])
+    assert d is not None and d["wake"].startswith("WOKEN BY THE HUB (2 of at most 2)")
+    assert "Continue task 1 now" in d["wake"]  # «خودکار»: the next task, at once
     await end_run(su, wakes[-1]["id"], co["id"], [{"tool": "web.read", "outcome": "ok"}])
     # the cap: stuck at once, no third wake; the sentence says what was last done and what is left
-    assert await sweep(hub, ref) == ["stuck"]
+    assert await sweep(wk["hub"], ref) == ["stuck"]
     p = await pulse_of(hub, ref)
     assert p.spent and p.wakes == 2
     assert p.stuck_fa is not None and p.stuck_fa.startswith("مسئول 2 بار دوباره سر کار آمد")
     assert "سه موضوع پیدا کردم" in p.stuck_fa and "کار 1 («گام شماره‌ی 1 ریلز»)" in p.stuck_fa
     await idle_for(su, ref, 40)
-    assert await sweep(hub, ref) == []
+    assert await sweep(wk["hub"], ref) == []
     assert len(await runs_with_reason(su, s["root_ref"], "session_idle:")) == 2
+    # real work after the last wake (a child's delivery, a reply) is judged afresh, by the idle
+    # thresholds: no second «گیر کرد» at 0 minutes idle
+    await narrate(client, s, "کار دو هم جلو رفت")
+    p = await pulse_of(hub, ref)
+    assert not p.spent and p.stuck_fa is None, p
+    assert await sweep(wk["hub"], ref) == []
+    assert (
+        await su.fetchval(
+            """SELECT count(*) FROM notify.notifications
+               WHERE link_kind = 'order' AND link_ref = $1 AND source_code = 'sessions'""",
+            ref,
+        )
+        == 1
+    )
     # the talk-loop count sees an idle wake that only reported (its own step moved the clock)
     narrated = await fake_run(
         su, co, s["holder"], s["wid"], reason=f"session_idle:{ref}", minutes_ago=2,
@@ -513,6 +529,7 @@ async def test_two_idle_wakes_that_led_nowhere_make_it_stuck_with_the_plan_named
 async def test_a_root_delivered_with_open_plan_tasks_stays_open_until_the_plan_is_done(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -535,7 +552,7 @@ async def test_a_root_delivered_with_open_plan_tasks_stays_open_until_the_plan_i
     r = await client.post(f"/internal/v1/orders/{ref}/progress", headers=s["h"],
                           json={"step_fa": "هر دو کار انجام شد", "done": [1, 2]})  # fmt: skip
     assert r.status_code == 200, r.text
-    assert await sweep(hub, ref) == ["plan_done"]
+    assert await sweep(wk["hub"], ref) == ["plan_done"]
     assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", wid) == "delivered"
     rep = await report(client, owner, ref)
     assert rep["session"]["badge"] == "ready" and rep["steps"][-1]["what_fa"] == SA.PLAN_DONE_FA
@@ -543,12 +560,13 @@ async def test_a_root_delivered_with_open_plan_tasks_stays_open_until_the_plan_i
     # a ready session waits for the owner: never «آرام»
     act = await activity(client, owner, ref)
     assert act["mood"] == "waiting" and act["waiting_fa"] == SA.READY_WAITING_FA, act
-    assert await sweep(hub, ref) == []
+    assert await sweep(wk["hub"], ref) == []
 
 
 async def test_a_root_closed_while_the_plan_is_open_is_opened_again_and_its_holder_woken(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -574,7 +592,7 @@ async def test_a_root_closed_while_the_plan_is_open_is_opened_again_and_its_hold
     assert rep["session"]["badge"] != "ready", rep["session"]  # the plan is not done
     act = await activity(client, owner, ref)
     assert act["waiting_fa"] != SA.READY_WAITING_FA
-    assert await sweep(hub, ref) == ["reopened", "idle_wake"]
+    assert await sweep(wk["hub"], ref) == ["reopened", "idle_wake"]
     assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", wid) == "in_progress"
     rep = await report(client, owner, ref)
     assert any(x["what_fa"] == SA.REOPENED_FA.format(n=2) for x in rep["steps"]), rep["steps"]
@@ -617,6 +635,7 @@ def test_the_badge_and_the_mood_of_an_unfinished_plan_and_an_outside_call() -> N
 async def test_a_voice_job_is_pending_work_and_wakes_its_caller_when_it_ends(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -638,7 +657,7 @@ async def test_a_voice_job_is_pending_work_and_wakes_its_caller_when_it_ends(
     [v] = [x for x in act["working"] if x["kind"] == "call"]
     assert v["who_fa"] == SA.VOICE_WHO_FA and v["doing_fa"] == "صدا را آماده میکند", v
     assert v["cap_s"] == int(SA.VOICE_DEADLINE.total_seconds()) and act["mood"] == "working"
-    assert await sweep(hub, ref) == []
+    assert await sweep(wk["hub"], ref) == []
 
     # it ends without a voice (the recipe's own time cap: AI Studio's sign-in is not touched, so
     # no other test reads it signed out): recorded with the job, and the caller woken
@@ -938,3 +957,105 @@ def test_what_the_owner_reads_of_his_sessions_says_tu() -> None:
         assert plural_in(module) == [], module.__name__
     assert PLURAL.findall("فرمان تازه بدهید.") and PLURAL.findall("سؤال از شما")
     assert not PLURAL.findall("شماره‌ی کار") and not PLURAL.findall("فرمان تازه بده.")
+
+
+# ============================================ F. an idle wake handed to a direct turn ==
+async def test_an_idle_wake_handed_to_a_direct_turn_is_judged_by_that_turn(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    wk: dict[str, Any],
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    async def handed(s: dict[str, Any], minutes_ago: int) -> Any:
+        """The classic run of a wake, ended at once by the hand-over, and the direct turn's own
+        run (trigger `direct`) that did the work, in the four minutes after."""
+        ref, co = s["ref"], s["company"]
+        shell = await fake_run(su, co, s["holder"], s["wid"], reason=f"session_idle:{ref}",
+                               minutes_ago=minutes_ago)  # fmt: skip
+        await su.execute(
+            "UPDATE agents.runs SET note = 'direct turn J-1' WHERE id = $1", shell
+        )  # (the runner's note, DR.HANDED)
+        emp = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", s["holder"])
+        return await su.fetchval(
+            """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
+                   queued_at, started_at, finished_at)
+               VALUES ($1, $2, $3, 'direct', $4, 'done', now() - make_interval(mins => $5),
+                       now() - make_interval(mins => $5), now() - make_interval(mins => $5 - 4))
+               RETURNING id""",
+            co["id"], emp, s["wid"], f"direct:{ref}", minutes_ago - 1,
+        )  # fmt: skip
+
+    # the turn ticked task 1 inside its window: it worked, the session is not spent
+    s = await an_order(client, owner, su, new_company, tasks=3, done=0, pace="auto")
+    await backdate(su, s["ref"], 2)
+    await handed(s, 8)
+    await su.execute(
+        """UPDATE owner.session_tasks SET state = 'done', updated_at = now() - interval '5 minutes'
+           WHERE ref = $1 AND n = 1""",
+        s["ref"],
+    )
+    await idle_for(su, s["ref"], 2)
+    p = await pulse_of(hub, s["ref"])
+    assert p.wakes == 1 and not p.spent and p.stuck_fa is None, p
+    assert await sweep(wk["hub"], s["ref"]) == []
+    # a turn that made nothing, ticked nothing: the wake only narrated, stuck at once
+    t = await an_order(client, owner, su, new_company, tasks=3, done=0, pace="auto")
+    await backdate(su, t["ref"], 2)
+    await idle_for(su, t["ref"], 9)  # the clock stood before the wake
+    await handed(t, 8)
+    p = await pulse_of(hub, t["ref"])
+    assert p.wakes == 1 and p.spent and p.stuck_fa is not None, p
+    assert await sweep(wk["hub"], t["ref"]) == ["stuck"]
+
+
+def test_a_direct_turn_reads_the_wake_first_and_the_outside_work() -> None:
+    w = {"title": "ریلز روزانه", "ref": "W-000123"}
+    emp = {"title_fa": "مدیرعامل", "code": "PC-CEO", "company_name_fa": "پروچارت", "company": "PC"}
+    brief = {
+        "order": "F-0011", "text": "ریلز روزانه", "wake": "WOKEN BY THE HUB (1 of at most 2): …",
+        "async_rule": OT.ASYNC_RULE, "direct_rule": OT.DIRECT_RULE, "plan": [{"n": 3}],
+        "waiting_on": [{"who": "ChatGPT", "makes": "در صف ChatGPT: پیش‌نویس متن"}],
+        "ended_without_answer": [{"who": "Gemini", "why": "not_claimed"}],
+    }  # fmt: skip
+    for first in (True, False):
+        text = DR.compose(w, emp, brief, charter=None, tools=[], first=first, inputs=[],
+                          reason=f"requeue:session_idle:{brief['order']}")  # fmt: skip
+        assert text.index("WOKEN BY THE HUB") < text.index("## وضع جلسه"), text[:400]
+        assert "waiting_on" in text and "ended_without_answer" in text and "not_claimed" in text
+        assert OT.ASYNC_RULE in text and DR.why_fa("session_idle:F-1") in text
+    assert DR.why_fa("session_idle:F-1").startswith("ستاد تو را بیدار کرد")
+    assert DR.why_fa("requeue:owner_reply:F-1") == DR.why_fa("owner_reply:F-1")
+    assert DR.why_fa("speech_done:x") != DR.why_fa("speech_failed:x") != DR.why_fa("x")
+    assert DR.why_fa("creative_done:CR-1") != DR.why_fa("x")
+    assert OR.base_reason("requeue:workspace_failed:W-1").startswith(DR.CLASSIC_REASONS)
+    for text in (DR.why_fa("session_idle:F-1"), DR.why_fa("speech_done:x"),
+                 DR.why_fa("creative_done:CR-1")):  # fmt: skip
+        assert not PLURAL.findall(text), text
+
+
+def test_what_wakes_an_agent_and_what_it_polls_is_said_truly(hub: Hub) -> None:
+    from hq_api.agents import protocol as P
+
+    rule = OT.ASYNC_RULE
+    for tool in ("substitute.call", "speech.make", "workshop.run"):
+        assert tool in rule
+    # a `{job}` tool is polled, nothing wakes the agent for it
+    assert "hub.ops" in rule and "call it again with `{job}`" in rule and "nothing wakes" in rule
+    lib = hub.charters
+    system = P.system_prompt(lib, lib.get("ceo"), {}, max_actions=4)
+    assert "is called again with `{job}`" in system and "nothing wakes you for it" in system
+    tools = Path(str(P.__file__)).resolve().parents[4] / "agents" / "tools.md"
+    if tools.exists():  # the repository's own copy (the charters may be mounted elsewhere)
+        text = tools.read_text(encoding="utf-8")
+        assert "`speech_done:`" in text and "`queued` is not an answer" in text
+    # a destructive command or an A3 card waiting for the owner's seal is no failure
+    for code in ("awaiting_seal", "a3_requires_decision"):
+        acts = [{"tool": "server.exec", "outcome": "denied", "code": code}]
+        assert SA.step_text("دستور برای مُهر مدیر کل فرستاده شد", acts) == (
+            "دستور برای مُهر مدیر کل فرستاده شد"
+        )
+        assert "(نشد)" not in SA.tools_text(acts)
+    assert "(نشد)" in SA.tools_text([{"tool": "server.exec", "outcome": "denied", "code": "x"}])

@@ -312,7 +312,8 @@ def plain(text: str | None) -> str | None:
 
 
 # an outcome that is not `ok` yet is no failure: the owner's card was raised and waits for him
-NOT_A_FAILURE = ("a3_requires_decision",)
+# (an A3 proposal, or a destructive command of server.* / hub.ops waiting for his seal)
+NOT_A_FAILURE = ("a3_requires_decision", "awaiting_seal")
 
 
 def failed_action(a: dict[str, Any]) -> bool:

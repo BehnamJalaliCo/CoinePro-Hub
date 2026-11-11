@@ -241,6 +241,12 @@ def why_fa(reason: str) -> str:
             "برنامه را همین حالا خودت پیش ببر یا یک سؤال کوتاه با order_ask از مدیر کل بپرس؛ فقط "
             "گزارش ننویس."
         )
+    if reason.startswith("speech_done:"):
+        return "صدای گوینده‌ای که خواسته بودی آماده شد (speech_make با همان job)؛ با آن ادامه بده."
+    if reason.startswith("speech_failed:"):
+        return "ساخت صدایی که خواسته بودی به نتیجه نرسید؛ دلیلش را ببین و بقیه‌ی کار را ادامه بده."
+    if reason.startswith("creative_done:"):
+        return "تصویری که از بازیکن بیرونی خواسته بودی تمام شد؛ نتیجه‌اش را ببین و ادامه بده."
     if reason.startswith(("owner_reply:", "owner_turn_over:")):
         return "مدیر کل همین حالا در جلسه حرف زد؛ همان را انجام بده یا جواب بده."
     if reason.startswith("nudge:"):

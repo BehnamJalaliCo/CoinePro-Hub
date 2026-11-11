@@ -16,8 +16,8 @@ stalls silently again.
 
 from __future__ import annotations
 
-import asyncio
 import importlib.util
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -186,12 +186,16 @@ async def test_a_queued_call_past_its_deadline_fails_and_its_caller_and_session_
                 )  # fmt: skip
                 assert p["deadline_at"] == deadline and p["claimed_at"] is None
                 assert set(p) == {"id", "player", "player_fa", "seat", "seat_fa", "state",
-                                  "created_at", "claimed_at", "deadline_at"}  # fmt: skip
+                                  "created_at", "claimed_at", "deadline_at", "ending"}  # fmt: skip
+                assert p["ending"] is False
                 await S.expire_stale(tx, hub, deadline - timedelta(seconds=1))
             assert (await _call(su, row["id"]))["state"] == "queued"
             async with await all_tx(hub) as tx:
-                assert await S.pending_for(tx, [s["root_id"]], deadline) == []
+                # past its deadline and not yet reaped: still pending, `ending` (never neither)
+                at = await S.pending_for(tx, [s["root_id"]], deadline)
+                assert [(x["id"], x["ending"]) for x in at] == [(row["id"], True)]
                 assert await S.expire_stale(tx, hub, deadline) >= 1
+                assert await S.pending_for(tx, [s["root_id"]], deadline) == []
             ended = await _call(su, row["id"])
             assert (ended["state"], ended["state_reason"]) == ("failed", "not_claimed")
             assert ended["input_md"] is None and ended["finished_at"] is not None
@@ -618,6 +622,11 @@ async def test_chatgpt_has_the_content_draft_seat_after_seed_or_migration(su: An
         assert await su.fetchval(
             "SELECT has_table_privilege('hq_api', 'llm.quota_status', $1)", priv
         ), priv
+    # the session sweep (on the worker) reopens a delivered root (0062's grant)
+    for role in ("hq_api", "hq_worker"):
+        assert await su.fetchval(
+            "SELECT has_function_privilege($1, 'work.reopen(uuid)', 'EXECUTE')", role
+        ), role
     tr = su.transaction()
     await tr.start()
     try:
@@ -994,3 +1003,60 @@ async def test_a_paced_call_and_a_call_behind_a_retry_keep_their_clock(hub: Hub,
         )
         cover = await run(cover, f"'{(script['created_at'] + timedelta(minutes=5)).isoformat()}'")
         assert await deadline(script) == cover["claimed_at"] + end + S.QUEUE_DEADLINE
+        await su.execute(
+            "UPDATE substitutes.calls SET state = 'done', finished_at = now() WHERE id = ANY($1)",
+            [cover["id"], script["id"]],
+        )
+        # 3. a ChatGPT job ahead, taken 90 s after the script joined, done in 30 s; the next pass
+        # rests ChatGPT (its pace) and takes Gemini's long image 70 s after that job: the script
+        # waits for the image (its pace window counts from the last job ahead of it)
+        ahead = await ask("gpt", "assistant_errand")
+        script = await ask("gpt", "assistant_errand")
+        t = script["created_at"]
+        await su.execute(
+            """UPDATE substitutes.calls SET state = 'done', claimed_at = $2, finished_at = $3
+               WHERE id = $1""",
+            ahead["id"],
+            t + timedelta(seconds=90),
+            t + timedelta(seconds=120),
+        )
+        image = await run(
+            await ask("gemini", "creative", "image"),
+            f"'{(t + timedelta(seconds=160)).isoformat()}'",
+        )
+        assert await deadline(script) == image["claimed_at"] + end + S.QUEUE_DEADLINE
+
+
+async def test_an_end_nobody_waits_for_any_more_makes_no_reply_work(hub: Hub, su: Any) -> None:
+    """A deploy finds calls stuck for days (the CLI queue while its runner was off, the web lane
+    deadlock): they end, marked delivered and logged, without a reply work; so does a call whose
+    caller's work is gone. A fresh call with no work (a message's run) still gets its reply."""
+    async with bench(su, hub, web=("gpt",)):
+        holding = await hub.companies.holding()
+
+        async def stuck(hours: float, purpose: str | None, ref: str | None) -> Any:
+            return await su.fetchval(
+                """INSERT INTO substitutes.calls (company_id, player, seat, via, task, state,
+                       caller_kind, caller_code, purpose_kind, purpose_ref, input_md, timeout_s, day,
+                       month_key, created_at)
+                   VALUES ($1, 'gpt', 'assistant_errand', 'web', 'text', 'queued', 'agent', 'HQ-PA',
+                           $2, $3, 'x', 300, current_date, '1405-08',
+                           now() - make_interval(secs => $4))
+                   RETURNING id""",
+                holding.id,
+                purpose,
+                ref,
+                hours * 3600,
+            )
+
+        old = await stuck(30, None, None)
+        gone = await stuck(1, S.CALLER_WORK, str(uuid.uuid4()))
+        fresh = await stuck(1, None, None)
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await S.expire_stale(tx, hub)
+        for cid in (old, gone):
+            row = await _call(su, cid)
+            assert (row["state"], row["state_reason"]) == ("failed", "not_claimed")
+            assert row["delivered_at"] is not None and row["reply_work_id"] is None
+        row = await _call(su, fresh)
+        assert row["reply_work_id"] is not None

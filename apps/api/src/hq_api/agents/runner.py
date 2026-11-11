@@ -184,11 +184,15 @@ LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked fo
 # once an action came back not ok, what tells the owner a thing is done (ticking the plan, a
 # message, a deliverable) is not run; the run gets one more step that lists what did not happen.
 SKIPPED = "skipped_after_failure"
-CLAIM_TOOLS = ("order.progress", "deliver")
+CLAIM_TOOLS = ("order.progress", "deliver", "errand.finish")
 MAX_STEPS = 50  # agents.steps.n and agents.runs.steps_cap stop at 50
-# The gateway's answer when an action waits for the owner (an A3 action; with a ref, the card it
-# raised): not a refusal, and never to be called again (a second call is a second card).
+# The gateway's answers when an action waits for the owner: an A3 action (with a ref, the card it
+# raised), and a server job or a hub op that waits for his seal (`awaiting_seal`, the card's ref).
+# Not a refusal, and never to be called again: a second call is a second card, and sealing both
+# would run a destructive command twice.
 DECISION = "a3_requires_decision"
+AWAITING_SEAL = "awaiting_seal"
+WAITS_FOR_OWNER = (DECISION, AWAITING_SEAL)
 
 
 def claims(tool: str) -> bool:
@@ -197,7 +201,7 @@ def claims(tool: str) -> bool:
 
 
 def waits_for_owner(r: dict[str, Any]) -> bool:
-    return r.get("code") == DECISION
+    return r.get("code") in WAITS_FOR_OWNER
 
 
 def did_not_happen(r: dict[str, Any]) -> bool:
@@ -795,10 +799,13 @@ class Runner:
             # "done" next to an action refused for its arguments is not done: the
             # model gets the field errors and one more step to fix them.
             fixable = any(r.get("code") == "invalid_args" for r in results)
-            # ⟨2026-11-11⟩ nor next to any action that did not happen: one more step, told plainly
-            done = step.done and not fixable and not failed
+            # ⟨2026-11-11⟩ nor next to any action that did not happen: one more step, told plainly.
+            # A read that failed (an A0 tool) changes nothing and claims nothing: the step's done
+            # stands when that is all (no claim was skipped)
+            reads_only = all(r.get("class") == "A0" for r in failed)
+            done = step.done and not fixable and (not failed or reads_only)
             if (
-                failed and step.done and n >= research_steps and not rc.extra_step
+                failed and not done and step.done and n >= research_steps and not rc.extra_step
                 and n < MAX_STEPS
             ):  # fmt: skip
                 research_steps, rc.extra_step = research_steps + 1, True

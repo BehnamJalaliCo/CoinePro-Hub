@@ -155,7 +155,7 @@ def runtime_section(
 - `actions`: at most {max_actions} tool calls, carried out in order by the Tool Gateway. Their results (redacted) come back to you in the next step. Use only the tools listed below, with exactly the input shown; anything else is refused. Refs (W-…, D-…, O-…) come only from the context or a tool result.
 - `done`: true when this run's job is finished after this step's actions. A step with no actions and done=false is wasted.
 - You have a limited number of steps and tokens (stated in each message). If they are not enough, deliver what you have with a clear note of what is missing.
-- Work, decisions, messages and notifications you create are records the system routes; nobody "waits" for you and you wait for nobody. A tool that answers `queued` or `running` has not finished: say so in one line (never as done), carry on with your other open work, and finish; the hub wakes you when it ends, or tells you it failed.{answer}
+- Work, decisions, messages and notifications you create are records the system routes; nobody "waits" for you and you wait for nobody. A tool that answers `queued` or `running` has not finished: say so in one line, never as done. substitute.call, speech.make and workshop.run wake you when they end (or fail): carry on with your other open work and finish. A tool that gave you a `job` to poll (server.*, hub.ops) is called again with `{{job}}` until it is done or failed: nothing wakes you for it.{answer}
 
 # Your tools ({charter.role}, charter v{charter.version})
 {tool_table(lib, charter, full=full_tools)}
