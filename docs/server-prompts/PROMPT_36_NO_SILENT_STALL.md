@@ -49,11 +49,13 @@ WITH r AS (SELECT r.* FROM owner.order_reports r JOIN owner.orders o ON o.id = r
   - شمار قدم‌های `owner.session_tasks` همان سفارش به تفکیک `state`.
 - **درخواست ChatGPT همین جلسه:**
   ```sql
-  P SELECT c.player, c.via, c.seat, c.state, c.state_reason, c.created_at, c.claimed_at, c.finished_at, c.delivered_at
+  P , t AS (SELECT x.id FROM work.work x JOIN w ON x.id = w.id OR x.requested_by_work_id = w.id OR x.parent_id = w.id)
+    SELECT c.player, c.via, c.seat, c.state, c.state_reason, c.created_at, c.claimed_at, c.finished_at, c.delivered_at
     FROM substitutes.calls c
-    WHERE c.purpose_kind = 'caller_work' AND c.purpose_ref IN (SELECT id::text FROM w)
+    WHERE c.purpose_kind = 'caller_work' AND c.purpose_ref IN (SELECT id::text FROM t)
     ORDER BY c.created_at;
   ```
+  (کارهای فرزند و ارجاعی هم شمرده میشوند. اگر ستون‌ها نام دیگری دارند، با همان معنا بنویس.)
 - **صف کل:**
   - `SELECT player, via, state, count(*), min(created_at), min(claimed_at) FROM substitutes.calls WHERE state IN ('queued','running') GROUP BY 1,2,3;`
   - شمار درخواست‌های ایجنت که در ۲۴ ساعت گذشته تمام شده‌اند و `delivered_at` ندارند. این‌ها پس از deploy خبر داده میشوند.
@@ -65,7 +67,11 @@ WITH r AS (SELECT r.* FROM owner.order_reports r JOIN owner.orders o ON o.id = r
   - `logs worker` و `logs egress` از آن ساعت تا حالا: فقط خط‌های `substitute` و `Traceback`.
   - `docker inspect` کانتینر `browser-web`: `OOMKilled` و `RestartCount`.
   - Temporal: آیا اجرای `Maintenance` در این مدت `TimedOut` یا `Failed` داشته است؟
-- **ردیف‌های `llm.quota_status`:** هر اکانت با `window_kind`، `utilization`، `resets_at` و `observed_at`.
+- **ردیف‌های `llm.quota_status`** (با join به `llm.connections` برای `key`): هر اکانت با `window_kind`، `utilization`، `resets_at` و `observed_at`.
+- **پیش از بند ۴، برای ایمنی انتشار:**
+  - عضویت‌های کارگروه با `publish ->> 'mode' = 'auto'` در `growth.memberships`.
+  - اجراهای روال در ۳ روز گذشته که منتظر مسیر انتشار مانده‌اند (`note_fa` همان «مسیر انتشار این شرکت را تیم فنی وصل میکند…»).
+  - `SELECT c.code, k.config FROM growth.connections k JOIN core.companies c ON c.id = k.company_id WHERE k.kind = 'instagram';`
 
 ### ۲. تست
 - شاخه را بساز و شاخه‌ی اصلی را merge کن.
@@ -76,7 +82,7 @@ WITH r AS (SELECT r.* FROM owner.order_reports r JOIN owner.orders o ON o.id = r
 ### ۳. بکاپ، migration، deploy
 1. **بکاپ.**
 2. **migration `0062`:**
-   - ستون `substitutes.calls.queued_at` و نمایه‌اش.
+   - ستون‌های `substitutes.calls.queued_at` و `delivery_owed` و نمایه‌هایشان.
    - صندلی `content_draft` برای GPT.
    - `GRANT INSERT, UPDATE ON llm.quota_status TO hq_api`.
 3. **deploy:** `api`، `worker`، `gateway` (منشورها: `_common.md` نسخه‌ی ۱۷)، `llm-router`، `claude-runtime` و `web` (پروفایل `web`، ‏۱.۰.۲).
@@ -98,9 +104,16 @@ WITH r AS (SELECT r.* FROM owner.order_reports r JOIN owner.orders o ON o.id = r
     FROM core.companies c
    WHERE c.id = k.company_id AND k.kind = 'instagram' AND c.code = 'PC';
   ```
+- **پیش از نوشتن:**
+  - config فعلی PC را بخوان و در گزارش بگذار.
+  - اگر خودش `publish_command` دارد، دست نزن و همان را بنویس.
+  - اگر در بند ۱ عضویتی با `mode = auto` یا اجرای منتظر مسیری پیدا شد، **این بند را انجام نده** و فقط گزارش کن. آن بسته‌ها با آماده شدن مسیر خودشان منتشر میشوند.
+- **نوشتن:**
+  - `UPDATE` در یک تراکنش، با یک ردیف در `audit.entries` (actor `server`، action `connection.set`).
+  - باید دقیقاً یک ردیف عوض شود؛ غیر از این، تراکنش را برگردان.
 - **`publish_command` را ننویس.** از تنظیم هلدینگ می‌آید.
 - حساب بقیه‌ی شرکت‌ها را کار فنی هاب خودش پیدا و ثبت میکند. آن را دستی ثبت نکن؛ فقط بنویس آیا کار فنی `ig_setup` برایشان باز شد.
-- این ثبت چیزی منتشر نمیکند. هیچ کارگروه مُهرشده یا «انتشار خودکار»ی نیست.
+- با شرط‌های بالا، این ثبت چیزی منتشر نمیکند. انتشار فقط با «تأیید و انتشار» مالک یا یک «انتشار خودکار» مُهرشده انجام میشود.
 
 ### ۵. پانزده دقیقه بعد از deploy (فقط بخوان و در گزارش بنویس)
 - **جلسه‌ی ریلز:**
