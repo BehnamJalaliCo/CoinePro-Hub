@@ -432,6 +432,7 @@ def test_the_okr_reminder_waits_for_the_quarters_last_jalali_month() -> None:
             start, end = G.quarter_bounds(f"{jy}-Q{q}")
             last = G.from_jalali(jy, 3 * q, 1)
             assert not G.in_last_quarter_month(last - timedelta(days=1))
-            assert G.in_last_quarter_month(last) and G.in_last_quarter_month(end - timedelta(days=1))
+            assert G.in_last_quarter_month(last)
+            assert G.in_last_quarter_month(end - timedelta(days=1))
             assert not G.in_last_quarter_month(start)
     assert not G.in_last_quarter_month(date(2026, 11, 21))  # 30 Aban 1405

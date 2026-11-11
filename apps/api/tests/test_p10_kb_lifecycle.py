@@ -397,7 +397,8 @@ async def test_a_shadow_run_that_fails_midway_is_failed_and_a_dead_one_resumes(
         with pytest.raises(RuntimeError):
             await acts.shadow_run(str(run["id"]))
         row = await su.fetchrow(
-            "SELECT state, error, tokens, finished_at, eval_run_id FROM support.shadow_runs WHERE id = $1",
+            """SELECT state, error, tokens, finished_at, eval_run_id FROM support.shadow_runs
+               WHERE id = $1""",
             run["id"],
         )
         assert row["state"] == "failed" and "boom" in row["error"] and row["tokens"] == 7
