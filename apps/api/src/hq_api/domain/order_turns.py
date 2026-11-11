@@ -995,6 +995,9 @@ async def _outside_and_wake(
     if not str(reason or "").startswith("session_idle:"):
         return out
     k = len(await SA.idle_wakes(tx, rep, ids, since)) or 1
+    # the open tasks as the hub counts them (one handed to a work that delivered is done)
+    open_tasks = await SA.open_tasks_of(tx, rep.get("order_id"))
+    nxt = open_tasks[0] if open_tasks else None
     said = "; ".join(
         f"{c['who_fa']} «{c['seat_fa']}» ({c.get('code') or c['why_fa']})" for c in ended[:5]
     )
@@ -1006,9 +1009,7 @@ async def _outside_and_wake(
     else:
         left = (
             "Open tasks of the plan: "
-            + "; ".join(
-                f"{t['n']} «{t['title_fa']}»" for t in tasks if t["state"] in ("doing", "todo")
-            )[:1500]
+            + "; ".join(f"{t['n']} «{t['title_fa']}»" for t in open_tasks)[:1500]
             + "."
         )
         wake = IDLE_WAKE_RULE.format(

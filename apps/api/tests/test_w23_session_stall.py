@@ -43,7 +43,7 @@ from hq_api.lines.base import StepFailed
 from hq_api.worker import schedules
 
 from .conftest import agent_headers
-from .test_p21_routing_orders import all_tx, deliver, report  # noqa: F401
+from .test_p21_routing_orders import all_tx, deliver, report
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_w7_sessions import WORK_TEXT, refuse_queued
 from .test_w11_activity import fake_run, runs_with_reason
@@ -166,7 +166,8 @@ async def end_run(su: Any, run_id: Any, company_id: Any, actions: list[dict[str,
         run_id, company_id, json.dumps(actions),
     )  # fmt: skip
     await su.execute(
-        "UPDATE agents.runs SET state = 'done', finished_at = now(), steps = 1 WHERE id = $1", run_id
+        "UPDATE agents.runs SET state = 'done', finished_at = now(), steps = 1 WHERE id = $1",
+        run_id,
     )
 
 
@@ -388,9 +389,12 @@ async def test_a_root_closed_while_the_plan_is_open_is_opened_again_and_its_hold
     async def force_delivered() -> None:  # another path delivered it (a council, an old hub)
         async with await all_tx(hub) as tx:
             w = await W.load(tx, wid)
-            assert await W.set_status(
-                tx, w, "delivered", plan_open=False, delivered_at=datetime.now(UTC)
-            ) == "delivered"
+            assert (
+                await W.set_status(
+                    tx, w, "delivered", plan_open=False, delivered_at=datetime.now(UTC)
+                )
+                == "delivered"
+            )
 
     await force_delivered()
     rep = await report(client, owner, ref)
@@ -426,7 +430,9 @@ def test_the_badge_and_the_mood_of_an_unfinished_plan_and_an_outside_call() -> N
     )
     left = SA.Pulse(live=False, clock=now, idle=timedelta(0), woken=None, stuck_fa=None,
                     open_tasks=[{"n": 3, "title_fa": "صدا", "state": "todo"}])  # fmt: skip
-    assert SE.badge_of(rep, "delivered", roots, [], decision_pending=False, pulse=left)[0] == "moving"
+    assert (
+        SE.badge_of(rep, "delivered", roots, [], decision_pending=False, pulse=left)[0] == "moving"
+    )
     call = SA.Worker(who_fa="ChatGPT", company_fa="پروچارت", work_title_fa="ریلز",
                      started_at=now, step=0, doing_fa="در صف ChatGPT: پیش‌نویس متن",
                      kind="call", cap_s=900)  # fmt: skip
@@ -461,14 +467,15 @@ async def test_a_voice_job_is_pending_work_and_wakes_its_caller_when_it_ends(
     assert v["cap_s"] == int(SA.VOICE_DEADLINE.total_seconds()) and act["mood"] == "working"
     assert await sweep(hub, ref) == []
 
-    # it ends (AI Studio signed out): recorded with the job, and the caller woken
-    async def signed_out(*_a: Any, **_k: Any) -> Any:
-        raise StepFailed("وارد نیست", code="expired")
+    # it ends without a voice (the recipe's own time cap: AI Studio's sign-in is not touched, so
+    # no other test reads it signed out): recorded with the job, and the caller woken
+    async def too_slow(*_a: Any, **_k: Any) -> Any:
+        raise StepFailed("طول کشید", code="timeout")
 
-    monkeypatch.setattr(SM.tts, "speak", signed_out)
+    monkeypatch.setattr(SM.tts, "speak", too_slow)
     got = await SM.make(hub, {"job": job, "company_id": str(co["id"]), "company": co["code"],
                               "by": s["holder"], "text": "سلام", "voice": "Kore", "style": ""})  # fmt: skip
-    assert got["state"] == "failed" and got["code"] == "signed_out"
+    assert got["state"] == "failed" and got["code"] == "timeout"
     made = await su.fetchval(
         """SELECT summary FROM audit.entries WHERE company_id = $1 AND action = 'speech.made'
            ORDER BY at DESC LIMIT 1""",
@@ -477,16 +484,21 @@ async def test_a_voice_job_is_pending_work_and_wakes_its_caller_when_it_ends(
     assert job in made and made.startswith(s["holder"])
     woken = await runs_with_reason(su, s["root_ref"], "speech_failed:")
     assert [w["reason"] for w in woken] == [f"speech_failed:{job}"]
-    assert SA.start_text(f"speech_failed:{job}", "") == "ساخت صدا به نتیجه نرسید؛ با بقیه‌ی کار ادامه میدهد"
+    assert (
+        SA.start_text(f"speech_failed:{job}", "")
+        == "ساخت صدا به نتیجه نرسید؛ با بقیه‌ی کار ادامه میدهد"
+    )
     async with await all_tx(hub) as tx:
         order = await OR.load_order(tx, ref)
         assert order is not None
         works = await OR.tree(tx, OR.root_refs(order))
         assert await SA.pending_outside(tx, works) == []
         [ended] = await SA.ended_outside(tx, works, datetime.now(UTC) - timedelta(minutes=5))
-    assert ended["who_fa"] == SA.VOICE_WHO_FA and ended["why_fa"] == "از حسابش بیرون افتاده بود"
+    assert ended["who_fa"] == SA.VOICE_WHO_FA and ended["why_fa"] == "جوابش طول کشید"
     # a voice whose run still works is not woken: the run asks again itself
-    assert await SM.wake_caller(hub, {"job": str(uuid.uuid4()), "by": s["holder"]}, done=True) is None
+    assert (
+        await SM.wake_caller(hub, {"job": str(uuid.uuid4()), "by": s["holder"]}, done=True) is None
+    )
 
 
 # =============================================================== D. the tick ==

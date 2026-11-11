@@ -227,7 +227,7 @@ class OrderCard(BaseModel):
     kind: str
     title_fa: str
     by_fa: str | None = None  # who proposed it
-    waits_fa: str  # «منتظر مُهر شما» · «منتظر تصمیم مدیرعامل …»
+    waits_fa: str  # «منتظر مُهر تو» · «منتظر تصمیم مدیرعامل …»
     with_owner: bool  # false: an agent (the CEO, a manager) decides it; the owner still may
     seal: Literal["passkey", "tap"]
     created_at: datetime
@@ -475,7 +475,7 @@ async def ensure(tx: Tx, ref: str) -> dict[str, Any] | None:
     first = _step(
         "منشی هلدینگ",
         (
-            "دریافت شد؛ پیش‌نمایش شرکت تازه آماده است و منتظر مُهر شماست"
+            "دریافت شد؛ پیش‌نمایش شرکت تازه آماده است و منتظر مُهر توست"
             if kit
             else receipt_text(works)
         ),
@@ -786,8 +786,8 @@ async def detect(
     if draft is not None and rep["state"] != "delivered":  # sealed: the company exists
         add(
             "kit_unsealed",
-            "شرکت تازه منتظر مُهر شماست",
-            "پیش‌نمایش آماده است و تا مُهر نکنید چیزی ساخته نمیشود.",
+            "شرکت تازه منتظر مُهر توست",
+            "پیش‌نمایش آماده است و تا مُهر نکنی چیزی ساخته نمیشود.",
             draft["kit"],
         )
     open_works = [w for w in works if w["status"] in OPEN]
@@ -807,7 +807,7 @@ async def detect(
         refs=[w["ref"] for w in open_works],
     )
     for h in held:
-        add("locked", "یک کار نگه داشته شده", "ناظر کل این کار را تا تصمیم شما نگه داشته است.",
+        add("locked", "یک کار نگه داشته شده", "ناظر کل این کار را تا تصمیم تو نگه داشته است.",
             f"hold:{h['ref']}")  # fmt: skip
     # what the agents' tools answered on the order's runs (hiring, budget, connections)
     codes = await tx.all(
@@ -879,7 +879,7 @@ async def detect(
         since=order["created_at"],
     )
     for d in cards:
-        add("series_unsealed", "سری انتشار منتظر مُهر شماست",
+        add("series_unsealed", "سری انتشار منتظر مُهر توست",
             "تا سری مُهر نشود، چیزی منتشر نمیشود.", d["series"] or d["ref"])  # fmt: skip
     # player_down: a work's named player is signed out, limited or off
     for w in open_works:
@@ -1088,8 +1088,8 @@ async def _tell_end(
     tx: Tx, rep: dict[str, Any], order: dict[str, Any], state: str, summary: dict[str, Any]
 ) -> None:
     holding = await _holding(tx)
-    head = {"delivered": "فرمان شما تحویل شد", "failed": "فرمان شما به نتیجه نرسید",
-            "cancelled": "فرمان شما لغو شد"}[state]  # fmt: skip
+    head = {"delivered": "فرمان تو تحویل شد", "failed": "فرمان تو به نتیجه نرسید",
+            "cancelled": "فرمان تو لغو شد"}[state]  # fmt: skip
     text = " ".join((order.get("text") or "").split())[:80]
     body = HZ.plain(
         summary.get("done_fa", ""),
@@ -1179,9 +1179,7 @@ async def cards_of(tx: Tx, order: dict[str, Any], works: list[dict[str, Any]]) -
                 kind=d["kind"],
                 title_fa=HZ.humanize(str(d["title"])) or str(d["title"]),
                 by_fa=who_fa(d["by_title"], d["by_company"]) if d["by_title"] else None,
-                waits_fa="منتظر مُهر شما"
-                if mine
-                else f"منتظر تصمیم {who}؛ شما هم میتوانید مُهر کنید",
+                waits_fa="منتظر مُهر تو" if mine else f"منتظر تصمیم {who}؛ تو هم میتوانی مُهر کنی",
                 with_owner=mine,
                 seal="passkey" if DC.needs_step_up(dict(d)) else "tap",
                 created_at=d["created_at"],
@@ -1399,11 +1397,11 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
             company_id=holding["id"],
             company_code=holding["code"],
             level="decision",
-            title_fa=f"فرمان شما {s.order_owner_hours} ساعت است جلو نرفته: {text}"[:300],
+            title_fa=f"فرمان تو {s.order_owner_hours} ساعت است جلو نرفته: {text}"[:300],
             body_fa=HZ.plain(
                 f"از {s.order_owner_hours} ساعت پیش قدمی برداشته نشده است",
                 "؛ ".join(why) if why else "مسئول کار گزارشی نداده است",
-                "گزارش فرمان را ببینید و اگر دکمه‌ی رفعی هست بزنید",
+                "گزارش فرمان را ببین و اگر دکمه‌ی رفعی هست بزن",
             ),
             link_kind="order",
             link_ref=ref,
@@ -1470,6 +1468,10 @@ async def idle_runs(
                       WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
                         AND a ->> 'tool' = ANY(CAST(:tools AS text[]))))
                  OR (r.reason LIKE 'session_idle:%' AND r.started_at IS NOT NULL
+                     AND EXISTS (
+                         SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+                         WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
+                           AND a ->> 'tool' = 'order.progress')
                      AND NOT EXISTS (
                          SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
                          WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
@@ -1504,11 +1506,11 @@ async def _remind_turn(
         company_id=holding["id"],
         company_code=holding["code"],
         level="decision",
-        title_fa=f"هنوز منتظر جواب شماست: {text}"[:300],
+        title_fa=f"هنوز منتظر جواب توست: {text}"[:300],
         body_fa=HZ.plain(
             f"{turn.get('who_fa') or 'مسئول'} {hours} ساعت پیش پرسید: {turn.get('question_fa') or ''}",
-            "تا جواب ندهید این فرمان جلو نمیرود",
-            "در جلسه‌ی فرمان جواب بدهید",
+            "تا جواب ندهی این فرمان جلو نمیرود",
+            "در جلسه‌ی فرمان جواب بده",
         )[:4000],
         link_kind="conversation" if rep.get("conversation_ref") else "order",
         link_ref=rep.get("conversation_ref") or rep["ref"],

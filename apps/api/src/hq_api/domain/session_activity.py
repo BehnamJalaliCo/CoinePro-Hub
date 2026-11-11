@@ -855,12 +855,16 @@ async def read_pulse(
 
 # ------------------------------------------------- ⟨2026-11-11⟩ what keeps it open --
 async def open_tasks_of(tx: Tx, order_id: Any) -> list[dict[str, Any]]:
-    """The plan's open tasks (doing first, then todo by number)."""
+    """The plan's open tasks (doing first, then todo by number); a task handed to a work of its
+    own (a card's hand-over) is done once that work delivered (W.PLAN_OPEN_SQL's rule)."""
     if order_id is None:
         return []
     rows = await tx.all(
-        """SELECT n, title_fa, state FROM owner.session_tasks WHERE order_id = :o
-             AND state IN ('doing', 'todo') ORDER BY (state = 'doing') DESC, n""",
+        """SELECT t.n, t.title_fa, t.state FROM owner.session_tasks t WHERE t.order_id = :o
+             AND t.state IN ('doing', 'todo')
+             AND NOT EXISTS (SELECT 1 FROM work.work c WHERE c.ref = t.work_ref
+                               AND c.status IN ('delivered', 'done'))
+           ORDER BY (t.state = 'doing') DESC, t.n""",
         o=order_id,
     )
     return [dict(r) for r in rows]
@@ -1540,7 +1544,7 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
     if (
         not pulse.open_tasks
         and await tx.scalar(
-            "SELECT 1 FROM owner.session_tasks WHERE order_id = :o AND state = 'done' LIMIT 1",
+            "SELECT 1 FROM owner.session_tasks WHERE order_id = :o AND state <> 'dropped' LIMIT 1",
             o=rep["order_id"],
         )
         # ⟨2026-11-11⟩ the plan is done and nothing runs: a complete output makes it ready

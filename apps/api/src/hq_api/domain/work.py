@@ -473,13 +473,17 @@ JOIN owner.order_reports r ON r.order_id = o.id
 JOIN owner.session_tasks t ON t.order_id = o.id
 WHERE o.routes @> jsonb_build_array(jsonb_build_object('work_ref', CAST(:ref AS text)))
   AND r.ended_at IS NULL AND r.closed_at IS NULL AND t.state IN ('todo', 'doing')
+  -- a task handed to a work of its own is done once that work delivered
+  AND NOT EXISTS (SELECT 1 FROM work.work c WHERE c.ref = t.work_ref
+                    AND c.status IN ('delivered', 'done'))
 LIMIT 1
 """
 
 
 async def plan_open(tx: Tx, ref: str) -> bool:
     """⟨2026-11-11⟩ Whether this work is a root of an owner's open order whose plan
-    (owner.session_tasks) still has a todo or doing task. The order is the holding's row: a
+    (owner.session_tasks) still has a todo or doing task (one handed to a work of its own is
+    done once that work delivered). The order is the holding's row: a
     transaction scoped to one agent's company sees none of it (answers False)."""
     return bool(await tx.scalar(PLAN_OPEN_SQL, ref=ref))
 

@@ -8,8 +8,12 @@ order, docs/ORDER_PROCHART_REELS_2026-11-10.md: topic, script, directing and cov
   Gemini keeps its own seat. The model is `gpt-5.5` while GPT offers it, else the model of GPT's
   second-opinion seat (the strong one the model check moved it to). Only when missing (ON CONFLICT
   DO NOTHING): a seat the owner already set is never touched. One audit row when it is added.
+- llm.quota_status: the api may write it (INSERT, UPDATE; it only read it before). A workshop
+  turn's Claude Code reports its account's rate-limit windows (the runner's rate_limit_event);
+  the api records them, so the next turn picks the account that is not limited.
 
-Additive only; the downgrade switches the seat off (seats are never deleted).
+Additive only; the downgrade switches the seat off (seats are never deleted) and takes the
+grant back.
 
 Revision ID: 0062
 Revises: 0061
@@ -47,9 +51,12 @@ INSERT INTO audit.entries (actor_kind, actor_code, principal_kind, company_id, a
 SELECT 'system', 'system', 'system', company_id, 'substitute.seats', 'A1', 'seat', 'gpt:' || seat, false,
        'the owner''s reels order: ChatGPT writes the script draft (seat content_draft, migration 0062)'
 FROM added;
+
+GRANT INSERT, UPDATE ON llm.quota_status TO hq_api;
 """
 
 DOWNGRADE = """
+REVOKE INSERT, UPDATE ON llm.quota_status FROM hq_api;
 UPDATE substitutes.seats SET enabled = false, updated_at = now()
  WHERE player = 'gpt' AND seat = 'content_draft';
 """

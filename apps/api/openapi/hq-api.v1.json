@@ -58493,7 +58493,7 @@
         "type": "object"
       },
       "Worker": {
-        "description": "⟨1.33⟩ §55.1 additive: `kind` (an agent's run, the workshop's turn, the holder's own direct\nturn, a company server's turn), `cap_s` (a turn's time cap; the ring fills against it),\n`last_fa` and `last_at` (the last thing a live turn did, in the owner's words).",
+        "description": "⟨1.33⟩ §55.1 additive: `kind` (an agent's run, the workshop's turn, the holder's own direct\nturn, a company server's turn), `cap_s` (a turn's time cap; the ring fills against it),\n`last_fa` and `last_at` (the last thing a live turn did, in the owner's words).\n⟨2026-11-11⟩ additive kind `call`: an outside model (ChatGPT, Gemini, DeepSeek) or the AI\nnarrator working for the session; `cap_s` is its deadline from `started_at`.",
         "properties": {
           "cap_s": {
             "anyOf": [
@@ -58520,7 +58520,8 @@
               "run",
               "workshop",
               "direct",
-              "server"
+              "server",
+              "call"
             ],
             "title": "Kind",
             "type": "string"

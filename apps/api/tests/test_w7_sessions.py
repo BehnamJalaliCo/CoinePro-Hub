@@ -264,7 +264,7 @@ async def test_the_session_waits_for_the_owner_and_ends_only_by_the_owners_hand(
         assert await OR.timers(tx, s, ref) == []  # once
     n = await su.fetchrow(
         """SELECT title_fa, link_ref FROM notify.notifications
-           WHERE source_code = 'orders' AND title_fa LIKE 'هنوز منتظر جواب شماست%' AND link_ref = $1""",
+           WHERE source_code = 'orders' AND title_fa LIKE 'هنوز منتظر جواب توست%' AND link_ref = $1""",
         talk_ref,
     )
     assert n is not None
@@ -371,7 +371,7 @@ async def test_the_session_waits_for_the_owner_and_ends_only_by_the_owners_hand(
     assert ref not in await cards(client, owner) and ref in await cards(client, owner, "closed")
     ended = await su.fetch(
         """SELECT title_fa FROM notify.notifications WHERE link_kind = 'order' AND link_ref = $1
-           AND title_fa LIKE 'فرمان شما تحویل شد%'
+           AND title_fa LIKE 'فرمان تو تحویل شد%'
            AND created_at >= (SELECT max(created_at) FROM owner.orders WHERE ref = $1)""",
         ref,
     )

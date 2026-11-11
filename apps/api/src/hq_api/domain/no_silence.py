@@ -133,22 +133,22 @@ def when_fa(at: datetime | None, zone: Any, now: datetime) -> str | None:
 HIRE_WHY_FA: dict[str, tuple[str, str]] = {
     "envelope_required": (
         "برای این ماه پاکت بودجه‌ی شرکت تعیین نشده است.",
-        "در صفحه‌ی شرکت «تعیین پاکت ماه» را بزنید؛ استخدام خودکار بعدش انجام میشود.",
+        "در صفحه‌ی شرکت «تعیین پاکت ماه» را بزن؛ استخدام خودکار بعدش انجام میشود.",
     ),
     "envelope_exceeded": (
         "پاکت ماه شرکت برای این استخدام جا ندارد.",
-        "پاکت ماه شرکت را بزرگ‌تر کنید.",
+        "پاکت ماه شرکت را بزرگ‌تر کن.",
     ),
     "hiring_closed": (
         "استخدام خودکار خاموش است.",
-        "در تنظیمات استخدام، حالت «خودکار» را روشن کنید.",
+        "در تنظیمات استخدام، حالت «خودکار» را روشن کن.",
     ),
     "locked": (
         "کلید توقف این شرکت روشن است.",
         "با خاموش کردن کلید توقف، کارگروه دوباره کار میکند.",
     ),
 }
-HIRE_WHY_DEFAULT = ("استخدام خودکار انجام نشد.", "در صفحه‌ی کارگروه، جایگاه خالی را ببینید.")
+HIRE_WHY_DEFAULT = ("استخدام خودکار انجام نشد.", "در صفحه‌ی کارگروه، جایگاه خالی را ببین.")
 
 
 def hire_why(code: str | None) -> dict[str, str]:
@@ -232,7 +232,7 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
         if r["employee_id"] is None:
             why, fix = (
                 "این گفت‌وگو کارمندی ندارد که جواب بدهد.",
-                "پیام را به مدیر همان بخش یا مدیرعامل بدهید.",
+                "پیام را به مدیر همان بخش یا مدیرعامل بده.",
             )
         elif r["emp_status"] != "active":
             why, fix = RUN_WHY_FA["employee_inactive"]
@@ -261,7 +261,7 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
                 )
                 if busy:
                     why, fix = (
-                        f"{who} مشغول کار دیگری است و پیام شما در صف است.",
+                        f"{who} مشغول کار دیگری است و پیام تو در صف است.",
                         "تمام که شد جواب میدهد.",
                     )
                 else:
@@ -269,13 +269,13 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
             elif run["state"] == "running":
                 continue  # it is being answered now
             else:
-                why, fix = "جواب نوشته شد ولی در گفت‌وگو نیامد.", "از «گفتگو» بپرسید چه شده."
+                why, fix = "جواب نوشته شد ولی در گفت‌وگو نیامد.", "از «گفتگو» بپرس چه شده."
         await notify.raise_notification(
             tx,
             company_id=r["company_id"],
             company_code=r["company"],
             level="report",
-            title_fa=f"پیام شما به {who} هنوز جواب نگرفته است",
+            title_fa=f"پیام تو به {who} هنوز جواب نگرفته است",
             body_fa=f"{why} {fix}".strip(),
             link_kind="thread",
             link_ref=r["thread"],
