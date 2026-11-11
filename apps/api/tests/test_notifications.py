@@ -236,6 +236,26 @@ async def test_khalvat_sends_only_urgent_and_away_summary_counts(
         assert default.status_code == 200 and default.json()["since"] is not None
 
 
+async def test_away_summary_companies_count_only_what_the_owner_sees(
+    hub: Hub, client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any]
+) -> None:
+    """Audit: a handler-only (technical) notification does not list a company in the summary."""
+    co = await new_company()
+    start = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
+    tech = await raise_(hub, co, "report", domain="infra", title_fa="چک سلامت")
+    assert (await fetch(hub, tech["id"]))["owner_visible"] is False
+    away = (
+        await client.get(f"{API}/owner/away-summary", params={"since": start}, headers=owner)
+    ).json()
+    assert all(c["company"] != co["code"] for c in away["companies"])
+    await raise_(hub, co, "report", title_fa="گزارش هفته")
+    away = (
+        await client.get(f"{API}/owner/away-summary", params={"since": start}, headers=owner)
+    ).json()
+    mine = next(c for c in away["companies"] if c["company"] == co["code"])
+    assert mine["notifications_new"] == 1
+
+
 async def test_presence_changes_are_announced_to_every_company(
     client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any], su: Any
 ) -> None:
