@@ -256,6 +256,40 @@ def test_the_real_engine_runs_piper_then_opusenc_with_the_text_on_stdin(
         E.Piper(tmp_path, "v").speak("x.", tmp_path / "none")
 
 
+def test_other_engine_errors_become_engine_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hung opusenc, a truncated WAV or a pipe error fails the one job (EngineError),
+    so the queue posts /fail and goes on instead of ending the whole pass."""
+    (tmp_path / "v.onnx").write_bytes(b"x")
+    (tmp_path / "v.onnx.json").write_text("{}")
+
+    def piper_ok(argv: list[str], **kw: Any) -> tuple[int, bytes, float]:
+        (Path(kw["cwd"]) / "speech.wav").write_bytes(b"RIFF-truncated")
+        return 0, b"", 1.0
+
+    def enc_ok(argv: list[str], **kw: Any) -> Any:
+        (Path(kw["cwd"]) / "speech.ogg").write_bytes(b"OggS")
+        return type("R", (), {"returncode": 0, "stderr": b""})()
+
+    def enc_hangs(argv: list[str], **kw: Any) -> Any:
+        raise E.subprocess.TimeoutExpired(argv, kw["timeout"])
+
+    def pipe_breaks(argv: list[str], **kw: Any) -> tuple[int, bytes, float]:
+        raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(E, "run_measured", piper_ok)
+    monkeypatch.setattr(E.subprocess, "run", enc_hangs)
+    with pytest.raises(E.EngineError, match="opusenc timed out"):
+        E.Piper(tmp_path, "v").speak("x.", tmp_path)
+    monkeypatch.setattr(E.subprocess, "run", enc_ok)
+    with pytest.raises(E.EngineError, match="bad wav"):
+        E.Piper(tmp_path, "v").speak("x.", tmp_path)
+    monkeypatch.setattr(E, "run_measured", pipe_breaks)
+    with pytest.raises(E.EngineError, match="Broken pipe"):
+        E.Piper(tmp_path, "v").speak("x.", tmp_path)
+
+
 def test_the_voice_is_pinned_by_hash_with_a_free_licence() -> None:
     lock = json.loads((ROOT / "voice.lock.json").read_text())
     dockerfile = (ROOT / "Dockerfile").read_text()
