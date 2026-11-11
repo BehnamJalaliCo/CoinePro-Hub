@@ -9,7 +9,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -290,6 +290,37 @@ async def test_a_company_without_a_server_and_who_may_start_one(
         "UPDATE infra.server_jobs SET state = 'cancelled' WHERE company_id = $1 AND state = 'queued'",
         co["id"],
     )
+
+
+async def test_a_stale_run_on_a_detached_server_ends_and_never_fails_the_sweep(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    su: Any,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    # the server was detached mid-run: its Claude jobs are cancelled and no map
+    # can be asked of it, yet the stale run must end (and the sweep go on)
+    co = await new_company()
+    await pair(client, hub, owner_session, co, "gone-1")
+    r = await client.post(
+        f"/api/v1/companies/{co['code']}/catalogue", headers=owner_session["headers"]
+    )
+    assert r.status_code == 202 and r.json()["state"] == "running", r.text
+    await su.execute(
+        "UPDATE infra.server_jobs SET state = 'cancelled' WHERE company_id = $1 AND state = 'queued'",
+        co["id"],
+    )
+    await su.execute("UPDATE infra.servers SET state = 'revoked' WHERE company_id = $1", co["id"])
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await CAT.sweep(tx, hub, datetime.now(UTC) + CAT.STALE + timedelta(hours=1)) >= 1
+    row = await su.fetchrow(
+        "SELECT state, jobs FROM infra.catalogues WHERE company_id = $1 ORDER BY created_at DESC",
+        co["id"],
+    )
+    assert row["state"] != "running"
+    jobs = row["jobs"] if isinstance(row["jobs"], list) else json.loads(row["jobs"])
+    assert jobs and all(j["kind"] == "claude" for j in jobs)  # no map was queued
 
 
 # ----------------------------------------------------- §28.3 the apps' errors --
