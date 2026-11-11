@@ -706,6 +706,40 @@ async def test_a_call_waiting_behind_a_busy_lane_is_not_reaped_and_a_free_lanes_
                 await S.expire_stale(tx, hub, script["created_at"] + timedelta(minutes=16))
             row = await _call(su, script["id"])
             assert (row["state"], row["state_reason"]) == ("failed", "not_claimed")
+            # ChatGPT's own queue: the cover asked first and taken only after the script was asked
+            # still holds it (it was ahead); a job asked after it holds nothing
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                cover = await S.seat_call(tx, hub, A.SERVICE, seat="creative", input_md="کاور ۲",
+                                          company_id=holding.id, player="gpt", task="image")  # fmt: skip
+                script = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand",
+                                           input_md="متن ۲", company_id=holding.id, player="gpt")  # fmt: skip
+            assert script["state"] == "queued"
+            await su.execute(
+                """UPDATE substitutes.calls SET state = 'running', claimed_at = clock_timestamp()
+                   WHERE id = $1""",
+                cover["id"],
+            )
+            cover = await _call(su, cover["id"])
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                later = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="بعدی",
+                                          company_id=holding.id)  # fmt: skip
+                assert await S.deadline_of(tx, script["id"]) == (
+                    cover["claimed_at"] + timedelta(seconds=900 + S.RUN_GRACE_S) + S.QUEUE_DEADLINE
+                )
+                assert await S.deadline_of(tx, later["id"]) == (
+                    cover["claimed_at"] + timedelta(seconds=900 + S.RUN_GRACE_S) + S.QUEUE_DEADLINE
+                )
+            await su.execute(
+                """UPDATE substitutes.calls SET state = 'running', claimed_at = clock_timestamp()
+                   WHERE id = $1""",
+                later["id"],
+            )
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                # DeepSeek's job, asked after the script and taken after the cover: not ahead of
+                # it, not in the cover's pass; the script's deadline stays the cover's
+                assert await S.deadline_of(tx, script["id"]) == (
+                    cover["claimed_at"] + timedelta(seconds=900 + S.RUN_GRACE_S) + S.QUEUE_DEADLINE
+                )
         finally:
             await su.execute(
                 "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
