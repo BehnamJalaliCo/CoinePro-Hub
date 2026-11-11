@@ -252,6 +252,31 @@ async def test_pending_decision_expires(
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
+async def test_pending_decision_restarts_a_closed_lifecycle(
+    hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
+) -> None:
+    """A ref whose DecisionLifecycle already closed (a ref reused after an
+    owner wipe, or a run that failed) is started again for a pending card,
+    so the card still expires (audit g31)."""
+    co = await new_company()
+    ref = await propose_hire(hub, co, expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    await workflows_client.decision_created(wk["hub"], ref)
+    assert (await result_of(wk["client"], f"decision-{ref}"))["result"] == "expired"
+    # The same ref is pending again, as a new card after the ref sequence restarts.
+    async with hub.db.tx(await _all(hub)) as tx:
+        await tx.exec(
+            """UPDATE cartable.decisions SET status = 'pending', decided_at = NULL,
+                 expires_at = now() + interval '2 seconds' WHERE ref = :r""",
+            r=ref,
+        )
+    await workflows_client.decision_created(wk["hub"], ref)  # as reconcile_decisions does
+    out = await result_of(wk["client"], f"decision-{ref}")
+    assert out == {"ref": ref, "result": "expired"}
+    async with hub.db.tx(await _all(hub)) as tx:
+        assert (await D.load(tx, ref))["status"] == "expired"
+
+
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_effect_waits_while_the_holding_is_locked(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
