@@ -281,11 +281,15 @@ class RevenuePulls:
     @workflow.run
     async def run(self, kind: str) -> dict[str, Any]:
         planned: dict[str, Any] = await _act("revenue_plan", kind, limit=LONG)
-        results = []
+        results: list[Any] = []
         for pull_id in planned.get("queued") or []:
-            results.append(
-                await _act("revenue_pull", pull_id, limit=timedelta(hours=3), retry=ONCE)
-            )
+            try:
+                results.append(
+                    await _act("revenue_pull", pull_id, limit=timedelta(hours=3), retry=ONCE)
+                )
+            except ActivityError as err:
+                # one pull's failure never strands the next accounts' pulls `queued`
+                results.append({"pull": pull_id, "error": str(err.cause or err)[:300]})
         return {**planned, "results": results}
 
 
