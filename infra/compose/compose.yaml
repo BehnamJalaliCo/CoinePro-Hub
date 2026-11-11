@@ -1536,8 +1536,12 @@ services:
     # HQ_SUBSTITUTES=on; hq.sh refuses it over the memory budget). Its only
     # network reaches egress's CONNECT listener for its two CLIs' hosts; no
     # hub service, no database. The CLIs' sign-in lives in hq-substitute-auth
-    # (files 600, not in the backups), which nothing else mounts.
+    # (files 600, not in the backups), which nothing else mounts. No log
+    # driver: its JSON lines (a sign-in's code, the answer) reach only the
+    # dispatcher's attached stdout, never a json-file log that Alloy ships.
     <<: *job
+    logging:
+      driver: none
     # A one-shot: `up` never starts it (its timer or the dispatcher runs it with `run`).
     scale: 0
     profiles: [substitutes]
