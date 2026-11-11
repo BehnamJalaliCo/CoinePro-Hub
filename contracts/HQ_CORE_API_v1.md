@@ -17,6 +17,8 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
+> **v1.34 (۲۰۲۶-۱۱-۱۲، پرامپت ۳۶):** هیچ جلسه‌ای بی‌صدا نمی‌ایستد (§۵۶؛ جلسه‌ی ریلز پروچارت ۱۲ ساعت بعد از «از ChatGPT خواسته شد و در صف است» ایستاد): مهلت و خبر برای هر درخواست بازیکن ذخیره، کار در صف بیرونی «کار زنده» است، ریشه‌ی جلسه تا تمام شدن برنامه باز میماند، بیدارباش با سقف و بعد «گیر کرده»، اکانت پر و برگشت کار، راستی ایجنت درباره‌ی کار ردشده، مسیر انتشار از تنظیم هلدینگ، و «ایستاده» در اپ.
+>
 > **v1.33 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** آنچه ظاهر تازه‌ی اپ میخواند (§۵۵، پرامپت ۳۵): خط زنده‌ی کار و «چراغ حال» جلسه (`Worker.kind`، `cap_s`، `last_fa`، `SessionActivity.mood`)، «میز انتشار» (`GET /publish-desk`)، حلقه‌ی هر اکانت Claude و کنتور امروز (`GET /treasury/limits`)، و یک ردیف برای هر انتشار (کارهای پیگیری و لغو دیگر ردیف جدا نیستند). فقط خواندنی و افزودنی؛ migration ندارد.
 >
 > **v1.32 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** جلسه‌ی مستقیم، قدم سوم (§۵۴، پرامپت ۳۵؛ مالک: «مثل همین سشنی که من با تو صحبت میکنم»): مسئول جلسه یک نشست Claude Code روی کارگاه است، با ابزارهای ستاد. هر ابزار از همان درگاه ابزار رد میشود، هر توکن در خزانه ثبت میشود، و اگر کارگاه نتواند، مسئول مثل قبل کار میکند.
@@ -5137,3 +5139,77 @@ further `publish` jobs of the same file, account and kind. `OrderReport.publishe
 desk now show **one row for the whole chain**: the newest job says where the publication stands and is the row's
 `job` (what a cancel names), and `at` is when it was first sent. A new tap after a failure or a cancel is a new
 publication and its own row.
+
+## 56. No session goes silent ⟨1.34⟩ (2026-11-12, prompt 36)
+
+The owner's Pro-Chart reels session stood still for twelve hours after its holder wrote «… از ChatGPT خواسته شد و
+در صف است», and the app said only «آرام». The rule from now on: **an open, unfinished session is never silent.**
+Somebody works on it and the app shows who and what; or the owner is asked something; or the session says in one
+plain sentence what blocks it and offers «ادامه بده». Every outside piece of work has a deadline, and its end
+(answer, refusal, skip, timeout) always reaches the agent that asked for it.
+
+### 56.1 A substitute call always ends, and its end is always told (§21.13)
+- **Deadlines.** A queued call has 15 minutes (30 for a picture or a video), counted from when its lane could take
+  it: the later of when it joined the queue (`queued_at`, reset on every retry) and when the lane's last claimed
+  call ended. A running call ends at `claimed_at + timeout_s + 120 s`. Past it, the call ends `failed`
+  (`not_claimed` / `timeout`); while the holding is locked, an agent's queued call ends `skipped`.
+- **Every end is delivered.** A skip (signed out, expired, the browser down, too long), a failure and a timeout
+  reach the agent as a reply work that says what happened and to carry on with its own model; the session gets one
+  line («ChatGPT جواب نداد (نوبتش نرسید)؛ … با مدل خودش ادامه میدهد.»). An end that was not delivered is delivered on
+  the next pass, once. A caller work already closed gets no reply work. At most 25 reply works per pass.
+- **No call that can never run is queued.** A CLI seat while the dispatcher is off, a player without a CLI, a web
+  question over 20 000 characters (`too_long`), a player whose browser is down (held 10 minutes,
+  `browser_unavailable`): refused at once. An unnamed call goes to the first player that can take it now.
+- **`substitute.call` answering `queued`** carries `deadline_at`; the step is not done, and the answer (or why
+  there is none) comes back as a new work by then.
+- **ChatGPT writes the script** (the owner's order): GPT holds a `content_draft` seat (web, `gpt-5.5`, 30 a day,
+  migration `0062`), shared with GPT's work and council calls.
+- A creative an agent asked for wakes it when it ends (`creative_done:`); a voice job wakes it too
+  (`speech_done:` / `speech_failed:`).
+
+### 56.2 What "open" and "live" mean (`GET /orders/{ref}/activity`, §41, §55.1)
+- **Open** = not closed and an open root work **or** an open plan task. A root delivered while plan tasks remain
+  stays `in_progress`; a root closed with tasks left is reopened and its holder woken. When every task is done and
+  nothing runs, the root is delivered (the session reads «منتظر تأیید تو»).
+- **Live work** also counts the outside calls and voice jobs of the order's works, within their deadline:
+  `Worker.kind` gains **`call`** (`who_fa` «ChatGPT» / «Gemini» / «DeepSeek» / «گوینده‌ی هوش مصنوعی», `doing_fa`
+  «در صف ChatGPT: پیش‌نویس متن» or «… را آماده میکند», `cap_s` = its deadline). Past its deadline it is not live,
+  and the stuck sentence names it.
+- **Mood:** `ready` reads `waiting` («منتظر تأیید تو»), never `idle`.
+
+### 56.3 The idle wake, capped
+The session sweep runs on its own schedule (`hq-order-tick`, every 2 minutes, each order in its own transaction,
+newest first). An open session with nothing live, nothing asked of the owner and nothing done for 10 minutes wakes
+its holder with an explicit instruction (nothing runs; the open tasks; any call that ended without an answer;
+"continue task N or ask the owner"). **At most two such wakes per owner word**; a woken run that only reads or
+reports, or the third time, makes the session stuck at once: one sentence, one step, one notification. «ادامه بده»
+resets the count. A work run left `running` 30 minutes without a step is ended (and retried once).
+
+### 56.4 A full Claude account, and a run that failed
+- A Claude Code job's rate-limit events are recorded against the account it ran on (`llm.quota_status`); a job
+  refused for the limit moves once to the other account, only if it did nothing yet; otherwise it ends
+  `usage_limit` and the holder is woken. Only the CLI's own limit notice (with its reset marker) counts, never words
+  like "disk quota". A refused router call is retried once on the twin. Usage is booked to the account.
+- Runs that failed on a quota code come back after the reset (up to 8 days back, 30 minutes apart when the reset is
+  unknown, not while every account is full); a model/runtime error once, after 5 minutes. The session says it in one
+  sentence with the time («اکانت‌های Claude پر است؛ از ساعت 03:30 دوباره کار میکند»).
+- An account is `ready` on the limits screen only when it can really be used.
+
+### 56.5 An agent never claims what was refused
+After an action fails in a step, that step's `order.progress`, `message.*` and `deliver` are skipped
+(`skipped_after_failure`), its `done` is ignored and the next step opens with what did not happen. The session shows
+the tools' real outcome for such a step. An owner's card raised (`a3_requires_decision`) is not a failure: the
+agent is told it waits for the owner and not to ask again.
+
+### 56.6 Instagram's route by the holding's setting (§44, §45)
+The `ig_hub` setting holds IG-Hub's `publish_command`; a company's connection uses its own, else the setting's.
+The route is ready once the company's accounts are registered; the technical team learns them by code (IG-Hub's
+`accounts`, matched by name, site and handle; paused accounts never) — never an owner step. A held standing publish
+keeps an open technical work and shows «مسیر انتشار این شرکت را تیم فنی وصل میکند…» on the card; a routine whose
+seat is empty opens a work for the company's CEO; a routine's workshop output is delivered when its turn ends.
+
+### 56.7 The apps (1.0.2)
+A session that is open, unfinished, with nobody working, nothing asked and no knot for 20 minutes reads
+**«ایستاده»** and shows one card above the composer: «الان کسی روی این جلسه کار نمیکند؛ آخرین کار: … (دیشب
+22:28)» with «ادامه بده» (the existing nudge) as the page's one gold. A `call` worker shows in the «الان» bar
+with the model's mark, no ring and no «نگه دار». The owner is «تو» everywhere.

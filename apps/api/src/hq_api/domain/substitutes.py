@@ -1506,7 +1506,9 @@ async def _caller_work(tx: Tx, call: dict[str, Any], company_id: UUID) -> dict[s
     except ValueError:
         return None
     return await tx.first(
-        "SELECT id, ref FROM work.work WHERE id = :id AND company_id = :co", id=wid, co=company_id
+        "SELECT id, ref, status FROM work.work WHERE id = :id AND company_id = :co",
+        id=wid,
+        co=company_id,
     )
 
 
@@ -1538,7 +1540,7 @@ async def _answer_to_talk(
     await _say_in_session(tx, work_id, caller_code, f"جواب {name} رسید: {head}")
 
 
-async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
+async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> bool:
     """An agent's call that ended after substitute.call said `queued`: the
     labelled answer (or why there is none) goes back to the caller as a work
     item (work is a record; the caller sleeps until it arrives). ⟨2026-11-06⟩ The
@@ -1546,12 +1548,14 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     the order's live session hears that the answer came. ⟨2026-11-11⟩ every end
     reaches both: a call with no answer tells the caller plainly why and to carry
     on with its own model now, and the session hears it in one line; a caller no
-    longer active is logged and the session still hears it."""
+    longer active is logged and the session still hears it; a caller whose work
+    is closed gets nothing (logged): nobody waits for it. True when a reply work
+    was made."""
     from hq_api.domain import order_report as OR
     from hq_api.domain import work as W
 
     if call["delivered_at"] is not None:
-        return
+        return False
     name = PLAYER_NAMES.get(call["player"], call["player"])
     done = call["state"] == "done"
     emp = await tx.first(
@@ -1575,8 +1579,17 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         await tx.exec(
             "UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id", id=call["id"]
         )
-        return
+        return False
     mine = await _caller_work(tx, call, emp["company_id"])
+    if mine is not None and mine["status"] in W.CLOSED:
+        log.info(
+            "a substitute call ended after its caller's work closed: no reply work",
+            extra={"call": str(call["id"]), "work": mine["ref"], "state": call["state"]},
+        )
+        await tx.exec(
+            "UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id", id=call["id"]
+        )
+        return False
     for_work = f" Asked for your work {mine['ref']}." if mine is not None else ""
     res = call["result"] or {}
     answer = ""
@@ -1643,6 +1656,7 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         w=w["id"],
         id=call["id"],
     )
+    return True
 
 
 async def wake_for_creative(tx: Tx, ref: str, *, said_fa: str | None = None) -> None:
@@ -2301,12 +2315,36 @@ async def deadline_of(tx: Tx, call_id: UUID) -> datetime | None:
     return found
 
 
+OWED_SQL = (
+    "caller_kind = 'agent' AND kind = 'call' AND (purpose_kind IS NULL OR purpose_kind = "
+    f"'{CALLER_WORK}')"
+)
+
+
+def owed_to_agent(c: dict[str, Any]) -> bool:
+    """A call whose end goes back to its agent as a reply work (deliver_to_agent): OWED_SQL."""
+    return (
+        c.get("caller_kind") == "agent"
+        and c.get("kind") == "call"
+        and c.get("purpose_kind") in (None, CALLER_WORK)
+    )
+
+
 async def end_call(
-    tx: Tx, hub: Any, call_id: UUID, state: str, reason: str, *, why: str | None = None
+    tx: Tx,
+    hub: Any,
+    call_id: UUID,
+    state: str,
+    reason: str,
+    *,
+    why: str | None = None,
+    deliver: bool = True,
 ) -> dict[str, Any] | None:
     """⟨2026-11-11⟩ A queued or running call ends `failed` or `skipped` with its reason, and
     whatever waits on it hears it (`_applied`: the agent's reply work and its session's line, a
-    memo, a council, a creative). None when the call had ended already."""
+    memo, a council, a creative). `deliver=False` (the reaper's cap on reply works per pass): an
+    agent's call ends now and its reply is owed (`delivery_owed`), made by a later pass. None
+    when the call had ended already."""
     row = await tx.first(
         """UPDATE substitutes.calls SET state = :st, state_reason = :r, finished_at = now(),
                input_md = NULL
@@ -2324,7 +2362,12 @@ async def end_call(
             why=(why or f"not made: {reason}")[:500],
             ref=row["purpose_ref"],
         )
-    await _applied(tx, hub, row)
+    if deliver or not owed_to_agent(row):
+        await _applied(tx, hub, row)
+    else:
+        await tx.exec(
+            "UPDATE substitutes.calls SET delivery_owed = true WHERE id = :id", id=row["id"]
+        )
     holding = await hub.companies.holding()
     await events.emit(
         tx,
@@ -2337,13 +2380,21 @@ async def end_call(
 
 
 async def _end_safely(
-    tx: Tx, hub: Any, call_id: UUID, state: str, reason: str, *, why: str | None = None
+    tx: Tx,
+    hub: Any,
+    call_id: UUID,
+    state: str,
+    reason: str,
+    *,
+    why: str | None = None,
+    deliver: bool = True,
 ) -> bool:
     """end_call in a savepoint of its own: if what waits on the call fails, the call still ends
-    (without its delivery, logged) and the next one goes on."""
+    (an agent's reply owed to a later pass, logged) and the next one goes on."""
     try:
         async with tx.conn.begin_nested():
-            return await end_call(tx, hub, call_id, state, reason, why=why) is not None
+            ended = await end_call(tx, hub, call_id, state, reason, why=why, deliver=deliver)
+            return ended is not None
     except Exception:
         log.exception(
             "a substitute call's end could not be delivered", extra={"call": str(call_id)}
@@ -2351,9 +2402,9 @@ async def _end_safely(
     try:
         async with tx.conn.begin_nested():
             n = await tx.exec(
-                """UPDATE substitutes.calls SET state = :st, state_reason = :r, finished_at = now(),
-                       input_md = NULL
-                   WHERE id = :id AND state IN ('queued', 'running')""",
+                f"""UPDATE substitutes.calls SET state = :st, state_reason = :r, finished_at = now(),
+                       input_md = NULL, delivery_owed = ({OWED_SQL})
+                   WHERE id = :id AND state IN ('queued', 'running')""",  # noqa: S608 - constants
                 st=state,
                 r=reason[:300],
                 id=call_id,
@@ -2364,59 +2415,90 @@ async def _end_safely(
         return False
 
 
+REPLIES_PER_PASS = 25  # reply works one reaper pass makes; the rest wait for the next minute
+REDELIVER_SCAN = 200  # owed ends one pass looks at (a closed caller's costs no reply work)
+
+
 async def expire_stale(tx: Tx, hub: Any, now: datetime | None = None) -> int:
     """⟨2026-11-11⟩ The reaper (every minute from the web pass, and at every CLI claim; also
     while the holding is locked): a queued call past its deadline ends `failed` `not_claimed`
-    (QUEUE_DEADLINE after it was made, QUEUE_DEADLINE_MEDIA for an image or a video); a running
-    one (web or CLI) past claimed_at + timeout_s + RUN_GRACE_S ends `failed` `timeout`; while the
-    holding's kill switch is engaged an agent's queued call ends `skipped` (holding_locked): it
-    would not run. Every one through `_applied`, so its caller hears it. An agent's call that
-    ended in the last day without reaching it (its delivery failed: _end_safely's bare end) is
-    delivered once more, a pass later; a second failure is logged and given up. How many calls
-    it ended or delivered."""
+    (QUEUE_DEADLINE after it joined its queue or its lane was free, QUEUE_DEADLINE_MEDIA for an
+    image or a video); a running one (web or CLI) past claimed_at + timeout_s + RUN_GRACE_S ends
+    `failed` `timeout`; while the holding's kill switch is engaged an agent's queued call ends
+    `skipped` (holding_locked): it would not run. Every one through `_applied`, so its caller
+    hears it. One pass makes at most REPLIES_PER_PASS reply works: an agent's call past them
+    still ends at once, its reply owed (`delivery_owed`) to the next passes, oldest first and
+    before any new one, however old it is by then. An agent's call that ended in the last day
+    without reaching it (its delivery failed) is delivered once more, a pass later; a second
+    failure is logged and given up. How many calls it ended or delivered."""
     now = now or datetime.now(UTC)
+    budget = [REPLIES_PER_PASS]
+    done = 0
+    # 1. what earlier passes still owe (the cap's leftovers, a failed delivery), oldest first
+    for c in await tx.all(
+        f"""SELECT * FROM substitutes.calls
+            WHERE {OWED_SQL} AND delivered_at IS NULL AND state IN ('done', 'failed', 'skipped')
+              AND (delivery_owed
+                   OR (finished_at > CAST(:now AS timestamptz) - interval '1 day'
+                       AND finished_at <= CAST(:now AS timestamptz) - interval '1 minute'))
+            ORDER BY finished_at LIMIT :scan FOR UPDATE SKIP LOCKED""",  # noqa: S608 - constants
+        now=now,
+        scan=REDELIVER_SCAN,
+    ):
+        if budget[0] <= 0:
+            break
+        made, delivered = await _deliver_again(tx, hub, c)
+        budget[0] -= made
+        done += delivered
+    # 2. the stale calls: each ends now; an agent's reply within the pass's budget
     stale = await tx.all(
-        f"""SELECT c.id, c.state FROM substitutes.calls c
+        f"""SELECT c.* FROM substitutes.calls c
             WHERE c.state IN ('queued', 'running') AND (c.kind = 'call' OR c.state = 'running')
               AND {DEADLINE_SQL} <= CAST(:now AS timestamptz)
             ORDER BY c.created_at FOR UPDATE SKIP LOCKED""",  # noqa: S608 - constants only
         now=now,
     )
-    ended = 0
     for c in stale:
         reason = "timeout" if c["state"] == "running" else "not_claimed"
-        ended += await _end_safely(tx, hub, c["id"], "failed", reason)
+        done += await _reap(tx, hub, c, "failed", reason, budget)
     if await gate.holding_lock(tx) == "holding":
         for c in await tx.all(
-            """SELECT id FROM substitutes.calls
+            """SELECT * FROM substitutes.calls
                WHERE state = 'queued' AND kind = 'call' AND caller_kind = 'agent'
                ORDER BY created_at FOR UPDATE SKIP LOCKED"""
         ):
-            ended += await _end_safely(tx, hub, c["id"], "skipped", gate.REASONS["holding"])
-    for c in await tx.all(
-        """SELECT * FROM substitutes.calls
-           WHERE caller_kind = 'agent' AND kind = 'call' AND delivered_at IS NULL
-             AND (purpose_kind IS NULL OR purpose_kind = :cw)
-             AND state IN ('done', 'failed', 'skipped')
-             AND finished_at > CAST(:now AS timestamptz) - interval '1 day'
-             AND finished_at <= CAST(:now AS timestamptz) - interval '1 minute'
-           ORDER BY finished_at FOR UPDATE SKIP LOCKED""",
-        now=now,
-        cw=CALLER_WORK,
-    ):
-        ended += await _deliver_again(tx, hub, c)
-    if ended:
-        log.info("substitute calls ended by the reaper", extra={"ended": ended})
+            done += await _reap(tx, hub, c, "skipped", gate.REASONS["holding"], budget)
+    if done:
+        log.info(
+            "substitute calls ended by the reaper",
+            extra={"ended": done, "replies": REPLIES_PER_PASS - budget[0]},
+        )
+    return done
+
+
+async def _reap(
+    tx: Tx, hub: Any, c: dict[str, Any], state: str, reason: str, budget: list[int]
+) -> bool:
+    """One call the reaper ends; an agent's reply only while the pass's budget lasts (else owed)."""
+    agent = owed_to_agent(c)
+    deliver = not agent or budget[0] > 0
+    ended = await _end_safely(tx, hub, c["id"], state, reason, deliver=deliver)
+    if ended and agent and deliver:
+        made = await tx.scalar(
+            "SELECT reply_work_id IS NOT NULL FROM substitutes.calls WHERE id = :id", id=c["id"]
+        )
+        budget[0] -= int(bool(made))
     return ended
 
 
-async def _deliver_again(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
-    """An agent's ended call whose delivery failed, once more; a second failure is logged and
-    marked delivered (given up), so it is never tried a third time."""
+async def _deliver_again(tx: Tx, hub: Any, c: dict[str, Any]) -> tuple[int, bool]:
+    """An agent's ended call whose reply is owed (the cap) or whose delivery failed, once more;
+    a failure is logged and marked delivered (given up), so it is never tried again. (reply works
+    made: 0 or 1, delivered)."""
     try:
         async with tx.conn.begin_nested():
-            await deliver_to_agent(tx, hub, c)
-        return True
+            made = await deliver_to_agent(tx, hub, c)
+        return int(made), True
     except Exception:
         log.exception(
             "a substitute call's end could not be delivered again; given up",
@@ -2426,7 +2508,7 @@ async def _deliver_again(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
         "UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id AND delivered_at IS NULL",
         id=c["id"],
     )
-    return False
+    return 0, False
 
 
 async def abandon(tx: Tx, hub: Any, call_id: UUID) -> bool:

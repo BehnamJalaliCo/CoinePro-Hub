@@ -395,13 +395,13 @@ async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_t
     )
     assert row["state"] in ("failed", "skipped") and row["delivered_at"] is not None, dict(row)
     assert row["reply_work_id"] is not None
-    if s["talk_ref"]:
-        line = await su.fetchval(
-            """SELECT t.say_fa FROM talk.turns t JOIN talk.conversations c ON c.id = t.conversation_id
-               WHERE c.ref = $1 ORDER BY t.n DESC LIMIT 1""",
-            s["talk_ref"],
-        )
-        assert "ChatGPT جواب نداد" in line, line
+    assert s["talk_ref"], "every order opens its talk on routing"
+    line = await su.fetchval(
+        """SELECT t.say_fa FROM talk.turns t JOIN talk.conversations c ON c.id = t.conversation_id
+           WHERE c.ref = $1 ORDER BY t.n DESC LIMIT 1""",
+        s["talk_ref"],
+    )
+    assert "ChatGPT جواب نداد" in line, line
     reply = await su.fetchrow(
         "SELECT id, ref, requested_by_work_id FROM work.work WHERE id = $1", row["reply_work_id"]
     )

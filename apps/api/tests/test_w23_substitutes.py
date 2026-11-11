@@ -817,3 +817,79 @@ async def test_a_work_takes_the_seat_its_player_can_answer_now(hub: Hub, su: Any
     async with bench(su, hub, web=("gpt", "gemini")), hub.db.tx(await hub.companies.ids()) as tx:
         found = await S.holder(tx, "content_draft", None)
         assert found is not None and found[0]["player"] == "gpt"
+
+
+async def test_one_pass_makes_at_most_its_cap_of_reply_works_and_owes_the_rest(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """The first pass after a deploy: every call stuck since the deadlock ends at once, but only
+    REPLIES_PER_PASS reply works are made; a caller whose work closed gets none; the rest are owed
+    to the next pass, never lost."""
+    co = (await new_company())["code"]
+    s = await _session(client, owner, su, co)
+    other = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    closed_ref = other["routes"][0]["work_ref"]
+    await refuse_queued(su, closed_ref)
+    await su.execute("UPDATE work.work SET status = 'cancelled' WHERE ref = $1", closed_ref)
+    closed_id = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", closed_ref)
+    holding = await hub.companies.holding()
+
+    async def stuck(company: Any, caller: str, work: Any, hours: float) -> Any:
+        return await su.fetchval(
+            """INSERT INTO substitutes.calls (company_id, player, seat, via, task, state, caller_kind,
+                   caller_code, purpose_kind, purpose_ref, input_md, timeout_s, day, month_key,
+                   created_at)
+               VALUES ($1, 'gpt', 'assistant_errand', 'web', 'text', 'queued', 'agent', $2,
+                       CASE WHEN $3::text IS NULL THEN NULL ELSE 'caller_work' END, $3, 'x', 300,
+                       current_date, '1405-08', now() - make_interval(secs => $4))
+               RETURNING id""",
+            company,
+            caller,
+            str(work) if work is not None else None,
+            hours * 3600,
+        )
+
+    try:
+        async with bench(su, hub, web=("gpt",)):
+            incident = await stuck(s["company_id"], s["holder"], s["root_id"], 20)
+            gone = await stuck(s["company_id"], s["holder"], closed_id, 19)
+            rest = [await stuck(holding.id, "HQ-PA", None, 18 - i / 10) for i in range(28)]
+            ids = [str(x) for x in (incident, gone, *rest)]
+            async with await all_tx(hub) as tx:
+                await S.expire_stale(tx, hub)
+            rows = {
+                str(r["id"]): r
+                for r in await su.fetch(
+                    "SELECT * FROM substitutes.calls WHERE id = ANY($1::uuid[])", ids
+                )
+            }
+            # every one ended at once
+            assert all(
+                (r["state"], r["state_reason"]) == ("failed", "not_claimed") for r in rows.values()
+            )
+            made = [i for i in ids if rows[i]["reply_work_id"] is not None]
+            assert len(made) == S.REPLIES_PER_PASS == 25
+            # the stalled session's own call: its holder's reply and the session's line
+            reply = await _reply(su, incident)
+            assert reply is not None and reply["code"] == s["holder"]
+            assert "ChatGPT جواب نداد (نوبتش نرسید)" in await _last_line(su, s["conv"])
+            # its work closed: nobody waits, no reply work (marked delivered)
+            g = rows[str(gone)]
+            assert g["delivered_at"] is not None and g["reply_work_id"] is None
+            # the rest are owed, then delivered on the next pass
+            owed = [i for i in ids if rows[i]["delivered_at"] is None]
+            assert len(owed) == 4 and all(rows[i]["delivery_owed"] for i in owed)
+            async with await all_tx(hub) as tx:
+                await S.expire_stale(tx, hub)
+            after = await su.fetch(
+                "SELECT reply_work_id FROM substitutes.calls WHERE id = ANY($1::uuid[])", owed
+            )
+            assert all(r["reply_work_id"] is not None for r in after)
+            await refuse_queued(su, reply["ref"])
+    finally:
+        await _end_run(su, s)
