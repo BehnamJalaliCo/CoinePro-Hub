@@ -477,6 +477,8 @@ class ProtocolPayload(Model):
     severity: Literal["info", "low", "medium", "high", "critical"]
     answerable: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
     status: Literal["active", "paused", "draft"] = "active"
+    # None: a new version keeps the protocol's current calendar (a new one is Gregorian)
+    calendar: Literal["gregorian", "jalali"] | None = None
 
 
 class MeetingResolutionPayload(Model):

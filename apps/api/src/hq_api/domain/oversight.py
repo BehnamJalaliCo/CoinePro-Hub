@@ -579,7 +579,16 @@ async def new_version(
     decision_id: UUID | None = None,
 ) -> dict[str, Any]:
     """A new protocol (ref None: the next PR- number) or a new version of one
-    (an edit, a pause or a resume), sealed now."""
+    (an edit, a pause or a resume), sealed now. A new version that does not
+    name its calendar keeps the current one (a Jalali protocol stays Jalali)."""
+    data = {k: v for k, v in data.items() if not (k == "calendar" and v is None)}
+    if ref is not None and "calendar" not in data:
+        calendar = await tx.scalar(
+            "SELECT calendar FROM oversight.protocols WHERE ref = :r ORDER BY version DESC LIMIT 1",
+            r=ref,
+        )
+        if calendar is not None:
+            data["calendar"] = calendar
     p = validate_protocol(data)
     if ref is None:
         n = await tx.scalar(
