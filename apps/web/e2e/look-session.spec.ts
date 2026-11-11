@@ -132,6 +132,25 @@ test('a build of the workshop: its minutes as a ring, «نگه دار» holds it
   });
 });
 
+test('work held for twenty minutes and more: the bar\'s «ادامه بده» is the only one, no still card beside it', async ({ page }) => {
+  await page.clock.install();
+  await clean(page, async () => {
+    await page.goto('/s/F-0010');
+    const bar = page.getByTestId('now-bar');
+    await bar.getByRole('button', { name: 'نگه دار' }).click();
+    await expect(bar).toHaveAttribute('data-state', 'held');
+    // Twenty-one minutes later, nobody has worked on it: it is his hold, not a session left standing.
+    await page.clock.fastForward('21:00');
+    await expect(bar).toHaveAttribute('data-state', 'held');
+    await expect(page.getByTestId('still-card')).toHaveCount(0);
+    await expect(session(page)).not.toHaveAttribute('data-mood', 'still');
+    await expect(page.getByRole('button', { name: 'ادامه بده', exact: true })).toHaveCount(1);
+    await bar.getByRole('button', { name: 'ادامه بده' }).click();
+    await expect(bar).toHaveAttribute('data-state', 'working');
+    await expect(page.getByRole('button', { name: 'ادامه بده', exact: true })).toHaveCount(0);
+  });
+});
+
 test('a build near its sixty minutes says so in words, not in colour alone', async ({ page }) => {
   await flag(page, 'hq.e2e.ring', 'late');
   await clean(page, async () => {

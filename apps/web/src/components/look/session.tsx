@@ -240,14 +240,17 @@ const HOLD = 'inline-flex min-h-12 flex-none items-center justify-center rounded
 
 /**
  * «الان»: stuck above the composer while something works. A tap on it opens the live-work sheet; «نگه دار» stops the live work with
- * the hub's own stop of that work, and the same place then reads «ادامه بده».
+ * the hub's own stop of that work, and the same place then reads «ادامه بده». [held]: the owner stopped it (kept by the page, which
+ * then shows no still card: this bar's «ادامه بده» is the one way back).
  */
-export function NowBar({ refId, a, r, onOpen }: { refId: string; a: SessionActivity | null | undefined; r: SessionReport; onOpen: () => void }) {
+export function NowBar({ refId, a, r, onOpen, held, onHeld }: {
+  refId: string; a: SessionActivity | null | undefined; r: SessionReport; onOpen: () => void; held: boolean; onHeld: (held: boolean) => void;
+}) {
   const toast = useToast();
   const qc = useQueryClient();
   const stop = useStopWorkspace();
   const nudge = useNudge(refId);
-  const [held, setHeld] = useState(false);
+  const setHeld = onHeld;
   const working = a?.working ?? [];
   const live = working.length > 0;
   const now = useTick(1000, live);
@@ -552,9 +555,10 @@ function StillLast({ still, now }: { still: Still; now: number }) {
 /**
  * An open session nobody works on, and the hub has not said why: ONE calm card right above the composer, the shape of the knot's with
  * a silver edge: «ایستاده», one sentence (the hub's reason, else «الان کسی روی این جلسه کار نمیکند؛ آخرین کار: … (دیشب 22:28)»), and
- * «ادامه بده», the page's one full gold when nothing else holds it ([lead]).
+ * «ادامه بده», the page's one full gold when nothing else holds it ([lead]). [canNudge] false: a hub that does not take the nudge; the
+ * card only says it.
  */
-export function StillCard({ refId, still, now, lead }: { refId: string; still: Still; now: number; lead: boolean }) {
+export function StillCard({ refId, still, now, lead, canNudge = true }: { refId: string; still: Still; now: number; lead: boolean; canNudge?: boolean }) {
   const toast = useToast();
   const nudge = useNudge(refId);
   const go = () => void nudge.mutateAsync().then(
@@ -569,9 +573,11 @@ export function StillCard({ refId, still, now, lead }: { refId: string; still: S
         {still.reason_fa ? <PlainText text={still.reason_fa} /> : last ? <>{STILL_FA}؛ {last}</> : `${STILL_FA}.`}
       </p>
       {still.reason_fa && last ? <p className="text-[12px] leading-5 text-muted [overflow-wrap:anywhere]" data-still-last>{last}</p> : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={lead ? 'primary' : 'secondary'} loading={nudge.isPending} onClick={go}>ادامه بده</Button>
-      </div>
+      {canNudge ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={lead ? 'primary' : 'secondary'} loading={nudge.isPending} onClick={go}>ادامه بده</Button>
+        </div>
+      ) : null}
     </section>
   );
 }

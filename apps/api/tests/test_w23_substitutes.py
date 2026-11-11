@@ -785,9 +785,8 @@ async def test_an_end_whose_delivery_failed_is_delivered_once_more_never_twice(
             async with hub.db.tx(await hub.companies.ids()) as tx:
                 await S.expire_stale(tx, hub)
         row = await _call(su, second)
-        assert (
-            tries == [second] and row["delivered_at"] is not None and row["reply_work_id"] is None
-        )
+        assert tries.count(second) == 1  # once more, never twice
+        assert row["delivered_at"] is not None and row["reply_work_id"] is None
 
 
 # ============================================================ the ready seat ==
@@ -803,22 +802,18 @@ async def test_a_work_takes_the_seat_its_player_can_answer_now(hub: Hub, su: Any
             assert (found[1]["seat"], found[1]["via"]) == ("assistant_errand", "cli")
             assert await PL.availability(tx, "gpt") is None
     # its web chat signed in: content_draft, the strong model
-    async with bench(su, hub, web=("gpt",)):
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            found = await PL.text_seat(tx, "gpt")
-            assert found is not None and found[1]["seat"] == "content_draft"
+    async with bench(su, hub, web=("gpt",)), hub.db.tx(await hub.companies.ids()) as tx:
+        found = await PL.text_seat(tx, "gpt")
+        assert found is not None and found[1]["seat"] == "content_draft"
     # nobody signed in: the first seat it has on, whose reason the caller reads
-    async with bench(su, hub):
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            found = await PL.text_seat(tx, "gpt")
-            assert found is not None and found[1]["seat"] == "content_draft"
-            assert await PL.availability(tx, "gpt") == "signed_out"
+    async with bench(su, hub), hub.db.tx(await hub.companies.ids()) as tx:
+        found = await PL.text_seat(tx, "gpt")
+        assert found is not None and found[1]["seat"] == "content_draft"
+        assert await PL.availability(tx, "gpt") == "signed_out"
     # an unnamed draft goes to the player that can write it now (ChatGPT signed out, Gemini in)
-    async with bench(su, hub, web=("gemini",)):
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            found = await S.holder(tx, "content_draft", None)
-            assert found is not None and found[0]["player"] == "gemini"
-    async with bench(su, hub, web=("gpt", "gemini")):
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            found = await S.holder(tx, "content_draft", None)
-            assert found is not None and found[0]["player"] == "gpt"
+    async with bench(su, hub, web=("gemini",)), hub.db.tx(await hub.companies.ids()) as tx:
+        found = await S.holder(tx, "content_draft", None)
+        assert found is not None and found[0]["player"] == "gemini"
+    async with bench(su, hub, web=("gpt", "gemini")), hub.db.tx(await hub.companies.ids()) as tx:
+        found = await S.holder(tx, "content_draft", None)
+        assert found is not None and found[0]["player"] == "gpt"

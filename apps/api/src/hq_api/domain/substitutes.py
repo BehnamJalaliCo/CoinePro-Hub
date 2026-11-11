@@ -185,11 +185,11 @@ WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitute
 # player's web job holds every player's web queue; the CLI runs one job at a time for both
 # players. A job's end is when it finished, else its own deadline (a lost job holds no longer).
 _END_SQL = (
-    "COALESCE(o.finished_at, o.claimed_at + make_interval(secs => o.timeout_s + {grace}))"
-).format(grace=RUN_GRACE_S)
+    f"COALESCE(o.finished_at, o.claimed_at + make_interval(secs => o.timeout_s + {RUN_GRACE_S}))"
+)
 _JOINED_SQL = "COALESCE(c.queued_at, c.created_at)"
 BUSY_UNTIL_SQL = (
-    f"(SELECT max({_END_SQL}) FROM substitutes.calls o"
+    f"(SELECT max({_END_SQL}) FROM substitutes.calls o"  # noqa: S608 - constants only
     " WHERE o.via = c.via AND o.id <> c.id AND o.claimed_at IS NOT NULL"
     f" AND o.claimed_at >= {_JOINED_SQL} - interval '1 hour'"
     f" AND {_END_SQL} > {_JOINED_SQL})"

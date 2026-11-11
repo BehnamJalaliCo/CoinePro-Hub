@@ -182,7 +182,11 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   // ⟨2026-11-11⟩ An open session nobody works on, that the hub has not explained, is «ایستاده» with its own card (looked at again every
   // minute); never «آرام» for hours with nothing to press.
   const minute = useTick(60_000, !closed && !activity?.working.length);
-  const still = closed ? null : stillOf(r, activity, badge, minute);
+  // «نگه دار» in the «الان» bar: while the owner holds the work, the bar's «ادامه بده» is the one way back (no still card beside it).
+  const [held, setHeld] = useState(false);
+  // The hub takes «ادامه بده» where it serves the session's activity (§41: a hub before it answers the activity with nothing).
+  const nudgeOn = activity != null;
+  const still = closed || held ? null : stillOf(r, activity, badge, minute);
   const mood = still ? 'still' : moodOf(activity, { closed, badge, asked });
   const task = taskOf(r.tasks);
   const outs = useSessionOutputs(r.outputs);
@@ -269,14 +273,14 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         {talk ? (
           <ConversationPane
             variant="session" fill conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} onScrolled={setScrolled}
-            quietSend={bar || knot || !!still} answer={asked ? reply : undefined}
+            quietSend={bar || knot || (!!still && nudgeOn)} answer={asked ? reply : undefined}
             above={(
               <>
-                {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} />}
+                {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} held={held} onHeld={setHeld} />}
                 {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : said && !closed ? <AnswerSent text={said} /> : null}
                 {closed ? null : <SessionCards cards={r.cards ?? []} />}
                 {knot ? <KnotCard refId={refId} stuckFa={blockers.length ? null : activity?.stuck_fa} blockers={blockers} company={company} run={runFix} lead={!bar} /> : null}
-                {still ? <StillCard refId={refId} still={still} now={minute} lead={!bar} /> : null}
+                {still ? <StillCard refId={refId} still={still} now={minute} lead={!bar} canNudge={nudgeOn} /> : null}
                 {bar ? (
                   <DecisionBar place="flow" label={waitsOn ? 'تأیید و انتشار' : 'تأیید و بستن'} state={closeState} doneLabel="جلسه بسته شد" onLeft={() => setCloseState('idle')}
                     context={waitsOn ? 'کار تمام شده؛ با تأیید تو همین فایل منتشر میشود.' : 'کار تمام شده؛ با تأیید تو جلسه بسته و بایگانی میشود.'}

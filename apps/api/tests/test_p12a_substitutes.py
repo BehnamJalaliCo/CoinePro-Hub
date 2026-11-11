@@ -56,7 +56,8 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
                                                              ELSE 'signed_out' END,
                status = CASE WHEN player = ANY($1::text[]) THEN 'ready' ELSE 'off' END,
                web_state = CASE WHEN player = ANY($2::text[]) THEN 'signed_in' ELSE 'signed_out' END,
-               limited_until = NULL, web_last_job_at = NULL, web_last_failure = NULL""",
+               limited_until = NULL, web_last_job_at = NULL, web_last_failure = NULL,
+               web_error_until = NULL""",
         list(cli),
         list(web),
     )
@@ -71,7 +72,8 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
         S.RUNNER_OVERRIDE = None
         await su.execute(
             """UPDATE substitutes.players SET login_state = 'signed_out', status = 'off', web_state = 'signed_out',
-                   limited_until = NULL, status_reason = NULL, web_last_failure = NULL"""
+                   limited_until = NULL, status_reason = NULL, web_last_failure = NULL,
+                   web_error_until = NULL"""
         )
         await restore_seats(su)
 
