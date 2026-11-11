@@ -315,7 +315,9 @@ async def overdue_climbs_the_ladder(ctx: CheckCtx) -> Checked:
             _code_of(ctx, r["company_id"]),
             "کار عقب‌افتاده بدون پله‌ی پیگیری",
             "Overdue, not escalated: " + ", ".join(r["refs"][:30]),
-            "overdue:" + ",".join(r["refs"][:5]),
+            # one finding per company: a key from the refs opened a new finding each time the
+            # overdue set changed and left the old ones open; the refs live in the evidence
+            "overdue",
             [{"kind": "link", "ref": ref, "note": "overdue"} for ref in r["refs"][:10]],
         )
         for r in rows
@@ -543,8 +545,9 @@ async def sites_healthy(ctx: CheckCtx) -> Checked:
     )
     problems = []
     for r in rows:
-        if r["consecutive_failures"] >= 3 and r["incident"] and (r["tls_days_left"] or 99) >= 14:
-            continue  # failing, but with an open incident: being handled
+        days = r["tls_days_left"]
+        if r["consecutive_failures"] >= 3 and r["incident"] and (days is None or days >= 14):
+            continue  # failing, but with an open incident: being handled (0 days left is not)
         why = (
             f"TLS {r['tls_days_left']} days left"
             if r["tls_days_left"] is not None and r["tls_days_left"] < 14

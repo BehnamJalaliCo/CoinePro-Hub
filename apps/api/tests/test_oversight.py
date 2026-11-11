@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -111,7 +112,7 @@ async def test_the_protocols_are_seeded_and_only_the_owner_seals_new_versions(
         owner_session,
         "POST",
         "/api/v1/oversight/protocols",
-        protocol_body(),
+        protocol_body(calendar="jalali"),
         "oversight.protocol",
     )
     assert r.status_code == 201, r.text
@@ -133,6 +134,11 @@ async def test_the_protocols_are_seeded_and_only_the_owner_seals_new_versions(
         await su.fetchval("SELECT count(*) FROM oversight.protocols WHERE ref = $1", new["ref"])
         == 2
     )
+    # a version that does not name its calendar keeps the protocol's (a Jalali one stays Jalali)
+    cal = await su.fetch(
+        "SELECT calendar FROM oversight.protocols WHERE ref = $1 ORDER BY version", new["ref"]
+    )
+    assert [c["calendar"] for c in cal] == ["jalali", "jalali"]
     bad = protocol_body(schedule="FREQ=YEARLY")
     r = await _post_signed(
         client, hub, owner_session, "POST", "/api/v1/oversight/protocols", bad, "oversight.protocol"
@@ -249,6 +255,45 @@ async def test_every_code_checker_runs(
     )
     assert near is not None and "temporal" in near["title_fa"] and near["severity"] == "high"
     assert co["code"]
+
+
+class _Rows:
+    """A tx that answers every query with the same rows (a checker's SQL, faked)."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self.rows = rows
+
+    async def all(self, sql: str, **params: Any) -> list[dict[str, Any]]:
+        return self.rows
+
+
+def _fake_ctx(rows: list[dict[str, Any]], company: uuid.UUID) -> C.CheckCtx:
+    holding = uuid.uuid4()
+    tx: Any = _Rows(rows)
+    return C.CheckCtx(tx, holding, "HQ", {"HQ": holding, "TY": company}, datetime.now(UTC), {})
+
+
+async def test_pr050_keeps_one_finding_and_pr060_reads_a_last_day_certificate() -> None:
+    """Audit 2026-11-11: PR-050's key was built from the overdue refs, so every change in the set
+    opened another finding and left the old ones open; PR-060 read 0 TLS days left as 99."""
+    co = uuid.uuid4()
+    keys = set()
+    for refs in (["W-0012"], ["W-0012", "W-0015"]):
+        got = await C.CHECKS["PR-050"](_fake_ctx([{"company_id": co, "refs": refs}], co))
+        [p] = got.problems
+        keys.add(p.key)
+        assert [e["ref"] for e in p.evidence] == refs
+    assert keys == {"overdue"}
+    site = {
+        "company_id": co,
+        "url": "https://x.example",
+        "consecutive_failures": 3,
+        "incident": True,
+    }
+    got = await C.CHECKS["PR-060"](_fake_ctx([{**site, "tls_days_left": 0}], co))
+    assert [p.body_md for p in got.problems] == ["TLS 0 days left"]
+    got = await C.CHECKS["PR-060"](_fake_ctx([{**site, "tls_days_left": None}], co))
+    assert got.problems == []  # failing with an open incident: being handled
 
 
 async def test_a_judgement_protocol_is_the_overseers_work_within_the_daily_cap(
@@ -411,6 +456,8 @@ async def test_a_held_agent_only_reads_and_a_held_tool_never_runs(
     mgr = f"{co}-TECH-MGR"
     assert (await _hold(client, "employee", mgr)).status_code == 201
     assert (await _hold(client, "tool", f"{mgr}:knowledge.search")).status_code == 201
+    # a tool hold names its tool (`EMP:tool`); one without it made every gate of EMP a 500
+    assert (await _hold(client, "tool", mgr)).status_code == 422
     await order(client, owner, co, department="TECH")
     row = (await runs_of(su, mgr))[-1]
     agents.fake.enqueue(
@@ -629,6 +676,13 @@ async def test_challenges_and_compliance(
 ) -> None:
     co = (await new_company())["code"]
     ovr = await agent_headers(OVR)
+    # a due time with no offset is read (the hub's local time), not a 500 (naive vs aware)
+    r = await client.post(
+        "/internal/v1/oversight/challenges",
+        headers={**ovr, **idem()},
+        json={"company": co, "title_fa": "دیر", "due_at": "2020-01-01T10:00:00"},
+    )
+    assert r.status_code == 422 and "due_at" in r.text, r.text
     due = (datetime.now(UTC) + timedelta(days=5)).isoformat()
     r = await client.post(
         "/internal/v1/oversight/challenges",

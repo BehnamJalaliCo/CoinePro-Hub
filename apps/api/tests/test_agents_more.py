@@ -776,6 +776,61 @@ async def test_memory_and_its_transfer_on_dismissal(
     assert "2 memory note(s)" in kt
 
 
+async def test_dismissal_with_no_manager_left_and_a_note_of_ten_tags(
+    hub: Any, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """Audit 2026-11-11: a memory note with 10 tags (the most memory.write keeps) broke the
+    copy's CHECK (cardinality(tags) <= 10) and the dismissal aborted; and with no manager left in
+    the department the open work and the knowledge transfer went to nobody, not the CEO."""
+    from hq_api.domain import org as O
+
+    co = (await new_company())["code"]
+    emp = f"{co}-TECH-01"
+    await su.execute(
+        """INSERT INTO core.employees (company_id, department_id, code, kind, title_fa, title_en, role,
+               reports_to)
+           SELECT c.id, d.id, $1, 'employee', 'SRE', 'SRE', 'sre',
+                  (SELECT id FROM core.employees WHERE code = $3)
+           FROM core.companies c JOIN core.departments d ON d.company_id = c.id AND d.code = 'TECH'
+           WHERE c.code = $2""",
+        emp,
+        co,
+        f"{co}-TECH-MGR",
+    )
+    await su.execute(
+        """INSERT INTO core.employee_memory (company_id, employee_id, note, tags)
+           SELECT company_id, id, 'یادداشت پر', $2 FROM core.employees WHERE code = $1""",
+        emp,
+        [f"t{i}" for i in range(10)],
+    )
+    get = """SELECT id, code, kind, status, company_id, department_id FROM core.employees
+             WHERE code = :c"""
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await O.dismiss(tx, await tx.one(get, c=f"{co}-TECH-MGR"), reason="پایان", transfer_to=None)
+        work = await tx.one(
+            """INSERT INTO work.work (company_id, department_id, kind, title, brief, priority,
+                   created_by_kind, created_by_code, assignee_id, depth)
+               SELECT company_id, department_id, 'one_off', 'کار باز', 'x', 'P3', 'service',
+                      'system', id, 2
+               FROM core.employees WHERE code = :c
+               RETURNING id""",
+            c=emp,
+        )
+        out = await O.dismiss(tx, await tx.one(get, c=emp), reason="پایان", transfer_to=None)
+    ceo = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", f"{co}-CEO")
+    assert await su.fetchval("SELECT assignee_id FROM work.work WHERE id = $1", work["id"]) == ceo
+    kt = out["knowledge_transfer_work"]
+    assert await su.fetchval("SELECT assignee_id FROM work.work WHERE ref = $1", kt) == ceo
+    assert out["memory_transferred"] == 1
+    tags = await su.fetchval(
+        """SELECT m.tags FROM core.employee_memory m JOIN core.employees s
+             ON s.id = m.source_employee_id WHERE s.code = $1 AND m.employee_id = $2""",
+        emp,
+        ceo,
+    )
+    assert len(tags) == 10 and tags[-1] == "transfer" and tags[:9] == [f"t{i}" for i in range(9)]
+
+
 # ----------------------------------------------------------- morning report --
 async def test_morning_report_rewrite_keeps_the_numbers(
     su: Any, wk: dict[str, Any], agents: Any

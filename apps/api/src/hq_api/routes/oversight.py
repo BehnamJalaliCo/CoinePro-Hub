@@ -171,7 +171,14 @@ async def _seal_protocol(
         )
         holding = await ctx.hub.companies.holding()
         p = await O.new_version(
-            tx, ctx.who, holding.id, body.model_dump(), ref=ref, source="owner", step_up_id=su
+            tx,
+            ctx.who,
+            holding.id,
+            # only what was sent: a calendar left out keeps the protocol's current one
+            body.model_dump(exclude_unset=True),
+            ref=ref,
+            source="owner",
+            step_up_id=su,
         )
         await ctx.audit(
             tx,

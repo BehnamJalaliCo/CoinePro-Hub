@@ -342,7 +342,9 @@ async def dismiss(
                 422, "validation_failed", fields={"transfer_to": "same company, not dismissed"}
             )
     manager = await manager_of(tx, employee["department_id"]) if employee["department_id"] else None
-    if manager and manager["id"] == employee["id"]:
+    if manager is None or manager["id"] == employee["id"]:
+        # no manager left in the department (or the manager is the one going): the CEO, as
+        # W.create does; else the open work and the knowledge transfer go to nobody
         manager = await ceo_of(tx, employee["company_id"])
     receiver = target or manager
     await tx.exec(
@@ -364,7 +366,10 @@ async def dismiss(
     if receiver is not None:
         transferred = await tx.exec(
             """INSERT INTO core.employee_memory (company_id, employee_id, note, tags, source_employee_id)
-               SELECT company_id, :to, note, tags || ARRAY['transfer'], employee_id
+               SELECT company_id, :to, note,
+                      CASE WHEN 'transfer' = ANY(tags) THEN tags
+                           ELSE tags[1:9] || ARRAY['transfer'] END,
+                      employee_id
                FROM core.employee_memory WHERE employee_id = :id ORDER BY id""",
             id=employee["id"],
             to=receiver["id"],

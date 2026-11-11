@@ -579,7 +579,16 @@ async def new_version(
     decision_id: UUID | None = None,
 ) -> dict[str, Any]:
     """A new protocol (ref None: the next PR- number) or a new version of one
-    (an edit, a pause or a resume), sealed now."""
+    (an edit, a pause or a resume), sealed now. A new version that does not
+    name its calendar keeps the current one (a Jalali protocol stays Jalali)."""
+    data = {k: v for k, v in data.items() if not (k == "calendar" and v is None)}
+    if ref is not None and "calendar" not in data:
+        calendar = await tx.scalar(
+            "SELECT calendar FROM oversight.protocols WHERE ref = :r ORDER BY version DESC LIMIT 1",
+            r=ref,
+        )
+        if calendar is not None:
+            data["calendar"] = calendar
     p = validate_protocol(data)
     if ref is None:
         n = await tx.scalar(
@@ -1129,6 +1138,10 @@ async def issue_challenge(
     tz: str,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
+    if due_at.tzinfo is None:
+        # a time with no offset (common in model-written JSON) is the hub's local time;
+        # compared as is, naive against aware, it raised a TypeError (500)
+        due_at = due_at.replace(tzinfo=ZoneInfo(tz))
     if due_at <= now:
         raise ApiError(422, "validation_failed", fields={"due_at": "in the future"})
     key = (
@@ -1303,9 +1316,10 @@ async def holds_for_run(tx: Tx, employee: str, work_ref: str | None) -> list[str
     )
     out = []
     for r in rows:
-        if r["target_kind"] == "tool":
-            out.append(f"tool:{r['target_ref'].split(':', 1)[1]}")
-        else:
+        tool = r["target_ref"].partition(":")[2] if r["target_kind"] == "tool" else ""
+        if tool:
+            out.append(f"tool:{tool}")
+        else:  # a tool hold with no tool part (placed before it was refused) holds the employee
             out.append(r["ref"])
     return out
 
@@ -1321,6 +1335,9 @@ async def target_company(tx: Tx, kind: str, ref: str) -> tuple[UUID, str, str]:
         "tool": "SELECT e.company_id, e.title_fa AS summary FROM core.employees e"
         " WHERE e.code = split_part(:r, ':', 1)",
     }.get(kind)
+    if kind == "tool" and not all(ref.partition(":")[::2]):
+        # a tool hold is `EMP:tool`; without the tool part every gate of EMP failed (500)
+        raise ApiError(422, "validation_failed", fields={"target.ref": "EMP:tool"})
     if q is None:
         if kind == "story" and await tx.scalar("SELECT to_regclass('owner.stories') IS NOT NULL"):
             q = "SELECT s.company_id, s.title_fa AS summary FROM owner.stories s WHERE s.ref = :r"
