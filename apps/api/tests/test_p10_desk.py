@@ -535,3 +535,15 @@ async def test_support_draft_and_handoff_through_the_internal_api(
         json={"body_md": MIN_A, "kb_refs": [], "confidence": 0.5},
     )  # fmt: skip
     assert r.status_code == 404
+
+
+def test_only_a_whole_opt_out_message_opts_out() -> None:
+    """«لغو» or "stop" inside a support question is never an opt-out (the customer would
+    get no answer and be dropped from every lifecycle message for good)."""
+    for text in ("لغو", "لغو.", "STOP", "Unsubscribe", "لغو اشتراک", "لطفاً لغو اشتراک",
+                 "stop please", "unsubscribe me", "نمی‌خواهم", "دیگه پیام نده"):  # fmt: skip
+        assert desk.is_opt_out(text), text
+    for text in ("چطور برداشت رو لغو کنم؟", "سفارشم لغو نشد", "چرا معامله لغو شد؟",
+                 "میخوام سفارشم رو لغو کنم", "لغو سفارش", "app won't stop crashing",
+                 "Stop loss کار نمیکنه", "how do I stop the auto renewal", ""):  # fmt: skip
+        assert not desk.is_opt_out(text), text

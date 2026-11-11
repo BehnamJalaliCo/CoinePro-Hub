@@ -358,14 +358,37 @@ def _norm(text: str) -> str:
     return " ".join(kb.fa_normalize(G.normalise(text)).split())
 
 
+_PUNCT = re.compile(r"[.!؟?،,;:؛«»\"'()\-]+")
+_OPT_OUT_PHRASES = sorted({_norm(w) for w in OPT_OUT}, key=len, reverse=True)
+# Words that may stand beside an opt-out phrase without making the message something else.
+_OPT_OUT_FILLER = frozenset(
+    _norm(w)
+    for w in (
+        "لطفا", "لطفاً", "پلیز", "اشتراک", "اشتراکم", "پیام", "پیامها", "پیام‌ها", "دیگه",
+        "دیگر", "من", "منو", "مرا", "رو", "را", "همه", "please", "pls", "me", "my", "now",
+        "all", "messages", "emails", "subscription", "from", "this", "list", "the",
+    )
+)  # fmt: skip
+
+
 def _has(text: str, words_: Iterable[str]) -> bool:
     t = f" {_norm(text)} "
     return any(f" {_norm(w)} " in t or (len(w) > 4 and _norm(w) in t) for w in words_)
 
 
 def is_opt_out(text: str) -> bool:
-    t = _norm(text).strip(" .!؟?،,")
-    return t in {_norm(w) for w in OPT_OUT} or (len(t) < 40 and _has(t, OPT_OUT[:4]))
+    """The whole message asks for no more messages: an opt-out phrase, alone or with a
+    few polite or filler words («لطفا لغو اشتراک», "stop please", "unsubscribe me").
+    A question that only contains «لغو» or "stop" («سفارشم لغو نشد», "app won't stop
+    crashing") is a support message, never an opt-out."""
+    t = _norm(_PUNCT.sub(" ", text or ""))
+    if not t or len(t) >= 40:
+        return False
+    rest, hit = f" {t} ", False
+    for phrase in _OPT_OUT_PHRASES:
+        while f" {phrase} " in rest:
+            rest, hit = rest.replace(f" {phrase} ", " "), True
+    return hit and all(w in _OPT_OUT_FILLER for w in rest.split())
 
 
 def classify(text: str) -> str | None:
