@@ -537,6 +537,28 @@ async def test_a_pdf_and_an_image_with_a_secret_are_refused_and_kept_nowhere(
         assert r.status_code == 422 and r.json()["code"] == "secret_in_document"
 
 
+
+def test_a_secret_past_the_kept_text_of_a_pdf_is_still_found(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The text kept is the first pages only; the scan reads every page."""
+    import io
+
+    from pypdf import PdfReader, PdfWriter
+
+    from hq_api.archive import jobs
+
+    w = PdfWriter()
+    for text in ("an ordinary first page", f"wallet backup: {SEED_WORDS}"):
+        w.add_page(PdfReader(io.BytesIO(pdf(text))).pages[0])
+    path = tmp_path / "long.pdf"
+    with path.open("wb") as fh:
+        w.write(fh)
+    monkeypatch.setattr(jobs, "MAX_PDF_PAGES", 1)
+    out = jobs.doc_text_job(str(path))
+    assert out["pages"] == 2 and SEED_WORDS.split()[3] not in (out["text"] or "")
+    assert "seed_phrase" in out["secrets"]
+
 # ------------------------------------------------- clearance everywhere --
 async def test_a_confidential_record_is_invisible_to_an_internal_reader_everywhere(
     client: httpx.AsyncClient,
