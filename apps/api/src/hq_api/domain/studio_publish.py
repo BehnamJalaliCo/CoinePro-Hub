@@ -565,6 +565,7 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
                     "error": None,
                     "sent_at": prev["at"],
                     **({"job": prev["job"]} if prev.get("job") else {}),
+                    **({"message_ids": prev["message_ids"]} if prev.get("message_ids") else {}),
                 }
             )
             continue
@@ -637,6 +638,7 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
                 "url": x.get("url"),
                 "error": x.get("error"),
                 **({"job": x["job"]} if x.get("job") else {}),
+                **({"message_ids": x["message_ids"]} if x.get("message_ids") else {}),
             }
             for x in results
         ]
@@ -927,13 +929,16 @@ async def _send(hub: Any, item: dict[str, Any], r: dict[str, Any]) -> dict[str, 
                 "retry_after": (out.get("data") or {}).get("retry_after"),
             }
         data = out.get("data") or {}
-        mid = data.get("message_id") or (data.get("message_ids") or [None])[0]
+        ids = [str(m) for m in data.get("message_ids") or [] if m is not None]
+        mid = data.get("message_id") or (ids[0] if ids else None)
         name = chat[1:] if chat.startswith("@") else None
         return {
             "outcome": "ok",
             "external_id": str(mid) if mid is not None else None,
             "url": f"https://t.me/{name}/{mid}" if name and mid is not None else None,
             "error": None,
+            # an album is one message per file: unpublishing deletes every one
+            **({"message_ids": ids} if len(ids) > 1 else {}),
         }
     # Instagram: the account itself, a container per file from its signed URL, then publish.
     me = await pub.call(
@@ -1119,17 +1124,22 @@ async def unpublish_due(hub: Any) -> dict[str, Any]:
                 acct, token = await _account(hub, S.account_key("telegram", item["company"]))
                 chat = telegram_chat(channel_of(acct)) if acct else None
                 if token and chat:
-                    out = await publisher().call(
-                        hub,
-                        {
-                            "channel": "telegram",
-                            "method": "deleteMessage",
-                            "token": token,
-                            "payload": {"chat_id": chat, "message_id": int(p["external_id"])},
-                        },
-                        [],
-                    )
-                    err = "removed" if out.get("outcome") == "ok" else "remove_by_hand"
+                    # an album: every message of it, and removed only when all went
+                    ids = [str(m) for m in p.get("message_ids") or []] or [str(p["external_id"])]
+                    gone = 0
+                    for m in ids:
+                        out = await publisher().call(
+                            hub,
+                            {
+                                "channel": "telegram",
+                                "method": "deleteMessage",
+                                "token": token,
+                                "payload": {"chat_id": chat, "message_id": int(m)},
+                            },
+                            [],
+                        )
+                        gone += out.get("outcome") == "ok"
+                    err = "removed" if gone == len(ids) else "remove_by_hand"
             results.append({**p, "error": err})
         async with hub.db.tx([item["company_id"]]) as tx:
             cur = await S.load_item(tx, item["ref"], lock=True)

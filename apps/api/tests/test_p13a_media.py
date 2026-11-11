@@ -926,6 +926,33 @@ async def test_a_one_off_ends_as_a_card_and_unpublishing_removes_what_it_can(
     }
 
 
+
+async def test_unpublishing_a_telegram_album_deletes_every_message(
+    hub: Hub, new_company: Callable[..., Any], su: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    co = await new_company()
+    await accounts(su, co, monkeypatch)
+    sent = {"channel": "telegram", "placement": "telegram_post", "at": "2026-11-11T09:00:00+00:00",
+            "external_id": "43", "message_ids": ["43", "44"], "url": None, "error": None}  # fmt: skip
+    ref = await su.fetchval(
+        """INSERT INTO media.items (company_id, kind, title_fa, state, one_off, created_by_kind,
+               created_by_code, publish, render_meta)
+           VALUES ($1, 'carousel', 'آلبوم', 'published', true, 'owner', 'owner', $2::jsonb,
+                   '{"unpublish": {"by": "owner"}}'::jsonb) RETURNING ref""",
+        co["id"],
+        json.dumps([sent]),
+    )
+    async with platforms(co["code"].lower()) as fake:
+        assert ref in (await P.unpublish_due(hub))["unpublished"]
+        deleted = sorted(
+            c["payload"]["message_id"] for c in fake.calls if c["method"] == "deleteMessage"
+        )
+    assert deleted == [43, 44]
+    row = await su.fetchrow("SELECT state, publish FROM media.items WHERE ref = $1", ref)
+    pub = json.loads(row["publish"]) if isinstance(row["publish"], str) else row["publish"]
+    assert row["state"] == "rejected" and pub[0]["error"] == "removed"
+
+
 async def test_a_series_card_is_sealed_on_its_page_and_the_limit_answers_429(
     client: httpx.AsyncClient,
     hub: Hub,
