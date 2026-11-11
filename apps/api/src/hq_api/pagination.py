@@ -51,15 +51,3 @@ def time_id(cursor: str | None) -> tuple[datetime | None, UUID | None]:
         return datetime.fromisoformat(str(after[0])), UUID(str(after[1]))
     except ValueError as exc:
         raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
-
-
-def time_key(cursor: str | None) -> tuple[datetime | None, str | None]:
-    """A (timestamp, text key) cursor: the timestamp typed (asyncpg binds by
-    type and refuses a str for timestamptz), the key as text."""
-    after = decode(cursor, 2)
-    if after is None:
-        return None, None
-    try:
-        return datetime.fromisoformat(str(after[0])), str(after[1])
-    except ValueError as exc:
-        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
