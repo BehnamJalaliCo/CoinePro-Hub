@@ -39,6 +39,11 @@ BAD_ANSWER_FA = "پاسخ مدل قابل‌اعتماد نبود؛ کمی بع�
 DOWN_FA = "مدل در دسترس نبود؛ کمی بعد دوباره امتحان کنید."
 
 
+class ModelDown(ApiError):
+    """The model or the router did not answer at all (a passing outage, unlike an answer that
+    fails the check): still a 422 to the owner, but a line step may try it again."""
+
+
 # ------------------------------------------------------------------ shapes --
 class PersonaRecord(BaseModel):
     """One persona of a company."""
@@ -380,7 +385,8 @@ async def run_test(
 ) -> tuple[PersonaTest, int]:
     """ONE model call for all the company's personas. (the stored test, tokens). 422 when the
     company has no persona or the text is empty; 422 when the model failed or answered badly (the
-    caller decides what that means: the owner's explicit test, or a step that may retry)."""
+    caller decides what that means: the owner's explicit test, or a step that may retry; a model
+    that did not answer at all is `ModelDown`)."""
     message = scrub(text).strip()[:MAX_TEXT]
     if not message:
         raise ApiError(
@@ -416,7 +422,7 @@ async def run_test(
         hub, _request(company.code, "persona_test", TEST_SYSTEM, prompt, test_schema(list(labels)))
     )
     if got is None:
-        raise ApiError(
+        raise ModelDown(
             422, "validation_failed", "the model did not answer", message_fa=DOWN_FA,
             fields={"results": "not made"},
         )  # fmt: skip

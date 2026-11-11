@@ -69,7 +69,7 @@ class PersonaTestStep:
             raise StepFailed(
                 exc.message_fa or "آزمون پیام روی پرسوناها انجام نشد.",
                 code=exc.code,
-                retry=exc.status == 502,
+                retry=exc.status == 502 or isinstance(exc, P.ModelDown),
             ) from exc
         aggregate = str(C.setting(ctx, "aggregate", "mean"))
         need = int(C.setting(ctx, "min_score", DEFAULT_MIN_SCORE))
