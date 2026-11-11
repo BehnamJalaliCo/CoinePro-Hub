@@ -89,6 +89,12 @@ def month_start(d: date) -> date:
     return d.replace(day=1)
 
 
+def year_back(d: date) -> date:
+    """The first of the same month a year earlier (the day goes first: 29
+    February has no date in the year before)."""
+    return d.replace(day=1, year=d.year - 1)
+
+
 def next_month(d: date) -> date:
     return (d.replace(day=28) + timedelta(days=4)).replace(day=1)
 
@@ -168,7 +174,7 @@ async def listing(
 ) -> list[SalesAffiliateGap]:
     cfg = settings()
     today = today or datetime.now(UTC).date()
-    since = month_start(today.replace(year=today.year - 1))
+    since = year_back(today)
     out: list[SalesAffiliateGap] = []
     for r in await figures(tx, company_id, None, since, next_month(today)):
         state, gap, pct, settle = judge(r, today, cfg)
@@ -287,7 +293,7 @@ async def scan(hub: Any, ask: Ask | None = None, now: datetime | None = None) ->
     async with hub.db.tx(await hub.companies.ids()) as tx:
         if await gate.holding_lock(tx) is not None:
             return out
-        since = month_start(today.replace(year=today.year - 1))
+        since = year_back(today)
         for r in await figures(tx, None, None, since, next_month(today)):
             state, gap, pct, _ = judge(r, today, cfg)
             g = await stored(tx, r["account_id"], r["month"])

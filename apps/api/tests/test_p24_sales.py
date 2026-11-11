@@ -569,6 +569,11 @@ async def test_a_budget_change_is_measured_from_the_limit_in_force(
     assert IM.score(m) == 30.0 and IM.score(None) == 0.0
 
 
+def test_a_year_back_from_29_february_is_the_first_of_february() -> None:
+    assert AG.year_back(date(2028, 2, 29)) == date(2027, 2, 1)  # replace(year=) alone raised
+    assert AG.year_back(date(2026, 11, 11)) == date(2025, 11, 1)
+
+
 def test_an_estimate_is_checked_by_code() -> None:
     ok = {"revenue_usdt": 10, "cost_usd": None, "horizon_days": 7, "basis_fa": "بر پایه‌ی متن کارت."}
     assert IM.checked_estimate(ok)["basis_fa"].startswith("تخمین")  # type: ignore[index]
