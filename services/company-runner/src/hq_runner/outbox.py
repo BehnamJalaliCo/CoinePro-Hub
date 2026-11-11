@@ -17,9 +17,11 @@ type by the bytes again and refuses what it does not take.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import hashlib
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -157,22 +159,38 @@ async def fetch(ctx: Any, folder: Path, inputs: Any) -> list[str]:
     if not isinstance(inputs, list) or not inputs:
         return []
     box = folder / IN
-    if box.is_symlink():
-        raise HubError(0, "bad_input_dir", "in/ is a symbolic link")
-    box.mkdir(exist_ok=True, mode=0o700)
+    # The folder is the session's to change (and a process it left may still run), so every
+    # name in it is opened through one descriptor of in/ itself, never followed: a link the
+    # session planted at in/ or at a file's name never sends the hub's bytes elsewhere.
+    try:
+        if box.is_symlink():
+            raise HubError(0, "bad_input_dir", "in/ is a symbolic link")
+        box.mkdir(exist_ok=True, mode=0o700)
+        dfd = os.open(box, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError as exc:
+        raise HubError(0, "bad_input_dir", type(exc).__name__) from exc
     names: list[str] = []
-    for i, f in enumerate(inputs[:MAX_INPUTS], 1):
-        if not isinstance(f, dict) or not isinstance(f.get("url"), str):
-            continue
-        name = safe_name(f.get("name"), i)
-        while name in names:
-            name = f"{i}-{name}"
-        part = box / f".{name}.part"
-        try:
-            await with_retry(functools.partial(ctx.hub.download, f["url"], part, MAX_INPUT_BYTES))
-            part.replace(box / name)
-        finally:
-            part.unlink(missing_ok=True)
-        names.append(name)
-        ctx.sink.emit("progress", {"text": f"in/{name} received"})
+    try:
+        for i, f in enumerate(inputs[:MAX_INPUTS], 1):
+            if not isinstance(f, dict) or not isinstance(f.get("url"), str):
+                continue
+            name = safe_name(f.get("name"), i)
+            while name in names:
+                name = f"{i}-{name}"
+            part = f".{name}.part"
+            try:
+                await with_retry(
+                    functools.partial(ctx.hub.download, f["url"], part, MAX_INPUT_BYTES, dir_fd=dfd)
+                )
+                # a rename replaces a link at the name itself, never what it points to
+                os.replace(part, name, src_dir_fd=dfd, dst_dir_fd=dfd)
+            except OSError as exc:
+                raise HubError(0, "bad_input", type(exc).__name__) from exc
+            finally:
+                with contextlib.suppress(OSError):
+                    os.unlink(part, dir_fd=dfd)
+            names.append(name)
+            ctx.sink.emit("progress", {"text": f"in/{name} received"})
+    finally:
+        os.close(dfd)
     return names

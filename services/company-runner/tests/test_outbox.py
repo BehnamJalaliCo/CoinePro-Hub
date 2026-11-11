@@ -199,3 +199,53 @@ def test_a_turn_finds_its_input_files_in_the_in_folder(
     run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h10" in fake_hub.results, within=60))
     assert fake_hub.results["h10"]["exit_code"] != 0
     assert "ورودی" in fake_hub.results["h10"]["summary_fa"]
+
+
+def test_a_link_planted_in_the_in_folder_never_redirects_an_input(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path, tmp_path: Path
+) -> None:
+    """A turn may leave links in `in/` (at the next input's `.part` name, or at its name): the
+    hub's bytes still land in `in/` only, never in the file a link points to (another work's
+    CLAUDE.md, the runner's own config)."""
+    victim = spaces / "W-000777" / "CLAUDE.md"
+    victim.parent.mkdir(parents=True)
+    victim.write_text("company B's instructions", encoding="utf-8")
+    other = tmp_path / "config.json"
+    other.write_text("token", encoding="utf-8")
+    box = spaces / REF / "in"
+    box.mkdir(parents=True)
+    os.symlink(victim, box / ".brief.md.part")
+    os.symlink(other, box / "brief.md")
+    os.symlink(other, box / ".logo.png.part")
+    fake_hub.inputs["h11/a"] = b"# planted"
+    fake_hub.inputs["h11/b"] = b"\x89PNG"
+    job = turn("h11")
+    job["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": "a", "name": "brief.md", "url": "/api/v1/runners/jobs/h11/inputs/a"},
+        {"file_id": "b", "name": "logo.png", "url": "/api/v1/runners/jobs/h11/inputs/b"},
+    ]
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h11" in fake_hub.results, within=60))
+    assert fake_hub.results["h11"]["exit_code"] == 0, fake_hub.results["h11"]
+    assert victim.read_text(encoding="utf-8") == "company B's instructions"
+    assert other.read_text(encoding="utf-8") == "token"
+    for name, data in (("brief.md", b"# planted"), ("logo.png", b"\x89PNG")):
+        assert not (box / name).is_symlink() and (box / name).read_bytes() == data
+    assert sorted(p.name for p in box.iterdir()) == ["brief.md", "logo.png"]
+
+    # in/ itself a link: the turn does not start, and nothing is written where it points
+    sink = tmp_path / "elsewhere"
+    sink.mkdir()
+    for p in box.iterdir():
+        p.unlink()
+    box.rmdir()
+    os.symlink(sink, box)
+    fake_hub.inputs["h12/a"] = b"x"
+    job = turn("h12")
+    job["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": "a", "name": "brief.md", "url": "/api/v1/runners/jobs/h12/inputs/a"}
+    ]
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h12" in fake_hub.results, within=60))
+    assert fake_hub.results["h12"]["exit_code"] != 0
+    assert list(sink.iterdir()) == []
