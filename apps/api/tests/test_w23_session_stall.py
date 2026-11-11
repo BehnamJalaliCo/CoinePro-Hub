@@ -653,6 +653,12 @@ async def test_a_run_a_quota_stopped_says_in_the_session_when_it_works_again(
     when = NS.when_fa(at, zone, datetime.now(UTC))
     assert end["text_fa"] == f"کار متوقف شد: اکانت‌های Claude پر است؛ {when} دوباره کار میکند.", end
     no_shoma(end["text_fa"])
+    # a raised card waits for the owner: not a failure, the step's own words stay
+    card = [{"tool": "propose", "outcome": "pending", "code": "a3_requires_decision"}]
+    assert SA.step_text("پیشنهاد انتشار را برای مُهر فرستادم", card) == (
+        "پیشنهاد انتشار را برای مُهر فرستادم"
+    )
+    assert "(نشد)" not in SA.tools_text(card)
     # a step whose action did not happen shows the tools' real outcome, not the model's claim
     assert SA.step_text("پیش‌نویس آماده شد", [{"tool": "substitute.call", "outcome": "denied",
                                                "hint": "ChatGPT"}]) == "از ChatGPT پرسید (نشد)"  # fmt: skip

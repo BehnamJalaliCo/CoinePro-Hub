@@ -311,6 +311,15 @@ def plain(text: str | None) -> str | None:
     return _cut(out)
 
 
+# an outcome that is not `ok` yet is no failure: the owner's card was raised and waits for him
+NOT_A_FAILURE = ("a3_requires_decision",)
+
+
+def failed_action(a: dict[str, Any]) -> bool:
+    """⟨2026-11-11⟩ Whether a step's action did not happen (the runner's `any_failed` rule)."""
+    return a.get("outcome") not in (None, "ok") and a.get("code") not in NOT_A_FAILURE
+
+
 def tools_text(actions: list[Any], names: dict[str, str] | None = None) -> str:
     """The tools of a step in plain Persian verbs (at most three, each once); a refused or failed
     call says so."""
@@ -328,7 +337,7 @@ def tools_text(actions: list[Any], names: dict[str, str] | None = None) -> str:
         text = with_hint.format(x=hint) if hint and "{x}" in with_hint else bare
         if HZ.check(text):
             text = bare
-        if a.get("outcome") not in (None, "ok"):
+        if failed_action(a):
             text += " (نشد)"
         if text not in phrases:
             phrases.append(text)
@@ -344,9 +353,7 @@ def step_text(
     ⟨2026-11-11⟩ When an action of the step did not happen (refused, failed, skipped), its tools'
     real outcome, never the model's summary (written before any tool ran: it may claim it)."""
     if any(
-        isinstance(a, dict)
-        and a.get("outcome") not in (None, "ok")
-        and str(a.get("tool") or "") not in SILENT_TOOLS
+        isinstance(a, dict) and failed_action(a) and str(a.get("tool") or "") not in SILENT_TOOLS
         for a in actions
     ):
         return tools_text(actions, names)
