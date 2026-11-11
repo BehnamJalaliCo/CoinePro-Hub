@@ -43,11 +43,16 @@ DENY_PROGRAMS = frozenset(
 )  # fmt: skip
 # Credential files and the process environment: never read, whatever the command.
 SECRET_HINT = re.compile(
-    r"((^|[\s/=])\.env(\.|\b)|id_rsa|id_ed25519|\.ssh/|\.aws/|\.netrc|\.git-credentials|"
+    r"((^|[\s/=:<'\"])\.env(\.|\b)|id_rsa|id_ed25519|\.ssh/|\.aws/|\.netrc|\.git-credentials|"
     r"/proc/[^/\s]+/environ|\bprintenv\b|^\s*env(\s|$)|\bset\s*$)",
     re.IGNORECASE,
 )
-SHELL_CHAINS = re.compile(r"(;|&&|\|\||\||`|\$\()")
+# Every place a new command can start: chains, pipes, a lone `&`, a newline,
+# subshells and command or process substitution. The split ignores quotes on
+# purpose: a piece cut out of a quoted string parses badly and is asked about,
+# never let through. `>&`, `<&`, `&>` (redirections) are not a lone `&`.
+SPLIT = re.compile(r"&&|\|\||\|&?|;|\r|\n|(?<![<>&])&(?![>&])|[<>$]?\(|\)|`")
+SUBSTITUTION = re.compile(r"`|\$\(|[<>]\(")
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,10 @@ def _words(cmd: str) -> list[str]:
         return shlex.split(cmd)
     except ValueError:
         return []
+
+
+def _parts(text: str) -> list[str]:
+    return [p.strip() for p in SPLIT.split(text) if p.strip()]
 
 
 # What a command needs of the grant's actions (06.1 §2: a read-only grant never
@@ -95,13 +104,15 @@ def needs(cmd: str) -> set[str]:
     """The grant actions (edit, run, push_branch, open_pr) one shell command
     needs; a chain needs what each part needs."""
     text = cmd.strip()
-    parts = [p.strip() for p in re.split(r"&&|;|\|\||\|", text) if p.strip()]
-    if len(parts) > 1:
+    parts = _parts(text)
+    if len(parts) > 1 or (parts and parts[0] != text):
         return set().union(*(needs(p) for p in parts))
     out: set[str] = set()
     if re.search(r"(^|[^>&0-9])>{1,2}(?!&)", text):  # an output redirection writes a file
         out.add("edit")
-    words = _words(text)
+    # A piece that does not parse (cut from a quoted string) is still read
+    # word by word: what it would need is never dropped.
+    words = _words(text) or re.sub(r"[\"']", " ", text).split()
     if not words:
         return out
     program = words[0]
@@ -134,16 +145,21 @@ def classify(cmd: str, *, session_ref: str, branch_prefix: str = "hq/") -> Rulin
         return Ruling("deny", reason="empty")
     if SECRET_HINT.search(text):
         return Ruling("deny", reason="touches credentials or environment files")
-    parts = [p.strip() for p in re.split(r"&&|;|\|\||\|", text) if p.strip()]
-    if SHELL_CHAINS.search(text) and len(parts) > 1:
+    parts = _parts(text)
+    if not parts:
+        return Ruling("ask", reason="unparsed")
+    if len(parts) > 1 or parts[0] != text:
+        # Every command in the text is ruled, not only the first one.
         rulings = [classify(p, session_ref=session_ref, branch_prefix=branch_prefix) for p in parts]
         for r in rulings:
             if r.verdict == "deny":
                 return r
         asks = [r for r in rulings if r.verdict == "ask"]
-        return asks[0] if asks else Ruling("allow")
-    if "`" in text or "$(" in text:
-        return Ruling("ask", reason="command substitution")
+        if asks:
+            return asks[0]
+        if SUBSTITUTION.search(text):
+            return Ruling("ask", reason="command substitution")
+        return Ruling("allow")
     words = _words(text)
     if not words:
         return Ruling("ask", reason="unparsed")

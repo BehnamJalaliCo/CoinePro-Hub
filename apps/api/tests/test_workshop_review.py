@@ -70,6 +70,10 @@ def at(seconds: float) -> str:
         ("git push origin hq/S-0001", {"push_branch"}),
         ("gh pr create --fill", {"open_pr"}),
         ("ls 2>&1 | head", set()),
+        ("ls\ngit push origin hq/S-0001", {"push_branch"}),
+        ("ls & rm -rf .", {"edit"}),
+        ("cat <(gh pr create --fill)", {"open_pr"}),
+        ('git commit -m "a\nb"', {"edit"}),
     ],
 )
 def test_what_each_command_needs_of_the_grant(cmd: str, need: set[str]) -> None:
