@@ -549,6 +549,27 @@ async def test_hiring_shows_each_companys_envelope(
     assert holding not in env  # operating companies only
 
 
+async def test_used_month_is_the_routers_own_month_counter(
+    hub: Any, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """The router enforces the company budget row over llm.usage's UTC month:
+    the envelope's used_month is that counter, never an older month's."""
+    company = await new_company()
+    co = company["code"]
+    await su.execute(
+        """INSERT INTO llm.usage (company_id, scope_type, scope_ref, period, period_start, calls, tokens)
+           VALUES ($1, 'company', $2, 'month', date_trunc('month', now() AT TIME ZONE 'UTC')::date, 3, 700),
+                  ($1, 'company', $2, 'month',
+                   (date_trunc('month', now() AT TIME ZONE 'UTC') - interval '1 month')::date, 9, 90000),
+                  ($1, 'company', $2, 'day', (now() AT TIME ZONE 'UTC')::date, 3, 700)""",
+        company["id"],
+        co,
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        env = next(e for e in await hiring.envelopes(tx) if e.company == co)
+    assert env.used_month == 700
+
+
 async def test_a_close_waits_for_a_hire_proposal_in_flight(
     hub: Any, su: Any, new_company: Callable[..., Any]
 ) -> None:

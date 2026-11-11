@@ -59,7 +59,7 @@ class Envelope(BaseModel):
     company: str
     tokens_month: int | None  # the company's monthly budget (llm.budgets), if set
     committed_month: int  # monthly estimates of its approved hires: active, or not made yet
-    used_month: int  # tokens used this Jalali month
+    used_month: int  # tokens counted against tokens_month (llm-router's UTC month)
     hires_month: int  # hire cards approved this Jalali month
 
 
@@ -196,8 +196,11 @@ def jalali_month_start(today: date) -> date:
 
 
 async def envelopes(tx: Tx) -> list[Envelope]:
-    """Every active operating company's envelope (contract §18.11). The month
-    is the owner's Jalali month, from midnight in the owner's time zone."""
+    """Every active operating company's envelope (contract §18.11). Hires are
+    counted over the owner's Jalali month, from midnight in the owner's time
+    zone; used_month is llm-router's own counter of the company budget row
+    (llm.usage, the UTC calendar month), the window the router enforces
+    tokens_month over, so a top-up decided here is one the router allows."""
     tz = ZoneInfo(
         str(await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran")
     )
@@ -227,10 +230,11 @@ async def envelopes(tx: Tx) -> list[Envelope]:
                     WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
                       AND (e.status = 'active'
                            OR (e.id IS NULL AND d.effect_status = 'pending'))) AS committed_month,
-                  (SELECT COALESCE(sum(COALESCE(k.input_tokens, 0) + COALESCE(k.output_tokens, 0)
-                                       + COALESCE(k.cache_read_tokens, 0)
-                                       + COALESCE(k.cache_write_tokens, 0)), 0)
-                     FROM llm.calls k WHERE k.company_id = c.id AND k.started_at >= :start) AS used_month,
+                  (SELECT COALESCE(sum(u.tokens), 0) FROM llm.usage u
+                    WHERE u.company_id = c.id AND u.scope_type = 'company' AND u.scope_ref = c.code
+                      AND u.period = 'month'
+                      AND u.period_start = date_trunc('month', now() AT TIME ZONE 'UTC')::date)
+                    AS used_month,
                   (SELECT count(*) FROM cartable.decisions d
                     WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
                       AND d.decided_at >= :start) AS hires_month
