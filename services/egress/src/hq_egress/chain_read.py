@@ -223,6 +223,11 @@ async def _rpc(state: Any, method: str, params: list[Any]) -> Any:
         except FetchError:
             last = "upstream_error"
             continue
+        except Blocked as b:
+            if b.reason != "dns_failed":
+                raise
+            last = "upstream_error"  # one node's name did not resolve: the next node
+            continue
         if status == 200 and isinstance(parsed, dict) and "result" in parsed:
             return parsed["result"]
         last = _failure(status, parsed)
@@ -440,7 +445,13 @@ async def _tron_scan(state: Any, a: CallIn, entries: list[Entry]) -> dict[str, A
     more = isinstance(fingerprint, str) and bool(FINGERPRINT.match(fingerprint))
     transfers = []
     looked = 0
+    # TronGrid gives one row per Transfer event and no event index: a transaction that
+    # pays the address twice has two rows with one hash. Each gets its place among that
+    # hash's rows (TronGrid's order, the same on a re-scan), so neither replaces the other.
+    seen: dict[str, int] = {}
     for r in rows:
+        idx = seen.get(r["tx_hash"], 0)
+        seen[r["tx_hash"]] = idx + 1
         block: int | None = None
         # a block is looked up only where the confirmation is not obviously deep already
         if (head_ts * 1000 - r["ts_ms"]) < 3 * 3600 * 1000 and looked < MAX_ENRICH:
@@ -455,7 +466,7 @@ async def _tron_scan(state: Any, a: CallIn, entries: list[Entry]) -> dict[str, A
         transfers.append(
             {
                 "tx_hash": r["tx_hash"],
-                "idx": 0,
+                "idx": idx,
                 "from": r["from"],
                 "to": a.address,
                 "amount_usdt": _amount(r["raw"], DECIMALS[a.network]),

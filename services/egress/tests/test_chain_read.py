@@ -75,6 +75,7 @@ class Chain:
 
     def __init__(self) -> None:
         self.seen: list[httpx.Request] = []
+        self.no_dns: set[str] = set()  # names whose lookup fails
         self.bsc_logs: list[dict[str, Any]] = []
         self.bsc_down: set[str] = set()
         self.bsc_error: dict[str, Any] | None = None
@@ -154,14 +155,14 @@ def tron_row(
 @pytest.fixture
 async def egress() -> AsyncIterator[tuple[httpx.AsyncClient, Chain]]:
     table = {h: ["142.250.0.95"] for h in (*BSC_HOSTS, TRON_HOST)}
+    chain = Chain()
 
     async def resolve(host: str, port: int) -> list[str]:
-        if host not in table:
+        if host not in table or host in chain.no_dns:
             raise OSError("no such name")
         return table[host]
 
     guard = Guard(hub_hosts=frozenset({HUB}), resolver=resolve)
-    chain = Chain()
     fetcher = Fetcher(guard, 5)
     await fetcher.http.aclose()
     fetcher.http = httpx.AsyncClient(transport=httpx.MockTransport(chain), follow_redirects=False)
@@ -279,6 +280,20 @@ async def test_bsc_falls_over_to_the_next_node(egress: tuple[httpx.AsyncClient, 
     assert {r.url.host for r in chain.seen} == set(BSC_HOSTS)
 
 
+async def test_bsc_falls_over_when_a_node_name_does_not_resolve(
+    egress: tuple[httpx.AsyncClient, Chain],
+) -> None:
+    c, chain = egress
+    chain.no_dns = {BSC_HOSTS[0]}
+    chain.bsc_logs = [bsc_log(TX1, 49_990, 0, 10**18)]
+    out = await post(c, bsc_call())
+    assert out["outcome"] == "ok" and len(out["data"]["transfers"]) == 1
+    assert {r.url.host for r in chain.seen} == {BSC_HOSTS[1]}
+    chain.no_dns = set(BSC_HOSTS)  # no node at all: the chain's own failure code
+    out = await post(c, bsc_call())
+    assert out["outcome"] == "error" and out["code"] == "upstream_error"
+
+
 async def test_bsc_node_refusals_are_stable_codes(egress: tuple[httpx.AsyncClient, Chain]) -> None:
     c, chain = egress
     chain.bsc_error = {"code": -32005, "message": "query returned more than 10000 results"}
@@ -351,6 +366,23 @@ async def test_tron_scan_normalises_and_filters(egress: tuple[httpx.AsyncClient,
     assert TRON_OLD not in looked and {TRON_TX1, TRON_TX2} <= set(looked)
     assert {r.url.host for r in chain.seen} == {TRON_HOST}
     assert all(r.headers["TRON-PRO-API-KEY"] == KEY for r in chain.seen)
+
+
+async def test_tron_transfers_of_one_transaction_keep_their_own_index(
+    egress: tuple[httpx.AsyncClient, Chain],
+) -> None:
+    """Two payments to the address in one transaction (a batch contract): two rows,
+    idx 0 and 1 in TronGrid's order (the same on a re-scan), never one row."""
+    c, chain = egress
+    chain.tron_rows = [
+        tron_row(TRON_TX1, HEAD_TS - 60, 50_000_000),
+        tron_row(TRON_TX1, HEAD_TS - 60, 25_000_000),
+        tron_row(TRON_TX2, HEAD_TS - 10, 1_000_000),
+    ]
+    for _ in range(2):
+        d = (await post(c, tron_call()))["data"]
+        got = [(t["tx_hash"], t["idx"], t["amount_usdt"]) for t in d["transfers"]]
+        assert got == [(TRON_TX1, 0, "50"), (TRON_TX1, 1, "25"), (TRON_TX2, 0, "1")]
 
 
 async def test_tron_scan_is_paged_by_fingerprint(egress: tuple[httpx.AsyncClient, Chain]) -> None:
