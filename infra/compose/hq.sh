@@ -160,12 +160,13 @@ subcommand() {
 # The provisioner (prompt 09 §4): opt-in profile "provisioning", switched on
 # with HQ_PROVISIONING=on (.env) once the owner has stored the Hetzner token
 # (make hetzner-token). The same memory rule as stt; the api gets
-# PROVISIONER_URL only while it is on.
+# PROVISIONER_URL only while it is on. Like every opt-in gate it counts the
+# hourly backup one-shot (backup-tools), as the quality gate does.
 provisioning="${HQ_PROVISIONING:-$(sed -n 's/^HQ_PROVISIONING=//p' "$ENV_FILE" | tail -n1)}"
 export PROVISIONER_URL=""
 if [[ "$provisioning" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
-  sum="$(compose "${profile_args[@]}" --profile provisioning config --format json |
+  sum="$(compose "${profile_args[@]}" --profile provisioning --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
@@ -192,7 +193,7 @@ tracing="${HQ_TRACING:-$(sed -n 's/^HQ_TRACING=//p' "$ENV_FILE" | tail -n1)}"
 export HQ_TRACING_SCRAPE=off
 if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
-  sum="$(compose "${profile_args[@]}" --profile tracing config --format json |
+  sum="$(compose "${profile_args[@]}" --profile tracing --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
