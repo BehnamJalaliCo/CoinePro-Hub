@@ -735,8 +735,8 @@ async def test_a_call_waiting_behind_a_busy_lane_is_not_reaped_and_a_free_lanes_
                 later["id"],
             )
             async with hub.db.tx(await hub.companies.ids()) as tx:
-                # DeepSeek's job, asked after the script and taken after the cover: not ahead of
-                # it, not in the cover's pass; the script's deadline stays the cover's
+                # DeepSeek's short job, asked after the script and taken while it waited: it ends
+                # before the cover, so the script's deadline stays the cover's
                 assert await S.deadline_of(tx, script["id"]) == (
                     cover["claimed_at"] + timedelta(seconds=900 + S.RUN_GRACE_S) + S.QUEUE_DEADLINE
                 )
@@ -927,3 +927,57 @@ async def test_one_pass_makes_at_most_its_cap_of_reply_works_and_owes_the_rest(
             await refuse_queued(su, reply["ref"])
     finally:
         await _end_run(su, s)
+
+
+async def test_a_paced_call_and_a_call_behind_a_retry_keep_their_clock(hub: Hub, su: Any) -> None:
+    """Two waits that are a turn, not "nobody took it": the 60-second pace of the call's own
+    player (the next pass skips it, and starts another player's long job), and a retried job
+    ahead of it (the passes take each queue by when a call was made)."""
+    end = timedelta(seconds=900 + S.RUN_GRACE_S)
+    async with bench(su, hub, web=("gpt", "gemini")):
+        await per_day(su, "gpt", "creative", 5)
+        await per_day(su, "gemini", "creative", 5)
+        holding = await hub.companies.holding()
+
+        async def ask(player: str, seat: str, task: str = "text") -> dict[str, Any]:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                row = await S.seat_call(tx, hub, A.SERVICE, seat=seat, input_md="x", player=player,
+                                        company_id=holding.id, task=task)  # fmt: skip
+            assert row["state"] == "queued", row
+            return row
+
+        async def run(call: dict[str, Any], at: str) -> dict[str, Any]:
+            await su.execute(
+                f"""UPDATE substitutes.calls SET state = 'running', claimed_at = {at}
+                    WHERE id = $1""",
+                call["id"],
+            )
+            return dict(await _call(su, call["id"]))
+
+        async def deadline(call: dict[str, Any]) -> Any:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                return await S.deadline_of(tx, call["id"])
+
+        # 1. ChatGPT's script joins inside ChatGPT's pace; the pass that skips it starts Gemini's
+        # long image: the script waits for that pass. A job taken later than two minutes after it
+        # joined does not hold it.
+        script = await ask("gpt", "assistant_errand")
+        image = await run(await ask("gemini", "creative", "image"), "clock_timestamp()")
+        late = await ask("gemini", "creative", "image")
+        await run(late, f"'{(script['created_at'] + timedelta(minutes=3)).isoformat()}'")
+        assert await deadline(script) == image["claimed_at"] + end + S.QUEUE_DEADLINE
+        await su.execute(
+            "UPDATE substitutes.calls SET state = 'done', finished_at = now() WHERE id = ANY($1)",
+            [image["id"], late["id"]],
+        )
+        # 2. A ChatGPT cover made before the script, asked again (its page reloaded) and taken
+        # five minutes after the script: still ahead of it in ChatGPT's queue
+        cover = await ask("gpt", "creative", "image")
+        script = await ask("gpt", "assistant_errand")
+        await su.execute(
+            "UPDATE substitutes.calls SET queued_at = $2, attempt = 2 WHERE id = $1",
+            cover["id"],
+            script["created_at"] + timedelta(minutes=4),
+        )
+        cover = await run(cover, f"'{(script['created_at'] + timedelta(minutes=5)).isoformat()}'")
+        assert await deadline(script) == cover["claimed_at"] + end + S.QUEUE_DEADLINE

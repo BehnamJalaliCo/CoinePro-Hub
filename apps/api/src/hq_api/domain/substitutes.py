@@ -181,14 +181,16 @@ WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitute
 # call's clock runs from when it joined its queue (queued_at: asked again; else created_at), or
 # from when its lane was free for it again, whichever is later: a call waiting its turn behind a
 # long job is not "nobody took it". What holds it, on the same path (`via`):
-#   - the jobs ahead of it in its own queue (joined no later than it): a web player's own queue,
-#     the CLI's one queue for both players; whenever they were claimed;
-#   - any player's job claimed while it waited for those (claimed at or before the later of when
-#     it joined and when the last job ahead of it was claimed): one web pass serves every player
-#     and waits for all its jobs, and the schedule skips a pass while one runs.
-# A job that joined after it but ran before it does not hold it (something else is wrong: it is
-# reaped on time). A job's end is when it finished, else its own deadline (a lost job holds no
-# longer); only jobs claimed within the hour before it joined are read.
+#   - the jobs ahead of it in its own queue, in the pick order (made no later than it, a retried
+#     one too: the passes take each queue by created_at): a web player's own queue, the CLI's one
+#     queue for both players; whenever they were claimed;
+#   - any player's job claimed while it waited for those, or for its player's 60-second pace
+#     (claimed at or before the later of two minutes after it joined and when the last job ahead
+#     of it was claimed): one web pass serves every player and waits for all its jobs, and the
+#     schedule skips a pass while one runs.
+# A job made after it but run before it does not hold it (something else is wrong: it is reaped
+# on time). A job's end is when it finished, else its own deadline (a lost job holds no longer);
+# only jobs claimed within the hour before it joined are read.
 _END_SQL = (
     f"COALESCE(o.finished_at, o.claimed_at + make_interval(secs => o.timeout_s + {RUN_GRACE_S}))"
 )
@@ -197,13 +199,10 @@ _LANE_SQL = (
     "o.via = c.via AND o.id <> c.id AND o.claimed_at IS NOT NULL"
     f" AND o.claimed_at >= {_JOINED_SQL} - interval '1 hour' AND {_END_SQL} > {_JOINED_SQL}"
 )
-_AHEAD_SQL = (
-    "(c.via = 'cli' OR o.player = c.player)"
-    f" AND COALESCE(o.queued_at, o.created_at) <= {_JOINED_SQL}"
-)
+_AHEAD_SQL = "(c.via = 'cli' OR o.player = c.player) AND o.created_at <= c.created_at"
 _TURN_SQL = (
-    f"GREATEST({_JOINED_SQL}, (SELECT max(o.claimed_at) FROM substitutes.calls o"  # noqa: S608
-    f" WHERE {_LANE_SQL} AND {_AHEAD_SQL}))"
+    f"GREATEST({_JOINED_SQL} + interval '2 minutes', (SELECT max(o.claimed_at)"  # noqa: S608
+    f" FROM substitutes.calls o WHERE {_LANE_SQL} AND {_AHEAD_SQL}))"
 )
 BUSY_UNTIL_SQL = (
     f"(SELECT max({_END_SQL}) FROM substitutes.calls o"  # noqa: S608 - constants only
