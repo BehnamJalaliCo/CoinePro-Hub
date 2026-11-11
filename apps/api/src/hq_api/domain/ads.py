@@ -107,6 +107,19 @@ class AdRuleEdit(Model):
     state: Literal["on", "off"] | None = None
     note_fa: str | None = Field(default=None, max_length=300)
 
+    @model_validator(mode="after")
+    def _no_null_where_the_rule_needs_a_value(self) -> AdRuleEdit:
+        # Left out means unchanged; an explicit null is only for the cap, the floor
+        # and the note (the rest are NOT NULL in growth.ad_rules).
+        nulls = sorted(
+            k
+            for k in ("scope", "window_days", "min_spend_before_judging", "action", "state")
+            if k in self.model_fields_set and getattr(self, k) is None
+        )
+        if nulls:
+            raise ValueError(f"may not be null: {', '.join(nulls)}")
+        return self
+
 
 class AdRule(BaseModel):
     id: str
@@ -256,9 +269,11 @@ def loosens(old: dict[str, Any], new: dict[str, Any]) -> bool:
         up(old["daily_cap"], new["daily_cap"])
         or down(old["min_roas"], new["min_roas"])
         or float(new["min_spend_before_judging"]) > float(old["min_spend_before_judging"])
+        or int(new["window_days"]) > int(old["window_days"])
         or (old["action"] == "pause" and new["action"] == "notify")
         or (old["state"] == "on" and new["state"] == "off")
-        or (old["scope"] == "account" and new["scope"] != "account")  # fewer campaigns covered
+        # fewer campaigns covered, or the guarded campaign is no longer guarded
+        or (old["scope"] != new["scope"] and new["scope"] != "account")
     )
 
 

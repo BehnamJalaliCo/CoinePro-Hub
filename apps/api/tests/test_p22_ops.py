@@ -675,8 +675,16 @@ def test_loosening_a_rule_is_what_needs_the_seal() -> None:
     assert not AD.loosens(old, {**old, "window_days": 3, "scope": "111"} | {"scope": "account"})
     for change in ({"daily_cap": 150}, {"daily_cap": None}, {"min_roas": 1}, {"min_roas": None},
                    {"min_spend_before_judging": 500}, {"action": "notify"}, {"state": "off"},
-                   {"scope": "111"}):  # fmt: skip
+                   {"scope": "111"}, {"window_days": 90}):  # fmt: skip
         assert AD.loosens(old, {**old, **change}), change
+    one = {**old, "scope": "111"}
+    assert AD.loosens(one, {**one, "scope": "222"})  # campaign 111 is no longer guarded
+    assert not AD.loosens(one, {**one, "scope": "account"})  # every campaign: tighter
+    # left out is unchanged; an explicit null only where the rule may have none
+    assert AD.AdRuleEdit.model_validate({"daily_cap": None}).daily_cap is None
+    for null in ("min_spend_before_judging", "window_days", "scope", "action", "state"):
+        with pytest.raises(ValueError, match=null):
+            AD.AdRuleEdit.model_validate({null: None})
 
 
 async def test_both_platforms_are_read_and_a_pause_changes_nothing_but_the_status(
@@ -928,6 +936,8 @@ async def test_ad_rules_and_resuming_are_the_owners_with_a_seal_where_it_loosens
     assert tighter.status_code == 200 and tighter.json()["daily_cap"] == 80
     looser = await client.put(path, headers=h, json={"daily_cap": 500})
     assert looser.status_code == 403  # raising a cap is 🔏 ads.cap
+    null = await client.put(path, headers=h, json={"min_spend_before_judging": None})
+    assert null.status_code == 422  # a plain refusal, not a 500
     su_h = await step_up(hub, sid, "ads.cap", rule["id"])
     ok = await client.put(path, headers={**h, **su_h}, json={"daily_cap": 500})
     assert ok.status_code == 200 and ok.json()["daily_cap"] == 500
