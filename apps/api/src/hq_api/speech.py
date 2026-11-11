@@ -14,7 +14,10 @@ What it does, in this order:
 - model names come from a fixed table (claude-opus-5-5 -> «اپوس پنج و نیم»);
 - dates: a Jalali date (1405/08/01), a Jalali month (1405-08) and an ISO
   Gregorian date (2026-10-22, read as its Jalali day) become words; a clock
-  time (09:30) too;
+  time (09:30) too, with no second «ساعت» when the text already says it;
+- a hyphen between figures is a range (10-15% -> «ده تا پانزده درصد»), a
+  minus sign only at the start of a word; hyphen- or dot-chained digit groups
+  (0912-123-4567, 2.1.3) are read group by group;
 - money ($4.20 -> «چهار دلار و بیست سنت», $1.6M, 12 USD), percentages
   (15% / ۱۵٪), scaled figures (1.6M -> «یک و شش دهم میلیون»), thousands
   separators and decimals become Persian words;
@@ -270,12 +273,20 @@ _MODEL = re.compile(
 _JDATE = re.compile(r"\b(1[34][0-9]{2})/([0-9]{1,2})/([0-9]{1,2})\b")
 _GDATE = re.compile(r"\b((?:19|20)[0-9]{2})-([0-9]{2})-([0-9]{2})\b")
 _JMONTH = re.compile(r"\b(1[34][0-9]{2})-([0-9]{2})\b")
-_TIME = re.compile(r"\b([01]?[0-9]|2[0-3]):([0-5][0-9])\b")
+# A text that already says «ساعت» before the time does not get it twice.
+_TIME = re.compile(r"(?:\bساعت\s*|\b)([01]?[0-9]|2[0-3]):([0-5][0-9])\b")
+# A hyphen is a minus sign only at the start of a word: in «10-15» it is a range.
+_MINUS = r"(?:(?<!\w)-)?"
+# Digit groups chained by hyphens (a phone number) or by dots (a version, 2.1.3).
+_DASHED = re.compile(r"(?<![0-9-])[0-9]+(?:-[0-9]+){2,}(?![0-9])")
+_DOTTED = re.compile(r"(?<![0-9.])[0-9]+(?:\.[0-9]+){2,}(?![0-9])")
+# A range between figures (10-15, 10%-15%, $10-$20, 3 – 5) is read «ده تا پانزده».
+_RANGE = re.compile(r"(?<=[0-9%٪])(?:[-–]|\s+[-–]\s+)(?=\$?[0-9])")
 _MONEY_PRE = re.compile(r"\$\s?(-?[0-9][0-9,]*(?:\.[0-9]+)?)([kKMBT])?\b")
-_MONEY_POST = re.compile(r"\b(-?[0-9][0-9,]*(?:\.[0-9]+)?)\s?(?:USD|usd|دلار)\b")
-_PERCENT = re.compile(r"(-?[0-9][0-9,]*(?:\.[0-9]+)?)\s?[%٪]")
-_SCALED = re.compile(r"\b(-?[0-9][0-9,]*(?:\.[0-9]+)?)([kKMBT])\b")
-_NUMBER = re.compile(r"-?[0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?")
+_MONEY_POST = re.compile(rf"({_MINUS}\b[0-9][0-9,]*(?:\.[0-9]+)?)\s?(?:USD|usd|دلار)\b")
+_PERCENT = re.compile(rf"({_MINUS}[0-9][0-9,]*(?:\.[0-9]+)?)\s?[%٪]")
+_SCALED = re.compile(rf"({_MINUS}\b[0-9][0-9,]*(?:\.[0-9]+)?)([kKMBT])\b")
+_NUMBER = re.compile(rf"{_MINUS}[0-9]+(?:,[0-9]{{3}})*(?:\.[0-9]+)?")
 _ACRONYM = re.compile(r"\b[A-Z]{2,10}\b")
 _LEFT_DIGIT = re.compile(r"[0-9۰-۹٠-٩]")
 
@@ -353,6 +364,14 @@ def _line(
     )
     s = _REF.sub(ref, s)
     s = _CODE.sub(lambda m: _code(m, codes, companies), s)
+    s = _DASHED.sub(
+        lambda m: "، ".join(
+            spell(g) if g.startswith("0") else int_words(int(g)) for g in m.group(0).split("-")
+        ),
+        s,
+    )
+    s = _DOTTED.sub(lambda m: " نقطه ".join(int_words(int(g)) for g in m.group(0).split(".")), s)
+    s = _RANGE.sub(" تا ", s)
     s = _TIME.sub(lambda m: time_words(int(m.group(1)), int(m.group(2))), s)
     s = _MONEY_PRE.sub(lambda m: money_words(m.group(1), m.group(2) or ""), s)
     s = _MONEY_POST.sub(lambda m: money_words(m.group(1)), s)
