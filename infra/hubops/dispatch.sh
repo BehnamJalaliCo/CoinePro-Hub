@@ -71,7 +71,9 @@ api() { # api PATH: POST stdin to the api's internal route, the answer on stdout
     "$HQ_HUBOPS_CURL" "$1"
     return
   fi
-  docker run --rm -i --init --network "$API_NET" --read-only --cap-drop ALL \
+  # No log driver: the claim and the output reach only the attached stdout,
+  # never a json-file log that Alloy ships to Loki.
+  docker run --rm -i --init --log-driver none --network "$API_NET" --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --user "$(id -u):$(id -g)" --memory 32m \
     -v "$AUTH_FILE:/run/auth:ro" --entrypoint timeout "$CURL_IMAGE" \
     45 curl -sS -f -m 30 -X POST -H @/run/auth -H 'Content-Type: application/json' \
