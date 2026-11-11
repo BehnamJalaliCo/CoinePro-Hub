@@ -77,7 +77,19 @@ docker run --rm --network none --memory 512m --user 0:0 -e WALG_FILE_PREFIX=/wal
     d=/var/lib/postgresql/data/pgdata
     mkdir -p "$d"
     wal-g backup-fetch "$d" "$BACKUP" >/dev/null 2>&1
+    # Hot standby refuses to start below the limits of the primary; production
+    # sets max_connections on its command line (compose.yaml), not in the
+    # postgresql.conf this backup carries; pg_control records the real values.
+    controls="$(pg_controldata "$d")"
+    limits="$(printf "%s\n" "$controls" | sed -nE "
+      s/^max_connections setting:[[:space:]]+([0-9]+).*/max_connections = \1/p
+      s/^max_worker_processes setting:[[:space:]]+([0-9]+).*/max_worker_processes = \1/p
+      s/^max_wal_senders setting:[[:space:]]+([0-9]+).*/max_wal_senders = \1/p
+      s/^max_prepared_xacts setting:[[:space:]]+([0-9]+).*/max_prepared_transactions = \1/p
+      s/^max_locks_per_xact setting:[[:space:]]+([0-9]+).*/max_locks_per_transaction = \1/p")"
+    case "$limits" in *max_connections*) ;; *) exit 3 ;; esac
     {
+      printf "%s\n" "$limits"
       echo "restore_command = '"'"'wal-g wal-fetch %f %p'"'"'"
       echo "recovery_target_time = '"'"'$TARGET'"'"'"
       echo "recovery_target_action = '"'"'promote'"'"'"
