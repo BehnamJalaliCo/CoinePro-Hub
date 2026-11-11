@@ -1458,6 +1458,11 @@ async def finish(
         result = await _apply(tx, hub, j, data)
     elif j["kind"] == "publish":
         await _apply_publish(tx, j, data or {}, False, err)
+    elif j["kind"] == "claude":
+        # a turn that failed or was stopped at its time limit keeps what it sent from out/ (the
+        # runner sends those files then too, >= 0.3.3), its wall and its effort: after_job
+        # attaches them as the work's unfinished output
+        result = _claude_parts(data) or None
     if isinstance(overflow, dict):
         result = {**(result or {}), **await _store_overflow(tx, hub, j, overflow)}
     await tx.exec(
@@ -1567,31 +1572,7 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
                 x=str(sid)[:200],
                 id=j["session_id"],
             )
-        out = {k: mask_value(data.get(k))
-               for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
-               if k in data}  # fmt: skip
-        # ⟨2026-11-09⟩ §43 the files a workspace turn sent from out/ (ids; checked by after_job)
-        # and the ones it could not (name and why)
-        files = data.get("files")
-        if isinstance(files, list):
-            out["files"] = [str(f)[:36] for f in files if isinstance(f, str)][:40]
-        skipped = data.get("files_skipped")
-        if isinstance(skipped, list):
-            out["files_skipped"] = mask_value(
-                [{"name": str(x.get("name"))[:300], "why": str(x.get("why"))[:200]}
-                 for x in skipped if isinstance(x, dict)][:40]
-            )  # fmt: skip
-        # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns, as the runner reports it
-        box = data.get("sandbox")
-        if isinstance(box, dict) and box.get("state") in ("on", "off"):
-            out["sandbox"] = {"state": box["state"]} | (
-                {"why": mask(str(box.get("why") or ""))[:300]}
-                if box["state"] == "off"
-                else {"kind": str(box.get("kind") or "")[:40]}
-            )
-        # ⟨1.31⟩ §53 how hard the session thought, as the runner passed it to the CLI (>= 0.3.5)
-        if data.get("effort") in ("low", "medium", "high", "xhigh", "max"):
-            out["effort"] = data["effort"]
+        out = _claude_parts(data)
         answer = mask(str(data.get("result_fa") or ""))
         out["result_fa"] = answer
         if len(answer) > INLINE_ANSWER:
@@ -1600,6 +1581,37 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
             out.update(result_fa=answer[:INLINE_ANSWER], result_file=str(fid))
         return out
     return mask_value({k: v for k, v in data.items() if k != "content"})  # type: ignore[no-any-return]
+
+
+def _claude_parts(data: dict[str, Any]) -> dict[str, Any]:
+    """What a `claude` job's result keeps besides its answer, done or not: the session, the files
+    it sent from out/ and the ones it could not, its wall and its effort."""
+    out = {k: mask_value(data.get(k))
+           for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
+           if k in data}  # fmt: skip
+    # ⟨2026-11-09⟩ §43 the files a workspace turn sent from out/ (ids; checked by after_job)
+    # and the ones it could not (name and why)
+    files = data.get("files")
+    if isinstance(files, list):
+        out["files"] = [str(f)[:36] for f in files if isinstance(f, str)][:40]
+    skipped = data.get("files_skipped")
+    if isinstance(skipped, list):
+        out["files_skipped"] = mask_value(
+            [{"name": str(x.get("name"))[:300], "why": str(x.get("why"))[:200]}
+             for x in skipped if isinstance(x, dict)][:40]
+        )  # fmt: skip
+    # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns, as the runner reports it
+    box = data.get("sandbox")
+    if isinstance(box, dict) and box.get("state") in ("on", "off"):
+        out["sandbox"] = {"state": box["state"]} | (
+            {"why": mask(str(box.get("why") or ""))[:300]}
+            if box["state"] == "off"
+            else {"kind": str(box.get("kind") or "")[:40]}
+        )
+    # ⟨1.31⟩ §53 how hard the session thought, as the runner passed it to the CLI (>= 0.3.5)
+    if data.get("effort") in ("low", "medium", "high", "xhigh", "max"):
+        out["effort"] = data["effort"]
+    return out
 
 
 async def full_answer(tx: Tx, hub: Any, j: dict[str, Any]) -> str:

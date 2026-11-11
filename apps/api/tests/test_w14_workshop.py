@@ -54,9 +54,9 @@ async def run_ask(
     )
 
 
-def png() -> bytes:
+def png(color: tuple[int, int, int] = (12, 80, 160)) -> bytes:
     buf = io.BytesIO()
-    Image.new("RGB", (64, 36), (12, 80, 160)).save(buf, format="PNG")
+    Image.new("RGB", (64, 36), color).save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -222,14 +222,38 @@ async def test_any_role_hands_a_task_to_the_workshop_and_its_files_come_back(
     assert nxt["args"]["workspace"] == w["ref"] and nxt["args"]["hands"] is True
     assert nxt["args"]["resume"] == "cs-hands-1" and "رنگ‌ها تیره‌تر" in nxt["args"]["brief"]
 
-    # Past its time the turn stops, and the holder is woken with the reason; never silent.
+    # Past its time the turn stops, and the holder is woken with the reason; never silent. What
+    # it had left in out/ (sent by the runner at the time limit) comes as an unfinished output.
+    r = await send_file(client, rn, nxt["id"], "half.png", "image/png", png((200, 40, 40)))
+    assert r.status_code == 201, r.text
+    half = r.json()
     await refuse_queued(su, w["id"])
     r = await client.post(
         f"{API}/runners/jobs/{nxt['id']}/result",
-        json={"exit_code": 124, "summary_fa": "نشست Claude به سقف زمان رسید و متوقف شد."},
+        json={
+            "exit_code": 124,
+            "summary_fa": "نشست Claude به سقف زمان رسید و متوقف شد. 1 فایل از out/ به ستاد رفت.",
+            "data": {
+                "workspace": {"ref": w["ref"], "path": "/home/studio/hq-workspace/" + w["ref"]},
+                "files": [half["id"]],
+                "sandbox": {"state": "on", "kind": "landlock"},
+            },
+        },
         headers=rn["h"],
     )
     assert r.status_code == 200, r.text
+    failed = await su.fetchrow(
+        "SELECT state, result FROM infra.server_jobs WHERE id = $1", uuid.UUID(nxt["id"])
+    )
+    assert failed["state"] == "failed" and half["id"] in failed["result"]
+    dl = await su.fetchrow(
+        """SELECT title, attachments, produced_with FROM cartable.deliverables
+           WHERE work_id = $1 ORDER BY created_at DESC LIMIT 1""",
+        uuid.UUID(w["id"]),
+    )
+    assert dl is not None and dl["title"].startswith("خروجی ناتمام کارگاه")
+    assert [str(a) for a in dl["attachments"]] == [half["id"]]
+    assert '"unfinished": true' in dl["produced_with"]
     ws = await su.fetchrow("SELECT * FROM work.workspaces WHERE work_id = $1", uuid.UUID(w["id"]))
     assert ws["state"] == "failed" and "سقف زمان" in ws["note_fa"]
     reason = await su.fetchval(
