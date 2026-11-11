@@ -750,8 +750,9 @@ async def deliver_work(
     from hq_api.domain import briefings as BR
     from hq_api.domain import hr as HR
 
-    # ⟨1.5⟩ a CEO's weekly letter: an unsourced figure sends it back once
-    unsourced_mark = await BR.letter_gate(ctx, id, body.body or "")
+    # ⟨1.5⟩ a CEO's weekly letter: an unsourced figure sends it back once (only
+    # once the deliver is allowed; the attempt itself counts below, with it)
+    await BR.letter_gate(ctx, id, body.body or "", lambda tx: work_for(ctx, tx, id, "work.deliver"))
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -771,6 +772,7 @@ async def deliver_work(
         from hq_api.domain import knowledge as K
 
         await K.require_citable(tx, [e.ref for e in body.evidence])
+        unsourced_mark = await BR.letter_attempt(tx, w["id"], body.body or "")
         pw = body.produced_with.model_dump(exclude_none=True)
         u = body.usage
         if ctx.who.run_id is not None:
