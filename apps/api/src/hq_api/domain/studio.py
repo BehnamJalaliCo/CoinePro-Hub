@@ -1838,9 +1838,27 @@ async def _render_failed(
         e=error,
         v=canonical({"violations": violations}) if violations else None,
     )
-    if retry or j["purpose"] == "preview":
+    if retry:
         return
     item = await tx.one(ITEM_SQL + " WHERE i.id = :id FOR UPDATE OF i", id=j["item_id"])
+    if j["purpose"] == "preview":
+        # A final render asked for while this preview ran waits on it (queue_render's
+        # `final_wanted`): it is queued now, as render_done does after a preview.
+        meta = dict(item.get("render_meta") or {})
+        if meta.pop("final_wanted", None):
+            await tx.exec(
+                "UPDATE media.items SET render_meta = CAST(:m AS jsonb) WHERE id = :id",
+                id=item["id"],
+                m=canonical(meta),
+            )
+            await queue_render(
+                tx,
+                hub,
+                await load_item(tx, item["ref"], lock=True),
+                purpose="final",
+                by=SERVICE.code,
+            )
+        return
     fails = int((item.get("render_meta") or {}).get("failures") or 0) + 1
     meta = {**(item.get("render_meta") or {}), "failures": fails, "last_error": error}
     await tx.exec(

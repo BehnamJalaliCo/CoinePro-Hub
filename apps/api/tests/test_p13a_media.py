@@ -1128,6 +1128,62 @@ async def test_a_runtime_violation_sends_the_item_back_to_its_composer(
     ).status_code == 403
 
 
+
+async def test_a_final_render_waiting_on_a_failed_preview_is_still_queued(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A final render asked for while a preview was claimed waits on it (final_wanted);
+    the preview failing for good queues the final render instead of losing it."""
+    co = await new_company()
+    staff = await team(su, co)
+    r = await client.post("/api/v1/media/items", headers={**owner, **idem()},
+                          json={"company": co["code"], "kind": "reel", "brief_md": "یک ریلز"})  # fmt: skip
+    ref = r.json()["ref"]
+    for code, body in (
+        (
+            staff["scriptwriter"],
+            {"ref": ref, "step": "script", "script": {"text_fa": SCRIPT, "sources": SOURCES}},
+        ),
+        (staff["video_director"], {"ref": ref, "step": "direction", "direction": {"shots": SHOTS}}),
+        (
+            staff["motion_designer"],
+            {
+                "ref": ref,
+                "step": "composition",
+                "composition": {"format": "html", "source": COMPOSITION},
+            },
+        ),
+    ):
+        assert (await tool(client, code, "item", body)).status_code == 200
+    await only_this_job(ref)
+    job = (await client.post("/internal/v1/media/render/claim", headers=MEDIA)).json()
+    # As if this claimed job were the designer's preview, with the final render waiting on it.
+    await su.execute(
+        "UPDATE media.render_jobs SET purpose = 'preview' WHERE id = $1", uuid.UUID(job["id"])
+    )
+    await su.execute(
+        """UPDATE media.items SET render_meta = COALESCE(render_meta, '{}'::jsonb)
+               || '{"final_wanted": true}'::jsonb WHERE ref = $1""",
+        ref,
+    )
+    done = await client.post(f"/internal/v1/media/render/{job['id']}/done", headers=MEDIA,
+                             json={"violations": [{"rule": "network_request", "detail": "http://10.10.1.3/"}]})  # fmt: skip
+    assert done.status_code == 204
+    jobs = await su.fetch(
+        """SELECT purpose, state FROM media.render_jobs
+           WHERE item_id = (SELECT id FROM media.items WHERE ref = $1) ORDER BY created_at""",
+        ref,
+    )
+    assert [(j["purpose"], j["state"]) for j in jobs] == [("preview", "failed"), ("final", "queued")]
+    meta = await su.fetchval("SELECT render_meta FROM media.items WHERE ref = $1", ref)
+    meta = json.loads(meta) if isinstance(meta, str) else meta
+    assert "final_wanted" not in (meta or {})
+
+
 def test_captions_follow_the_shots_or_the_narration() -> None:
     by_shot = S.captions(SHOTS, None)
     assert by_shot[0]["start_s"] == 0 and by_shot[-1]["end_s"] == 30
