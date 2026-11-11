@@ -776,7 +776,7 @@ async def list_orders(
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[OrderRecord]:
     """The owner's orders, newest first, with where each went (`?from&to`)."""
-    after = pagination.decode(cursor, 2)
+    after_t, after_id = pagination.time_id(cursor)  # typed: asyncpg binds by type
     async with ctx.tx() as tx:
         rows = await tx.all(
             """SELECT * FROM owner.orders
@@ -787,8 +787,8 @@ async def list_orders(
                ORDER BY created_at DESC, id DESC LIMIT :lim""",
             f=from_,
             t=to,
-            ca=after[0] if after else None,
-            cid=after[1] if after else None,
+            ca=after_t,
+            cid=after_id,
             lim=limit + 1,
         )
     items, nxt = pagination.page(rows, limit, ("created_at", "id"))

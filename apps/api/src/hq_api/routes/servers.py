@@ -925,7 +925,7 @@ async def server_activity(
 ) -> Page[SV.ServerCall]:
     """Who did what on the server, newest first: its jobs and every command
     inside its `claude` jobs (masked). `actor`: an employee code or `owner`."""
-    after = pagination.decode(cursor, 2)
+    after_t, after_key = pagination.time_key(cursor)  # typed: asyncpg binds by type
     async with ctx.tx() as tx:
         s = await SV.load_server(tx, id)
         rows = await tx.all(
@@ -934,8 +934,8 @@ async def server_activity(
             actor=actor,
             f=from_,
             t=to,
-            ca=after[0] if after else None,
-            cid=after[1] if after else None,
+            ca=after_t,
+            cid=after_key,
             lim=limit + 1,
         )
     items, nxt = pagination.page(rows, limit, ("at", "id"))

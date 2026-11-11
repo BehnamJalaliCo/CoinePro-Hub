@@ -759,6 +759,18 @@ async def test_one_writing_session_per_area_the_others_queue(
     assert b2["held"] is None and b2["state"] == "idle"
     assert fake.log_[b["ref"]][0]["kind"] == "start"
     assert WS.overlaps("", "x") and WS.overlaps("a/b", "a") and not WS.overlaps("ab", "a")
+    # The list pages (the cursor's timestamp is bound typed: no 500 on page two).
+    seen: list[str] = []
+    cursor: str | None = None
+    for _ in range(4):
+        params: dict[str, Any] = {"workspace": setup["ws"], "limit": 1}
+        if cursor:
+            params["cursor"] = cursor
+        r = await client.get("/api/v1/workshop/sessions", headers=owner, params=params)
+        assert r.status_code == 200, r.text
+        seen += [x["ref"] for x in r.json()["items"]]
+        cursor = r.json()["next_cursor"]
+    assert seen == [d["ref"], c["ref"], b["ref"], a["ref"]]  # newest first, each once
 
 
 async def test_no_credential_reaches_events_logs_or_responses(

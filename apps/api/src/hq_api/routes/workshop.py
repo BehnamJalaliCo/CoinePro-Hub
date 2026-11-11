@@ -261,7 +261,7 @@ async def list_sessions(
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[D.CodeSession]:
     """Newest first."""
-    after = pagination.decode(cursor, 2)
+    after_t, after_id = pagination.time_id(cursor)  # typed: asyncpg binds by type
     async with ctx.tx() as tx:
         rows = await tx.all(
             D.SESSION_SQL
@@ -274,8 +274,8 @@ async def list_sessions(
             ws=workspace,
             st=state,
             dr=driver,
-            ca=after[0] if after else None,
-            cid=after[1] if after else None,
+            ca=after_t,
+            cid=after_id,
             lim=limit + 1,
         )
     items, nxt = pagination.page(rows, limit, ("created_at", "id"))
