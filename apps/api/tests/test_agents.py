@@ -284,7 +284,9 @@ async def test_refusals_inside_a_run(
     )
     assert (await run(agents, run_row["id"]))["state"] == "done"
     actions = json.loads(
-        await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1", run_row["id"])
+        await su.fetchval(
+            "SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", run_row["id"]
+        )
     )
     assert [(a["tool"], a["outcome"], a.get("code")) for a in actions] == [
         ("trade.execute", "denied", "unknown_tool"),
@@ -331,7 +333,9 @@ async def test_depth_and_budget_hold_through_the_gateway(
     )
     assert (await run(agents, run_row["id"]))["state"] == "done"
     actions = json.loads(
-        await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1", run_row["id"])
+        await su.fetchval(
+            "SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", run_row["id"]
+        )
     )
     assert [(a["outcome"], a.get("code")) for a in actions] == [
         ("error", "budget_exceeded"),
@@ -355,7 +359,9 @@ async def test_depth_and_budget_hold_through_the_gateway(
     )
     assert (await run(agents, deep["id"]))["state"] == "done"
     actions = json.loads(
-        await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1", deep["id"])
+        await su.fetchval(
+            "SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", deep["id"]
+        )
     )
     assert (actions[0]["outcome"], actions[0]["code"]) == ("error", "delegation_depth_exceeded")
 

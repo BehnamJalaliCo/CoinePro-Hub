@@ -992,9 +992,9 @@ async def _outside_and_wake(
              AND r.trigger = 'work' ORDER BY r.started_at DESC NULLS LAST LIMIT 1""",
         ids=ids,
     )
-    if not str(reason or "").startswith("session_idle:"):
+    if not OR.base_reason(reason).startswith("session_idle:"):
         return out
-    k = len(await SA.idle_wakes(tx, rep, ids, since)) or 1
+    k = len([w for w in await SA.idle_wakes(tx, rep, ids, since) if not w["retry"]]) or 1
     # the open tasks as the hub counts them (one handed to a work that delivered is done)
     open_tasks = await SA.open_tasks_of(tx, rep.get("order_id"))
     nxt = open_tasks[0] if open_tasks else None

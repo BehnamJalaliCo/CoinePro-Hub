@@ -417,19 +417,20 @@ async def test_a_held_agent_only_reads_and_a_held_tool_never_runs(
         mgr,
         step(
             "کار با نگه‌داشت",
+            # first in its step: after a refusal a message to the owner is not run at all
+            ("message.owner", {"body_md": "سلام"}),
             ("company.state", {}),
             ("knowledge.search", {"q": "گزارش"}),
-            ("message.owner", {"body_md": "سلام"}),
         ),
     )
     assert (await run(agents, row["id"]))["state"] == "done"
     actions = json.loads(
-        await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1", row["id"])
+        await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", row["id"])
     )
     got = [(a["tool"], a["outcome"], a.get("code")) for a in actions]
-    assert got[0][:2] == ("company.state", "ok")  # reading goes on
-    assert got[1] == ("knowledge.search", "denied", "held")  # the held tool, even a read
-    assert got[2] == ("message.owner", "denied", "held")
+    assert got[0] == ("message.owner", "denied", "held")
+    assert got[1][:2] == ("company.state", "ok")  # reading goes on
+    assert got[2] == ("knowledge.search", "denied", "held")  # the held tool, even a read
 
 
 @pytest.mark.usefixtures("done_runs")

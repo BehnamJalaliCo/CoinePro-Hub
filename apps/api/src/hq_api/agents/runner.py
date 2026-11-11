@@ -185,6 +185,9 @@ LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked fo
 SKIPPED = "skipped_after_failure"
 CLAIM_TOOLS = ("order.progress", "deliver")
 MAX_STEPS = 50  # agents.steps.n and agents.runs.steps_cap stop at 50
+# The gateway's answer when an action waits for the owner (an A3 action; with a ref, the card it
+# raised): not a refusal, and never to be called again (a second call is a second card).
+DECISION = "a3_requires_decision"
 
 
 def claims(tool: str) -> bool:
@@ -192,29 +195,52 @@ def claims(tool: str) -> bool:
     return tool in CLAIM_TOOLS or tool.startswith("message.")
 
 
-def not_done_text(failed: list[dict[str, Any]], said_done: bool) -> str:
-    """The next step's first lines when actions of the last one did not happen."""
-    lines = [
-        "These actions of your last step did NOT happen (refused, failed, or not run after an "
-        "earlier failure); nothing they would have done is done:"
-    ]
+def waits_for_owner(r: dict[str, Any]) -> bool:
+    return r.get("code") == DECISION
+
+
+def did_not_happen(r: dict[str, Any]) -> bool:
+    """An action that came back neither ok nor waiting for the owner's decision."""
+    return r.get("outcome") != "ok" and not waits_for_owner(r)
+
+
+def not_done_text(
+    failed: list[dict[str, Any]], said_done: bool, waiting: list[dict[str, Any]] | None = None
+) -> str:
+    """The next step's first lines: what of the last one did not happen, and what waits for the
+    owner's decision (a card was raised; calling it again would raise another)."""
+    lines: list[str] = []
+    for r in waiting or []:
+        ref = f" {r['ref']}" if r.get("ref") else ""
+        card = "; a card was raised" if r.get("ref") else ""
+        lines.append(
+            f"- {r.get('tool')}: waits for the owner's decision{ref}{card}; it is not refused "
+            "and not done yet; do not call it again"
+        )
+    if lines:
+        lines.insert(0, "These actions of your last step wait for the owner:")
+    if failed:
+        lines.append(
+            "These actions of your last step did NOT happen (refused, failed, or not run after "
+            "an earlier failure); nothing they would have done is done:"
+        )
     for r in failed:
         code = f" ({r['code']})" if r.get("code") and r.get("code") != r.get("outcome") else ""
         lines.append(f"- {r.get('tool')}: {r.get('outcome')}{code}")
-    if said_done:
+    if said_done and failed:
         lines.append(
             "Your step said done, but the run is not finished. Do not report these as done: fix "
             "and retry what you can, tell the owner plainly what did not happen, or ask what "
             "blocks you; then finish."
         )
-    return "\n".join(lines) + "\n\n"
+    return "\n".join(lines) + "\n\n" if lines else ""
 
 
 def done_lines(summary: str, results: list[dict[str, Any]]) -> list[str]:
     """What a step really did, for «آنچه انجام شد»: its own summary when none of its actions
-    failed; else only its actions that came back ok, in the owner's words (never the summary,
-    which the model wrote before it knew)."""
-    if all(r.get("outcome") == "ok" for r in results):
+    failed (a card waiting for the owner is not a failure); else only its actions that came back
+    ok, in the owner's words (never the summary, which the model wrote before it knew)."""
+    if not any(did_not_happen(r) for r in results):
         return [summary] if summary else []
     ok = [r for r in results if r.get("outcome") == "ok"]
     return [SA.tools_text(ok)] if ok else []
@@ -760,7 +786,9 @@ class Runner:
                 hint = SA.hint_of(action.tool, action.args)
                 results.append({"tool": action.tool, **out, **({"hint": hint} if hint else {})})
                 await self._after_action(rc, action, out, live_thread)
-            failed = [r for r in results if r.get("outcome") != "ok"]
+            # an owner's card (a3_requires_decision) waits for him: not a failure, never repeated
+            failed = [r for r in results if did_not_happen(r)]
+            cards = [r for r in results if waits_for_owner(r)]
             rc.done_lines += done_lines(summary, results)
             await self._record_step(rc, n, summary, results, call)
             # "done" next to an action refused for its arguments is not done: the
@@ -790,7 +818,7 @@ class Runner:
                     "content": await self._with_images(
                         rc,
                         P.trim(
-                            (not_done_text(failed, step.done) if failed else "")
+                            not_done_text(failed, step.done, cards)
                             + P.render_results(
                                 results,
                                 steps_left=max(steps_cap - n, research_steps - n, 0),
@@ -1692,7 +1720,7 @@ class Runner:
                 usage["retry_at"] = at.isoformat()
         # ⟨2026-11-11⟩ audit E(b): an action of this step did not happen; the session shows the
         # tools' real outcome for it, not the model's summary
-        failed = any(r.get("outcome") != "ok" for r in results)
+        failed = any(did_not_happen(r) for r in results)
         if failed:
             usage["any_failed"] = True
         async with await self._tx() as tx:

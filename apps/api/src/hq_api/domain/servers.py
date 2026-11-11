@@ -1314,10 +1314,18 @@ async def room_at(tx: Tx, hub: Any) -> datetime | None:
     """⟨2026-11-11⟩ While every stored account is full (Claude Code jobs wait): when the first one
     has room again (the latest reset of its full windows, the earliest such account); None when
     one has room now or nothing is known. For the session's own sentence of the wait."""
-    if not (await runner_claude_pick(tx, hub)).hold:
-        return None
     sec = getattr(hub, "secrets", None)
     keys = [k for k, attr in RUNNER_ACCOUNTS if str(getattr(sec, attr, "") or "")]
+    return await _room_at(tx, keys) if keys else None
+
+
+async def accounts_room_at(tx: Tx) -> datetime | None:
+    """The same for every Claude account switched on at the hub, whoever holds its token (the
+    worker, which holds none: a run the limit stopped comes back once one has room)."""
+    return await _room_at(tx, [k for k, _ in RUNNER_ACCOUNTS])
+
+
+async def _room_at(tx: Tx, keys: list[str]) -> datetime | None:
     now = await tx.scalar("SELECT now()")
     best: datetime | None = None
     for r in await tx.all(ACCOUNTS_SQL, keys=keys):
@@ -1328,6 +1336,8 @@ async def room_at(tx: Tx, hub: Any) -> datetime | None:
         if row.get("status") is not None and _window_full(row, now):
             full.append(row)
         ends = [e for e in (_at(w.get("resets_at")) for w in full) if e is not None]
+        if not full:
+            return None  # this one has room now
         if ends and (best is None or max(ends) < best):
             best = max(ends)
     return best
@@ -1390,26 +1400,51 @@ QUOTA_RANK = {"ok": 0, "warning": 1, "limited": 2}
 QUOTA_HOLD = timedelta(hours=5)  # the router's HOLD: a limit whose end is unknown
 QUOTA_MAX_WINDOWS = 16
 _WINDOW_KIND = re.compile(r"[a-z0-9_]{2,40}")
-# the CLI's own notice when the subscription is out (claude-runtime quota.py, the same words)
-LIMIT_WORDS = re.compile(r"usage limit|limit reached|out of (?:extra )?usage|quota", re.IGNORECASE)
+# The CLI's own notice when the subscription is out: limit wording, short, AND the reset marker
+# every real notice carries ("|<epoch>", "resets 5pm"). The same rule as claude-runtime's
+# quota.limit_notice. Limit wording alone ("Disk usage limit reached; cleaned /var/log.", "disk
+# quota exceeded") is a turn's own word: taken for the subscription's limit it would mark the
+# account full, move the turn, mark the other one full too, and stop every Claude Code job.
 _LIMIT_NOTICE = re.compile(
     r"\blimit (?:reached|hit)\b|\byou(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
     r"|\bout of (?:extra )?usage\b|\busage limit\b",
     re.IGNORECASE,
 )
 NOTICE_CHARS = 400
+_RESET_MARK = re.compile(r"\|\d{10}\b|\bresets?\b", re.IGNORECASE)
 _EPOCH = re.compile(r"\|(\d{10})\b")
 USAGE_LIMIT = "usage_limit"
 MOVED_FA = "حساب Claude به سقف مصرفش رسید؛ همین نوبت روی حساب دیگر دوباره اجرا میشود."
 LIMIT_FAILED_FA = "حساب Claude به سقف مصرفش رسید و حساب دیگری جا ندارد؛ این نوبت انجام نشد."
+MIDWAY_FA = (
+    "حساب Claude وسط این نوبت به سقف مصرفش رسید و نوبت نیمه‌کاره ماند؛ نوبت بعد روی حساب دیگر "
+    "اجرا میشود."
+)
+# ⟨2026-11-11⟩ what a turn did on its server before the limit stopped it: a command, a file it
+# changed, a tool it called (a hub tool of a direct turn too). Such a turn is never run again
+# whole (the commands, the deliveries, the messages would happen twice).
+DID_SQL = """SELECT 1 FROM infra.server_job_events WHERE job_id = :j AND type = 'session_event'
+  AND (data->>'type' IN ('command', 'file_change')
+       OR (data->>'type' = 'progress'
+           AND (data->'data' ? 'tool' OR data->'data' ? 'tool_use_id')))
+  LIMIT 1"""
 NO_REQUEUE_ACTORS = ("catalogue", "secretary")  # they follow their jobs by id
 
 
 def limit_notice(text: str | None) -> bool:
-    """The CLI's own short usage-limit notice as a turn's whole answer (not an answer that merely
-    mentions a limit)."""
+    """The CLI's own short usage-limit notice (limit wording with its reset marker), never an
+    answer that merely mentions a limit."""
     t = (text or "").strip()
-    return 0 < len(t) <= NOTICE_CHARS and _LIMIT_NOTICE.search(t) is not None
+    return (
+        0 < len(t) <= NOTICE_CHARS
+        and _LIMIT_NOTICE.search(t) is not None
+        and _RESET_MARK.search(t) is not None
+    )
+
+
+def flagged_usage_limit(j: dict[str, Any]) -> bool:
+    """The job itself was ended by the account's usage limit (finish flagged it)."""
+    return j.get("error_code") == USAGE_LIMIT
 
 
 def rate_limit_of(info: Any, now: datetime) -> tuple[str, dict[str, Any]] | None:
@@ -1773,8 +1808,13 @@ async def finish(
         ok, state, err = False, "failed", USAGE_LIMIT
         if book.get("account"):
             await _record_limit(tx, j, str(book["account"]), data)
-        moved = await _other_account(tx, hub, j, book)
-        summary_fa = MOVED_FA if moved is not None else LIMIT_FAILED_FA
+        other = await _other_account(tx, hub, j, book)
+        # only a turn that did nothing yet runs again whole; one that did ends here (the holder is
+        # woken as for any failed turn) and its next turn takes the other account
+        moved = other if other is not None and await _untouched(tx, j) else None
+        summary_fa = (
+            MOVED_FA if moved is not None else MIDWAY_FA if other is not None else LIMIT_FAILED_FA
+        )
     if ok:
         result = await _apply(tx, hub, j, data)
     elif j["kind"] == "publish":
@@ -1837,16 +1877,16 @@ async def finish(
 
 
 async def usage_limited(tx: Tx, j: dict[str, Any], ok: bool, data: dict[str, Any]) -> bool:
-    """A claude job the account's usage limit stopped: its final text is the CLI's limit notice
-    (also with exit 0, where it would have been posted as the turn's answer), or it failed with
-    limit wording or after the CLI reported the account `rejected`."""
+    """A claude job the account's usage limit stopped: its final text is the CLI's own limit
+    notice (also with exit 0, where it would have been posted as the turn's answer), or it failed
+    after the CLI reported the account `rejected`. Never limit wording alone."""
     if j["kind"] != "claude":
         return False
     final = str(data.get("result_fa") or "")
-    if ok:
-        return limit_notice(final)
-    if LIMIT_WORDS.search(final):
+    if limit_notice(final):
         return True
+    if ok:
+        return False
     return bool(
         await tx.scalar(
             """SELECT 1 FROM infra.server_job_events WHERE job_id = :j AND type = 'session_event'
@@ -1884,6 +1924,16 @@ async def _other_account(
         return None
     other = await runner_claude_pick(tx, hub, avoid=(account,))
     return other if other.key and other.key != account else None
+
+
+async def _untouched(tx: Tx, j: dict[str, Any]) -> bool:
+    """Whether a refused turn may run again whole: it did nothing on its server yet (no command,
+    no file change, no tool call). A workshop turn that is not a direct one may always: its folder
+    is its state, and the next turn goes on from it."""
+    args = j.get("args") or {}
+    if args.get("hands") and not args.get("direct"):
+        return True
+    return not await tx.scalar(DID_SQL, j=j["id"])
 
 
 async def _requeue_claude(tx: Tx, hub: Any, j: dict[str, Any], to: AccountPick) -> str:

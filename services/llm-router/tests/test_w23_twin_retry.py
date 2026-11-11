@@ -61,7 +61,7 @@ async def _restore(su: asyncpg.Connection) -> None:
 
 async def _calls(su: asyncpg.Connection) -> list[dict[str, Any]]:
     rows = await su.fetch(
-        """SELECT c.id::text, c.status, n.key, c.meta FROM llm.calls c
+        """SELECT c.id::text, c.status, c.error_class, n.key, c.meta FROM llm.calls c
            JOIN llm.connections n ON n.id = c.connection_id ORDER BY c.started_at"""
     )
     return [{**dict(r), "meta": json.loads(r["meta"])} for r in rows]
@@ -98,6 +98,38 @@ async def test_without_a_usable_twin_the_refusal_stands_with_its_wait(
     assert r.retry_after is not None and 1100 < r.retry_after <= 1200
     assert [c["status"] for c in await _calls(su)] == ["quota_exhausted"]
     await _restore(su)
+
+
+async def test_a_retry_that_would_not_land_on_the_twin_is_never_sent(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    """The twin said it could take the call, but admission put the retry elsewhere (here an api
+    key, the twin's breaker having opened meanwhile): the retry is only ever for the twin, so it is
+    not sent, its row ends, and the refusal stands."""
+    api = FakeBackend(ok_result(text="from api"))
+    svc = make_service(subscription=FakeBackend(refused()), api=api)
+    await _second(su, "enabled")
+    await su.execute("UPDATE llm.connections SET status = 'enabled' WHERE key = 'anthropic-api'")
+    try:
+        twin = (await svc.registry.get()).connection_by_key("claude-max-2")
+        assert twin is not None
+        svc._twin_subscription = lambda *_a, **_k: twin  # type: ignore[method-assign]
+        svc.breaker_for(twin).on_quota(None, time.time() + 600)
+        r = await svc.run(req(task_class="summarize"), "t", 10_000)
+        assert (r.status, r.connection) == ("quota_exhausted", "claude-max")
+        first, dropped = await _calls(su)
+        assert (first["status"], first["key"]) == ("quota_exhausted", "claude-max")
+        assert (dropped["status"], dropped["error_class"], dropped["key"]) == (
+            "error", "retry_not_on_twin", "anthropic-api",
+        )  # fmt: skip
+        assert dropped["meta"]["retry_of"] == first["id"]
+        assert api.calls == []  # never sent
+        assert svc.scheduler.active == 0  # its slot given back
+    finally:
+        await su.execute(
+            "UPDATE llm.connections SET status = 'disabled' WHERE key = 'anthropic-api'"
+        )
+        await _restore(su)
 
 
 async def test_a_stream_moves_only_before_its_first_delta(

@@ -1422,6 +1422,21 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
     return fired
 
 
+# ⟨2026-11-11⟩ the worker re-queues a failed run with `retry:` / `requeue:` in front of its own
+# reason (`requeue:owner_reply:F-…`, stacked when it comes back again): every match on a run's
+# reason reads it without them (base_reason, and BASE_REASON_SQL in a query).
+REQUEUE_PREFIXES = ("retry:", "requeue:")
+BASE_REASON_SQL = "regexp_replace(COALESCE(r.reason, ''), '^((retry|requeue):)+', '')"
+
+
+def base_reason(reason: str | None) -> str:
+    """A run's reason without the worker's re-queue prefixes (any number of them)."""
+    out = str(reason or "")
+    while out.startswith(REQUEUE_PREFIXES):
+        out = out.split(":", 1)[1]
+    return out
+
+
 # ⟨2026-11-08⟩ audit B3: the runs that count as «talk without output». A run that produced
 # anything — a deliverable, an `order.progress`/`order.ack`, a child work, a hand-over — is work;
 # a wake the hub itself queued (the idle sweep, the owner's reply, a child's delivery, a hire that
@@ -1462,12 +1477,14 @@ async def idle_runs(
                    AND c.created_at <= COALESCE(r.finished_at, now()))
              AND (
                  (r.created_at > COALESCE(CAST(:last AS timestamptz), :since)
-                  AND NOT (r.reason LIKE ANY(CAST(:wakes AS text[])))
+                  AND NOT (regexp_replace(COALESCE(r.reason, ''), '^((retry|requeue):)+', '')
+                           LIKE ANY(CAST(:wakes AS text[])))
                   AND NOT EXISTS (
                       SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
                       WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
                         AND a ->> 'tool' = ANY(CAST(:tools AS text[]))))
-                 OR (r.reason LIKE 'session_idle:%' AND r.started_at IS NOT NULL
+                 OR (regexp_replace(COALESCE(r.reason, ''), '^((retry|requeue):)+', '')
+                         LIKE 'session_idle:%' AND r.started_at IS NOT NULL
                      AND EXISTS (
                          SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
                          WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
@@ -1692,7 +1709,7 @@ def answers_owner(run: dict[str, Any], waiting: dict[str, Any]) -> bool:
     """Whether the run carries the owner's word on what the order waits for: his own word started
     it (`OWNER_WORD_REASONS`) and it was queued after the question. A word he said before the
     question was asked («ادامه بده» a moment before a colleague asked) does not answer it."""
-    if not str(run.get("reason") or "").startswith(OWNER_WORD_REASONS):
+    if not base_reason(run.get("reason")).startswith(OWNER_WORD_REASONS):
         return False
     since, queued = waiting.get("since"), run.get("queued_at")
     return since is None or queued is None or queued >= since

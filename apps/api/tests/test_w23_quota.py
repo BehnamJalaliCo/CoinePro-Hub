@@ -96,14 +96,37 @@ async def _quota(su: asyncpg.Connection, key: str) -> dict[str, Any] | None:
     return {"status": row["status"], "windows": json.loads(row["windows"])}
 
 
-async def _claude_job(hub: Hub, server_id: str) -> str:
+async def _claude_job(hub: Hub, server_id: str, **args: Any) -> str:
     async with hub.db.tx(await hub.companies.ids()) as tx:
         server = await SV.load_server(tx, uuid.UUID(server_id))
         j = await SV.create_job(
-            tx, server=server, kind="claude", args={"brief": "یک کاور بساز"},
+            tx, server=server, kind="claude", args={"brief": "یک کاور بساز", **args},
             actor_kind="owner", actor_code="owner", timeout_s=600,
         )  # fmt: skip
     return str(j["id"])
+
+
+def _command_event(seq: int) -> Any:
+    """The turn ran a command on its server (it did something)."""
+    return {
+        "seq": seq,
+        "type": "session_event",
+        "data": {"type": "command", "summary_fa": "فرمان",
+                 "data": {"cmd": "systemctl restart app", "exit_code": 0, "duration_s": 1}},
+    }  # fmt: skip
+
+
+async def _result(client: httpx.AsyncClient, rn: dict[str, Any], jid: str, **body: Any) -> str:
+    r = await client.post(f"{API}/runners/jobs/{jid}/result", json=body, headers=rn["h"])
+    assert r.status_code == 200, r.text
+    return str(r.json()["state"])
+
+
+async def _moved(su: asyncpg.Connection, jid: str) -> str | None:
+    v = await su.fetchval(
+        "SELECT id::text FROM infra.server_jobs WHERE usage->>'retry_of' = $1", jid
+    )
+    return str(v) if v is not None else None
 
 
 async def _job(su: asyncpg.Connection, job_id: str) -> dict[str, Any]:
@@ -256,6 +279,80 @@ async def test_an_observation_never_fails_the_runners_call(
         await su.execute("GRANT INSERT, UPDATE ON llm.quota_status TO hq_api")
 
 
+async def test_a_turn_that_already_did_something_is_never_run_again_whole(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+) -> None:
+    """The limit came mid-turn, after a command on the company's server: the turn ends as a
+    usage-limit failure (its holder is told as for any failed turn); the limit is recorded, so the
+    next turn takes the other account. A workshop turn (hands, not direct) may move: its folder
+    is its state."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    jid = await _claude_job(hub, rn["server"]["id"])
+    assert (await take(client, rn))["claude_oauth"] == MAIN
+    r = await client.post(
+        f"{API}/runners/jobs/{jid}/events",
+        json={"events": [_command_event(1), _limit_event(2, "rejected", "five_hour", 3600)]},
+        headers=rn["h"],
+    )
+    assert r.status_code == 200, r.text
+    state = await _result(
+        client, rn, jid, exit_code=1, data={"result_fa": "API Error: 429 rate_limit_error"}
+    )
+    assert state == "failed"
+    j = await _job(su, jid)
+    assert (j["error_code"], j["summary_fa"]) == (SV.USAGE_LIMIT, SV.MIDWAY_FA)
+    assert await _moved(su, jid) is None
+    assert (await _pick(hub)).key == "claude-max-2"  # the next turn takes the other account
+
+    # a workshop turn (hands) that had run commands in its folder moves all the same
+    await _clear(su)
+    hands = await _claude_job(hub, rn["server"]["id"], hands=True, workspace="W-0")
+    assert (await take(client, rn))["id"] == hands
+    r = await client.post(
+        f"{API}/runners/jobs/{hands}/events", json={"events": [_command_event(1)]}, headers=rn["h"]
+    )
+    assert r.status_code == 200, r.text
+    await _result(client, rn, hands, exit_code=1,
+                  data={"result_fa": f"Claude AI usage limit reached|{int(time.time()) + 600}"})  # fmt: skip
+    assert (await _job(su, hands))["summary_fa"] == SV.MOVED_FA
+    again = await _moved(su, hands)
+    assert again is not None and (await take(client, rn))["claude_oauth"] == SECOND
+
+
+async def test_a_servers_own_limit_is_never_the_subscriptions(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+) -> None:
+    """«Disk usage limit reached», «disk quota exceeded»: the turn's own words about its server.
+    Taken for the account's limit, both accounts would be marked full one after the other and
+    every Claude Code job would wait for hours."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    done = await _claude_job(hub, rn["server"]["id"])
+    await take(client, rn)
+    said = {"result_fa": "Disk usage limit reached; cleaned /var/log."}
+    assert await _result(client, rn, done, exit_code=0, data=said) == "done"
+    failed = await _claude_job(hub, rn["server"]["id"])
+    await take(client, rn)
+    said = {"result_fa": "rsync: write failed: Disk quota exceeded (122)"}
+    assert await _result(client, rn, failed, exit_code=1, data=said) == "failed"
+    assert (await _job(su, failed))["error_code"] == "exit_nonzero"
+    assert await _moved(su, failed) is None and await _moved(su, done) is None
+    assert await _quota(su, "claude-max") is None and await _quota(su, "claude-max-2") is None
+    pick = await _pick(hub)
+    assert (pick.key, pick.hold) == ("claude-max", False)
+
+
 def test_the_account_choice_reads_every_window() -> None:
     now = datetime.now(UTC)
     later = (now + timedelta(hours=2)).isoformat()
@@ -288,9 +385,16 @@ def test_the_account_choice_reads_every_window() -> None:
 def test_a_limit_notice_is_not_an_answer() -> None:
     assert SV.limit_notice("Claude AI usage limit reached|1800000000")
     assert SV.limit_notice("5-hour limit reached ∙ resets 3pm")
-    assert SV.limit_notice("You’ve hit your limit · resets 5pm")
+    assert SV.limit_notice("You\u2019ve hit your limit · resets 5pm")
+    assert SV.limit_notice("Claude usage limit reached. Your limit will reset at 3pm.")
     assert not SV.limit_notice("## ساخته شد\nکاور و متن آماده است.")
-    assert not SV.limit_notice("usage limit reached " + "x" * 500)  # a long answer is an answer
+    assert not SV.limit_notice("usage limit reached, resets 3pm " + "x" * 500)  # an answer
+    # a server's own limits are the turn's word, never the subscription's
+    for text in ("Disk usage limit reached; cleaned /var/log.", "disk quota exceeded",
+                 "write failed: Disk quota exceeded", "usage limit", "limit reached"):  # fmt: skip
+        assert not SV.limit_notice(text), text
+    assert SV.flagged_usage_limit({"error_code": SV.USAGE_LIMIT})
+    assert not SV.flagged_usage_limit({"error_code": "exit_nonzero"})
     assert DR.EMPTY_FA.endswith("بگو.") and "شما" not in DR.WAITS_FA + DR.EMPTY_FA
 
 
@@ -341,13 +445,25 @@ async def test_which_failed_runs_come_back() -> None:
             (now + timedelta(hours=1)).isoformat(),
             (now - timedelta(minutes=1)).isoformat(),
         )
-        # a quota refusal: after its reset (stored on its last step), else five minutes on
+        # a quota refusal: after its reset (stored on its last step), never before five minutes
         assert await ACT.comes_back(Tx(soon), r("usage_limit", 10), now) is None
         assert await ACT.comes_back(Tx(past), r("usage_limit", 10), now) == ACT.REQUEUE
-        assert await ACT.comes_back(Tx(None), r("quota_throttled", 10), now) == ACT.REQUEUE
+        assert await ACT.comes_back(Tx(past), r("usage_limit", 3), now) is None
+        # its reset unknown: 30 minutes apart (12 of them outlast the router's 5-hour hold)
+        assert await ACT.comes_back(Tx(None), r("quota_throttled", 10), now) is None
+        assert await ACT.comes_back(Tx(None), r("quota_throttled", 31), now) == ACT.REQUEUE
+        assert timedelta(hours=5) <= ACT.QUOTA_REQUEUES * ACT.QUOTA_UNKNOWN_GAP
         assert await ACT.comes_back(Tx(None), r("circuit_open", 2), now) is None
-        many = r("quota_exhausted", 10, reason=ACT.REQUEUE * ACT.QUOTA_REQUEUES)
+        many = r("quota_exhausted", 40, reason=ACT.REQUEUE * ACT.QUOTA_REQUEUES)
         assert await ACT.comes_back(Tx(None), many, now) is None
+        # every account full: not before one has room again (a weekly window too)
+        monday = now + timedelta(days=3)
+        assert await ACT.comes_back(Tx(past), r("usage_limit", 40), now, monday) is None
+        week = r("usage_limit", 3 * 24 * 60, queued_at=now - timedelta(days=3))
+        assert await ACT.comes_back(Tx(None), week, now) == ACT.REQUEUE
+        # older than a day, a passing failure is not looked at any more
+        old = r("model_error", 26 * 60, queued_at=now - timedelta(hours=26))
+        assert await ACT.comes_back(Tx(None), old, now) is None
         # a passing failure: once, five minutes later
         assert await ACT.comes_back(Tx(None), r("model_error", 6), now) == ACT.RETRY
         assert await ACT.comes_back(Tx(None), r("api_529", 6), now) == ACT.RETRY
@@ -399,6 +515,7 @@ async def test_quota_failed_runs_come_back_after_the_reset_and_a_passing_failure
     su: Any,
     agents: Any,
     new_company: Callable[..., Any],
+    accounts: Any,  # an account has room (none full): the stored resets decide
 ) -> None:
     acts = ACT.Activities(
         agents.whub, None, router=agents.router, gateway=agents.gateway, live=agents.live
@@ -414,7 +531,26 @@ async def test_quota_failed_runs_come_back_after_the_reset_and_a_passing_failure
     )
     flaky = (await new_company())["code"]
     f_row = await _failed(client, owner, su, agents, flaky, "model_error", 10)
+    # a weekly window: the refusal three days ago comes back once its reset passed (nothing of its
+    # cause ran since); the look-back of the other requeues stays one day
+    weekly = (await new_company())["code"]
+    k_row = await _failed(
+        client, owner, su, agents, weekly, "usage_limit", 3 * 24 * 60, now - timedelta(hours=1)
+    )
+    stale = (await new_company())["code"]
+    s_row = await _failed(client, owner, su, agents, stale, "model_error", 3 * 24 * 60)
+    await su.execute("SET session_replication_role = replica")  # queued_at is immutable
+    try:
+        await su.execute(
+            "UPDATE agents.runs SET queued_at = now() - interval '3 days' WHERE id = ANY($1)",
+            [k_row["id"], s_row["id"]],
+        )
+    finally:
+        await su.execute("SET session_replication_role = DEFAULT")
     await acts.requeue_runs()
+    back_weekly = (await runs_of(su, f"{weekly}-CEO"))[-1]
+    assert back_weekly["id"] != k_row["id"] and back_weekly["reason"].startswith(ACT.REQUEUE)
+    assert (await runs_of(su, f"{stale}-CEO"))[-1]["id"] == s_row["id"]
     assert (await runs_of(su, f"{waits}-CEO"))[-1]["id"] == w_row["id"]  # its reset has not come
     back = (await runs_of(su, f"{due}-CEO"))[-1]
     assert back["id"] != d_row["id"] and back["reason"].startswith(ACT.REQUEUE)
@@ -501,6 +637,73 @@ async def test_a_step_with_a_refused_action_gets_one_more_step_and_claims_nothin
         for m in c.messages
     )
     assert "did NOT happen" in told and f"order.progress: {R.SKIPPED}" in told
+
+
+async def test_an_owners_card_is_waiting_never_did_not_happen(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """The gateway answers `denied / a3_requires_decision` when it raised the owner's card: the
+    model is told it waits for his decision and must not call it again (a second card), not that
+    it did not happen; alone, it does not keep the run going."""
+    real = agents.gateway.call
+
+    async def gateway(token: str, step_n: int, index: int, tool: str, args: Any) -> Any:
+        if tool == "mcp.card":
+            return {"outcome": "denied", "class": "A3", "code": R.DECISION, "ref": "D-0042",
+                    "hint_fa": "کارت تصمیم برای مدیر کل رفت"}  # fmt: skip
+        return await real(token, step_n, index, tool, args)
+
+    agents.gateway.call = gateway
+    try:
+        co = (await new_company())["code"]
+        await order(client, owner, co)
+        alone = (await runs_of(su, f"{co}-CEO"))[-1]
+        agents.fake.enqueue(f"{co}-CEO", step("کارت تصمیم رفت", ("mcp.card", {})))
+        assert (await run(agents, alone["id"]))["state"] == "done"
+        n = await su.fetchval("SELECT count(*) FROM agents.steps WHERE run_id = $1", alone["id"])
+        assert n == 1  # nothing failed: the run ends on its done
+        usage = json.loads(
+            await su.fetchval("SELECT usage FROM agents.steps WHERE run_id = $1", alone["id"])
+        )
+        assert "any_failed" not in usage
+
+        co2 = (await new_company())["code"]
+        await order(client, owner, co2)
+        row = (await runs_of(su, f"{co2}-CEO"))[-1]
+        since = len(agents.fake.calls)
+        agents.fake.enqueue(
+            f"{co2}-CEO",
+            step(
+                "کارت رفت و قدم تمام شد",
+                ("mcp.card", {}),
+                ("order.progress", {"ref": "F-0", "step_fa": "تمام شد"}),
+            ),
+            step("منتظر تصمیم مدیر کل"),
+        )
+        assert (await run(agents, row["id"]))["state"] == "done"
+        told = "".join(
+            m.content
+            for c in agents.fake.calls[since:]
+            if c.actor_ref == f"{co2}-CEO"
+            for m in c.messages
+        )
+        assert "mcp.card: waits for the owner's decision D-0042; a card was raised" in told
+        assert "do not call it again" in told
+        assert f"order.progress: {R.SKIPPED}" in told  # the claim after it is still not run
+        assert "mcp.card: denied" not in told.split("did NOT happen", 1)[-1]
+    finally:
+        agents.gateway.call = real
+    text = R.not_done_text([], True, [{"tool": "x", "code": R.DECISION, "ref": "D-1"}])
+    assert "waits for the owner's decision D-1" in text and "did NOT happen" not in text
+    assert R.not_done_text([], True, []) == ""
+    assert not R.did_not_happen({"outcome": "denied", "code": R.DECISION})
+    assert R.done_lines("کارت رفت", [{"tool": "x", "outcome": "denied", "code": R.DECISION}]) == [
+        "کارت رفت"
+    ]
 
 
 def test_a_partial_output_lists_only_what_happened() -> None:

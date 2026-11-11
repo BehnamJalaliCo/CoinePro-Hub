@@ -425,9 +425,9 @@ async def after_turn(
         return
     code = str(j["actor_code"])
     text = answer.strip()
-    if SV.limit_notice(text):
-        # ⟨2026-11-11⟩ the CLI's usage-limit notice is never the holder's word (audit C1d); the
-        # result route already ends such a turn as a usage-limit failure, this is the last guard
+    if SV.flagged_usage_limit(j):
+        # ⟨2026-11-11⟩ a turn the account's usage limit ended (servers.usage_limited, the CLI's own
+        # notice) never speaks as the holder (audit C1d); any other text is his word
         text = ""
     asked = bool(OR._j(rep.get("turn")))
     if text and not (asked and len(text) < 20):

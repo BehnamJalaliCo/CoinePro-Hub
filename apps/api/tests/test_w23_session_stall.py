@@ -656,3 +656,58 @@ async def test_a_run_a_quota_stopped_says_in_the_session_when_it_works_again(
     # a step whose action did not happen shows the tools' real outcome, not the model's claim
     assert SA.step_text("پیش‌نویس آماده شد", [{"tool": "substitute.call", "outcome": "denied",
                                                "hint": "ChatGPT"}]) == "از ChatGPT پرسید (نشد)"  # fmt: skip
+
+
+async def test_a_requeued_run_reads_as_the_wake_or_the_word_it_retries(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """The worker re-queues a failed run with `retry:` / `requeue:` in front of its reason
+    (stacked when it fails again): it is still the owner's word or the idle wake it retries."""
+    assert OR.base_reason("requeue:retry:requeue:owner_reply:F-0011") == "owner_reply:F-0011"
+    assert OR.base_reason("session_idle:F-0011") == "session_idle:F-0011"
+    assert OR.base_reason(None) == ""
+    assert SA.start_text("requeue:owner_reply:F-0011", "") == SA.start_text("owner_reply:F-1", "")
+    assert SA.start_text("retry:requeue:session_idle:F-0011", "کار") == "دوباره سر کار آمد"
+    now = datetime.now(UTC)
+    waiting = {"since": now - timedelta(minutes=5)}
+    assert OR.answers_owner({"reason": "requeue:owner_reply:F-1", "queued_at": now}, waiting)
+    assert not OR.answers_owner({"reason": "requeue:work:W-1", "queued_at": now}, waiting)
+    s = await an_order(client, owner, su, new_company, tasks=2, done=0, pace="auto")
+    ref, co, wid = s["ref"], s["company"], s["wid"]
+    await backdate(su, ref, 2)
+    # the owner's word, its run failed and was re-queued: the word is the first run's time
+    said = await fake_run(su, co, s["holder"], wid, reason=f"owner_reply:{ref}", minutes_ago=40)
+    await fake_run(su, co, s["holder"], wid, reason=f"requeue:owner_reply:{ref}", minutes_ago=35)
+    said_at = await su.fetchval("SELECT queued_at FROM agents.runs WHERE id = $1", said)
+    async with await all_tx(hub) as tx:
+        rep = await OR.ensure(tx, ref)
+        assert rep is not None
+        assert await SA.owner_since(tx, rep, [wid]) == said_at
+    # an idle wake failed on the quota; its re-queue only narrated: one wake, spent, stuck
+    await fake_run(su, co, s["holder"], wid, reason=f"session_idle:{ref}", state="failed",
+                   error="usage_limit", minutes_ago=30)  # fmt: skip
+    await fake_run(su, co, s["holder"], wid, reason=f"requeue:session_idle:{ref}", minutes_ago=20,
+                   steps=[("در صف است", [{"tool": "order.progress", "outcome": "ok"}])])  # fmt: skip
+    await idle_for(su, ref, 15)
+    p = await pulse_of(hub, ref)
+    assert p.wakes == 1 and p.spent, p
+    assert p.stuck_fa is not None and p.stuck_fa.startswith("مسئول 1 بار"), p.stuck_fa
+    async with await all_tx(hub) as tx:
+        rep = await OR.ensure(tx, ref)
+        order = await OR.load_order(tx, ref)
+        assert rep is not None and order is not None
+        works = await OR.tree(tx, OR.root_refs(order))
+        assert await OR.idle_runs(tx, rep, works, order["created_at"]) >= 1
+    # a wake that failed (a quota, a model error) is the worker's to bring back: not spent
+    t = await an_order(client, owner, su, new_company, tasks=2, done=0, pace="auto")
+    await backdate(su, t["ref"], 2)
+    await fake_run(su, t["company"], t["holder"], t["wid"], reason=f"session_idle:{t['ref']}",
+                   state="failed", error="usage_limit", minutes_ago=20)  # fmt: skip
+    await idle_for(su, t["ref"], 15)
+    p = await pulse_of(hub, t["ref"])
+    assert p.wakes == 1 and not p.spent and p.stuck_fa is None, p

@@ -382,7 +382,7 @@ def title_text(title: str | None) -> str:
 
 def start_text(reason: str | None, title: str) -> str:
     """The first line of a run: why it started (START_WHY_FA), else what it began."""
-    why = reason or ""
+    why = OR.base_reason(reason)  # ⟨2026-11-11⟩ a re-queued run says why it first started
     for prefix, text in START_WHY_FA:
         if why.startswith(prefix):
             return text
@@ -813,9 +813,9 @@ async def read_pulse(
     woken = None
     if ids:
         row = await tx.first(
-            """SELECT id, state, error_code, queued_at, finished_at FROM agents.runs
-               WHERE work_id = ANY(:ids) AND reason = :r AND queued_at > :clock
-               ORDER BY queued_at DESC LIMIT 1""",
+            f"""SELECT r.id, r.state, r.error_code, r.queued_at, r.finished_at FROM agents.runs r
+               WHERE r.work_id = ANY(:ids) AND {OR.BASE_REASON_SQL} = :r AND r.queued_at > :clock
+               ORDER BY r.queued_at DESC LIMIT 1""",  # noqa: S608
             ids=ids,
             r=IDLE_REASON.format(ref=rep["ref"]),
             clock=clock,
@@ -833,17 +833,19 @@ async def read_pulse(
     wakes: list[dict[str, Any]] = []
     spent = False
     if is_open and ids:
-        wakes = await idle_wakes(tx, rep, ids, await owner_since(tx, rep, ids))
-        ended = [w for w in wakes if w["state"] not in ("queued", "running")]
-        if ended and len(ended) == len(wakes):
-            last_wake = ended[0]  # newest first
+        tried = await idle_wakes(tx, rep, ids, await owner_since(tx, rep, ids))
+        wakes = [w for w in tried if not w["retry"]]  # a re-queued wake is the same wake
+        if tried and all(w["state"] not in ("queued", "running") for w in tried):
+            last_wake = tried[0]  # newest first
+            # a run that ended normally having only read and reported; a failed run (a quota,
+            # a model error) is the worker's to bring back, not the holder's narration
             narrated = (
                 last_wake["started_at"] is not None
-                and last_wake["state"] in ("done", "failed")
+                and last_wake["state"] == "done"
                 and not last_wake["acted"]
                 and not last_wake["ticked"]
             )
-            spent = len(ended) >= IDLE_WAKES_MAX or narrated
+            spent = len(wakes) >= IDLE_WAKES_MAX or narrated
     if (
         live is None
         and not turns
@@ -893,8 +895,9 @@ async def owner_since(tx: Tx, rep: dict[str, Any], ids: list[Any]) -> datetime:
         since = max(since, at)
     if ids:
         run_at = await tx.scalar(
-            """SELECT max(queued_at) FROM agents.runs
-               WHERE work_id = ANY(:ids) AND reason LIKE ANY(CAST(:w AS text[]))""",
+            f"""SELECT max(r.queued_at) FROM agents.runs r
+               WHERE r.work_id = ANY(:ids) AND {OR.BASE_REASON_SQL} LIKE ANY(CAST(:w AS text[]))
+                 AND r.reason = {OR.BASE_REASON_SQL}""",  # noqa: S608 - a re-queue is no new word
             ids=ids,
             w=list(OWNER_WORD_LIKE),
         )
@@ -907,9 +910,12 @@ async def idle_wakes(
     tx: Tx, rep: dict[str, Any], ids: list[Any], since: datetime
 ) -> list[dict[str, Any]]:
     """The idle wakes of this order since `since`, newest first: each run's state, whether it did
-    anything but read and report (`acted`) and whether it ticked a plan task (`ticked`)."""
+    anything but read and report (`acted`) and whether it ticked a plan task (`ticked`).
+    ⟨2026-11-11⟩ A wake the worker re-queued (`requeue:session_idle:…`) is listed with
+    `retry` true: the same wake tried again, not one more."""
     rows = await tx.all(
-        """SELECT r.id, r.state, r.started_at, r.finished_at, r.queued_at,
+        f"""SELECT r.id, r.state, r.started_at, r.finished_at, r.queued_at,
+                  r.reason <> {OR.BASE_REASON_SQL} AS retry,
                   EXISTS (SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
                           WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
                             AND NOT (a ->> 'tool' = ANY(CAST(:narr AS text[])))) AS acted,
@@ -918,8 +924,9 @@ async def idle_wakes(
                             AND t.updated_at >= r.started_at
                             AND t.updated_at <= COALESCE(r.finished_at, now())) AS ticked
            FROM agents.runs r
-           WHERE r.work_id = ANY(:ids) AND r.reason = :reason AND r.queued_at > :since
-           ORDER BY r.queued_at DESC""",
+           WHERE r.work_id = ANY(:ids) AND {OR.BASE_REASON_SQL} = :reason
+             AND r.queued_at > :since
+           ORDER BY r.queued_at DESC""",  # noqa: S608
         ids=ids,
         reason=IDLE_REASON.format(ref=rep["ref"]),
         since=since,

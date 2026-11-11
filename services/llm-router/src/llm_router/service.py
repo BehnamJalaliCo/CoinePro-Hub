@@ -997,13 +997,19 @@ class RouterService:
         other subscription can take it now; None otherwise (the refusal stands)."""
         try:
             snap = await self.registry.get()
-            if self._twin_subscription(snap, plan.connection, plan.req.priority) is None:
+            twin = self._twin_subscription(snap, plan.connection, plan.req.priority)
+            if twin is None:
                 return None
             again = await self.admit(plan.req, caller, max_input_chars, retry_of=plan.row.id)
         except RouterError:
             return None
         except Exception:  # the refusal already answered stands; never a 500 instead of it
             log.exception("retry on the other subscription failed", extra={"call_id": plan.row.id})
+            return None
+        if again.connection.id != twin.id:
+            # admission put it elsewhere (the refused account, an api key): this retry is only
+            # for the twin, so it is never sent; its row ends and the refusal stands
+            await self._drop(again, "retry_not_on_twin")
             return None
         log.info(
             "refused call moved to the other subscription",
@@ -1015,6 +1021,24 @@ class RouterService:
             },
         )
         return again
+
+    async def _drop(self, plan: Plan, why: str) -> None:
+        """An admitted call that is never sent: its ledger row ends with `why` (no verdict on the
+        connection's breaker), its slot and its probe are given back."""
+        try:
+            async with self.db.scoped(plan.rls_scope) as c:
+                await ledger.finish_call(
+                    c,
+                    plan.row,
+                    ledger.Finish(
+                        status=ERROR, finished_at=self.now(), error_class=why, latency_ms=0
+                    ),
+                )
+            plan.finished = True
+        except Exception:
+            log.exception("dropped call not closed", extra={"call_id": plan.row.id})
+        finally:
+            self.release(plan)
 
     async def _attempt(self, plan: Plan) -> BackendResult:
         try:

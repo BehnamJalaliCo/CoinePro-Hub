@@ -120,24 +120,29 @@ async def test_advisor_writes_nowhere_but_its_thread(
             ("propose", {"kind": "proposal", "title_fa": "x"}),
             ("notify", {"level": "info", "title_fa": "x"}),
             ("work.delegate", {"ref": w["ref"], "to": f"{co}-TECH-MGR", "title_fa": "x"}),
-            ("message.thread", {"thread": f"{co}-CEO", "body_md": "سلام"}),
             ("memory.write", {"note_md": "مالک پاسخ کوتاه میخواهد"}),
         ),
+        # a message in a step of its own: after a refusal in its step it would not be run at all
+        step("پیام به رشته‌ی دیگر", ("message.thread", {"thread": f"{co}-CEO", "body_md": "سلام"})),
+        step("فهمیدم؛ فقط در رشته‌ی خودم"),
         "پاسخ کوتاه.",
     )
     assert (await run(agents, run_id))["state"] == "done"
-    actions = json.loads(
-        await su.fetchval(
-            "SELECT actions FROM agents.steps WHERE run_id = $1 AND n = 1", uuid.UUID(run_id)
-        )
+    steps = await su.fetch(
+        "SELECT n, actions FROM agents.steps WHERE run_id = $1 ORDER BY n", uuid.UUID(run_id)
     )
+    actions = json.loads(steps[0]["actions"])
     assert [(a["tool"], a["outcome"], a.get("code")) for a in actions] == [
         ("deliver", "denied", "tool_not_in_charter"),
         ("propose", "denied", "tool_not_in_charter"),
         ("notify", "denied", "tool_not_in_charter"),
         ("work.delegate", "denied", "tool_not_in_charter"),
-        ("message.thread", "error", "not_found"),  # another company's thread: not even visible
         ("memory.write", "ok", None),
+    ]
+    thread = json.loads(steps[1]["actions"])
+    # another company's thread: not even visible
+    assert [(a["tool"], a["outcome"], a.get("code")) for a in thread] == [
+        ("message.thread", "error", "not_found")
     ]
 
 

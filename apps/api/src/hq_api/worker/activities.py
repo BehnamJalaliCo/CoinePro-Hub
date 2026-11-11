@@ -34,6 +34,7 @@ from hq_api.domain import (
 )
 from hq_api.domain import decisions as D
 from hq_api.domain import order_report as OR
+from hq_api.domain import servers as SV
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
@@ -54,9 +55,11 @@ from hq_api.worker.support_activities import SupportActivities
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
 # ⟨2026-11-11⟩ audit S3 / C3: runs that failed quietly come back. A run stopped by the Claude
-# accounts' limit (or the router's breaker) comes back once its reset passed (the reset the router
-# gave, stored on its last step: agents.steps.usage->>'retry_at'), at most QUOTA_REQUEUES times
-# in a row; a run that failed for a passing reason comes back once, five minutes later.
+# accounts' limit (or the router's breaker) comes back once its reset passed: the reset the router
+# gave (stored on its last step: agents.steps.usage->>'retry_at'), else 30 minutes on, and never
+# before an account has room again when every one is full (a weekly window too: such a run is
+# looked for over 8 days); at most QUOTA_REQUEUES times in a row (12 x 30 min outlasts the
+# router's 5-hour hold). A run that failed for a passing reason comes back once, five minutes on.
 QUOTA_CODES = ("quota_throttled", "quota_exhausted", "usage_limit", "billing_error", "circuit_open")
 RETRY_CODES = (
     "model_error", "runtime_error", "busy_timeout", "invalid_output", "router_timeout",
@@ -66,6 +69,8 @@ RETRY_CODES = (
 RETRY_CODE_PREFIXES = ("api_5", "router_http_5", "sdk_")
 RETRY_TRIGGERS = ("work", "message", "schedule", "alert")  # never a talk, direct or meeting run
 RETRY_AFTER = timedelta(minutes=5)
+QUOTA_UNKNOWN_GAP = timedelta(minutes=30)  # a quota refusal whose reset is unknown
+RECENT = timedelta(hours=24)  # every other requeue looks back this far
 QUOTA_REQUEUES = 12
 REQUEUE, RETRY = "requeue:", "retry:"
 
@@ -80,9 +85,12 @@ def _at(value: Any) -> datetime | None:
     return at if at.tzinfo is not None else at.replace(tzinfo=UTC)
 
 
-async def comes_back(tx: Tx, r: dict[str, Any], now: datetime) -> str | None:
+async def comes_back(
+    tx: Tx, r: dict[str, Any], now: datetime, room: datetime | None = None
+) -> str | None:
     """The prefix of a run's requeue when it failed for a reason that passes and its time has
-    come (`requeue:` after a quota reset, `retry:` once after a passing failure); None otherwise."""
+    come (`requeue:` after a quota reset, `retry:` once after a passing failure); None otherwise.
+    `room`: when a Claude account has room again, while every one is full."""
     code = str(r.get("error_code") or "")
     reason = str(r.get("reason") or "")
     if r.get("trigger") not in RETRY_TRIGGERS or r.get("finished_at") is None:
@@ -90,7 +98,6 @@ async def comes_back(tx: Tx, r: dict[str, Any], now: datetime) -> str | None:
     if r["state"] == "failed" and code in QUOTA_CODES:
         if reason.count(REQUEUE) >= QUOTA_REQUEUES:
             return None
-        at = r["finished_at"] + RETRY_AFTER
         stored = _at(
             await tx.scalar(
                 """SELECT usage->>'retry_at' FROM agents.steps WHERE run_id = :r
@@ -98,9 +105,15 @@ async def comes_back(tx: Tx, r: dict[str, Any], now: datetime) -> str | None:
                 r=r["id"],
             )
         )
-        if stored is not None and stored > at:
-            at = stored
+        at = max(
+            stored if stored is not None else r["finished_at"] + QUOTA_UNKNOWN_GAP,
+            r["finished_at"] + RETRY_AFTER,
+            room or r["finished_at"],
+        )
         return REQUEUE if now >= at else None
+    queued = r.get("queued_at")
+    if queued is not None and queued <= now - RECENT:
+        return None  # only a quota refusal is looked for further back
     passing = code in RETRY_CODES or code.startswith(RETRY_CODE_PREFIXES)
     if passing and (r["state"] == "failed" or code == "busy_timeout"):
         if reason.startswith(RETRY):
@@ -1009,28 +1022,42 @@ class Activities:
         runner = self._runner()
         async with self._tx() as tx:
             now = await tx.scalar("SELECT now()")
+            # ⟨2026-11-11⟩ a run a quota refusal stopped is looked for over 8 days (a weekly
+            # window), when nothing of its employee and cause ran after it
             rows = await tx.all(
                 """SELECT DISTINCT ON (r.employee_id, r.work_id, r.thread_id)
                           r.employee_id, r.work_id, r.thread_id, r.trigger, r.priority, r.state, r.error_code,
-                          r.company_id, r.reason, r.id, r.finished_at
-                   FROM agents.runs r WHERE r.queued_at > now() - interval '24 hours'
-                   ORDER BY r.employee_id, r.work_id, r.thread_id, r.queued_at DESC"""
+                          r.company_id, r.reason, r.id, r.finished_at, r.queued_at
+                   FROM agents.runs r
+                   WHERE r.queued_at > now() - interval '24 hours'
+                      OR (r.state = 'failed' AND r.error_code = ANY(CAST(:quota AS text[]))
+                          AND r.queued_at > now() - interval '8 days'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM agents.runs n WHERE n.employee_id = r.employee_id
+                                 AND n.work_id IS NOT DISTINCT FROM r.work_id
+                                 AND n.thread_id IS NOT DISTINCT FROM r.thread_id
+                                 AND n.queued_at > r.queued_at))
+                   ORDER BY r.employee_id, r.work_id, r.thread_id, r.queued_at DESC""",
+                quota=list(QUOTA_CODES),
             )
+            room = await SV.accounts_room_at(tx) if rows else None
             for r in rows:
-                capped = r["error_code"] == "daily_cap" and r["state"] in ("refused", "failed")
+                # older than a day: only a quota refusal (comes_back), after its reset
+                recent = r["queued_at"] > now - RECENT
+                capped = (
+                    recent
+                    and r["error_code"] == "daily_cap"
+                    and r["state"] in ("refused", "failed")
+                )
                 # ⟨2026-11-09⟩ «با من»: a run held for the owner's answer comes back once he answered
                 # (OR.resume_held wakes it at once; this is the net), never while he still has not
-                held = r["state"] == "refused" and r["error_code"] == "owner_turn"
+                held = recent and r["state"] == "refused" and r["error_code"] == "owner_turn"
                 if held and await OR.owner_turn(tx, r["work_id"]) is not None:
                     continue
                 # ⟨2026-11-11⟩ a quota refusal after its reset, a passing failure once
-                again = None if capped or held else await comes_back(tx, r, now)
-                if (
-                    not capped
-                    and not held
-                    and again is None
-                    and (r["state"] != "refused" or r["error_code"] != "locked")
-                ):
+                again = None if capped or held else await comes_back(tx, r, now, room)
+                locked = recent and r["state"] == "refused" and r["error_code"] == "locked"
+                if not capped and not held and again is None and not locked:
                     continue  # a run the day's cap stopped mid-way (failed) comes back too
                 if r["error_code"] == "daily_cap" and await runner.day_cap_reached(
                     tx, r["company_id"]
