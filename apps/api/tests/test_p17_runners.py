@@ -252,6 +252,69 @@ async def test_pairing_codes_step_up_and_token_once(
     ).status_code == 401
 
 
+async def test_an_approved_code_claimed_late_does_not_undo_a_detach(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    co = await new_company()
+    h = owner_session["headers"]
+    xff = {"X-Forwarded-For": _ip()}
+    body = {"company": co["code"], "name": "late-1", "hostname": "late-1", "private_ip": _ip(),
+            "os": "Ubuntu 24.04", "runner_version": "0.1.0"}  # fmt: skip
+
+    async def approved(name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        r = await client.post("/api/v1/runners/pair", json={**body, "name": name}, headers=xff)
+        assert r.status_code == 201, r.text
+        p = r.json()
+        ok = await step_up(
+            hub, owner_session["session_id"], "server.attach", f"company:{co['code']}"
+        )
+        r = await client.post(
+            "/api/v1/runners/approve",
+            json={"user_code": p["user_code"]},
+            headers={**h, **ok, **idem()},
+        )
+        assert r.status_code == 200, r.text
+        return p, r.json()["server"]
+
+    async def claim(p: dict[str, Any]) -> httpx.Response:
+        return await client.post(
+            "/api/v1/runners/token", json={"device_code": p["device_code"]}, headers=xff
+        )
+
+    # Approved, not yet claimed, then detached: the code no longer brings the server back.
+    p, server = await approved("late-1")
+    tok = await step_up(hub, owner_session["session_id"], "server.detach", f"{co['code']}:late-1")
+    r = await client.delete(f"/api/v1/infra/servers/{server['id']}", headers={**h, **tok, **idem()})
+    assert r.status_code == 200 and r.json()["state"] == "revoked", r.text
+    r = await claim(p)
+    assert r.status_code == 410 and r.json()["code"] == "expired_token", r.text
+    sid = uuid.UUID(server["id"])
+    assert await su.fetchval("SELECT state FROM infra.servers WHERE id = $1", sid) == "revoked"
+    assert not await su.fetchval(
+        "SELECT count(*) FROM infra.runners WHERE server_id = $1 AND revoked_at IS NULL", sid
+    )
+    # Paired again under the same name: the old approved code does not take the new pairing's
+    # place; the new one is claimed as usual.
+    p2, again = await approved("late-1")
+    assert again["id"] == server["id"]
+    r = await claim(p)
+    assert r.status_code == 410, r.text
+    r = await claim(p2)
+    assert r.status_code == 200, r.text
+    # An approved code past its time (and a poll's slack) is not claimed either.
+    p3, _ = await approved("late-2")
+    await su.execute(
+        "UPDATE infra.runner_pairings SET expires_at = now() - interval '1 hour' WHERE user_code = $1",
+        p3["user_code"],
+    )
+    r = await claim(p3)
+    assert r.status_code == 410 and r.json()["code"] == "expired_token", r.text
+
+
 async def test_pairing_is_rate_limited(
     client: httpx.AsyncClient, new_company: Callable[..., Any]
 ) -> None:

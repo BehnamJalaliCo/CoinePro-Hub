@@ -76,6 +76,7 @@ OPEN = ("queued", "running", "awaiting_seal")
 FINAL = ("done", "failed", "cancelled")
 PAIR_TTL_S = 900
 PAIR_INTERVAL_S = 5
+CLAIM_SLACK_S = 60  # an approved code is still taken this long after it expired (a last poll)
 ONLINE_S = 90  # a runner long-polls at most 30 s at a time: three missed polls = offline
 ROTATE_GRACE_S = 600  # the previous credential still works this long after a rotation
 DISPATCH_GRACE_S = 120  # beyond the job's own timeout, before the hub fails it
@@ -696,6 +697,23 @@ async def claim_token(tx: Tx, device_code: str) -> dict[str, Any]:
         if p["expires_at"] <= now():
             raise ApiError(410, "expired_token", "the code expired (15 minutes)")
         raise ApiError(428, "authorization_pending", "the owner has not approved the code yet")
+    # an approved code is taken by the runner polling for it, within the code's time (and a poll's
+    # slack); never for a server detached since or paired again since: a detach the owner sealed
+    # is not undone by a device code claimed later
+    if p["expires_at"] + timedelta(seconds=CLAIM_SLACK_S) <= now():
+        raise ApiError(410, "expired_token", "the code expired (15 minutes)")
+    srv = await tx.scalar(
+        "SELECT state FROM infra.servers WHERE id = :s FOR UPDATE", s=p["server_id"]
+    )
+    newer = await tx.scalar(
+        """SELECT 1 FROM infra.runner_pairings WHERE server_id = :s AND id <> :id
+             AND state IN ('approved', 'claimed') AND approved_at > :at LIMIT 1""",
+        s=p["server_id"],
+        id=p["id"],
+        at=p["approved_at"],
+    )
+    if srv == "revoked" or newer:
+        raise ApiError(410, "expired_token", "the server was detached or paired again since")
     token = new_runner_token()
     await tx.exec(
         """UPDATE infra.runners SET revoked_at = now(), revoked_by_kind = 'system',
