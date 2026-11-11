@@ -193,6 +193,14 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const area = useRef<HTMLTextAreaElement | null>(null);
   // The talk opens at its last turn and stays there while he is at the end; once he scrolls up it leaves him be and offers «↓».
   const pinned = useRef(true);
+  // ⟨2026-11-11⟩ «↓» is a smooth scroll: until it reaches the end, its own scroll events do not let go of the end.
+  const jumping = useRef(false);
+  /** Holds (or lets go of) the end. While held, the browser's scroll anchoring is off: a live line replaced at the end of a working
+   *  session (the tail keeps its last three) moved the view up a line each time, and «↓» stopped short of the end. */
+  const pin = useCallback((on: boolean) => {
+    pinned.current = on;
+    if (scroller.current) scroller.current.style.overflowAnchor = on ? 'none' : '';
+  }, []);
   // `left`: how many turns there were when he scrolled away from the end (null while he is at the end), per conversation.
   const [leave, setLeave] = useState<{ ref: string | null; at: number } | null>(null);
 
@@ -208,7 +216,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     const el = scroller.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   }, []);
-  useLayoutEffect(() => { pinned.current = true; }, [ref]);
+  useLayoutEffect(() => { pin(true); }, [ref, pin]);
   useLayoutEffect(() => { if (pinned.current) toEnd(); }, [toEnd, turns.length, live?.answer, live?.cards.length, timeline?.length]);
   // Pictures, cards and the streamed answer grow the talk after it was placed: stay at the end if he is there.
   useEffect(() => {
@@ -218,14 +226,22 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     ro.observe(el);
     // ⟨1.0.1⟩ the frame itself too: a bar that comes above the composer makes it shorter, and the end must stay in sight
     if (scroller.current) ro.observe(scroller.current);
-    return () => ro.disconnect();
+    // ⟨2026-11-11⟩ and any change in it (a live line in place of another, a running step's seconds): the end stays the end
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { if (pinned.current) toEnd(); });
+    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => { ro.disconnect(); mo?.disconnect(); };
   }, [toEnd]);
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < END_SLACK;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
     onScrolled?.(el.scrollTop > 24);
-    pinned.current = near;
+    if (jumping.current) {
+      if (gap > 1) return;
+      jumping.current = false;
+    }
+    const near = gap < END_SLACK;
+    pin(near);
     setLeave((l) => (near ? (l ? null : l) : l && l.ref === ref ? l : { ref, at: turnsLen.current }));
   };
   const atEnd = !leave || leave.ref !== ref;
@@ -284,7 +300,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     const answerNow = answerRef.current;
     if (answerNow && source === 'typed' && !ids.length) {
       sending.current = true;
-      pinned.current = true;
+      pin(true);
       setText('');
       try { if (!(await answerNow(t))) setText(t); } finally { sending.current = false; }
       return;
@@ -293,7 +309,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     sending.current = true;
     try {
       interrupt();
-      pinned.current = true; // what he says, and the answer to it, are seen
+      pin(true); // what he says, and the answer to it, are seen
       const cv = ref ?? (ensure ? await ensure() : null);
       if (!cv) return;
       setText('');
@@ -331,7 +347,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     } finally {
       sending.current = false;
     }
-  }, [act.invite, audio, engines.data, ensure, interrupt, onMeter, qc, readOnly, ref, to, toast]);
+  }, [act.invite, audio, engines.data, ensure, interrupt, onMeter, pin, qc, readOnly, ref, to, toast]);
 
   // The page may speak for the owner («پایان جلسه», a suggestion's words…).
   const sendRef = useRef(send);
@@ -393,7 +409,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
           </div>
         </Card>
         {!atEnd ? (
-          <button type="button" aria-label={unseen ? `برو به آخر گفتگو، ${unseen} نوبت تازه` : 'برو به آخر گفتگو'} onClick={() => { pinned.current = true; toEnd(true); }}
+          <button type="button" aria-label={unseen ? `برو به آخر گفتگو، ${unseen} نوبت تازه` : 'برو به آخر گفتگو'} onClick={() => { jumping.current = true; pin(true); toEnd(true); window.setTimeout(() => { jumping.current = false; }, 1500); }}
             className="absolute bottom-3 left-3 flex h-10 min-w-10 items-center justify-center gap-1 rounded-full border border-strong bg-page px-2.5 text-[18px] leading-none text-ink shadow-[0_6px_20px_rgba(0,0,0,.3)] hover:bg-hover">
 {unseen ? <span className="fig rounded-full bg-raised px-1.5 text-[11px] font-semibold leading-5 text-ink shadow-[inset_0_0_0_1px_var(--hq-silver-line)]">{unseen}</span> : null}
             <span aria-hidden>↓</span>

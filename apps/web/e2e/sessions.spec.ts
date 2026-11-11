@@ -382,6 +382,7 @@ test('@phone the office and a session fit a phone', async ({ page }) => {
 });
 
 // ⟨0.17⟩ The talk is the body of the page: it opens at the latest message, stays there, and offers «↓» once he has scrolled up.
+// (F-0007, a working session whose live lines stream in: the end must stay the end while they come.)
 test('a session opens scrolled to its last turn; scrolled up it offers «↓» that brings him back', async ({ page }) => {
   await clean(page, async () => {
     await page.setViewportSize({ width: 900, height: 560 });
@@ -400,6 +401,13 @@ test('a session opens scrolled to its last turn; scrolled up it offers «↓» t
     const jump = page.getByRole('button', { name: /^برو به آخر گفتگو/ });
     await expect(jump).toBeVisible();
     await jump.click();
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(jump).toHaveCount(0);
+    // ⟨2026-11-11⟩ F-0007 is at work: its newest lines stream in at the end of the talk, each in place of the oldest of three. «↓»
+    // lands at the end and stays there while they come (it used to stop short, a line's height behind, and fall further back).
+    const tail = talk.getByTestId('live-tail').locator('[data-line]').last();
+    const before = await tail.innerText();
+    await expect.poll(() => tail.innerText(), { timeout: 20_000 }).not.toBe(before);
     await expect.poll(gap).toBeLessThan(4);
     await expect(jump).toHaveCount(0);
     // A word he sends keeps him at the end.
