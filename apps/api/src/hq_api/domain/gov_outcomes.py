@@ -204,13 +204,19 @@ def verdict_of(baseline: float, target: float, value: float) -> str:
     return "partly" if value <= baseline - (baseline - target) / 2 else "missed"
 
 
-async def _kpi_value(tx: Tx, company_id: UUID, key: str, upto: datetime) -> dict[str, Any] | None:
+async def _kpi_value(
+    tx: Tx, company_id: UUID, key: str, since: datetime, upto: datetime
+) -> dict[str, Any] | None:
+    """The latest value measured inside the review window [seal, now]: a value
+    from before the seal never decides a verdict (it goes to the proposer)."""
     return await tx.first(
         """SELECT v.value, v.at, v.source_ref FROM governance.kpi_values v
            JOIN governance.kpis k ON k.id = v.kpi_id
-           WHERE k.company_id = :co AND k.key = :key AND v.at <= :t ORDER BY v.at DESC LIMIT 1""",
+           WHERE k.company_id = :co AND k.key = :key AND v.at >= :s AND v.at <= :t
+           ORDER BY v.at DESC LIMIT 1""",
         co=company_id,
         key=key,
+        s=since,
         t=upto,
     )
 
@@ -227,7 +233,12 @@ async def measure_due(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
     decided, waiting = [], []
     for r in rows:
         exp = r["expected"]
-        v = await _kpi_value(tx, r["company_id"], exp["kpi"], now) if exp.get("kpi") else None
+        sealed = r["due_at"] - timedelta(days=r["day"])  # due_at = seal + day (on_sealed)
+        v = (
+            await _kpi_value(tx, r["company_id"], exp["kpi"], sealed, now)
+            if exp.get("kpi")
+            else None
+        )
         if v is not None:
             verdict = verdict_of(float(exp["baseline"]), float(exp["target"]), float(v["value"]))
             measured = {

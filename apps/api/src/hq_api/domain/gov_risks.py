@@ -320,7 +320,12 @@ async def update(
         sets["owner_kind"], sets["owner_code"] = await _owner_of(
             tx, r["company_id"], changes["owner"], who
         )
-    review = clamp_review(lk * im, changes.get("review_at") or r["review_at"], now)
+    # An update of an overdue risk is its review: the next one is scheduled
+    # (the latest allowed date), never left at 'now' (a new review work daily).
+    current = r["review_at"]
+    if current is not None and current <= now:
+        current = None
+    review = clamp_review(lk * im, changes.get("review_at") or current, now)
     if review != r["review_at"]:
         sets["review_at"] = review
     if status == "closed":

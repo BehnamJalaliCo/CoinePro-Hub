@@ -73,6 +73,20 @@ async def test_a_20_risk_without_mitigation_after_its_date_is_a_finding(
         out = await RK.sweep(tx)
         again = await RK.sweep(tx)
     assert rk["ref"] in out["review_work"] and rk["ref"] not in again["review_work"]
+    # Its owner does the review: the next one is scheduled (never 'now'), so the
+    # next daily rule gives no second review work item.
+    version = await su.fetchval("SELECT version FROM governance.risks WHERE ref = $1", rk["ref"])
+    r = await client.post(
+        "/internal/v1/governance/risks/update",
+        headers={**await ceo(co), **idem()},
+        json={"ref": rk["ref"], "version": version, "mitigation_md": "دو صرافی",
+              "note": "بازبینی شد"},
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert datetime.fromisoformat(r.json()["review_at"]) > datetime.now(UTC) + timedelta(days=13)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        later = await RK.sweep(tx, datetime.now(UTC) + timedelta(days=1))
+    assert rk["ref"] not in later["review_work"]
     r = await client.get("/api/v1/risks/matrix", headers=owner, params={"company": co["code"]})
     assert r.json()["counts"][3][4] == 1
 

@@ -129,6 +129,30 @@ async def test_a_sealed_decision_has_reviews_at_30_60_90_and_a_met_kpi_is_met(
     assert OUT.verdict_of(50, 20, 30) == "partly" and OUT.verdict_of(50, 20, 19) == "met"
 
 
+async def test_a_value_from_before_the_seal_never_decides_a_review(
+    client: httpx.AsyncClient, owner: dict[str, str], hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:  # fmt: skip
+    co = await new_company()
+    key = await manual_kpi(client, owner, co)
+    # The KPI's last value predates the decision and nothing is measured after it.
+    old = datetime.now(UTC) - timedelta(hours=1)
+    assert (await record(client, co, key, 55, at=old)).status_code == 200
+    d = await _sealed_with(
+        client,
+        owner,
+        co,
+        {"metric_fa": "ثبت‌نام", "kpi": key, "baseline": 50, "target": 80, "by_days": 30},
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        out = await OUT.measure_due(tx, datetime.now(UTC) + timedelta(days=31))
+    row = await su.fetchrow(
+        "SELECT ref, verdict, status FROM governance.outcome_reviews WHERE decision_ref = $1",
+        d["ref"],
+    )
+    assert row["ref"] in out["waiting_for_note"] and row["ref"] not in out["decided"]
+    assert (row["verdict"], row["status"]) == ("unmeasurable", "due")
+
+
 @pytest.fixture
 async def due_now(su: Any) -> AsyncIterator[Callable[[str], Any]]:
     """Moves a review's due day into the past (the immutable column, by the
