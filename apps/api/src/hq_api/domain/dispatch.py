@@ -73,6 +73,7 @@ MEMORY_KINDS = ("correction", "no")
 CORRECTABLE = ("companies", "department", "collaborators", "output_kind", "mode", "player", "kind")
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 _ARABIC_LETTERS = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی"})
+MAX_COUNT = 100  # the most outputs one order may ask for (Route.count)
 
 
 class Route(Model):
@@ -85,7 +86,7 @@ class Route(Model):
     department: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,11}$")
     collaborators: list[str] = Field(default_factory=list, max_length=10)
     output_kind: OutputKind = "other"
-    count: int | None = Field(default=None, ge=1, le=100)
+    count: int | None = Field(default=None, ge=1, le=MAX_COUNT)
     budget_tokens: int = Field(default=200_000, ge=10_000, le=10_000_000)
     mode: Literal["single", "council"] = "single"
     player: Player = "auto"
@@ -194,7 +195,8 @@ def output_of(norm: str) -> tuple[str, int | None, str | None]:
             if m:
                 tok = m.group(1)
                 count = int(tok) if tok.isdigit() else numbers.get(tok)
-            return kind, count if count and count > 0 else None, w
+            # a year or a large figure before the word is no count (Route caps it at 100)
+            return kind, count if count and 0 < count <= MAX_COUNT else None, w
     return "other", None, None
 
 

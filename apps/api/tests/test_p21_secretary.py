@@ -101,6 +101,10 @@ def test_output_kinds_counts_and_budgets_are_data() -> None:
     assert D.output_of(norm("یک استوری"))[:2] == ("story", 1)
     assert D.output_of(norm("گزارش فروش"))[:2] == ("report", None)
     assert D.output_of(norm("کاری بکن"))[:2] == ("other", None)
+    # a year or a figure over the cap is no count (Route.count would refuse it: 500)
+    assert D.output_of(norm("سال ۱۴۰۵ برنامه بازاریابی بنویس"))[:2] == ("plan", None)
+    assert D.output_of(norm("برای ۱۲۰ پست کپشن بنویس"))[:2] == ("post", None)
+    assert D.output_of(norm("۱۰۰ پست بنویس"))[:2] == ("post", 100)
     assert D.budget_of("reel", None) == 400_000 and D.budget_of("reel", 3) == 600_000
     assert D.budget_of("reel", 50) == 1_200_000  # never above the kind's max
     assert D.question_scope(norm("رقیب ما در بازار چه کرد")) == "outside"
