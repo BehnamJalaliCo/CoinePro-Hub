@@ -369,7 +369,19 @@ async def _wall(
         plan = sandbox.plan(
             ref, cwd, workspace_state.root(), (ctx.cfg_path or config_path()).resolve(), claude
         )
+    except (sandbox.SandboxError, OSError) as exc:
+        return None, str(exc) or type(exc).__name__
+    try:
         await asyncio.to_thread(sandbox.prepare, plan)
+    except (sandbox.SandboxError, OSError) as exc:
+        # the private area is what an earlier walled turn of this work could write: a setup it
+        # broke must not switch the wall off for this turn (contract §43.9), so it fails closed
+        reason = str(exc) or type(exc).__name__
+        ctx.sink.emit("progress", {"text": f"sandbox setup failed: {reason}; the turn did not run"})
+        raise JobError(
+            "محیط جدای این کار روی سرور آماده نشد؛ نوبت بدون دیوار میان شرکت‌ها اجرا نشد."
+        ) from exc
+    try:
         why = await sandbox.probe(plan, dict(ctx.env), claude)
     except (sandbox.SandboxError, OSError) as exc:
         return None, str(exc) or type(exc).__name__

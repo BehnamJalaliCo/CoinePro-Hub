@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -320,3 +321,28 @@ def test_the_wrapper_refuses_to_run_a_command_it_could_not_wall(
     monkeypatch.setattr(sandbox, "abi", lambda: 0)
     assert sandbox.exec_main([], [], ["/bin/true"]) == sandbox.EXIT_NO_WALL
     assert "no Landlock" in capsys.readouterr().err
+
+
+def test_what_a_turn_left_in_its_private_area_never_takes_the_wall_down(
+    place: dict[str, Path], tmp_path: Path
+) -> None:
+    """A walled session can change its own private area: a file or a link it leaves where
+    tmp/, job/ or a folder of its home goes is removed when the next turn is set up (before, the
+    setup failed with «File exists» and the next turn ran without the wall)."""
+    p = the_plan(place)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("not the turn's")
+    shutil.rmtree(p.tmp)
+    p.tmp.write_text("planted")
+    shutil.rmtree(p.job)
+    os.symlink(elsewhere, p.job)
+    (p.home / ".config").mkdir(exist_ok=True)
+    (place["home"] / ".config" / "hq-runner").mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(p.home / ".config")
+    (p.home / ".config").write_text("planted")  # a folder of the home that holds a closed one
+    sandbox.prepare(p)
+    for d in (p.tmp, p.job, p.home / ".config"):
+        assert d.is_dir() and not d.is_symlink(), d
+    assert os.listdir(p.tmp) == [] and os.listdir(p.job) == []
+    assert (elsewhere / "keep.txt").read_text() == "not the turn's"  # a link is never followed

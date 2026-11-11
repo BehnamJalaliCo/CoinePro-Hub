@@ -223,8 +223,8 @@ def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) 
                 continue
             target = dst / e.name
             if e.is_dir(follow_symlinks=False) and any(_beneath(c, real) for c in closed):
-                if target.is_symlink():
-                    target.unlink()
+                if target.is_symlink() or (target.exists() and not target.is_dir()):
+                    target.unlink()  # the session's own file or link where a folder goes
                 mirror(e.path, target)
                 continue
             try:
@@ -348,15 +348,31 @@ def plan(
     return Plan(ref, work, private, protect, allow)
 
 
+def _own_dir(d: Path, *, empty: bool) -> None:
+    """A real folder at `d` (`empty`: emptied). The private area is the walled session's to
+    change, so what it left at the name (a file, a link) is removed, never kept or followed: a
+    file planted at tmp/ must not make the next turn's setup fail and run it without the wall."""
+    try:
+        st = os.lstat(d)
+    except FileNotFoundError:
+        st = None
+    if st is not None and not stat.S_ISDIR(st.st_mode):
+        d.unlink()
+    elif st is not None and empty:
+        shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not stat.S_ISDIR(os.lstat(d).st_mode):
+        raise SandboxError(f"{d} is not a folder")
+    os.chmod(d, 0o700)
+
+
 def prepare(p: Plan, real_home: Path | None = None) -> None:
     """The private area on the disk: its home (links to the real one), an empty tmp and an
     empty job folder (settings, the hook's log and socket)."""
-    for d in (p.private, p.home):
-        d.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(d, 0o700)
+    _own_dir(p.private, empty=False)
+    _own_dir(p.home, empty=False)
     for d in (p.tmp, p.job):
-        shutil.rmtree(d, ignore_errors=True)
-        d.mkdir(mode=0o700)
+        _own_dir(d, empty=True)
     make_home(real_home or Path.home(), p.home, p.protect)
 
 
