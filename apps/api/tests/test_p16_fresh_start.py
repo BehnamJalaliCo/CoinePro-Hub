@@ -205,3 +205,55 @@ async def test_a_table_in_no_list_or_a_kept_row_pointing_at_wiped_data_stops_it(
         assert await _count(conn, "work.work") > 0
     finally:
         await conn.close()
+
+
+async def test_a_file_a_kept_row_lists_in_an_array_stays(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A session's attachment is in owner.order_files (wiped, a foreign key) and
+    in talk.turns.files (kept, a uuid[] with no foreign key): the file stays.
+    Two narration jobs (wiped) stand in for the wiped side; a kept probe table
+    with a uuid[] column lists one of their files."""
+    co = (await new_company())["code"]
+    await _ran(client, owner, co)
+    monkeypatch.setattr(FS, "KEEP", (*FS.KEEP, "archive.fs_files_probe"))
+    conn = await superuser()
+    try:
+        head = await conn.fetchrow("SELECT last_seq, last_hash FROM audit.chain_head")
+        tx = conn.transaction()
+        await tx.start()
+        try:
+            holding, voice = await conn.fetchrow(
+                """SELECT c.id, v.id FROM core.companies c, media.voices v
+                   WHERE c.kind = 'holding' ORDER BY v.id LIMIT 1"""
+            )
+            files: list[uuid.UUID] = []
+            for n in (1, 2):
+                file_id = await conn.fetchval(
+                    """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                           created_by_kind, created_by_code)
+                       VALUES ($1, 'a.png', 'image/png', 10, $2, $3, 'owner', 'owner') RETURNING id""",
+                    holding, "0" * 64, f"fresh-start/{uuid.uuid4().hex}.png",
+                )  # fmt: skip
+                await conn.execute(
+                    """INSERT INTO media.speech_jobs (company_id, kind, voice_id, subject_ref, script,
+                           state, file_id, created_by_kind, created_by_code)
+                       VALUES ($1, 'narration', $2, $3, 'روایتی که میرود', 'done', $4,
+                               'service', 'tts')""",
+                    holding, voice, f"MI-000{n}", file_id,
+                )  # fmt: skip
+                files.append(file_id)
+            await conn.execute("CREATE TABLE archive.fs_files_probe (files uuid[] NOT NULL)")
+            await conn.execute(
+                "INSERT INTO archive.fs_files_probe VALUES (ARRAY[$1::uuid])", files[0]
+            )
+            await conn.execute(FS.body(SNAP, head["last_seq"], head["last_hash"]))
+            left = await conn.fetch("SELECT id FROM files.files WHERE id = ANY ($1)", files)
+            assert [r["id"] for r in left] == [files[0]]
+        finally:
+            await tx.rollback()
+    finally:
+        await conn.close()
