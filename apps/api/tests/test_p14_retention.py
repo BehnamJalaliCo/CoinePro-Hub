@@ -473,6 +473,26 @@ async def test_the_system_sources_file_the_hubs_own_records(
     )
 
 
+
+def test_a_jalali_month_of_the_sources_begins_at_the_owners_midnight() -> None:
+    # 01:00 in Tehran on 1 Aban 1405 is 21:30 UTC on the last day of Mehr
+    at = datetime(2026, 10, 22, 21, 30, tzinfo=UTC)
+    assert SRC._jalali_key(SRC._local(at, "Asia/Tehran")) == "1405-08"
+    assert SRC._jalali_key(at.date()) == "1405-07"
+
+
+async def test_the_sources_read_only_events_not_filed_yet(su: Any) -> None:
+    """Each source reads past what it filed (a window of the oldest events
+    would stay full of filed ones for good): the email source's ref, made in
+    SQL there, is the one file_system files under."""
+    import hashlib
+
+    mid = "<پیام-۱@counsel.example>"
+    in_sql = await su.fetchval(
+        "SELECT 'email:' || left(encode(sha256(convert_to($1, 'UTF8')), 'hex'), 24)", mid
+    )
+    assert in_sql == "email:" + hashlib.sha256(mid.encode()).hexdigest()[:24]
+
 # --------------------------------------------------- the archivist, cards --
 async def test_the_archivist_files_drafts_only_and_never_seals_declassifies_releases_or_disposes(
     client: httpx.AsyncClient,
