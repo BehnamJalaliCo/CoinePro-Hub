@@ -1656,6 +1656,13 @@ async def loop(hub: Hub) -> None:
                 await SPB.after_job(hub, jid)
             except Exception:  # noqa: BLE001 - one job never stops the sweep
                 log.warning("after_job failed for a swept job", extra={"job": str(jid)})
+            try:
+                # ⟨1.8⟩ a studio item's publish job that timed out: the item is told (no 7-day wait)
+                from hq_api.domain import studio_publish as P
+
+                await P.after_job(hub, jid)
+            except Exception:  # noqa: BLE001 - one job never stops the sweep
+                log.warning("studio after_job failed for a swept job", extra={"job": str(jid)})
         # ⟨§46⟩ publications IG-Hub still holds (set for a time, or being prepared) are asked about
         with contextlib.suppress(Exception):
             from hq_api.domain import session_publish as SPB

@@ -53,6 +53,8 @@ TG_CAPTION = 1024
 IG_CAPTION = 2200
 AI_LABEL = "ساخته‌شده با کمک هوش مصنوعی"
 BY_CARD = "by_card"
+# ⟨1.8⟩ how long an item waits for its runners' answers before the jobs still open are settled
+RUNNER_WAIT_S = 2 * 3600
 
 
 # --------------------------------------------------------- signed URLs --
@@ -396,6 +398,11 @@ async def publish_due(hub: Any, only: str | None = None, limit: int = 5) -> dict
             if (lock := await gate.automation_lock(tx, item["company_id"])) is not None:
                 waiting[item["ref"]] = gate.REASONS.get(lock, lock)
                 continue
+            if _runner_pending(item):
+                # ⟨1.8⟩ its runners' wait ran out: settled, never sent again
+                if await _settle_runners(tx, item):
+                    waiting[item["ref"]] = "runner"
+                continue
             by_card = (item.get("render_meta") or {}).get(BY_CARD)
             if not by_card:
                 sealed = (
@@ -436,6 +443,71 @@ async def publish_due(hub: Any, only: str | None = None, limit: int = 5) -> dict
         await _publish_one(hub, item, rows)
         done.append(item["ref"])
     return {"published": done, "waiting": waiting}
+
+
+def _runner_pending(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """The item's runner placements still waiting for their job's answer."""
+    return [
+        e
+        for e in item.get("publish") or []
+        if e.get("job") and not e.get("at") and not e.get("error")
+    ]
+
+
+async def _settle_runners(tx: Tx, item: dict[str, Any]) -> bool:
+    """⟨1.8⟩ The runners' wait ran out. A job that ended without its answer reaching the
+    item (the sweep timed it out, it was cancelled) or that never started (its server is
+    offline) is settled as failed; runner_published then ends the item (published, or
+    its card). Nothing already sent goes out again. True while a job still runs (the
+    sweep ends it after its timeout): the wait is extended."""
+    from hq_api.domain import servers as SV
+
+    running = False
+    for e in _runner_pending(item):
+        jid = str(e["job"])
+        row = await tx.first(
+            """SELECT state FROM infra.server_jobs WHERE id = CAST(:id AS uuid)
+               FOR UPDATE SKIP LOCKED""",
+            id=jid,
+        )
+        if row is None and await tx.scalar(
+            "SELECT 1 FROM infra.server_jobs WHERE id = CAST(:id AS uuid)", id=jid
+        ):
+            running = True  # its runner is answering right now
+            continue
+        if row is None:
+            j: dict[str, Any] = {"id": jid, "args": {"item": item["ref"]}, "error_code": None}
+        elif row["state"] == "running":
+            running = True
+            continue
+        else:
+            j = await SV.load_job(tx, UUID(jid))
+            if j["state"] not in SV.FINAL:
+                j = await SV.cancel(tx, j, "timed_out", "انتشار در زمانش شروع نشد؛ لغو شد")
+        await runner_published(tx, j, False, None, None, j.get("error_code") or "timed_out")
+    if running:
+        await tx.exec(
+            "UPDATE media.items SET publish_at = now() + interval '30 minutes' WHERE id = :id",
+            id=item["id"],
+        )
+    return running
+
+
+async def after_job(hub: Any, job_id: UUID) -> None:
+    """⟨1.8⟩ A studio `publish` job the sweep failed (past its timeout) ends like a failed
+    answer: its row of the item, and the item once no runner is pending."""
+    from hq_api.domain import servers as SV
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        j = await SV.load_job(tx, job_id)
+        if (
+            j["kind"] != "publish"
+            or not (j.get("args") or {}).get("item")
+            or j["state"] not in SV.FINAL
+            or j["state"] == "done"
+        ):
+            return
+        await runner_published(tx, j, False, None, None, j.get("error_code") or j["state"])
 
 
 async def _held(tx: Tx, item: dict[str, Any]) -> bool:
@@ -573,9 +645,10 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
             # the lease keeps the publisher from taking it again meanwhile.
             await tx.exec(
                 """UPDATE media.items SET publish = CAST(:p AS jsonb),
-                       publish_at = now() + interval '7 days' WHERE id = :id""",
+                       publish_at = now() + make_interval(secs => :w) WHERE id = :id""",
                 id=item["id"],
                 p=S.canonical(publish),
+                w=RUNNER_WAIT_S,
             )
             await events.emit(
                 tx,

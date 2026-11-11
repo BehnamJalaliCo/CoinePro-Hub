@@ -1103,6 +1103,71 @@ async def test_publish_through_a_runner(
     )
 
 
+
+async def test_a_runner_publish_that_never_starts_ends_the_item_without_sending_again(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """The runners' wait runs out with the job still queued (the server never polled): the
+    job is cancelled, the item gets its card, and no second job is queued."""
+    co = await new_company()
+    await pair(client, hub, owner_session, co, "ig-hub")
+    target = {"channel": "runner", "account": "runner-ig-hub", "placement": "instagram_post",
+              "server": "ig-hub", "command": "/home/ig/bin/publish"}  # fmt: skip
+    fid = await su.fetchval(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key, created_by_kind,
+               created_by_code) VALUES ($1, 'post.png', 'image/png', 3, repeat('a', 64), $2, 'service', 'media')
+           RETURNING id""",
+        co["id"],
+        f"p17-{uuid.uuid4().hex}",
+    )
+    series = await su.fetchval(
+        """INSERT INTO media.series (company_id, title_fa, kind, targets, schedule, format, checks,
+               max_per_day, digest, sealed_digest, sealed_at, status, auto_publish, proposed_by_kind,
+               proposed_by_code)
+           VALUES ($1, 'پست', 'post', $2::jsonb, 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0', '{"aspect": "1:1"}',
+                   '{brand}', 3, repeat('c', 64), repeat('c', 64), now(), 'sealed', true, 'owner', 'owner')
+           RETURNING id""",
+        co["id"],
+        json.dumps([target]),
+    )
+    outputs = [{"placement": "instagram_post", "file_id": str(fid), "name": "post.png",
+                "mime": "image/png", "kind": "image"}]  # fmt: skip
+    ref = await su.fetchval(
+        """INSERT INTO media.items (company_id, series_id, kind, title_fa, state, created_by_kind,
+               created_by_code, publish_at, outputs)
+           VALUES ($1, $2, 'post', 'پست آزمایشی', 'scheduled', 'owner', 'owner', now() - interval '1 minute',
+                   $3::jsonb) RETURNING ref""",
+        co["id"],
+        series,
+        json.dumps(outputs),
+    )
+    assert (await P.publish_due(hub, only=ref))["published"] == [ref]
+    at = await su.fetchval("SELECT publish_at FROM media.items WHERE ref = $1", ref)
+    assert at < datetime.now(UTC) + timedelta(hours=3)  # a wait, not a week
+    # The wait ran out and the server never took the job.
+    await su.execute(
+        "UPDATE media.items SET publish_at = now() - interval '1 minute' WHERE ref = $1", ref
+    )
+    out = await P.publish_due(hub, only=ref)
+    assert out["published"] == [] and ref not in out["waiting"], out
+    jobs = await su.fetch(
+        "SELECT state, error_code FROM infra.server_jobs WHERE kind = 'publish' AND args ->> 'item' = $1",
+        ref,
+    )
+    assert [(j["state"], j["error_code"]) for j in jobs] == [("cancelled", "timed_out")]
+    row = await su.fetchrow("SELECT state, publish FROM media.items WHERE ref = $1", ref)
+    assert row["state"] == "waiting_owner"  # its publish_failed card
+    log = await su.fetch(
+        "SELECT outcome, error FROM media.publish_log WHERE item_id = (SELECT id FROM media.items WHERE ref = $1)",
+        ref,
+    )
+    assert [(x["outcome"], x["error"]) for x in log] == [("error", "timed_out")]
+
+
 # ---------------------------------------------------------- classification --
 CLASSIFY_TABLE: dict[str, str | None] = {
     "psql -c 'DROP TABLE users'": "db_drop",
