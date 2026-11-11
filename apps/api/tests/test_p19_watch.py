@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import secrets
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -446,6 +447,48 @@ async def test_the_watch_runs_each_duty_once_per_period(
         """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
            FROM work.work w WHERE w.id = r.work_id AND r.state = 'queued' AND w.title LIKE 'یادداشت رشد%'"""
     )
+
+
+async def test_a_months_holding_proposal_not_made_is_tried_again_the_next_day(
+    hub: Hub, su: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The month is claimed when its proposal is made: an unreadable reply (or a spent zone, a
+    failed call) leaves it to the next day's tick, one try a day, never lost for the month."""
+    from hq_api.domain import advisor
+
+    async def not_spent(tx: Any, hub: Any) -> bool:
+        return False
+
+    async def no_catalogues(tx: Any, hub: Any, now: Any) -> int:
+        return 0
+
+    monkeypatch.setattr(advisor, "zone_spent", not_spent)
+    monkeypatch.setattr(WATCH.CAT, "sweep", no_catalogues)
+    before = await su.fetchval("SELECT digital_ceo::text FROM owner.settings WHERE id = 1")
+    await su.execute(
+        """UPDATE owner.settings SET digital_ceo = COALESCE(digital_ceo, '{}'::jsonb)
+               || '{"enabled": true, "model_predictions": true}'::jsonb WHERE id = 1"""
+    )
+    # a month of its own (ops.watch_runs is append-only and the test database persists)
+    day1 = datetime(2100 + secrets.randbelow(7000), 1 + secrets.randbelow(12), 10, 9, tzinfo=UTC)
+    try:
+        bad = FakeRouter("no proposal here")
+        first = await WATCH.sweep(hub, bad, day1)
+        assert first["proposal"] == {"proposed": 0, "reason": "unreadable"}
+        again = await WATCH.sweep(hub, bad, day1 + timedelta(hours=1))
+        assert again["proposal"] is None and len(bad.calls) == 1  # one try a day
+        good = FakeRouter(json.dumps({"title_fa": "پیشنهاد هلدینگ", "body_md": "۱. فروش متقابل"},
+                                     ensure_ascii=False))  # fmt: skip
+        made = await WATCH.sweep(hub, good, day1 + timedelta(days=1))
+        assert made["proposal"]["proposed"] == 1, made
+        later = await WATCH.sweep(hub, good, day1 + timedelta(days=2))
+        assert later["proposal"] is None and len(good.calls) == 1
+    finally:
+        await su.execute("UPDATE owner.settings SET digital_ceo = $1::jsonb WHERE id = 1", before)
+        await su.execute(
+            """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
+               FROM work.work w WHERE w.id = r.work_id AND r.state = 'queued' AND w.title LIKE 'یادداشت رشد%'"""
+        )
 
 
 # --------------------------------------------------- §28.4 council robustness --

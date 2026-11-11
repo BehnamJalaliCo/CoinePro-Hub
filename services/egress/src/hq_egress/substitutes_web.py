@@ -44,7 +44,9 @@ from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")
 router = APIRouter()
-ERRORS = ("expired", "recipe_failed", "timeout", "busy", "off")
+# `unsupported`: the job carries files and the recipe's task has no step that attaches them
+# (never sent without them: a video "of the attached image" made from the text alone is wrong)
+ERRORS = ("expired", "recipe_failed", "timeout", "busy", "off", "unsupported")
 DETAIL_CHARS = 300
 SCREENSHOT_BYTES = 2 * 1024 * 1024
 MIME_OK = (
@@ -52,6 +54,9 @@ MIME_OK = (
     "audio/wav", "audio/mpeg", "audio/ogg", "audio/flac",
 )  # fmt: skip
 MAX_JOB_FILES = 10
+# The hub's own cap on a call's question (TEXT_LIMIT, substitutes.calls.input_md); a long_read
+# seat or a work's brief longer than the old 20 000 was refused here with a 422 every time
+PROMPT_CHARS = 200_000
 
 
 class JobFile(BaseModel):
@@ -64,7 +69,7 @@ class WebIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account: Account
     task: TaskName
-    prompt: str = Field(min_length=1, max_length=20_000)
+    prompt: str = Field(min_length=1, max_length=PROMPT_CHARS)
     # prompt 22: what a lines step adds to a job (the prompt is then the text to speak, the
     # query to search or the cover's brief): the speaker, a style note, how many results, and
     # the files a cover is made from (named, base64; at most 10)
@@ -129,6 +134,13 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
     version = recipe.version
     if a.task not in recipe.tasks:
         return failed("recipe_failed", f"the recipe has no {a.task} task", version=version)
+    if a.files and not any(st.do == "attach" for st in recipe.tasks[a.task].steps):
+        return failed(
+            "unsupported",
+            f"the recipe's {a.task} task cannot attach files",
+            step="attach",
+            version=version,
+        )
     lock = state.web_locks[a.account]
     if lock.locked():
         return failed("busy", "one job per account at a time", version=version)

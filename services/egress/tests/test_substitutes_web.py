@@ -247,6 +247,28 @@ async def test_expired_failed_and_off_come_back_as_they_are(web: Any) -> None:
     assert bad.status_code == 422
 
 
+async def test_files_never_go_to_a_task_that_cannot_attach_them(web: Any) -> None:
+    c, fake, _ = web
+    body = {"account": "chatgpt-web", "task": "image", "prompt": "Animate the attached image",
+            "files": [{"name": "a.png", "b64": base64.b64encode(PNG).decode()}]}  # fmt: skip
+    r = (await c.post("/v1/substitutes/web", json=body)).json()
+    assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
+    assert fake.sent == []  # the job never ran without its files
+
+
+async def test_a_long_question_is_taken_up_to_the_hubs_own_cap(web: Any) -> None:
+    from hq_egress import substitutes_web as SW
+
+    c, fake, _ = web
+    long = "س" * 60_000
+    r = (await c.post("/v1/substitutes/web", json={"account": "chatgpt-web", "task": "text",
+                                                   "prompt": long})).json()  # fmt: skip
+    assert r["ok"] is True and len(fake.sent[-1]["prompt"]) == 60_000
+    too_long = await c.post("/v1/substitutes/web", json={"account": "chatgpt-web", "task": "text",
+                                                         "prompt": "x" * (SW.PROMPT_CHARS + 1)})  # fmt: skip
+    assert too_long.status_code == 422
+
+
 async def test_one_job_per_account_at_a_time(web: Any) -> None:
     c, fake, _ = web
     fake.hold = asyncio.Event()

@@ -887,3 +887,54 @@ async def test_a_player_that_does_not_take_the_seat_is_the_callers_mistake(
         assert r.status_code == 422, r.text
         assert r.json()["fields"] == {"player": "not a holder of this seat"}
         assert r.json()["message_fa"]
+
+
+async def test_a_web_call_skipped_after_queued_still_answers_the_agent(
+    client: httpx.AsyncClient, hub: Hub, su: Any
+) -> None:
+    """An agent's call that said `queued` and then met an expired profile hears why as a work
+    item (it sleeps until one comes; nothing sweeps its calls), as a failed call does."""
+    pa = await agent_headers("HQ-PA")
+    async with bench(su, hub, web=("gpt",)):
+        await per_day(su, "gpt", "assistant_errand", 5)
+        r = await client.post(
+            "/internal/v1/substitutes/call", headers=pa,
+            json={"seat": "assistant_errand", "input_md": "این متن را خلاصه کن: هفته خوب بود."},
+        )  # fmt: skip
+        assert r.status_code == 200 and r.json()["state"] == "queued", r.text
+        call = r.json()["call"]
+        await su.execute(
+            "UPDATE substitutes.players SET web_state = 'expired' WHERE player = 'gpt'"
+        )
+        fake = FakeEgress()
+        await S.web_jobs(hub, fake)
+        assert fake.calls == []  # skipped without egress
+        row = await su.fetchrow(
+            "SELECT state, state_reason, delivered_at FROM substitutes.calls WHERE id = $1::uuid",
+            call,
+        )
+        assert (row["state"], row["state_reason"]) == ("skipped", "expired") and row["delivered_at"]
+        reply = await su.fetchrow(
+            """SELECT w.brief, e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
+               JOIN substitutes.calls c ON c.reply_work_id = w.id WHERE c.id = $1::uuid""",
+            call,
+        )
+        assert reply["code"] == "HQ-PA" and "was skipped: expired" in reply["brief"]
+
+
+async def test_files_for_a_seat_on_the_cli_are_refused_never_dropped(
+    client: httpx.AsyncClient, hub: Hub, su: Any
+) -> None:
+    """The CLI runner takes the question's text only: a call with files is the caller's 422,
+    never a queued call whose files nobody sees."""
+    pa = await agent_headers("HQ-PA")
+    async with bench(su, hub, cli=("gpt",)):
+        await per_day(su, "gpt", "assistant_errand", 5)
+        r = await client.post(
+            "/internal/v1/substitutes/call", headers=pa,
+            json={"seat": "assistant_errand", "input_md": "این تصویر را توضیح بده.",
+                  "file_ids": ["00000000-0000-4000-8000-000000000001"]},
+        )  # fmt: skip
+        assert r.status_code == 422, r.text
+        assert "file_ids" in r.json()["fields"]
+        assert (await claim(client))["job"] is None

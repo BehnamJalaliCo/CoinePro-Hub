@@ -29,6 +29,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel
+from sqlalchemy.exc import DBAPIError
 
 from hq_api import audit, events
 from hq_api.db import Tx
@@ -36,7 +37,7 @@ from hq_api.domain import humanize as HZ
 from hq_api.domain import servers as SV
 from hq_api.domain import split as SP
 from hq_api.domain import work as W
-from hq_api.errors import ApiError
+from hq_api.errors import ApiError, db_message, sqlstate_of
 from hq_api.principal import Principal
 from hq_api.workshop import server_sessions as SS
 
@@ -265,6 +266,39 @@ async def hand_over(hub: Any, run: dict[str, Any], emp: dict[str, Any]) -> str |
         return f"workspace {w['ref']}: turn {ws['turns']} on {server['name']} (job {job['id']})"
 
 
+async def _book_turn(tx: Tx, w: dict[str, Any], tokens: int, hands: bool) -> None:
+    """A turn's tokens on its work (the server's own login: tokens, no hub money). ⟨2026-11-10⟩
+    The workshop has no token cap (the owner's decision): what a hands turn spent is shown on the
+    work but not taken from the budget of its assignee's own runs (a long turn left the next run a
+    cap of zero), so its budget grows by as much in the same statement, and its capped parents'
+    first, the root first (as work.add_budget walks them), so it still fits what they have left."""
+    if not hands or w.get("budget_tokens") is None:
+        await W.add_usage(tx, w, tokens, Decimal(0))
+        return
+    chain: list[dict[str, Any]] = []
+    cur: dict[str, Any] = w
+    while cur["parent_id"] is not None:
+        cur = await tx.one(
+            "SELECT id, parent_id, budget_tokens FROM work.work WHERE id = :id FOR UPDATE",
+            id=cur["parent_id"],
+        )
+        if cur["budget_tokens"] is None:
+            break
+        chain.append(cur)
+    for parent in reversed(chain):
+        await tx.exec(
+            "UPDATE work.work SET budget_tokens = budget_tokens + :t WHERE id = :id",
+            t=tokens,
+            id=parent["id"],
+        )
+    await tx.exec(
+        """UPDATE work.work SET tokens_used = tokens_used + :t, budget_tokens = budget_tokens + :t
+           WHERE id = :id""",
+        t=tokens,
+        id=w["id"],
+    )
+
+
 async def after_job(hub: Any, job_id: UUID) -> None:
     """A workspace turn ended (after the runner's result was committed): its answer is the work's
     deliverable; a failure sends the work back to the hub; a cancel is a stop."""
@@ -274,16 +308,28 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         j = await SV.load_job(tx, job_id)
         if j["kind"] != "claude" or not (j.get("args") or {}).get("workspace"):
             return
-        ws = await tx.first(
-            """SELECT * FROM work.workspaces WHERE work_ref = :ref
-                 AND (last_job_id = :j OR session_id = :sess) FOR UPDATE""",
+        # The work first, then its workspace: the order hand_over, HANDS.start and the owner's stop
+        # take (the other one could deadlock with a run of the same work that starts now, and an
+        # aborted after_job is never tried again: the job's result is committed already).
+        found = await tx.first(
+            """SELECT id, work_id FROM work.workspaces WHERE work_ref = :ref
+                 AND (last_job_id = :j OR session_id = :sess)""",
             ref=j["args"]["workspace"],
+            j=job_id,
+            sess=j["session_id"],
+        )
+        if found is None:
+            return
+        w = await W.load(tx, found["work_id"], lock=True)
+        ws = await tx.first(
+            """SELECT * FROM work.workspaces WHERE id = :id
+                 AND (last_job_id = :j OR session_id = :sess) FOR UPDATE""",
+            id=found["id"],
             j=job_id,
             sess=j["session_id"],
         )
         if ws is None or ws["state"] in ("delivered", *ENDED):
             return
-        w = await W.load(tx, ws["work_id"], lock=True)
         tokens = W.effective_tokens(*_usage(j.get("usage") or {}))
         hands = bool((j.get("args") or {}).get("hands"))  # ⟨2026-11-09⟩ §43 the workshop
         # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns: what the runner says of it
@@ -303,17 +349,25 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 f" on {j['server_name']}: {wall_why}"[:500],
             )
         if tokens:
-            await W.add_usage(
-                tx, w, tokens, Decimal(0)
-            )  # the server's own login: tokens, no hub money
-            if hands and w.get("budget_tokens") is not None:
-                # ⟨2026-11-10⟩ the workshop has no token cap (the owner's decision): what a turn
-                # spent is shown on the work but not taken from the budget of its assignee's own
-                # runs (a long turn left the next run a cap of zero)
-                await tx.exec(
-                    "UPDATE work.work SET budget_tokens = budget_tokens + :t WHERE id = :id",
-                    t=tokens,
-                    id=w["id"],
+            # Booking the turn's tokens never costs the turn's outcome: a refusal of
+            # work.before_update (HQB01: the work's budget used up, its parent with no room left)
+            # rolls back the booking alone; the deliverable, the workspace and the wake still go on.
+            try:
+                async with tx.conn.begin_nested():
+                    await _book_turn(tx, w, tokens, hands)
+            except DBAPIError as exc:
+                if sqlstate_of(exc) != "HQB01":
+                    raise
+                await audit.record(
+                    tx,
+                    SERVICE,
+                    company_id=w["company_id"],
+                    action="workspace.usage_refused",
+                    action_class="A1",
+                    target_kind="work",
+                    target_ref=w["ref"],
+                    summary=f"{tokens} tokens of job {j['id']} not booked on {w['ref']}: "
+                    f"{db_message(exc)}"[:500],
                 )
         if j["state"] == "done":
             said = (await SV.full_answer(tx, hub, j)).strip()

@@ -850,6 +850,12 @@ async def proposal_input(tx: Tx) -> dict[str, Any]:
     return out
 
 
+async def proposal_on(tx: Tx) -> bool:
+    """The digital CEO's settings allow the monthly holding proposal."""
+    s = await settings(tx)
+    return bool(s.get("enabled", True) and s.get("model_predictions", True))
+
+
 async def holding_proposal(hub: Any, router: Any, tx_factory: Any, month: str) -> dict[str, Any]:
     """⟨1.10⟩ §28.3 once a month: «پیشنهاد هلدینگ», a watch finding of kind
     `holding` (advice; nothing is done with it but what the owner decides).
@@ -861,8 +867,7 @@ async def holding_proposal(hub: Any, router: Any, tx_factory: Any, month: str) -
         lock = await gate.automation_lock(tx)
         if lock is not None:
             return gate.skipped(lock)
-        s = await settings(tx)
-        if not s.get("enabled", True) or not s.get("model_predictions", True) or router is None:
+        if not await proposal_on(tx) or router is None:
             return {"skipped": True, "reason": "off"}
         if await advisor.zone_spent(tx, hub):
             return {"skipped": True, "reason": "owner_zone_share"}

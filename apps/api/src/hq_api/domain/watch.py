@@ -4,7 +4,8 @@ period (ops.watch_runs, a unique key):
 
   growth_memo       weekly per company: the advisor's three highest-value
                     moves from the catalogue, revenue, funnel and support data
-  holding_proposal  monthly: the digital CEO's «پیشنهاد هلدینگ»
+  holding_proposal  monthly: the digital CEO's «پیشنهاد هلدینگ» (the month is
+                    claimed when it is made; until then one try a day)
 
 ⟨20.1⟩ The catalogue is no duty of the watch any more: it runs only on the
 owner's order (contract §28.6; its weekly run spent 50M tokens in an hour).
@@ -131,10 +132,31 @@ async def sweep(hub: Any, router: Any = None, now: datetime | None = None) -> di
                     ),
                 )
                 out["growth_memos"] += 1
-        proposal_due = await _once(tx, holding.id, f"holding_proposal:{month}", "holding_proposal")
+        # The month is claimed only once its proposal is made: a spent owner zone, the digital
+        # CEO off or a failed or unreadable model call leaves it to a later tick (one try a day,
+        # so a reply that keeps failing does not spend the zone every 5 minutes).
+        done_key = f"holding_proposal:{month}"
+        proposal_due = (
+            router is not None
+            and not spent
+            and await dceo.proposal_on(tx)
+            and not await tx.scalar("SELECT 1 FROM ops.watch_runs WHERE key = :k", k=done_key)
+            and await _once(
+                tx, holding.id, f"{done_key}:try:{_owner_day(now, tz)}", "holding_proposal"
+            )
+        )
     if proposal_due:
         out["proposal"] = await dceo.holding_proposal(hub, router, lambda: hub.db.tx(ids), month)
+        if out["proposal"].get("proposed"):
+            async with hub.db.tx(ids) as tx:
+                await _once(
+                    tx, holding.id, done_key, "holding_proposal", note=out["proposal"].get("ref")
+                )
     return out
+
+
+def _owner_day(now: datetime, tz: str) -> str:
+    return now.astimezone(ZoneInfo(tz)).date().isoformat()
 
 
 def week_of(day: date) -> str:  # for tests: the Saturday of a date
