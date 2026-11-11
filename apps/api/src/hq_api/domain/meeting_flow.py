@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
@@ -78,6 +79,9 @@ SOURCE_SQL = {
         "SELECT 1 FROM knowledge.support_entries WHERE ref = split_part(:r, '@', 1) AND status = 'approved'"
     ),
 }
+# An audit seq the bigint cast takes: ASCII digits only (str.isdigit() is also
+# true for Persian and superscript digits) and at most 18 of them (in range).
+AUDIT_SEQ = re.compile(r"[0-9]{1,18}")
 SOURCE_SQL["kb"] = SOURCE_SQL["support_article"]
 
 
@@ -779,7 +783,7 @@ async def check_claims(tx: Tx, claims: list[dict[str, Any]]) -> list[dict[str, A
         if sql is None:
             out.append({**c, "status": "unsourced", "note": "unknown_kind"})
             continue
-        if kind == "audit" and not ref.isdigit():
+        if kind == "audit" and not AUDIT_SEQ.fullmatch(ref):
             out.append({**c, "status": "unsourced", "note": "not_found"})
             continue
         ok = await tx.scalar(sql, r=ref)

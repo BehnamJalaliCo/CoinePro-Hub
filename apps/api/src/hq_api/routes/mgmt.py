@@ -622,6 +622,9 @@ async def promote_note(
     elif body.to == "order":
         from hq_api.routes import orders as order_routes
 
+        # OrderIn refuses blank text; built here, its ValidationError would be a 500.
+        if not n["text_md"].strip():
+            raise ApiError(422, "validation_failed", fields={"text_md": "blank note"})
         o = await order_routes.create_order(
             order_routes.OrderIn(text=n["text_md"][:10000], company=body.company),
             _shim(request, raw, key),

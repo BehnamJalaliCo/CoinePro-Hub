@@ -80,14 +80,18 @@ async def draft_playbook(ref: str, request: Request, ctx: Ctx = Depends(owner_ct
     code (a seat's role must be a real charter, a routine's schedule a rule the calendar holds;
     the rest is dropped with a note in `note_fa`). Stored `draft`; a card «کارگروه از این جلسه»
     is posted in the session. Requires `Idempotency-Key`."""
+    # The key is claimed with the draft it answers (as apply does): a claim committed before
+    # the model call would answer every retry 409 «still running» for 24 h once a later step
+    # failed.
     async with ctx.tx() as tx:
-        idem = await idempotency.claim(tx, request, ctx.who, required=True)
-        if idem and idem.replay:
-            return idem.replay
+        idempotency.read_key(request, required=True)
         if await OR.ensure(tx, ref) is None:
             raise ApiError(404, "not_found", "unknown order", message_fa=SE.NOT_FOUND_FA)
     d, m, notes = await PB.draft(ctx, ref)
     async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
         holding = await ctx.hub.companies.holding()
         row = await PB.store_draft(tx, holding.id, m, d, notes)
         await ctx.audit(tx, company_id=holding.id, action="playbook.draft", action_class="A1",

@@ -489,6 +489,26 @@ async def test_the_chain_is_read_through_egress_and_reconciled(
     assert out["errors"] >= 1
 
 
+async def test_a_failed_chain_read_gives_its_key_back(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any],
+    new_company: Callable[..., Any], chain: FakeChain,
+) -> None:  # fmt: skip
+    """Audit 2026-11-11: the app retries a failed read with the same Idempotency-Key; the
+    claim committed before the chain read must not answer it 409 «still running» for 24 h."""
+    co = await new_company()
+    h = owner_session["headers"]
+    src = await chain_source(client, hub, owner_session, co["code"])
+    key = idem()
+    chain.fail = "rate_limited"
+    r = await client.post(f"{API}/payment-sources/{src['id']}/read", headers={**h, **key})
+    assert r.status_code == 502, r.text
+    chain.fail = None
+    r = await client.post(f"{API}/payment-sources/{src['id']}/read", headers={**h, **key})
+    assert r.status_code == 200, r.text
+    again = await client.post(f"{API}/payment-sources/{src['id']}/read", headers={**h, **key})
+    assert again.status_code == 200 and again.headers.get("Idempotent-Replay") == "true"
+
+
 async def test_the_four_reconcile_cases_alert_the_ceo_and_fin_once(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any],
     new_company: Callable[..., Any], su: Any, chain: FakeChain,
