@@ -145,6 +145,10 @@ test('the desk is reached from the outputs, from the home and from the navigatio
     await line.click();
     await expect(page).toHaveURL(/\/outputs\/desk$/);
     await expect(page.getByRole('navigation').getByRole('link', { name: 'میز انتشار' }).first()).toBeVisible();
+    // «همه‌ی بخش‌ها» lists it beside the outputs, with its line.
+    await page.getByRole('button', { name: 'همه‌ی بخش‌ها' }).click();
+    const places = page.getByRole('dialog', { name: 'همه‌ی بخش‌ها' });
+    await expect(places.getByRole('link', { name: /میز انتشار/ })).toHaveAttribute('href', '/outputs/desk');
   });
 });
 
@@ -161,6 +165,8 @@ test('on a hub before the desk none of its entries is shown, and its own address
     await page.goto('/outputs/desk');
     await expect(page.getByText('میز انتشار بعد از به‌روزرسانی ستاد می‌آید')).toBeVisible();
     await expect(page.locator('[data-desk]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'همه‌ی بخش‌ها' }).click();
+    await expect(page.getByRole('dialog', { name: 'همه‌ی بخش‌ها' }).getByRole('link', { name: /میز انتشار/ })).toHaveCount(0);
   });
 });
 
