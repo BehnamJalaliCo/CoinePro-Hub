@@ -1289,6 +1289,22 @@ async def test_pr130_finds_a_link_that_worked_and_now_fails(
         co["id"],
         sid,
     )
+    # links no longer measured are not findings: a port no longer checked (22), a detached target
+    b = await pair(client, hub, owner_session, co, "n2", "10.10.8.2")
+    gone = await pair(client, hub, owner_session, co, "n3", "10.10.8.3")
+    await su.execute("UPDATE infra.servers SET state = 'revoked' WHERE id = $1",
+                     uuid.UUID(gone["server"]["id"]))  # fmt: skip
+    for to, ip, port in ((b, "10.10.8.2", 22), (b, "10.10.8.2", 443), (gone, "10.10.8.3", 443)):
+        await su.execute(
+            """INSERT INTO infra.network_links (company_id, from_server_id, to_key, to_ip, port,
+                   ok, error, at, last_ok_at)
+               VALUES ($1, $2, $3, $4, $5, false, 'timeout', now(), now() - interval '1 day')""",
+            co["id"],
+            sid,
+            to["server"]["id"],
+            ip,
+            port,
+        )
     holding = await hub.companies.holding()
     companies = {c.code: c.id for c in await hub.companies.all()}
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -1296,6 +1312,9 @@ async def test_pr130_finds_a_link_that_worked_and_now_fails(
         out = await SV.network_links_hold(ctx)
     keys = {p.key for p in out.problems}
     assert f"link-{sid}-hub-443" in keys
+    assert f"link-{sid}-{b['server']['id']}-443" in keys
+    assert f"link-{sid}-{b['server']['id']}-22" not in keys
+    assert f"link-{sid}-{gone['server']['id']}-443" not in keys
     assert "PR-130" in C.CHECKS
     # The run queued a fresh netcheck on the online runner.
     job = await take(client, a)

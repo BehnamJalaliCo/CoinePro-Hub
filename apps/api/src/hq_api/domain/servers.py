@@ -2159,7 +2159,14 @@ async def network_links_hold(ctx: C.CheckCtx) -> C.Checked:
            JOIN core.companies c ON c.id = s.company_id
            LEFT JOIN infra.servers t ON l.to_key <> 'hub' AND t.id = CAST(NULLIF(l.to_key, 'hub') AS uuid)
            WHERE NOT l.ok AND l.last_ok_at IS NOT NULL AND s.state IS DISTINCT FROM 'revoked'
-           ORDER BY c.code, s.name, l.to_key, l.port"""
+             AND (l.to_key = 'hub' AND l.port = :hp
+                  OR l.port = ANY(CAST(:ports AS int[])) AND t.id IS NOT NULL
+                     AND t.state IS DISTINCT FROM 'revoked')
+           ORDER BY c.code, s.name, l.to_key, l.port""",
+        # only the links still measured (netcheck_targets): not a detached target, not a port
+        # no longer checked (22 since 2026-11-08), which would stay a finding for ever
+        hp=NETCHECK_HUB_PORT,
+        ports=list(NETCHECK_SERVER_PORTS),
     )
     problems = []
     for r in rows:
