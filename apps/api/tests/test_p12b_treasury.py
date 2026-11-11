@@ -233,7 +233,7 @@ async def test_roi_by_code_revenue_for_companies_only(
 ) -> None:
     co, bare = await new_company(), await new_company()
     anchor = date(2031, 6, 15) + timedelta(days=secrets.randbelow(20) * 31)
-    start, _ = S.month_window(anchor)
+    start, end = S.month_window(anchor)
     key = S.jalali_key(start)
     at = datetime.combine(start + timedelta(days=2), time(12), tzinfo=TEHRAN).astimezone(UTC)
     ceo = f"{co['code']}-CEO"
@@ -260,13 +260,18 @@ async def test_roi_by_code_revenue_for_companies_only(
         co["id"],
         f"lbank-{co['code'].lower()}",
     )
-    await su.execute(
-        """INSERT INTO revenue.days (company_id, account_id, day, commission_usdt, complete)
-           VALUES ($1, $2, $3, 10, true)""",
-        co["id"],
-        acct,
-        start + timedelta(days=3),
-    )
+    # the period's own days count: its last day yes, the day before its first no (the UTC date
+    # of the owner's midnight is a day early in Tehran)
+    for day, usd in ((start + timedelta(days=3), 10), (end - timedelta(days=1), 5),
+                     (start - timedelta(days=1), 100)):  # fmt: skip
+        await su.execute(
+            """INSERT INTO revenue.days (company_id, account_id, day, commission_usdt, complete)
+               VALUES ($1, $2, $3, $4, true)""",
+            co["id"],
+            acct,
+            day,
+            usd,
+        )
     async with hub.db.tx(await hub.companies.ids()) as tx:
         rows = await ROI.rows(tx, "company", "month", key, co["code"])
         none = await ROI.rows(tx, "company", "month", key, bare["code"])
@@ -279,8 +284,8 @@ async def test_roi_by_code_revenue_for_companies_only(
         6.0,
         0.8,
     )
-    assert row["cost_per_accepted_usd"] == 2 and row["revenue_usd"] == 10 and row["roi"] == 5.0
-    assert row["net_usd"] == 8 and row["period_key"] == key
+    assert row["cost_per_accepted_usd"] == 2 and row["revenue_usd"] == 15 and row["roi"] == 7.5
+    assert row["net_usd"] == 13 and row["period_key"] == key
     assert none[0]["revenue_usd"] is None and none[0]["roi"] is None  # no revenue: null, never 0
     me = next(p for p in people if p["key"] == ceo)
     assert me["cost_usd"] == 2 and me["accepted"] == 1

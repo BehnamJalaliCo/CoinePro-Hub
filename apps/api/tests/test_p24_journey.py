@@ -844,6 +844,35 @@ async def test_the_step_fails_plainly_when_the_model_or_the_personas_are_missing
     assert steps_of(run)["check"]["error_fa"] and not line_fakes["deliver"]
 
 
+async def test_a_model_that_did_not_answer_is_tried_again_a_bad_answer_is_not(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], new_company: Any,
+    router: Router, su: Any, line_fakes: Any,
+) -> None:  # fmt: skip
+    """A passing outage of the model or the router is retried while attempts remain; an answer
+    that fails the check fails the step at once."""
+    h = owner_session["headers"]
+    co = await new_company()
+    line = await persona_line(client, h, co)
+    body = (await client.get(f"{API}/lines/{line['ref']}", headers=h)).json()
+    steps = [{**s, "max_attempts": 2} if s["key"] == "check" else s for s in body["steps"]]
+    r = await client.put(
+        f"{API}/lines/{line['ref']}",
+        json={"steps": steps},
+        headers={**h, "Idempotency-Key": uuid.uuid4().hex},
+    )
+    assert r.status_code == 200, r.text
+    router.handlers["persona_test"] = lambda req: None  # the model is down
+    async with holding_switch(su, "released"):
+        run = await start(client, h, line["ref"])
+        assert (await engine.drive(hub, run["ref"]))["state"] == "failed"
+    assert len(router.of("persona_test")) == 2 and not line_fakes["deliver"]
+    router.handlers["persona_test"] = lambda req: {"results": []}  # an answer that fails the check
+    async with holding_switch(su, "released"):
+        run = await start(client, h, line["ref"])
+        assert (await engine.drive(hub, run["ref"]))["state"] == "failed"
+    assert len(router.of("persona_test")) == 3 and not line_fakes["deliver"]
+
+
 async def test_the_lowest_score_can_be_the_measure(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], new_company: Any,
     router: Router, su: Any, line_fakes: Any,
