@@ -740,11 +740,13 @@ class Runner:
                 continue
             summary = scrub(step.summary_fa)  # stored and shown to the owner
             rc.summaries.append(summary)
-            results = []
+            results: list[dict[str, Any]] = []
             for i, action in enumerate(step.actions):
                 self.heartbeat()
-                if results and claims(action.tool) and any(
-                    r.get("outcome") != "ok" for r in results
+                if (
+                    results
+                    and claims(action.tool)
+                    and any(r.get("outcome") != "ok" for r in results)
                 ):
                     # ⟨2026-11-11⟩ written before the model saw that an earlier action failed:
                     # it would tell the owner something is done that is not

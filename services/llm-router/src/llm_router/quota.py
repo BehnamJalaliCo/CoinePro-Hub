@@ -484,7 +484,8 @@ class QuotaController:
         try:
             async with self.db.scoped(set()) as conn:
                 raw = await conn.fetchval(
-                    "SELECT windows FROM llm.quota_status WHERE connection_id = $1::uuid FOR UPDATE",
+                    """SELECT windows FROM llm.quota_status WHERE connection_id = $1::uuid
+                       FOR UPDATE""",
                     cid,
                 )
                 if self._merge(cid, raw):

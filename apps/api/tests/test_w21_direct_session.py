@@ -167,7 +167,7 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
     )
     act = (await client.get(f"/api/v1/orders/{ref}/activity", headers=owner)).json()
     working = act["working"]
-    assert len(working) == 1 and "دارد روی فرمان شما کار میکند" in working[0]["doing_fa"]
+    assert len(working) == 1 and "دارد روی فرمان تو کار میکند" in working[0]["doing_fa"]
     assert working[0]["who_fa"].startswith(o["emp"]["title_fa"])  # the holder, not «کارگاه هلدینگ»
 
     # 2. the session's tools: its role's own (the workshop is what it is), each with its input

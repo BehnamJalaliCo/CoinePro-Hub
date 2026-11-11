@@ -598,3 +598,27 @@ async def test_chatgpt_has_the_content_draft_seat_after_seed_or_migration(su: An
         ) == audits + 1  # fmt: skip
     finally:
         await tr.rollback()
+
+
+async def test_the_workers_egress_client_answers_every_failure_never_raises() -> None:
+    from hq_api.worker.management_activities import EgressWeb
+
+    def client(handler: Callable[[httpx.Request], httpx.Response]) -> EgressWeb:
+        return EgressWeb("http://egress:8090", transport=httpx.MockTransport(handler))
+
+    def slow(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down", request=request)
+
+    ask = {"account": "chatgpt-web", "task": "text", "prompt": "x", "timeout_s": 10}
+    assert (await client(slow).web(**ask))["error"] == "timeout"  # its own clock: `timeout`
+    assert (await client(down).web(**ask))["error"] == "off"  # not reachable: the browser is not
+    crashed = client(lambda r: httpx.Response(502, text="bad gateway"))
+    assert (await crashed.web(**ask))["error"] == "off"
+    refused = client(lambda r: httpx.Response(422, json={"detail": [{"loc": ["prompt"]}]}))
+    got = await refused.web(**ask)
+    assert got["ok"] is False and got["error"] == "failed" and "422" in got["detail"]
+    fine = client(lambda r: httpx.Response(200, json={"ok": True, "text_md": "پاسخ"}))
+    assert await fine.web(**ask) == {"ok": True, "text_md": "پاسخ"}

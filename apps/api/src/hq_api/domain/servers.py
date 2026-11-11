@@ -1333,9 +1333,7 @@ def _book(j: dict[str, Any]) -> dict[str, Any]:
     return {k: u[k] for k in ("account", "retry_of", "avoid") if k in u}
 
 
-async def claim_account(
-    tx: Tx, hub: Any, j: dict[str, Any], pick: AccountPick
-) -> AccountPick:
+async def claim_account(tx: Tx, hub: Any, j: dict[str, Any], pick: AccountPick) -> AccountPick:
     """A claude job just dispatched: the account it runs on (another one than a usage-limit
     failure's when that one has room), written on the job so its usage is booked to it and its
     rate-limit events are that account's."""
@@ -1372,7 +1370,7 @@ _WINDOW_KIND = re.compile(r"[a-z0-9_]{2,40}")
 # the CLI's own notice when the subscription is out (claude-runtime quota.py, the same words)
 LIMIT_WORDS = re.compile(r"usage limit|limit reached|out of (?:extra )?usage|quota", re.IGNORECASE)
 _LIMIT_NOTICE = re.compile(
-    r"\blimit (?:reached|hit)\b|\byou(?:'|’)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
+    r"\blimit (?:reached|hit)\b|\byou(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
     r"|\bout of (?:extra )?usage\b|\busage limit\b",
     re.IGNORECASE,
 )
@@ -1404,7 +1402,8 @@ def rate_limit_of(info: Any, now: datetime) -> tuple[str, dict[str, Any]] | None
     raw_util = info.get("utilization")
     util = (
         Decimal(str(raw_util)).quantize(Decimal("0.0001"))
-        if isinstance(raw_util, int | float) and not isinstance(raw_util, bool)
+        if isinstance(raw_util, int | float)
+        and not isinstance(raw_util, bool)
         and 0 <= raw_util <= 1
         else None
     )
@@ -1418,7 +1417,11 @@ def rate_limit_of(info: Any, now: datetime) -> tuple[str, dict[str, Any]] | None
 
 
 def _state(
-    status: str, window: str | None, util: Decimal | None, resets: datetime | None, source: str,
+    status: str,
+    window: str | None,
+    util: Decimal | None,
+    resets: datetime | None,
+    source: str,
     now: datetime,
 ) -> tuple[str, dict[str, Any]]:
     estimated = False
@@ -1481,7 +1484,7 @@ async def observe_quota(tx: Tx, account: str, key: str, window: dict[str, Any]) 
             keep = {
                 k: w for k, w in windows.items()
                 if isinstance(w, dict) and (
-                    (_at(w.get("resets_at")) or now) > now and w.get("status") != "ok"
+                    ((_at(w.get("resets_at")) or now) > now and w.get("status") != "ok")
                     or (_at(w.get("observed_at")) or now) > now - ACCOUNT_SDK_FRESH
                 )
             }  # fmt: skip
@@ -1794,7 +1797,7 @@ async def finish(
         # the same turn, queued again for the other account: its session and workspace go on
         # with the new job; this one is only the record of the refused attempt
         await emit_call(tx, j, exit_code=exit_code, ms=ms)
-        return {**j, "requeued_as": await _requeue_claude(tx, j, moved)}
+        return {**j, "requeued_as": await _requeue_claude(tx, hub, j, moved)}
     if j["session_id"]:
         if ok:
             await _session_end(tx, j, "idle", None, j["summary_fa"] or "")
@@ -1848,7 +1851,9 @@ async def _record_limit(tx: Tx, j: dict[str, Any], account: str, data: dict[str,
     await observe_quota(tx, account, *_state("limited", None, None, resets, "quota_guard", now))
 
 
-async def _other_account(tx: Tx, hub: Any, j: dict[str, Any], book: dict[str, Any]) -> AccountPick | None:
+async def _other_account(
+    tx: Tx, hub: Any, j: dict[str, Any], book: dict[str, Any]
+) -> AccountPick | None:
     """The other account, when a refused turn may run again on it now: once per turn (not a job
     that is itself such a retry), only for a hub account, and only while the other has room."""
     account = str(book.get("account") or "")
@@ -1858,9 +1863,10 @@ async def _other_account(tx: Tx, hub: Any, j: dict[str, Any], book: dict[str, An
     return other if other.key and other.key != account else None
 
 
-async def _requeue_claude(tx: Tx, j: dict[str, Any], to: AccountPick) -> str:
+async def _requeue_claude(tx: Tx, hub: Any, j: dict[str, Any], to: AccountPick) -> str:
     """The refused turn again, as a new queued job of the same server, session and workspace (a
-    fresh job: its events and transcript are its own); returns the new job's id."""
+    fresh job: its events and transcript are its own); returns the new job's id. Called in the
+    job's own company scope (the runner's result route)."""
     new = await tx.scalar(
         """INSERT INTO infra.server_jobs (company_id, server_id, kind, actor_kind, actor_code,
                on_behalf_code, work_ref, args, args_sha256, summary_in, state, category, pattern,
@@ -1875,11 +1881,15 @@ async def _requeue_claude(tx: Tx, j: dict[str, Any], to: AccountPick) -> str:
         id=j["id"],
         acct=str(_book(j).get("account") or ""),
     )
+    # a workshop turn's workspace is its work's company's (the workshop is the holding's server):
+    # seen in every company's view for this one statement, as the workshop's own poll reads
+    await tx.rescope(await hub.companies.ids())
     await tx.exec(
         "UPDATE work.workspaces SET last_job_id = :n, updated_at = now() WHERE last_job_id = :o",
         n=new,
         o=j["id"],
     )
+    await tx.rescope([j["company_id"]])
     await audit.record(
         tx,
         SERVICE,

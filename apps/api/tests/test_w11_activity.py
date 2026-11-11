@@ -124,7 +124,7 @@ def test_a_step_is_said_in_plain_persian_or_by_its_tools() -> None:
     plain(text)
     assert SA.step_text("", [{"tool": "speech.make", "outcome": "ok"}]) == "صدا ساخت"
     assert SA.step_text(None, [{"tool": "deliver", "outcome": "ok"}]) == "خروجی تحویل داد"
-    assert SA.step_text("", [{"tool": "order.ask", "outcome": "ok"}]) == "از شما پرسید"
+    assert SA.step_text("", [{"tool": "order.ask", "outcome": "ok"}]) == "از تو پرسید"
     assert SA.step_text("", [{"tool": "hire.decide", "outcome": "error", "code": "x"}]) == (
         "درباره‌ی استخدام تصمیم گرفت (نشد)"
     )
@@ -154,8 +154,8 @@ def test_a_step_is_said_in_plain_persian_or_by_its_tools() -> None:
 def test_a_run_says_why_it_started() -> None:
     """⟨2026-11-09⟩ the owner: «شروع کرد: <the session's title>» on every run, even the one his
     own word woke, left him unsure he was heard."""
-    assert SA.start_text("owner_reply:F-0014", "کارگروه") == "حرف شما را گرفت و دارد فکر میکند"
-    assert SA.start_text("nudge:F-0014", "کارگروه").startswith("گفتید ادامه بده")
+    assert SA.start_text("owner_reply:F-0014", "کارگروه") == "حرف تو را گرفت و دارد فکر میکند"
+    assert SA.start_text("nudge:F-0014", "کارگروه").startswith("گفتی ادامه بده")
     assert "«با من»" in SA.start_text("pace:step:F-0014", "کارگروه")
     assert SA.start_text("child_delivered:W-000301", "کارگروه").startswith("بخشی از کار رسید")
     assert SA.start_text("", "کارگروه") == "شروع کرد: کارگروه"
@@ -269,7 +269,7 @@ async def test_the_activity_shows_who_works_and_the_last_lines_in_plain_persian(
     assert second["line"]["id"] == f"{run_id}:end"
     assert ref not in first["line"]["text_fa"]
     asks = [e for e in evs if e["data"]["line"]["kind"] == "ask"]
-    assert asks and asks[-1]["data"]["line"]["text_fa"].startswith("سؤال از شما")
+    assert asks and asks[-1]["data"]["line"]["text_fa"].startswith("سؤال از تو")
     # GET /activity carries the same fields
     act = (await client.get(f"/api/v1/orders/{ref}/activity", headers=owner)).json()
     kinds = {ln["kind"] for ln in act["last"]}
@@ -525,9 +525,14 @@ async def test_the_sweep_wakes_an_idle_holder_once_then_marks_it_stuck_with_the_
     async with await all_tx(hub) as tx:
         rep_row = await OR.ensure(tx, ref)
         assert rep_row is not None
-        # (no run, no blocker, no failed call, no empty seat: nothing explains it)
+        # (no run, no blocker, no failed call, no empty seat: nothing explains it) ⟨2026-11-11⟩
+        # what was last done and the plan's task left; with no plan, the plain default
         why = await SA.stuck_cause(tx, {**rep_row, "blockers": "[]"}, [], SA.clock_of(rep_row))
-    assert why == SA.UNKNOWN_WHY_FA
+        bare = await SA.stuck_cause(
+            tx, {**rep_row, "blockers": "[]"}, [], SA.clock_of(rep_row), tasks=[]
+        )
+    assert why.startswith("کسی روی این جلسه کار نمیکند") and "کار 2 («دوم»)" in why, why
+    assert bare == SA.UNKNOWN_WHY_FA
     # the owner's open turn: never woken, never stuck
     r = await client.post(
         f"/internal/v1/orders/{ref}/ask", headers=h, json={"question_fa": "ادامه؟"}

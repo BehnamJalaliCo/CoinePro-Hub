@@ -28,7 +28,7 @@ _LIMIT_TEXT = re.compile(r"usage limit|limit reached|out of (?:extra )?usage|quo
 # "5-hour limit reached ∙ resets 3pm", "You've hit your limit · resets ...", "Weekly limit
 # reached"): stricter than _LIMIT_TEXT (no bare "quota"), and only a short text is a notice.
 _LIMIT_NOTICE = re.compile(
-    r"\blimit (?:reached|hit)\b|\byou(?:'|’)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
+    r"\blimit (?:reached|hit)\b|\byou(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
     r"|\bout of (?:extra )?usage\b|\busage limit\b",
     re.IGNORECASE,
 )

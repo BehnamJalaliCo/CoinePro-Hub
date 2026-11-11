@@ -18,7 +18,9 @@ FAKE = Path(__file__).resolve().parents[1] / "testing" / "fake_claude.py"
 
 def test_limit_wording_without_a_429_is_a_quota_refusal() -> None:
     # an error result that says it, without any 429
-    v = classify(Signals(result_seen=True, is_error=True, text="Claude AI usage limit reached|1800000000"))
+    v = classify(
+        Signals(result_seen=True, is_error=True, text="Claude AI usage limit reached|1800000000")
+    )
     assert (v.status, v.error_class, v.resets_at) == ("quota_exhausted", "usage_limit", 1.8e9)
     # the CLI's notice as the whole answer, no error flag at all
     for notice in (
@@ -65,5 +67,7 @@ async def test_the_clis_notice_is_never_returned_as_an_answer(runner: ClaudeRunn
     )
     out = await runner.run(spec)
     assert (out.status, out.error_class, out.text) == ("quota_exhausted", "usage_limit", None)
-    ok = await runner.run(RunSpec(spec.call_id, spec.model, None, None, (Message("user", "hi"),), None, 20))
+    ok = await runner.run(
+        RunSpec(spec.call_id, spec.model, None, None, (Message("user", "hi"),), None, 20)
+    )
     assert (ok.status, ok.text) == ("ok", "OK")

@@ -415,9 +415,8 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
     its `source` and is never evidence. Refusals: channel_not_configured
     (signed out or off), rate_limited (the seat's daily cap, or the player
     is limited), policy_denied (a seat the role may not use, or input the
-    data guard refuses), validation_failed (a web seat's question over 20 000
-    characters); 423 while the holding is locked. `queued` is not an answer:
-    the call's end reaches the caller as a work item by its `deadline_at`."""
+    data guard refuses); 423 while the holding is locked."""
+    # ⟨2026-11-11⟩ also validation_failed: a web seat's question over 20 000 characters (S.refusal)
     who = ctx.who
     if not who.is_agent or who.company_id is None:
         raise ApiError(403, "policy_denied", "agents only")
@@ -541,8 +540,8 @@ async def _service(ctx: Ctx) -> None:
 @internal_router.post("/substitutes/jobs/claim", responses=E)
 async def claim_job(ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
     """The next CLI job, one at a time for both players; none while the
-    holding's kill switch is engaged. ⟨2026-11-11⟩ stale calls are ended first
-    (S.expire_stale), each told to whoever asked."""
+    holding's kill switch is engaged."""
+    # ⟨2026-11-11⟩ stale calls are ended first (S.expire_stale), each told to whoever asked
     await _service(ctx)
     async with ctx.tx() as tx:
         return await S.claim(tx, ctx.hub)

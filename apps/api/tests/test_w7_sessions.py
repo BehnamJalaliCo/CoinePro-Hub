@@ -243,7 +243,7 @@ async def test_the_session_waits_for_the_owner_and_ends_only_by_the_owners_hand(
     )
     rep = r.json()
     assert rep["session"]["badge"] == "your_turn" and "میپرسد" in rep["session"]["reason_fa"]
-    assert rep["brief"]["need_fa"] == "جواب شما" and rep["turn"]["asks"][0]["by"]["code"] == holder
+    assert rep["brief"]["need_fa"] == "جواب تو" and rep["turn"]["asks"][0]["by"]["code"] == holder
     assert await badges(su, ref) == ["your_turn"]
     assert (await cards(client, owner))[ref]["badge"] == "your_turn"
     # no «where is your plan» nudge while the turn is open; the owner is reminded once
@@ -313,7 +313,7 @@ async def test_the_session_waits_for_the_owner_and_ends_only_by_the_owners_hand(
     assert (await badges(su, ref))[-1] == "ready"
     ready = await su.fetch(
         """SELECT title_fa FROM notify.notifications WHERE link_kind = 'order' AND link_ref = $1
-           AND title_fa LIKE 'فرمان شما آماده%'
+           AND title_fa LIKE 'فرمان تو آماده%'
            AND created_at >= (SELECT max(created_at) FROM owner.orders WHERE ref = $1)""",
         ref,
     )

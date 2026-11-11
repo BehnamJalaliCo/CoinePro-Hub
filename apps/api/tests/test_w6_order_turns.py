@@ -124,7 +124,7 @@ async def test_a_step_order_talks_asks_and_goes_on_with_the_owners_word(
     assert rep["state"] == "waiting" and rep["pace"] == "step"
     assert rep["turn"]["question_fa"].startswith("اول صفحه‌ی آموزش")
     assert rep["turn"]["by"]["code"] == holder and rep["conversation_ref"] == out["talk_ref"]
-    assert rep["steps"][-1]["what_fa"].startswith("سؤال از شما")
+    assert rep["steps"][-1]["what_fa"].startswith("سؤال از تو")
     n = await su.fetchrow(
         """SELECT owner_visible, level, link_kind, link_ref FROM notify.notifications
            WHERE source_code = 'orders' AND link_ref = $1 ORDER BY created_at DESC LIMIT 1""",

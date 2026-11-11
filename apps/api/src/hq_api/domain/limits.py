@@ -74,7 +74,7 @@ def _full(row: dict[str, Any] | None, now: datetime) -> bool:
     return SV.account_full(row, now)
 
 
-def usable(row: dict[str, Any] | None, stored: bool, *, main: bool) -> bool:
+def can_work(row: dict[str, Any] | None, stored: bool, *, main: bool) -> bool:
     """⟨2026-11-11⟩ «ready» means usable (audit C2): its token is stored, it is switched on on the
     hub (as llm-router routes: enabled, ready, or out of quota until its reset), and an account
     other than the main one is a fallback of the router (it has a fallback_priority), since only
@@ -100,7 +100,7 @@ async def accounts(tx: Tx, hub: Any, now: datetime) -> tuple[list[ClaudeAccount]
         stored = bool(str(getattr(sec, attr, "") or ""))
         if r is None and not stored:
             continue  # this account does not exist on this hub
-        off = not usable(r, stored, main=n == 0)
+        off = not can_work(r, stored, main=n == 0)
         full = not off and _full(r, now)
         if off:
             state: Literal["working", "ready", "full", "off"] = "off"

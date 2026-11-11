@@ -642,7 +642,7 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         # ⟨1.11⟩ prompt 21: the rules' first reports and voice expiry, the order
         # reports' timers, the weekly technical summary
         "secretary_tick",
-        "order_tick",
+        # ⟨2026-11-11⟩ order_tick runs on its own schedule (OrderTick, hq-order-tick)
         "tech_summary",
     }
     assert res["inquiries_late"] == {"late": 0}

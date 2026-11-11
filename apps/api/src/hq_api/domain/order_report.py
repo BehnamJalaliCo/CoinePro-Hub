@@ -1548,7 +1548,7 @@ async def reap_stalled_runs(tx: Tx) -> int:
     never closed does (talk.reap_runs)."""
     rows = await tx.all(
         """UPDATE agents.runs r SET state = 'failed', error_code = 'runtime_error',
-               finished_at = now(), updated_at = now(), note = :note
+               finished_at = now(), note = :note
            WHERE r.state = 'running' AND r.trigger = 'work'
              AND COALESCE(r.started_at, r.queued_at) < now() - make_interval(secs => :s)
              AND COALESCE((SELECT max(s.at) FROM agents.steps s WHERE s.run_id = r.id),

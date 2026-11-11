@@ -107,6 +107,8 @@ async def comes_back(tx: Tx, r: dict[str, Any], now: datetime) -> str | None:
             return None  # one retry, not a loop
         return RETRY if now >= r["finished_at"] + RETRY_AFTER else None
     return None
+
+
 HOLDING_LOCKED = "HoldingLocked"
 EFFECT_REJECTED = "EffectRejected"
 

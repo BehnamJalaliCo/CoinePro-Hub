@@ -113,7 +113,9 @@ async def test_a_stream_moves_only_before_its_first_delta(
         end = json.loads(events[-1].split("data: ", 1)[1])
         assert (end["status"], end["connection"]) == ("ok", "claude-max-2")
         text = "".join(
-            json.loads(e.split("data: ", 1)[1])["text"] for e in events if e.startswith("event: delta")
+            json.loads(e.split("data: ", 1)[1])["text"]
+            for e in events
+            if e.startswith("event: delta")
         )
         assert text.strip() == "hello from two"
         assert [c["key"] for c in await _calls(su)] == ["claude-max", "claude-max-2"]
@@ -181,9 +183,13 @@ async def test_a_runners_limit_written_by_the_api_moves_the_hubs_calls(
             """UPDATE llm.quota_status SET windows = windows || $2::jsonb
                WHERE connection_id = $1::uuid""",
             main,
-            json.dumps({"sdk:seven_day": _window("warning", "0.5000", now + timedelta(days=3), later)}),
+            json.dumps(
+                {"sdk:seven_day": _window("warning", "0.5000", now + timedelta(days=3), later)}
+            ),
         )
-        await svc.quota.observe(main, "claude-max", {"status": "allowed", "window": "seven_day_opus"})
+        await svc.quota.observe(
+            main, "claude-max", {"status": "allowed", "window": "seven_day_opus"}
+        )
         saved = json.loads(
             await su.fetchval(
                 "SELECT windows FROM llm.quota_status WHERE connection_id = $1::uuid", main
@@ -191,8 +197,11 @@ async def test_a_runners_limit_written_by_the_api_moves_the_hubs_calls(
         )
         assert {"sdk:five_hour", "sdk:seven_day", "sdk:seven_day_opus"} <= set(saved)
         assert saved["sdk:five_hour"]["status"] == "limited"
-        assert await su.fetchval(
-            "SELECT status FROM llm.quota_status WHERE connection_id = $1::uuid", main
-        ) == "limited"
+        assert (
+            await su.fetchval(
+                "SELECT status FROM llm.quota_status WHERE connection_id = $1::uuid", main
+            )
+            == "limited"
+        )
     finally:
         await _restore(su)
