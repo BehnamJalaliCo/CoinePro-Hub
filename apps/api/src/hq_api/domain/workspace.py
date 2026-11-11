@@ -308,16 +308,28 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         j = await SV.load_job(tx, job_id)
         if j["kind"] != "claude" or not (j.get("args") or {}).get("workspace"):
             return
-        ws = await tx.first(
-            """SELECT * FROM work.workspaces WHERE work_ref = :ref
-                 AND (last_job_id = :j OR session_id = :sess) FOR UPDATE""",
+        # The work first, then its workspace: the order hand_over, HANDS.start and the owner's stop
+        # take (the other one could deadlock with a run of the same work that starts now, and an
+        # aborted after_job is never tried again: the job's result is committed already).
+        found = await tx.first(
+            """SELECT id, work_id FROM work.workspaces WHERE work_ref = :ref
+                 AND (last_job_id = :j OR session_id = :sess)""",
             ref=j["args"]["workspace"],
+            j=job_id,
+            sess=j["session_id"],
+        )
+        if found is None:
+            return
+        w = await W.load(tx, found["work_id"], lock=True)
+        ws = await tx.first(
+            """SELECT * FROM work.workspaces WHERE id = :id
+                 AND (last_job_id = :j OR session_id = :sess) FOR UPDATE""",
+            id=found["id"],
             j=job_id,
             sess=j["session_id"],
         )
         if ws is None or ws["state"] in ("delivered", *ENDED):
             return
-        w = await W.load(tx, ws["work_id"], lock=True)
         tokens = W.effective_tokens(*_usage(j.get("usage") or {}))
         hands = bool((j.get("args") or {}).get("hands"))  # ⟨2026-11-09⟩ §43 the workshop
         # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns: what the runner says of it
