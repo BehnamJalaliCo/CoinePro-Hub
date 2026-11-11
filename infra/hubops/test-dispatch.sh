@@ -32,7 +32,9 @@ cat >"$T/fake-hq" <<'EOF'
 printf '%s\n' "$*" >>"$FAKE_DIR/argv.log"
 case " $* " in
   *" config --quiet "*)
-    if [[ "${FAKE_OVER:-0}" == 1 && "${HQ_MEDIA:-}" == on ]]; then
+    # FAKE_OVER=1: media never fits; FAKE_OVER=ocr: media fits only with ocr counted off.
+    if [[ "${HQ_MEDIA:-}" == on ]] &&
+      [[ "${FAKE_OVER:-0}" == 1 || ("${FAKE_OVER:-0}" == ocr && "${HQ_OCR:-}" != off) ]]; then
       echo "warning: HQ_MEDIA=on ignored (the full profile plus media needs 12668 MiB, 182 MiB over the budget)" >&2
     fi ;;
   *" ps "*) printf 'api\trunning\thealthy\tUp 3 hours\nAPI_TOKEN=s3cr3t-value-123 Bearer abcdefgh12345678\n' ;;
@@ -209,8 +211,18 @@ if ((rc != 3)) || [[ -s "$T/make.log" ]] || ! grep -q "182 MiB over" "$T/p.out";
 else
   ok "profile over the budget: refused (3), nothing changed"
 fi
+# Refused with a turn_off: the budget is asked first, so ocr is not switched off either.
 rm -f "$T/make.log"
-FAKE_DIR="$T" HQ_SH="$T/fake-hq" HQ_MAKE="$T/fake-make" HQ_SET_ENV="$T/fake-set-env" \
+rc=0
+FAKE_DIR="$T" FAKE_OVER=1 HQ_SH="$T/fake-hq" HQ_MAKE="$T/fake-make" HQ_SET_ENV="$T/fake-set-env" \
+  bash "$HERE/profile.sh" media on ocr >"$T/p.out" 2>&1 || rc=$?
+if ((rc != 3)) || [[ -s "$T/make.log" ]]; then
+  bad "profile refused with turn_off: rc=$rc, make ran: $(cat "$T/make.log" 2>/dev/null)"
+else
+  ok "profile refused with turn_off: nothing switched off"
+fi
+rm -f "$T/make.log"
+FAKE_DIR="$T" FAKE_OVER=ocr HQ_SH="$T/fake-hq" HQ_MAKE="$T/fake-make" HQ_SET_ENV="$T/fake-set-env" \
   bash "$HERE/profile.sh" media on ocr >/dev/null 2>&1 || bad "profile media on failed"
 if [[ "$(cat "$T/make.log")" != "-C $REPO ocr-off HQ_NO_SUDO=1"$'\n'"-C $REPO media-on HQ_NO_SUDO=1" ]]; then
   bad "profile did not turn ocr off first and then media on ($(cat "$T/make.log"))"
