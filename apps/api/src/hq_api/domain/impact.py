@@ -250,8 +250,15 @@ async def measure_ads_cap(
     )  # fmt: skip
 
 
-async def measure_line_caps(tx: Tx, line_ref: str, new_runs_per_day: int) -> dict[str, Any] | None:
-    line = await tx.first("SELECT id, caps FROM lines.lines WHERE ref = :r", r=line_ref)
+async def measure_line_caps(
+    tx: Tx, company_id: Any, line_ref: str, new_runs_per_day: int
+) -> dict[str, Any] | None:
+    # The card's own company only: the sweep's RLS scope sees every company.
+    line = await tx.first(
+        "SELECT id, caps FROM lines.lines WHERE ref = :r AND company_id = :co",
+        r=line_ref,
+        co=company_id,
+    )
     if line is None:
         return None
     caps = line["caps"] if isinstance(line["caps"], dict) else json.loads(line["caps"])
@@ -290,7 +297,7 @@ async def measure(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
             tx, d["company_id"], inp.platform, inp.campaign, inp.new_daily_cap
         )
     if inp.kind == "line.caps" and inp.line and inp.new_runs_per_day is not None:
-        return await measure_line_caps(tx, inp.line, inp.new_runs_per_day)
+        return await measure_line_caps(tx, d["company_id"], inp.line, inp.new_runs_per_day)
     return None
 
 

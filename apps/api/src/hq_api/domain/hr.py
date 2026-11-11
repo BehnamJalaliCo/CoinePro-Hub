@@ -410,12 +410,16 @@ async def on_proposed(tx: Tx, d: dict[str, Any]) -> None:
 
 
 async def _current_estimate(tx: Tx, code: str) -> int:
+    """The employee's estimate in force, the same figure hiring.envelopes()
+    counts in committed_month (the owner's amended change wins)."""
     v = await tx.scalar(
         """SELECT COALESCE(
-               (SELECT (ev.payload->'change'->'quota_estimate_month'->>'tokens')::bigint
+               (SELECT (COALESCE(ev.amendments->'change', ev.payload->'change')
+                        ->'quota_estimate_month'->>'tokens')::bigint
                   FROM cartable.decisions ev
                  WHERE ev.kind = 'evaluation' AND ev.status = 'approved' AND ev.payload->>'employee' = :c
-                   AND ev.payload->'change'->'quota_estimate_month'->>'tokens' IS NOT NULL
+                   AND COALESCE(ev.amendments->'change', ev.payload->'change')
+                       ->'quota_estimate_month'->>'tokens' IS NOT NULL
                  ORDER BY ev.decided_at DESC LIMIT 1),
                (SELECT COALESCE((COALESCE(d.amendments->'quota_estimate_month',
                                           d.payload->'quota_estimate_month')->>'tokens')::bigint, 0)

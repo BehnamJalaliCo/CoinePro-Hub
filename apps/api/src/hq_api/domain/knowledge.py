@@ -353,6 +353,10 @@ async def create(
             await tx.scalar("SELECT max(version) + 1 FROM knowledge.entries WHERE ref = :r", r=ref)
         )
     status = "approved" if who.is_owner else "in_review"
+    if status == "approved" and ref is not None:
+        # Retire first: knowledge_entries_one_approved is a plain (non-deferrable)
+        # unique index, checked when the new approved row goes in.
+        await _retire_older(tx, ref, version)
     row = await tx.one(
         """INSERT INTO knowledge.entries (company_id, ref, version, layer, department, kind, title_fa, body_md,
                sources, valid_until, status, approved_by_kind, approved_by_code, approved_at,
@@ -377,8 +381,6 @@ async def create(
         bk=who.kind,
         bc=who.code,
     )
-    if status == "approved":
-        await _retire_older(tx, row["ref"], row["version"])
     entry = await load(tx, row["ref"], row["version"])
     await _emit(tx, entry, "created" if version == 1 else "version")
     if status == "in_review":
@@ -548,6 +550,9 @@ async def approve(tx: Tx, who: Principal, ref: str, version: int) -> dict[str, A
 
 
 async def _approved(tx: Tx, entry: dict[str, Any], who: Principal) -> dict[str, Any]:
+    # Retire the older versions before this one turns approved: the unique index
+    # knowledge_entries_one_approved is checked per statement and cannot defer.
+    await _retire_older(tx, entry["ref"], entry["version"])
     await tx.exec(
         """UPDATE knowledge.entries SET status = 'approved', approved_at = now(), approved_by_kind = :k,
                approved_by_code = :c
@@ -556,7 +561,6 @@ async def _approved(tx: Tx, entry: dict[str, Any], who: Principal) -> dict[str, 
         c=who.code,
         id=entry["id"],
     )
-    await _retire_older(tx, entry["ref"], entry["version"])
     row = await load(tx, entry["ref"], entry["version"])
     await _emit(tx, row, "approved")
     return row
