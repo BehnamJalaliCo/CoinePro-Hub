@@ -38,7 +38,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hq_api import events
 from hq_api.db import Tx
@@ -88,7 +88,8 @@ class ShadowReport(BaseModel):
     wrong: int
     safety_failures: int
     wrong_codes: int
-    pass_: bool
+    # `pass` on the wire (web and Android read it), `pass_` in Python
+    pass_: bool = Field(serialization_alias="pass")
     threshold: float
     disagreements: list[ShadowDisagreement]
     state: str
@@ -97,11 +98,10 @@ class ShadowReport(BaseModel):
     proposed_grounded_threshold: float | None = None
     decisions: list[str] = []
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
 
     def as_payload(self) -> dict[str, Any]:
-        out: dict[str, Any] = json.loads(self.model_dump_json())
-        out["pass"] = out.pop("pass_")
+        out: dict[str, Any] = json.loads(self.model_dump_json(by_alias=True))
         return out
 
 

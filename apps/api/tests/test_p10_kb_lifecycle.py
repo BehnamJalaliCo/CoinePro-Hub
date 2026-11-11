@@ -271,6 +271,11 @@ async def test_go_live_cards_only_on_a_clean_pass_and_the_seal_makes_the_channel
     assert card["kind"] == "support_go_live" and payload["channel"] == "telegram_bot"
     assert payload["shadow_report"]["pass"] is True and payload["verbatim_threshold"] == 0.95
     h = owner_session["headers"]
+    # the support page reads `pass`, as the card does
+    r = await client.get(f"/api/v1/support/shadow?company={co['code']}", headers=h)
+    assert r.status_code == 200, r.text
+    [listed] = r.json()
+    assert listed["pass"] is True and "pass_" not in listed, listed
     ref = ok.decisions[0]
     r = await client.post(f"/api/v1/decisions/{ref}/approve", headers={**h, **idem()}, json={})
     assert r.status_code == 403  # sealed with step-up only
