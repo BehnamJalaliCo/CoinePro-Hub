@@ -310,5 +310,12 @@ else
   ok "snapshot: budget, caps, use per container, switches only"
 fi
 
+# A claim and a job's output never land in a json-file log (Alloy ships those to Loki).
+if ! grep -q -- 'docker run --rm -i --init --log-driver none ' "$HERE/dispatch.sh"; then
+  bad "the curl helper logs its answers (a claim, a job's output)"
+else
+  ok "no json-file log for the curl helper"
+fi
+
 if ((failed)); then exit 1; fi
 echo "test-hubops: all ok"

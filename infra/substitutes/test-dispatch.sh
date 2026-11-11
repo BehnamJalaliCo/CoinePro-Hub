@@ -168,4 +168,15 @@ if [[ "$(grep -F /done "$T/api.log" | cut -f2 | jq -r .error)" != failed ]]; the
 else
   ok "a silent runner still ends its job (failed)"
 fi
+
+# What a job carries never lands in a container's json-file log (Alloy ships
+# those to Loki): the curl helper and the runner run without a log driver.
+compose="$HERE/../compose/compose.yaml"
+if ! grep -q -- 'docker run --rm -i --init --log-driver none ' "$HERE/dispatch.sh"; then
+  bad "the curl helper logs its answers (a job's question, the owner's code)"
+elif [[ "$(sed -n '/^  substitute-runner:$/,/^  [a-z-]*:$/p' "$compose" | grep -A1 '^    logging:$' | tail -n1 | tr -d ' ')" != "driver:none" ]]; then
+  bad "substitute-runner logs its JSON lines (a sign-in's code, the answer)"
+else
+  ok "no json-file log for the curl helper or the runner"
+fi
 exit "$failed"
