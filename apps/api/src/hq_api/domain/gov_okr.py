@@ -346,6 +346,8 @@ async def on_decided(
     if not rows or any(r["status"] != "proposed" for r in rows):
         raise ApiError(409, "decision_not_pending", "these objectives are not waiting for a seal")
     for a in (amendments or {}).get("objectives") or []:
+        if not a.get("title_fa"):
+            continue  # title_fa is optional: no title, no rename (never the text 'None')
         await tx.exec(
             "UPDATE governance.objectives SET title_fa = :t WHERE ref = :r AND id = ANY(:ids)",
             t=str(a.get("title_fa"))[:300],

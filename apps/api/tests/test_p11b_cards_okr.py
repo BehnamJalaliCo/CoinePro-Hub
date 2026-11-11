@@ -324,11 +324,13 @@ async def test_an_okr_is_active_only_with_the_owners_seal(
     r = await client.post(
         f"/api/v1/decisions/{ref}/approve",
         headers={**owner, **idem()},
-        json={"amendments": {"key_result_changes": [{"ref": kr_metric["ref"], "target": 20}]}},
-    )
+        json={"amendments": {"key_result_changes": [{"ref": kr_metric["ref"], "target": 20}],
+                             "objective_changes": [{"ref": ob}]}},  # no title_fa: no rename
+    )  # fmt: skip
     assert r.status_code == 200, r.text
     o = (await client.get(f"/api/v1/okr/{ob}", headers=owner)).json()
     assert o["status"] == "active" and o["decision"] == ref
+    assert o["title_fa"] == "رشد کاربران فعال"
     assert next(k for k in o["key_results"] if k["metric_fa"])["target"] == 20
     events = await su.fetchval(
         "SELECT count(*) FROM core.outbox WHERE subject = $1 AND payload->'data'->>'status' = 'active'",
