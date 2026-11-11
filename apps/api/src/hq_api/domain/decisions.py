@@ -1078,7 +1078,8 @@ async def propose(
     owner_order: str | None = None,
 ) -> dict[str, Any]:
     """`system`: the card is code's even when an agent proposes it (⟨1.19⟩ `erase`, made by
-    erase.propose with its preview; a plain `propose` of such a kind is refused).
+    erase.propose with its preview; an MCP A3 card, made by tools._a3_card; a plain `propose`
+    of such a kind is refused).
     ⟨2026-11-10⟩ `owner_order`: the order in whose session the owner himself asked for this hire
     (hiring.asked_in_session, read by the route): approved by code at once, whatever the
     holding's hiring mode; when a hard check refuses it, it stays the owner's own card, shown in
@@ -1179,6 +1180,18 @@ async def propose(
         # these cards, each bound to what it shows (contract §22.6)
         raise ApiError(
             422, "validation_failed", fields={"kind": f"a {body.kind} card is made by code"}
+        )
+    if (
+        body.kind == "a3_action"
+        and payload.get("action") == "mcp_call"
+        and who.kind != "service"
+        and not system
+    ):
+        # an MCP A3 card is the api's own (tools._a3_card, bound to the call's args_sha256 and the
+        # registration): one an agent wrote could show other args than the hash it seals, and
+        # mcp.call would consume it as the owner's approval of the real call
+        raise ApiError(
+            422, "validation_failed", fields={"payload.action": "an mcp_call card is made by code"}
         )
     if body.kind == "support_go_live" and who.kind != "service":
         # ⟨1.5⟩ only a passed shadow run makes this card (contract §19.4)

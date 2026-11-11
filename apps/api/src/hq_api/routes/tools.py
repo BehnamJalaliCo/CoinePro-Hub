@@ -483,6 +483,7 @@ async def _a3_card(ctx: Ctx, tx: Any, body: ResolveIn, row: dict[str, Any]) -> s
         else None,
         charters=ctx.hub.charters,
         company_kind=(await ctx.hub.companies.by_id(ctx.who.company_id)).kind,
+        system=True,  # the api's own card (a plain propose of an mcp_call card is refused)
     )
     await ctx.audit(
         tx,
