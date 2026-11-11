@@ -361,12 +361,15 @@ def ig_publish_brief(company_code: str, details: dict[str, Any] | None = None) -
 
 # ⟨2026-11-11⟩ The registration of a company's Instagram here is ONE technical work, whichever asked
 # for it (the daily read: `ig_setup`; a tap or a held standing publish: `ig_publish`). An open one
-# stands for both, and so does any made within TECH_AGAIN. A delivered one stands for the daily
-# read (it never makes one a day by itself for a company whose accounts the team cannot find); a
-# demand (a tap, a held publish, an order's blocker) makes a new one once the last delivered one
-# is older than TECH_AGAIN. A failed or cancelled one never stands: a new one is made at once.
+# stands for both. A delivered or accepted one stands for the daily read (it never makes one a day
+# by itself for a company whose accounts the team cannot find); for a demand (a tap, a held
+# publish, an order's blocker) it stands for TECH_AGAIN after it was made, then a new one is made.
+# A failed or cancelled one stands for TECH_AFTER_FAIL after it ended (a runner that is offline
+# never makes a work a tick), then a new one is made.
 TECH_TAGS = ("ig_setup", "ig_publish")
 TECH_AGAIN = timedelta(hours=24)
+TECH_AFTER_FAIL = timedelta(hours=2)
+TECH_DEAD = ("failed", "cancelled")
 
 
 async def tech_work_of(tx: Tx, code: Any, *, daily: bool = False) -> dict[str, Any] | None:
@@ -374,23 +377,27 @@ async def tech_work_of(tx: Tx, code: Any, *, daily: bool = False) -> dict[str, A
     (see TECH_TAGS), or None: a new one is due."""
     from hq_api.domain import work as W
 
-    row = await tx.first(
-        """SELECT ref, status, created_at > now() - CAST(:again AS interval) AS recent
+    rows = await tx.all(
+        """SELECT ref, status,
+                  created_at > now() - CAST(:again AS interval) AS recent,
+                  GREATEST(created_at, updated_at, COALESCE(closed_at, created_at))
+                      > now() - CAST(:cool AS interval) AS cooling
            FROM work.work
-           WHERE (run_meta ->> 'ig_setup' = :code OR run_meta ->> 'ig_publish' = :code)
-             AND status <> ALL(CAST(:dead AS text[]))
-           ORDER BY status = ANY(CAST(:open AS text[])) DESC, created_at DESC LIMIT 1""",
+           WHERE run_meta ->> 'ig_setup' = :code OR run_meta ->> 'ig_publish' = :code
+           ORDER BY status = ANY(CAST(:open AS text[])) DESC, created_at DESC LIMIT 20""",
         code=code,
         open=list(W.OPEN),
-        dead=["failed", "cancelled"],
         again=TECH_AGAIN,
+        cool=TECH_AFTER_FAIL,
     )
-    if row is None:
-        return None
-    standing = (
-        row["status"] in W.OPEN or bool(row["recent"]) or (daily and row["status"] == "delivered")
-    )
-    return {"ref": str(row["ref"]), "status": str(row["status"])} if standing else None
+    for r in rows:
+        status = str(r["status"])
+        # failed or cancelled: for its cool-down; open: always; delivered or accepted: for the
+        # daily read always, for a demand while recent
+        dead = status in TECH_DEAD
+        if (dead and r["cooling"]) or (not dead and (status in W.OPEN or daily or r["recent"])):
+            return {"ref": str(r["ref"]), "status": status}
+    return None
 
 
 async def _company_details(tx: Tx, company_id: UUID) -> dict[str, Any] | None:

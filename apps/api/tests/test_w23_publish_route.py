@@ -35,9 +35,17 @@ from hq_api.hub import Hub
 from .p10_fakes import holding_switch
 from .test_p17_runners import pair, poll, take
 from .test_p21_groups import TEHRAN, at, channel
-from .test_p21_routing_orders import all_tx, auto_hiring, set_hiring  # noqa: F401 - the fixture
+from .test_p21_routing_orders import (  # noqa: F401 - the fixture
+    all_tx,
+    auto_hiring,
+    make_order,
+    report,
+    set_hiring,
+)
 from .test_p21_secretary import no_model  # noqa: F401 - the fixture
 from .test_p23_talk import talk  # noqa: F401 - the fixture
+from .test_w7_sessions import WORK_TEXT, refuse_queued
+from .test_w11_audit import done_run, words
 from .test_w18_standing_publish import a_day, a_group, args_of, jobs_of
 
 HUB_COMMAND = "python3 /srv/ig-hub/deploy/hq_publish.py"
@@ -330,10 +338,77 @@ async def test_a_routines_output_goes_out_and_a_held_one_keeps_an_open_tech_work
     async with holding_switch(su, "released"):
         await GR.tick(hub, now=at(day2, 8, 30), only={cid})
     assert len(await tech_works(su, "ig_publish", co)) == 2  # an open one stands
+    # review: the team fails it (IG-Hub's runner offline): the groups' ticks never make one a
+    # tick; after the cool-down one more
+    await su.execute("UPDATE work.work SET status = 'failed' WHERE ref = $1", works[1]["ref"])
+    for minute in (40, 50):
+        async with holding_switch(su, "released"):
+            await GR.tick(hub, now=at(day2, 8, minute), only={cid})
+    assert len(await tech_works(su, "ig_publish", co)) == 2
+    monkeypatch.setattr(CN, "TECH_AFTER_FAIL", timedelta(0))
+    async with holding_switch(su, "released"):
+        await GR.tick(hub, now=at(day2, 9, 0), only={cid})
+    works = await tech_works(su, "ig_publish", co)
+    assert len(works) == 3 and works[2]["status"] in W.OPEN
     assert await su.fetchval(
         "SELECT count(*) FROM notify.notifications WHERE source_code = 'publish' AND company_id = $1",
         cid,
     ) == 0  # fmt: skip
+
+
+# ======= review: a failed technical work stands for a cool-down, for an order's refreshes too ==
+async def test_a_failed_tech_work_is_made_again_only_after_a_cool_down(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    company = await new_company()
+    code = company["code"]
+    await instagram(su, company["id"], '{"via": "ig_hub", "accounts": []}')
+    made = await make_order(hub, company, WORK_TEXT.format(co=code, w=words()))
+    ref, w = made["ref"], made["work"]
+    await refuse_queued(su, w["ref"])
+    refused = [{"tool": "instagram", "outcome": "refused", "code": "channel_not_configured"}]
+    await done_run(su, w["id"], "ig:1", refused)
+    await report(client, owner, ref)  # the order's blocker makes the work
+    [first] = await ig_works(su, code)
+    assert first["status"] in W.OPEN
+    # the team fails it: two more refusals and two refreshes make nothing new
+    await su.execute("UPDATE work.work SET status = 'failed' WHERE ref = $1", first["ref"])
+    for n in (2, 3):
+        await done_run(su, w["id"], f"ig:{n}", refused)
+        await report(client, owner, ref)
+    assert [x["ref"] for x in await ig_works(su, code)] == [first["ref"]]
+    # a tap within the cool-down: the same failed work, and the session says so honestly
+    async with await all_tx(hub) as tx:
+        assert await CN.ensure_ig_publish_work(tx, company["id"]) == first["ref"]
+        assert await SPB._setup_fa(tx, first["ref"]) == SPB.SETUP_SOON_FA
+    assert H.check(SPB.SETUP_SOON_FA.format(company="پروچارت", server="IG-Hub")) == []
+    # after the cool-down: one new work, then it stands
+    monkeypatch.setattr(CN, "TECH_AFTER_FAIL", timedelta(0))
+    for n in (4, 5):
+        await done_run(su, w["id"], f"ig:{n}", refused)
+        await report(client, owner, ref)
+    works = await ig_works(su, code)
+    assert len(works) == 2 and works[1]["status"] in W.OPEN
+    # the daily read: an old accepted (`done`) one stands like a delivered one
+    monkeypatch.setattr(CN, "TECH_AGAIN", timedelta(0))
+    await su.execute("UPDATE work.work SET status = 'delivered' WHERE ref = $1", works[1]["ref"])
+    await su.fetchval(
+        """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary,
+               body, attachments, produced_with, usage, evidence)
+           SELECT company_id, id, assignee_id, 'ثبت شد', 'ثبت شد', 'ثبت شد', '{}', '{}', '{}', '[]'
+           FROM work.work WHERE ref = $1 RETURNING id""",
+        works[1]["ref"],
+    )
+    await su.execute("UPDATE work.work SET status = 'done' WHERE ref = $1", works[1]["ref"])
+    async with await all_tx(hub) as tx:
+        assert await CN.ensure_ig_setup_work(tx, company["id"], daily=True) == works[1]["ref"]
+    assert len(await ig_works(su, code)) == 2
 
 
 # ============================== 5. an empty seat: the reason on the page, the CEO asked once ==

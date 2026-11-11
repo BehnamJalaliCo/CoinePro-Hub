@@ -1037,6 +1037,32 @@ async def test_a_paced_call_and_a_call_behind_a_retry_keep_their_clock(hub: Hub,
         )
         assert await deadline(script) == image["claimed_at"] + end + S.QUEUE_DEADLINE
         await _settle(su)
+        # 4. a ChatGPT job ahead ran five minutes; when it ended ChatGPT rested and the next pass
+        # took Gemini's long image (claimed long after the job ahead was claimed, soon after it
+        # ended): the script waits for the image
+        ahead = await ask("gpt", "assistant_errand")
+        script = await ask("gpt", "assistant_errand")
+        t = script["created_at"]
+        await su.execute(
+            """UPDATE substitutes.calls SET state = 'done', claimed_at = $2, finished_at = $3
+               WHERE id = $1""",
+            ahead["id"],
+            t + timedelta(seconds=10),
+            t + timedelta(minutes=5, seconds=10),
+        )
+        image = await run(
+            await ask("gemini", "creative", "image"),
+            f"'{(t + timedelta(minutes=6)).isoformat()}'",
+        )
+        assert await deadline(script) == image["claimed_at"] + end + S.QUEUE_DEADLINE
+        # a job taken more than two minutes after the job ahead ended does not hold it
+        await su.execute(
+            "UPDATE substitutes.calls SET claimed_at = $2 WHERE id = $1",
+            image["id"],
+            t + timedelta(minutes=7, seconds=30),
+        )
+        assert await deadline(script) == (t + timedelta(minutes=5, seconds=10) + S.QUEUE_DEADLINE)
+        await _settle(su)
 
 
 async def test_an_end_nobody_waits_for_any_more_makes_no_reply_work(hub: Hub, su: Any) -> None:

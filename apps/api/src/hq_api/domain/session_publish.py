@@ -75,6 +75,12 @@ SETUP_AGAIN_FA = (
     "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده؛ تیم فنی هلدینگ امروز یک بار "
     "سراغش رفته و تا یک روز دیگر دوباره سراغش میرود. کاری از تو لازم نیست."
 )
+# the team's work for it failed (or was cancelled) a moment ago: the next one comes after a
+# cool-down (connections.TECH_AFTER_FAIL), never one a tick
+SETUP_SOON_FA = (
+    "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده؛ تیم فنی هلدینگ سراغش رفته و "
+    "کمی بعد دوباره سراغش میرود. کاری از تو لازم نیست."
+)
 DONE_FA = "منتشر شد: {kind} در @{account}"
 FAILED_FA = "انتشار {kind} در @{account} انجام نشد: {why}"
 NOT_MEDIA_FA = "فقط ویدیو یا تصویر منتشر میشود."
@@ -642,13 +648,16 @@ async def last_of(
 
 async def _setup_fa(tx: Tx, ref: str | None) -> str:
     """What the session says of a route that is not ready, by where the team's work stands: open
-    (it is being connected), delivered today (the next try within a day), or nobody to take it."""
+    (it is being connected), failed a moment ago (the next try after a cool-down), delivered
+    today (the next try within a day), or nobody to take it."""
     from hq_api.domain import work as W
 
     if ref is None:
         return SETUP_NOBODY_FA
     status = await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=ref)
-    return SETUP_FA if status in W.OPEN else SETUP_AGAIN_FA
+    if status in W.OPEN:
+        return SETUP_FA
+    return SETUP_SOON_FA if status in CN.TECH_DEAD else SETUP_AGAIN_FA
 
 
 def when_fa(t: datetime, tz: str) -> str:
@@ -1033,8 +1042,9 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
     if not route["ready"]:
         # never the owner's step and never a push: the run (the working group's page) says the
         # line the desk card says, and every tick asks for the technical work (⟨2026-11-11⟩ an
-        # open one stands; a failed or cancelled one is made again at once, a delivered one once
-        # a day at most: connections.tech_work_of); the next tick after the route is ready sends it
+        # open one stands; a failed or cancelled one is made again after a cool-down, a delivered
+        # one once a day at most: connections.tech_work_of); the next tick after the route is
+        # ready sends it
         await CN.ensure_ig_publish_work(tx, run["company_id"], requested_by=run["work_id"])
         await _hold(tx, run, WAIT_SETUP_FA, tell=False)
         return "waiting_setup"

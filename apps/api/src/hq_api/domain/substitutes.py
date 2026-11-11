@@ -185,8 +185,9 @@ WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitute
 #   - the jobs ahead of it in the pick order (made no later than it, a retried one too: both
 #     lanes take the oldest call first), whenever they were claimed;
 #   - any job claimed while it waited for those or for its player's 60-second pace (claimed at or
-#     before two minutes after the later of when it joined and when the last job ahead of it was
-#     claimed): a younger call of another player may go first while its own player rests.
+#     before two minutes after the later of when it joined and when the last job ahead of it
+#     ended, or would end at its own deadline): a younger call of another player may go first
+#     while its own player rests.
 # A job made after it and run later than that does not hold it (something else is wrong: it is
 # reaped on time). A job's end is when it finished, else its own deadline (a lost job holds no
 # longer); only jobs claimed within the hour before it joined are read.
@@ -200,7 +201,7 @@ _LANE_SQL = (
 )
 _AHEAD_SQL = "o.created_at <= c.created_at"
 _TURN_SQL = (
-    f"GREATEST({_JOINED_SQL}, (SELECT max(o.claimed_at)"  # noqa: S608 - constants only
+    f"GREATEST({_JOINED_SQL}, (SELECT max({_END_SQL})"  # noqa: S608 - constants only
     f" FROM substitutes.calls o WHERE {_LANE_SQL} AND {_AHEAD_SQL})) + interval '2 minutes'"
 )
 BUSY_UNTIL_SQL = (
