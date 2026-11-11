@@ -70,6 +70,16 @@ async def test_an_article_is_approved_only_with_step_up(
     assert {(a["version"], a["status"]) for a in listed if a["ref"] == ref} == {
         (version, "approved"), (version + 1, "proposed"),
     }  # fmt: skip
+    # the status filter is applied in SQL, before the list's cap
+    for st, want in (("proposed", version + 1), ("approved", version)):
+        got = await client.get("/api/v1/support/kb", params={"company": co["code"], "status": st},
+                               headers=h)  # fmt: skip
+        assert got.status_code == 200, got.text
+        assert [a["version"] for a in got.json() if a["ref"] == ref] == [want]
+        assert {a["status"] for a in got.json()} == {st}
+    got = await client.get("/api/v1/support/kb", params={"company": co["code"], "status": "retired"},
+                           headers=h)  # fmt: skip
+    assert got.json() == []
 
 
 async def test_an_expired_article_no_longer_answers_by_itself(
