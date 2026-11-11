@@ -558,6 +558,10 @@ async def test_five_messages_of_one_meaning_are_one_item_and_one_product_task(
                                       source_ref=m["conversation"]["ref"], text=text,
                                       message_id=m["message"]["id"])  # fmt: skip
             assert got["tagged_by"] == "rule"
+        # the 5th signal (the threshold) opens the task at once, not the nightly sweep
+        assert await su.fetchval(
+            "SELECT threshold_work_id FROM feedback.items WHERE company_id = $1", co["id"]
+        )
         await FB.batch(hub, txf(hub), router)
     items = await su.fetch("SELECT * FROM feedback.items WHERE company_id = $1", co["id"])
     assert len(items) == 1
