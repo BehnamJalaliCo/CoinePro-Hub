@@ -926,6 +926,10 @@ async def server_activity(
     """Who did what on the server, newest first: its jobs and every command
     inside its `claude` jobs (masked). `actor`: an employee code or `owner`."""
     after = pagination.decode(cursor, 2)
+    try:  # typed: asyncpg binds by type (the id is text here: a job's, or a job's command)
+        ca = datetime.fromisoformat(str(after[0])) if after else None
+    except ValueError as exc:
+        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
     async with ctx.tx() as tx:
         s = await SV.load_server(tx, id)
         rows = await tx.all(
@@ -934,8 +938,8 @@ async def server_activity(
             actor=actor,
             f=from_,
             t=to,
-            ca=after[0] if after else None,
-            cid=after[1] if after else None,
+            ca=ca,
+            cid=str(after[1]) if after else None,
             lim=limit + 1,
         )
     items, nxt = pagination.page(rows, limit, ("at", "id"))
