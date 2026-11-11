@@ -1259,7 +1259,7 @@ async def apply(
                 k=dumps(c["keep"]),
                 th=c["then_do"],
             )
-        return await tx.one(
+        new = await tx.one(
             """UPDATE archive.retention_rules SET title_fa = :t, trigger = :tr, keep = CAST(:k AS jsonb), then_do = :th
                WHERE id = :id RETURNING *""",
             id=row["id"],
@@ -1268,6 +1268,11 @@ async def apply(
             k=dumps(c["keep"]),
             th=c["then_do"],
         )
+        from hq_api.archive import retention as RT
+
+        # the records under it keep no stale due date or disposability
+        await RT.rule_changed(tx, row, new)
+        return new
     if part == "reminders":
         if row is None:
             return await tx.one(

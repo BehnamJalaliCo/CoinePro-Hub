@@ -119,6 +119,48 @@ async def compute(
     )
 
 
+async def rule_changed(tx: Tx, old: dict[str, Any], new: dict[str, Any]) -> int:
+    """The owner changed a rule (its trigger, keep or then): every record under
+    it gets its dates and disposability again, as impact() counted them; a
+    record whose retention no longer ended may fire retention_due again later.
+    The caller's transaction reads every record (CL.full). -> records."""
+    from hq_api.archive import records as R
+    from hq_api.archive import schema as SC
+
+    if old["trigger"] != new["trigger"]:
+        n = 0
+        for x in await tx.all(
+            """SELECT ref FROM archive.records WHERE retention_rule_id = :id
+                 AND state IN ('filed', 'sealed', 'superseded') ORDER BY ref""",
+            id=new["id"],
+        ):
+            r = await R.load(tx, x["ref"])
+            cls = await SC.class_at(tx, r["class_key"], r["class_version"])
+            await compute(tx, r, cls, list(cls["fields"]))
+            n += 1
+    else:  # the same trigger date: only the due date and what follows it
+        keep = J(new["keep"])
+        bounded = isinstance(keep, dict)
+        n = await tx.exec(
+            """UPDATE archive.records SET disposable = :x,
+                   due_at = CASE WHEN trigger_at IS NULL OR NOT CAST(:b AS boolean) THEN NULL
+                                 ELSE CAST(trigger_at + make_interval(years => :y, months => :m) AS date) END
+               WHERE retention_rule_id = :id AND state IN ('filed', 'sealed', 'superseded')""",
+            id=new["id"],
+            x=new["then_do"] == "dispose_card" and bounded,
+            b=bounded,
+            y=int(keep.get("years") or 0) if bounded else 0,
+            m=int(keep.get("months") or 0) if bounded else 0,
+        )
+    await tx.exec(
+        """UPDATE archive.records SET due_seen_at = NULL
+           WHERE retention_rule_id = :id AND state IN ('filed', 'sealed', 'superseded')
+             AND due_seen_at IS NOT NULL AND (due_at IS NULL OR due_at > CURRENT_DATE)""",
+        id=new["id"],
+    )
+    return int(n or 0)
+
+
 async def superseded(tx: Tx, ref: str) -> None:
     """Another record supersedes `ref` (a link of kind supersedes)."""
     r = await tx.first(

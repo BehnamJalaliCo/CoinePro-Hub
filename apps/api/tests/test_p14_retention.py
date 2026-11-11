@@ -22,7 +22,7 @@ from hq_api.worker.archive_activities import ocr_queue
 
 from .conftest import agent_headers, idem, step_up
 from .p10_support import holding_switch
-from .p14_support import fakes, filed, pdf, record, reseed, txf, upload
+from .p14_support import fakes, filed, pdf, record, reseed, schema_put, txf, upload
 
 A = "/api/v1/archive"
 
@@ -242,6 +242,41 @@ async def test_the_sweep_window_holds_only_records_it_still_has_to_act_on(
         pending = {x["ref"] for x in await RT.due(tx, limit=100000, pending=True)}
     assert {done["ref"], todo["ref"]} <= every
     assert todo["ref"] in pending and done["ref"] not in pending
+
+
+async def test_a_changed_rule_moves_the_due_date_of_the_records_under_it(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """Extending a rule's keep never leaves a record on a disposal card early,
+    and a rule turned to dispose_card makes its records disposable."""
+    co = await new_company()
+    h = owner_session["headers"]
+    rule = {"title_fa": "قاعده‌ی آزمایشی", "trigger": "filed", "keep": {"years": 1}, "then": "review"}
+    r = await schema_put(client, hub, owner_session, "retention", "new", rule)
+    assert r.status_code == 200, r.text
+    ref, version = r.json()["key"], r.json()["version"]
+    async with fakes(ocr=False):
+        rec = await filed(client, h, co["code"], title="زیر قاعده", text="under a rule")
+    await su.execute(
+        """UPDATE archive.records SET retention_rule_id = (SELECT id FROM archive.retention_rules WHERE ref = $2),
+               trigger_at = DATE '2020-03-31', due_at = DATE '2021-03-31', disposable = false,
+               due_seen_at = now() WHERE ref = $1""",
+        rec["ref"],
+        ref,
+    )
+    longer = {**rule, "keep": {"years": 10, "months": 11}, "then": "dispose_card"}
+    r = await schema_put(client, hub, owner_session, "retention", ref, longer, version=version)
+    assert r.status_code == 200, r.text
+    assert r.json()["impact"]["records"] == 1
+    row = await su.fetchrow(
+        "SELECT due_at, disposable, due_seen_at FROM archive.records WHERE ref = $1", rec["ref"]
+    )
+    assert row["due_at"] == date(2031, 2, 28) and row["disposable"] is True
+    assert row["due_seen_at"] is None  # due again later: retention_due fires again then
 
 # --------------------------------------------------------------- reminders --
 async def test_a_contract_ending_in_30_days_gets_one_cartable_reminder(
