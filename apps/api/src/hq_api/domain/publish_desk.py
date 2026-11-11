@@ -34,14 +34,22 @@ JOBS = 400
 SECTION = 30
 CAPTION_CHARS = 600
 
+# The outputs that have publications (`refs`) always come, whatever their age; only the recent
+# outputs that may become `ready` cards are limited (else an older output with a scheduled post
+# would lose its queue card to newer ones).
 DESK_SQL = """SELECT d.ref, d.title, d.work_id, d.company_id, d.attachments, d.produced_with,
        d.created_at, c.code AS company, c.name_fa AS company_fa, w.ref AS work_ref
 FROM cartable.deliverables d JOIN core.companies c ON c.id = d.company_id
 JOIN work.work w ON w.id = d.work_id
-WHERE (d.created_at > now() - make_interval(days => :days) OR d.ref = ANY(CAST(:refs AS text[])))
+WHERE (d.ref = ANY(CAST(:refs AS text[]))
+       OR d.id IN (SELECT r.id FROM cartable.deliverables r
+                   WHERE r.created_at > now() - make_interval(days => :days)
+                     AND (CAST(:co AS uuid) IS NULL OR r.company_id = :co)
+                     AND cardinality(r.attachments) > 0
+                   ORDER BY r.created_at DESC LIMIT :n))
   AND (CAST(:co AS uuid) IS NULL OR d.company_id = :co)
   AND cardinality(d.attachments) > 0
-ORDER BY d.created_at DESC LIMIT :n"""
+ORDER BY d.created_at DESC"""
 
 DeskState = Literal[
     "ready", "scheduled", "publishing", "published", "failed", "cancelled", "waiting_setup",

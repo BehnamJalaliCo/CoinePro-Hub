@@ -11,6 +11,7 @@ from typing import Any
 
 import asyncpg
 import httpx
+import pytest
 
 from hq_api.domain import limits as LM
 from hq_api.domain import publish_desk as PD
@@ -205,6 +206,7 @@ async def test_an_output_he_took_back_is_ready_again(
     new_company: Callable[..., Any],
     su: Any,
     no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ig, pc = await new_company(), await new_company()
     co = pc["code"]
@@ -222,6 +224,10 @@ async def test_an_output_he_took_back_is_ready_again(
     assert [c["state"] for c in d["done"]] == ["cancelled"] and d["queue"] == []
     [again] = d["ready"]
     assert again["kind"] == "post" and again["publish"] is None and again["state"] == "ready"
+    # an output with a publication keeps its card however many newer outputs fill the limit
+    monkeypatch.setattr(PD, "OUTPUTS", 0)
+    d = (await client.get("/api/v1/publish-desk", params={"company": co}, headers=owner)).json()
+    assert [c["state"] for c in d["done"]] == ["cancelled"]
 
 
 # ================================================== §55.3 the limit at a glance ==
