@@ -706,7 +706,7 @@ async def _done(
         s="waiting" if waiting else "running",
     )
     if published:
-        await learning.record_features(tx, run, await owner_tz(tx))
+        await learning.record_features(tx, run, await owner_tz(tx), published)
         from hq_api.domain import live
 
         await live.publish_flow(tx, run, published)  # ⟨1.24⟩ §42.2 to the world, on the map

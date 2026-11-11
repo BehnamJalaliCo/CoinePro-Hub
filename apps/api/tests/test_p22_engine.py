@@ -301,6 +301,15 @@ def test_shingles_see_a_rewrite() -> None:
     assert core.similarity(a, persian_text(60)) < 0.3
 
 
+def test_the_publish_hour_is_the_scheduled_time_not_the_step_time() -> None:
+    """Regression: a post scheduled an hour ahead (in_min: 60) was recorded at the step's hour."""
+    at = "2026-11-10T14:40:00+00:00"  # 18:10 in Tehran
+    assert learning.publish_hour([{"at": at}], "Asia/Tehran") == 18
+    assert learning.publish_hour([{"at": None}, {"at": "2026-11-10T14:40:00Z"}], "UTC") == 14
+    now = datetime.now(UTC).hour
+    assert learning.publish_hour(None, "UTC") in (now, (now + 1) % 24)  # nothing given: now
+
+
 async def test_quality_applies_the_platforms_rules() -> None:
     def ctx(platform: str, text: str, **settings: Any) -> StepContext:
         return StepContext(
