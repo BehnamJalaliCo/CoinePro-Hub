@@ -38,7 +38,7 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -1561,24 +1561,41 @@ STALLED_RUN = timedelta(minutes=30)
 STALLED_NOTE = "reaped: running for 30 minutes without a step (its worker was gone)"
 
 
-async def reap_stalled_runs(tx: Tx) -> int:
+STALLED_SQL = """
+SELECT r.id FROM agents.runs r
+WHERE r.state = 'running' AND r.trigger = 'work'
+  AND COALESCE(r.started_at, r.queued_at) < now() - make_interval(secs => :s)
+  AND COALESCE((SELECT max(s.at) FROM agents.steps s WHERE s.run_id = r.id),
+               r.started_at, r.queued_at) < now() - make_interval(secs => :s)
+ORDER BY r.started_at
+"""
+
+
+async def reap_stalled_runs(hub: Any) -> int:
     """⟨2026-11-11⟩ Work runs (a talk or a direct run has its own reaper) running past
-    STALLED_RUN with no step in that time end `failed` `runtime_error`, as a talk run whose turn
-    never closed does (talk.reap_runs)."""
-    rows = await tx.all(
-        """UPDATE agents.runs r SET state = 'failed', error_code = 'runtime_error',
-               finished_at = now(), note = :note
-           WHERE r.state = 'running' AND r.trigger = 'work'
-             AND COALESCE(r.started_at, r.queued_at) < now() - make_interval(secs => :s)
-             AND COALESCE((SELECT max(s.at) FROM agents.steps s WHERE s.run_id = r.id),
-                          r.started_at, r.queued_at) < now() - make_interval(secs => :s)
-           RETURNING r.id""",
-        note=STALLED_NOTE,
-        s=int(STALLED_RUN.total_seconds()),
-    )
-    if rows:
-        log.warning("stalled runs reaped", extra={"runs": [str(r["id"]) for r in rows]})
-    return len(rows)
+    STALLED_RUN with no step in that time end `failed` `runtime_error` through the runner's own
+    end (Runner.finish: the employee's activity back to rest, `run.finished` on the stream, the
+    session's end line), as a talk run whose turn never closed is ended (talk.reap_runs). Each in
+    a transaction of its own; one that cannot be ended is logged and left for the next tick."""
+    from hq_api.agents.runner import Runner
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        rows = await tx.all(STALLED_SQL, s=int(STALLED_RUN.total_seconds()))
+    if not rows:
+        return 0
+    # only `finish` is used: it needs the hub alone (no router, no gateway)
+    runner = Runner(hub, cast(Any, None), cast(Any, None))
+    reaped = 0
+    for r in rows:
+        try:
+            out = await runner.finish(str(r["id"]), "failed", "runtime_error", note=STALLED_NOTE)
+        except Exception:
+            log.exception("a stalled run could not be ended", extra={"run": str(r["id"])})
+            continue
+        if out.get("code") == "runtime_error":
+            reaped += 1
+    log.warning("stalled runs reaped", extra={"runs": [str(r["id"]) for r in rows]})
+    return reaped
 
 
 async def tick(hub: Any) -> dict[str, Any]:
@@ -1595,11 +1612,6 @@ async def tick(hub: Any) -> dict[str, Any]:
                 out["resumed"] = await W.resume_waiting(tx)  # budget added, the player auto
         except Exception:
             log.exception("resume_waiting failed")
-        try:
-            async with tx.conn.begin_nested():
-                out["reaped"] = await reap_stalled_runs(tx)
-        except Exception:
-            log.exception("the stalled-run reaper failed")
         refs = [
             r["ref"]
             for r in await tx.all(
@@ -1610,6 +1622,10 @@ async def tick(hub: Any) -> dict[str, Any]:
                    ORDER BY o.created_at DESC"""
             )
         ]
+    try:
+        out["reaped"] = await reap_stalled_runs(hub)
+    except Exception:
+        log.exception("the stalled-run reaper failed")
     from hq_api.domain import session_activity as SA
 
     for ref in refs:

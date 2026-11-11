@@ -858,9 +858,14 @@ async def step_next(tx: Tx, work_id: Any) -> dict[str, Any] | None:
     return {"ref": ref, "n": int(nxt["n"]), "title_fa": str(nxt["title_fa"])}
 
 
-async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
+async def talk_brief(
+    tx: Tx, order_ref: str, *, work_id: UUID | None = None
+) -> dict[str, Any] | None:
     """What a talk bound to an order knows of it (by code): the order, how it is carried out, the
-    owner's open turn, the plan, the last steps and what blocks it."""
+    owner's open turn, the plan, the last steps and what blocks it. ⟨2026-11-11⟩ `work_id`: the
+    work of the run being briefed (dialogue); none: the holder's own work (a direct turn of the
+    holder, the holder's talk). Only that work's own running run, when the idle sweep started
+    it, reads the `wake` instruction."""
     rep = await tx.first("SELECT * FROM owner.order_reports WHERE ref = :r", r=order_ref)
     order = await OR.load_order(tx, order_ref)
     if rep is None or order is None:
@@ -935,7 +940,7 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     # for a run the idle sweep started, the explicit turn: nothing runs, do task N or ask
     try:
         async with tx.conn.begin_nested():
-            out = await _outside_and_wake(tx, dict(rep), order, tasks, nxt, out)
+            out = await _outside_and_wake(tx, dict(rep), order, out, work_id)
     except Exception:  # noqa: BLE001 - the brief never fails on what it adds
         log.warning("the order's outside work could not be read", extra={"order": order_ref})
     return out
@@ -972,9 +977,8 @@ async def _outside_and_wake(
     tx: Tx,
     rep: dict[str, Any],
     order: dict[str, Any],
-    tasks: list[dict[str, Any]],
-    nxt: dict[str, Any] | None,
     out: dict[str, Any],
+    work_id: UUID | None,
 ) -> dict[str, Any]:
     from hq_api.domain import session_activity as SA
 
@@ -987,10 +991,16 @@ async def _outside_and_wake(
         out["waiting_on"] = [_outside_line(c, ended=False) for c in pending]
     if ended:
         out["ended_without_answer"] = [_outside_line(c, ended=True) for c in ended[:10]]
+    if work_id is None:
+        h = await holder(tx, str(rep["ref"]))
+        work_id = h.get("work_id") if h else None
+    if work_id is None:
+        return out
+    # the briefed work's own running run (never a colleague's run on another work of the order)
     reason = await tx.scalar(
-        """SELECT r.reason FROM agents.runs r WHERE r.work_id = ANY(:ids) AND r.state = 'running'
+        """SELECT r.reason FROM agents.runs r WHERE r.work_id = :w AND r.state = 'running'
              AND r.trigger = 'work' ORDER BY r.started_at DESC NULLS LAST LIMIT 1""",
-        ids=ids,
+        w=work_id,
     )
     if not OR.base_reason(reason).startswith("session_idle:"):
         return out
@@ -1105,4 +1115,4 @@ async def dialogue(tx: Tx, work_id: UUID) -> dict[str, Any] | None:
     ref = await OR.order_of_work(tx, work_id)
     if ref is None:
         return None
-    return await talk_brief(tx, ref)
+    return await talk_brief(tx, ref, work_id=work_id)

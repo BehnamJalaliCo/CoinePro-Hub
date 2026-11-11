@@ -129,6 +129,9 @@ class RecurringRun:
         return result
 
 
+ORDER_TICK_PATCH = "order-tick-own-schedule"
+
+
 @workflow.defn(name="Maintenance")
 class Maintenance:
     """Every 5 minutes: overdue escalation, reconciliation and purges. One
@@ -137,7 +140,7 @@ class Maintenance:
     @workflow.run
     async def run(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
-        for name in (
+        names = [
             "escalate_overdue",
             "end_expired_escrows",
             "reconcile_decisions",
@@ -154,7 +157,11 @@ class Maintenance:
             # the owner's time). ⟨2026-11-11⟩ `order_tick` left this chain for OrderTick, its own
             # schedule: as the 13th of 14 steps it waited behind the others and starved
             "tech_summary",
-        ):
+        ]
+        if not workflow.patched(ORDER_TICK_PATCH):
+            # a pass started before that deploy replays with the step it had (Temporal's history)
+            names.insert(names.index("tech_summary"), "order_tick")
+        for name in names:
             try:
                 out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=3))
             except ActivityError:

@@ -19,10 +19,13 @@ E. the owner is «تو» in the session («سؤال از تو»), and quota code
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,6 +40,7 @@ from hq_api.domain import order_turns as OT
 from hq_api.domain import session_activity as SA
 from hq_api.domain import sessions as SE
 from hq_api.domain import speech_make as SM
+from hq_api.domain import substitutes as S
 from hq_api.domain import work as W
 from hq_api.hub import Hub
 from hq_api.lines.base import StepFailed
@@ -155,6 +159,81 @@ async def start_run(su: Any, run_id: Any, *, minutes_ago: int = 0) -> None:
         run_id,
         minutes_ago,
     )
+
+
+async def finish_run(su: Any, run_id: Any, company_id: Any, actions: list[dict[str, Any]]) -> None:
+    """A running run wrote one step with these actions and ended `done`."""
+    await su.execute(
+        """INSERT INTO agents.steps (run_id, company_id, n, at, summary_fa, actions)
+           VALUES ($1, $2, 1, now() - interval '20 seconds', 'گزارش', $3::jsonb)""",
+        run_id, company_id, json.dumps(actions),
+    )  # fmt: skip
+    await su.execute(
+        "UPDATE agents.runs SET state = 'done', finished_at = now(), steps = 1 WHERE id = $1",
+        run_id,
+    )
+
+
+async def pass_time(su: Any, s: dict[str, Any], minutes: int) -> None:
+    """`minutes` pass for this session: every time it keeps moves back by as much (its report's
+    clock and steps, its works' runs and their steps, its outside calls, its notifications, its
+    plan). Immutable times are moved past their triggers, as the clock does it."""
+    ids = [
+        r["id"]
+        for r in await su.fetch(
+            """WITH RECURSIVE t(id) AS (
+                   SELECT id FROM work.work WHERE ref = $1
+                   UNION SELECT c.id FROM work.work c JOIN t
+                       ON c.parent_id = t.id OR c.requested_by_work_id = t.id)
+               SELECT id FROM t""",
+            s["root_ref"],
+        )
+    ]
+    m = timedelta(minutes=minutes)
+    steps = json.loads(
+        await su.fetchval("SELECT steps FROM owner.order_reports WHERE ref = $1", s["ref"]) or "[]"
+    )
+    for st in steps:
+        at = datetime.fromisoformat(str(st["at"]))
+        st["at"] = (at - m).isoformat()
+    async with su.transaction():
+        await su.execute("SET LOCAL session_replication_role = replica")
+        await su.execute(
+            """UPDATE agents.runs SET queued_at = queued_at - $2, created_at = created_at - $2,
+                   started_at = started_at - $2, finished_at = finished_at - $2,
+                   dispatched_at = dispatched_at - $2
+               WHERE work_id = ANY($1::uuid[])""",
+            ids, m,
+        )  # fmt: skip
+        await su.execute(
+            """UPDATE agents.steps SET at = at - $2
+               WHERE run_id IN (SELECT id FROM agents.runs WHERE work_id = ANY($1::uuid[]))""",
+            ids, m,
+        )  # fmt: skip
+        await su.execute(
+            """UPDATE substitutes.calls SET created_at = created_at - $2,
+                   claimed_at = claimed_at - $2, finished_at = finished_at - $2
+               WHERE purpose_kind = 'caller_work' AND purpose_ref = ANY($1::text[])""",
+            [str(i) for i in ids], m,
+        )  # fmt: skip
+        await su.execute(
+            """UPDATE notify.notifications SET created_at = created_at - $2
+               WHERE link_ref = ANY($1::text[])""",
+            [x for x in (s["ref"], s.get("talk_ref")) if x], m,
+        )  # fmt: skip
+        await su.execute(
+            """UPDATE owner.session_tasks SET updated_at = updated_at - $2,
+                   created_at = created_at - $2
+               WHERE ref = $1""",
+            s["ref"], m,
+        )  # fmt: skip
+        await su.execute(
+            """UPDATE owner.order_reports SET last_step_at = last_step_at - $2,
+                   acked_at = acked_at - $2, created_at = created_at - $2,
+                   steps = $3::jsonb
+               WHERE ref = $1""",
+            s["ref"], m, json.dumps(steps, ensure_ascii=False),
+        )  # fmt: skip
 
 
 async def end_run(su: Any, run_id: Any, company_id: Any, actions: list[dict[str, Any]]) -> None:
@@ -287,6 +366,94 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     await idle_for(su, ref, 11)
     p = await pulse_of(hub, ref)  # idle again: no wake spent since his word, not stuck
     assert not p.live and p.wakes == 0 and not p.spent and p.stuck_fa is None
+
+
+async def test_the_incident_through_the_real_reaper_the_reply_wakes_first_then_two_wakes_then_stuck(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """The same stall with builder A's real reaper: the call ends through `_applied`, the session
+    hears it in one line and the holder gets a reply work, whose run comes before any idle wake."""
+    s = await an_order(client, owner, su, new_company)
+    ref, wid, co = s["ref"], s["wid"], s["company"]
+    said = "پیش‌نویس متن ریلز از ChatGPT خواسته شد و در صف است"
+    await fake_run(su, co, s["holder"], wid, minutes_ago=3, steps=[
+        (said, [{"tool": "substitute.call", "outcome": "ok", "hint": "ChatGPT"},
+                {"tool": "order.progress", "outcome": "ok"}]),
+    ])  # fmt: skip
+    await narrate(client, s, said)
+    call = await queued_call(su, s)
+    # well past any deadline (whatever it counts from): the reaper ends it and delivers its end
+    async with await all_tx(hub) as tx:
+        assert await S.expire_stale(tx, hub, datetime.now(UTC) + timedelta(hours=6)) >= 1
+    row = await su.fetchrow(
+        "SELECT state, delivered_at, reply_work_id FROM substitutes.calls WHERE id = $1", call
+    )
+    assert row["state"] in ("failed", "skipped") and row["delivered_at"] is not None, dict(row)
+    assert row["reply_work_id"] is not None
+    if s["talk_ref"]:
+        line = await su.fetchval(
+            """SELECT t.say_fa FROM talk.turns t JOIN talk.conversations c ON c.id = t.conversation_id
+               WHERE c.ref = $1 ORDER BY t.n DESC LIMIT 1""",
+            s["talk_ref"],
+        )
+        assert "ChatGPT جواب نداد" in line, line
+    reply = await su.fetchrow(
+        "SELECT id, ref, requested_by_work_id FROM work.work WHERE id = $1", row["reply_work_id"]
+    )
+    assert reply["requested_by_work_id"] == wid  # in the order's tree
+    [first] = await su.fetch(
+        "SELECT id FROM agents.runs WHERE work_id = $1 AND state = 'queued'", reply["id"]
+    )
+    # the reply's queued run keeps the session live, past the idle threshold too
+    await pass_time(su, s, 11)
+    act = await activity(client, owner, ref)
+    assert act["mood"] != "idle" and act["working"], act
+    assert await sweep(hub, ref) == []
+    # it ends having only narrated; the session sits idle: idle wake 1
+    await end_run(su, first["id"], co["id"], [{"tool": "order.progress", "outcome": "ok"}])
+    await narrate(client, s, "پیش‌نویس را خودم مینویسم")
+    await pass_time(su, s, 11)
+    assert await sweep(hub, ref) == ["idle_wake"]
+    [w1] = await runs_with_reason(su, s["root_ref"], "session_idle:")
+    await start_run(su, w1["id"])
+    async with await all_tx(hub) as tx:
+        root_brief = await OT.dialogue(tx, wid)
+        reply_brief = await OT.dialogue(tx, reply["id"])
+    # the wake instruction is the woken work's own, never another run's of the same order
+    assert root_brief is not None and next(iter(root_brief)) == "wake"
+    assert reply_brief is not None and "wake" not in reply_brief
+    acted = [{"tool": "web.read", "outcome": "ok"}, {"tool": "order.progress", "outcome": "ok"}]
+    await finish_run(su, w1["id"], co["id"], acted)
+    await narrate(client, s, "منبع را خواندم")
+    await pass_time(su, s, 11)
+    assert await sweep(hub, ref) == ["idle_wake"]  # wake 2 of 2
+    wakes = await runs_with_reason(su, s["root_ref"], "session_idle:")
+    assert len(wakes) == 2
+    await end_run(su, wakes[-1]["id"], co["id"], acted)
+    await narrate(client, s, "باز هم منبع را خواندم")
+    assert await sweep(hub, ref) == ["stuck"]
+    p = await pulse_of(hub, ref)
+    assert p.stuck_fa is not None and p.stuck_fa.startswith("مسئول 2 بار"), p.stuck_fa
+
+    async def notes() -> int:
+        return int(
+            await su.fetchval(
+                """SELECT count(*) FROM notify.notifications
+                   WHERE link_kind = 'order' AND link_ref = $1 AND source_code = 'sessions'""",
+                ref,
+            )
+        )
+
+    assert await notes() == 1
+    await pass_time(su, s, 30)
+    assert await sweep(hub, ref) == []  # no third wake, no second notification
+    assert len(await runs_with_reason(su, s["root_ref"], "session_idle:")) == 2
+    assert await notes() == 1
 
 
 async def test_two_idle_wakes_that_led_nowhere_make_it_stuck_with_the_plan_named(
@@ -518,7 +685,7 @@ async def test_the_order_tick_survives_a_broken_order_runs_newest_first_and_reap
     await idle_for(su, b["ref"], 11)
     # a work run whose worker is gone: running 40 minutes without a step (a colleague of a's
     # holder: the holder's own test token holds a running run)
-    stalled = await su.fetchval(
+    stalled_row = await su.fetchrow(
         """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
                queued_at, started_at)
            SELECT $1, e.id, $3, 'work', 'stalled', 'running', now() - interval '41 minutes',
@@ -527,10 +694,14 @@ async def test_the_order_tick_survives_a_broken_order_runs_newest_first_and_reap
            WHERE e.company_id = $1 AND e.code <> $2 AND e.status = 'active'
              AND NOT EXISTS (SELECT 1 FROM agents.runs x WHERE x.employee_id = e.id
                                AND x.state = 'running')
-           ORDER BY e.code LIMIT 1 RETURNING id""",
+           ORDER BY e.code LIMIT 1 RETURNING id, employee_id""",
         a["company"]["id"], a["holder"], a["wid"],
     )  # fmt: skip
-    assert stalled is not None
+    assert stalled_row is not None
+    stalled = stalled_row["id"]
+    await su.execute(
+        "UPDATE core.employees SET activity = 'working' WHERE id = $1", stalled_row["employee_id"]
+    )
     seen: list[str] = []
     real = OR.timers
 
@@ -550,6 +721,18 @@ async def test_the_order_tick_survives_a_broken_order_runs_newest_first_and_reap
     assert tick["reaped"] >= 1
     row = await su.fetchrow("SELECT state, error_code FROM agents.runs WHERE id = $1", stalled)
     assert (row["state"], row["error_code"]) == ("failed", "runtime_error")
+    # through the runner's own end: the employee rests again and the stream hears the end
+    assert await su.fetchval(
+        "SELECT activity FROM core.employees WHERE id = $1", stalled_row["employee_id"]
+    ) in ("error", "sleeping")
+    assert (
+        await su.fetchval(
+            """SELECT count(*) FROM core.outbox WHERE subject LIKE '%.run.finished'
+           AND payload->>'ref' = $1""",
+            str(stalled),
+        )
+        == 1
+    )
     # the tick is its own schedule, every 2 minutes, not the maintenance chain's 13th step
     fixed = {d.id: d for d in schedules.fixed(datetime.now(UTC).time(), "Asia/Tehran")}
     assert fixed[schedules.ORDER_TICK].workflow == "OrderTick"
@@ -717,3 +900,35 @@ async def test_a_requeued_run_reads_as_the_wake_or_the_word_it_retries(
     await idle_for(su, t["ref"], 15)
     p = await pulse_of(hub, t["ref"])
     assert p.wakes == 1 and not p.spent and p.stuck_fa is None, p
+
+
+# the words the owner reads in the session, as code writes them: «تو», never «شما» or a plural
+PLURAL = re.compile(
+    r"شما(?!ره)|خودتان|(?:کنید|بکنید|نکنید|بزنید|بدهید|ندهید|ببینید|بچسبانید|بگذارید|بنویسید|بگویید|"
+    r"بپرسید|بفرستید|ببرید|بروید|بخوانید|بیندازید|بیاورید|بسازید|بگیرید|بمانید|باشید|بخواهید|"
+    r"کرده‌اید|میخواهید|میتوانید|دارید|هستید|گفتید|دادید|زدید|کردید|بدانید|شوید)"
+    r"(?=[\s.،؛»:\"'!؟)]|$)"
+)
+
+
+def plural_in(module: Any) -> list[str]:
+    """Every string the module's code writes (its docstrings aside: they quote the owner)."""
+    tree = ast.parse(Path(str(module.__file__)).read_text(encoding="utf-8"))
+    docs: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            first = node.body[0] if node.body else None
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                docs.add(id(first.value))
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docs:
+            found += [f"{node.lineno}: {m.group(0)}" for m in PLURAL.finditer(node.value)]
+    return found
+
+
+def test_what_the_owner_reads_of_his_sessions_says_tu() -> None:
+    for module in (SA, OR, OT, SE, NS, SM, W):
+        assert plural_in(module) == [], module.__name__
+    assert PLURAL.findall("فرمان تازه بدهید.") and PLURAL.findall("سؤال از شما")
+    assert not PLURAL.findall("شماره‌ی کار") and not PLURAL.findall("فرمان تازه بده.")
