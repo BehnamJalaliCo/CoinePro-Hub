@@ -1013,6 +1013,14 @@ async def test_owner_session_on_a_company_server(
         )
         == 1
     )
+    # The activity pages: the job and its command, one per page (the cursor binds typed values).
+    act = f"/api/v1/infra/servers/{rn['server']['id']}/activity"
+    p1 = await client.get(act, params={"limit": 1}, headers=h)
+    assert p1.status_code == 200 and p1.json()["next_cursor"], p1.text
+    p2 = await client.get(act, params={"limit": 1, "cursor": p1.json()["next_cursor"]}, headers=h)
+    assert p2.status_code == 200, p2.text
+    ids = [x["id"] for x in p1.json()["items"] + p2.json()["items"]]
+    assert len(set(ids)) == 2 and job["id"] in ids
     # The owner's message resumes it: the next claude job with --resume.
     r = await client.post(f"/api/v1/workshop/sessions/{s['ref']}/messages", json={"body": "حالا lint"},
                           headers={**h, **idem()})  # fmt: skip
