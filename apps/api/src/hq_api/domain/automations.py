@@ -483,16 +483,29 @@ def validate_rule(
 
 
 # ------------------------------------------------------------------ preview --
+def at_fa(hours: tuple[int, ...], minutes: tuple[int, ...]) -> str:
+    """Every time of day the rule runs (each hour with each minute), never only
+    the first: what the owner seals is what runs."""
+    if len(hours) * len(minutes) <= 6:
+        return "ساعت " + " و ".join(f"{h:02d}:{m:02d}" for h in hours for m in minutes)
+    return (
+        f"ساعت‌های {' و '.join(map(str, hours))}، "
+        f"دقیقه‌ی {' و '.join(map(str, minutes))}"
+    )
+
+
 def when_fa(rrule: str) -> str:
     r = recurrence.parse(rrule)
-    hh = f"{r.by_hour[0]:02d}:{r.by_minute[0]:02d}" if r.by_hour else None
+    hh = at_fa(r.by_hour, r.by_minute) if r.by_hour else None
     if r.freq == "HOURLY":
-        return f"هر ساعت، دقیقه‌ی {r.by_minute[0]}" if r.interval == 1 else f"هر {r.interval} ساعت"
+        mins = " و ".join(map(str, r.by_minute))
+        every = "هر ساعت" if r.interval == 1 else f"هر {r.interval} ساعت"
+        return f"{every}، دقیقه‌ی {mins}"
     if r.freq == "DAILY":
-        return f"هر روز ساعت {hh}"
+        return f"هر روز {hh}"
     if r.freq == "WEEKLY":
-        return f"هر {' و '.join(DAYS_FA[recurrence.DAYS[d]] for d in r.by_day)} ساعت {hh}"
-    return f"هر ماه، روز {' و '.join(map(str, r.by_month_day))} ساعت {hh}"
+        return f"هر {' و '.join(DAYS_FA[recurrence.DAYS[d]] for d in r.by_day)} {hh}"
+    return f"هر ماه، روز {' و '.join(map(str, r.by_month_day))} {hh}"
 
 
 def num_fa(v: float) -> str:

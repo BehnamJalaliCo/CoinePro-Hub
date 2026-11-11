@@ -240,6 +240,16 @@ def test_the_preview_is_written_by_code_from_the_checked_rule() -> None:
     )
 
 
+def test_the_preview_names_every_time_the_schedule_runs() -> None:
+    assert AU.when_fa("FREQ=DAILY;BYHOUR=9,18;BYMINUTE=0") == "هر روز ساعت 09:00 و 18:00"
+    assert "08:00 و 08:30" in AU.when_fa("FREQ=WEEKLY;BYDAY=SA;BYHOUR=8;BYMINUTE=0,30")
+    assert AU.when_fa("FREQ=HOURLY;BYMINUTE=0,30") == "هر ساعت، دقیقه‌ی 0 و 30"
+    assert AU.when_fa("FREQ=HOURLY;INTERVAL=6;BYMINUTE=15") == "هر 6 ساعت، دقیقه‌ی 15"
+    many = AU.when_fa("FREQ=DAILY;BYHOUR=8,9,10,11;BYMINUTE=0,30")
+    assert "8 و 9 و 10 و 11" in many and "0 و 30" in many
+    assert AU.when_fa("FREQ=DAILY;BYHOUR=9;BYMINUTE=0") == "هر روز ساعت 09:00"
+
+
 async def test_a_good_sentence_is_one_router_call_and_a_checked_rule(
     client: httpx.AsyncClient, owner: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
