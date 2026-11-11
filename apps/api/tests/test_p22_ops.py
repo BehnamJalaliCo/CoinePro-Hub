@@ -548,6 +548,30 @@ async def test_an_event_committed_after_a_later_one_is_still_run(
     assert await run_work_count(su, co["id"]) == before + 2
 
 
+async def test_skipped_checks_never_trip_the_loop_guard(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, made: list[str],
+    new_company: Callable[..., Any],
+) -> None:  # fmt: skip
+    h = owner_session["headers"]
+    co = await new_company()
+    cond = {"connection": "ga4", "key": "sessions", "op": ">", "value": 10, "window_days": 1,
+            "agg": "last"}  # fmt: skip
+    rule = {"trigger": {"kind": "event", "type": "support.message"}, "conditions": [cond],
+            "actions": [{"kind": "notify.owner", "args": {"title_fa": "پیام تازه"}}]}  # fmt: skip
+    a = await propose(client, h, made, rule, co["code"])
+    await seal(client, hub, owner_session, a["ref"])
+    n = AU.MAX_PER_HOUR + 2
+    assert n <= AU.EVENT_BATCH
+    async with holding_switch(su, "released"):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            for i in range(n):
+                await events.emit(tx, co["code"], "support.message", f"C-{i}", {})
+        out = await AU.tick(hub)  # no ga4 figure: every check is skipped, none acted
+    assert out["skipped"] == n and out["failed"] == 0
+    detail = (await client.get(f"/api/v1/automations/{a['ref']}", headers=h)).json()
+    assert detail["state"] == "on" and detail["failures_in_row"] == 0
+
+
 async def test_a_failing_automation_turns_itself_off_and_tells_the_owner(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, made: list[str],
     new_company: Callable[..., Any], egress: Any,

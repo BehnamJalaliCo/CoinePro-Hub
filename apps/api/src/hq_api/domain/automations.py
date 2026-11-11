@@ -59,7 +59,7 @@ MODEL = "claude-sonnet-5-5"  # a mid model: one sentence, one rule
 MAX_OUTPUT_TOKENS = 900
 SERVICE = Principal(kind="service", code="automations", role="service")
 FAILURES_OFF = 3  # failures in a row that turn an automation off
-MAX_PER_HOUR = 20  # more runs than this in an hour turn it off (a loop of its own events)
+MAX_PER_HOUR = 20  # more runs that acted in an hour turn it off (a loop of its own events)
 MAX_ACTIONS = 5
 MAX_CONDITIONS = 3
 LOOKBACK = timedelta(hours=2)  # a schedule's occurrence is still run this late
@@ -1132,9 +1132,12 @@ async def fire(
         rule = auto["rule"] if isinstance(auto["rule"], dict) else json.loads(auto["rule"])
         steps: list[dict[str, Any]] = []
         outcome, error = "ok", None
+        # Only runs that acted (or failed) count toward the loop guard: a check
+        # whose conditions did not hold did nothing and is never a failure.
         hourly = int(
             await tx.scalar(
-                "SELECT count(*) FROM growth.automation_runs WHERE automation_id = :a AND at > :s",
+                """SELECT count(*) FROM growth.automation_runs
+                   WHERE automation_id = :a AND at > :s AND outcome <> 'skipped'""",
                 a=auto_id,
                 s=now - timedelta(hours=1),
             )
