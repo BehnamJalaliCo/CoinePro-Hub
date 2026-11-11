@@ -366,7 +366,10 @@ async def dismiss(
     if receiver is not None:
         transferred = await tx.exec(
             """INSERT INTO core.employee_memory (company_id, employee_id, note, tags, source_employee_id)
-               SELECT company_id, :to, note, tags || ARRAY['transfer'], employee_id
+               SELECT company_id, :to, note,
+                      CASE WHEN 'transfer' = ANY(tags) THEN tags
+                           ELSE tags[1:9] || ARRAY['transfer'] END,
+                      employee_id
                FROM core.employee_memory WHERE employee_id = :id ORDER BY id""",
             id=employee["id"],
             to=receiver["id"],
