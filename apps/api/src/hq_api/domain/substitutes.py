@@ -2110,7 +2110,7 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
     for c, account in picked:
         files = await _web_files(hub, c)
         if files is None:
-            answer: dict[str, Any] = {
+            answer = {
                 "ok": False,
                 "error": "file_missing",
                 "detail": "a file of the call is gone or not a file of its company",
