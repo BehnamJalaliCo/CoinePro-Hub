@@ -238,10 +238,33 @@ async def test_pairing_codes_step_up_and_token_once(
         "/api/v1/runners/token", json={"device_code": late["device_code"]}, headers=xff
     )
     assert r.status_code == 410
-    # Rotation: a new credential; the old one keeps working for the grace.
+    # Rotation: a new credential; the old one keeps working until the new one is used.
     rh = {"Authorization": f"Bearer {token}", **RUNNER_HEADERS}
     r = await client.post("/api/v1/runners/rotate", headers=rh)
     assert r.status_code == 200 and r.json()["runner_token"] != token
+    lost = r.json()["runner_token"]  # the answer is lost: the runner still has `token`
+    old_sha = hashlib.sha256(token.encode()).hexdigest()
+    prev_left = "SELECT prev_valid_until - now() FROM infra.runners WHERE prev_sha256 = $1"
+    assert await su.fetchval(prev_left, old_sha) > timedelta(days=1)  # an outage locks nobody out
+    assert (
+        await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=rh)
+    ).status_code == 204
+    # asked again with the previous credential: a fresh one replaces the one never received
+    r = await client.post("/api/v1/runners/rotate", headers=rh)
+    assert r.status_code == 200, r.text
+    fresh = r.json()["runner_token"]
+    assert fresh not in (token, lost)
+    lh = {"Authorization": f"Bearer {lost}", **RUNNER_HEADERS}
+    assert (
+        await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=lh)
+    ).status_code == 401
+    # the first use of the new one: the previous one only for the grace from then
+    fh = {"Authorization": f"Bearer {fresh}", **RUNNER_HEADERS}
+    assert (
+        await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=fh)
+    ).status_code == 204
+    left = await su.fetchval(prev_left, old_sha)
+    assert timedelta(0) < left <= timedelta(seconds=SV.ROTATE_GRACE_S)
     assert (
         await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=rh)
     ).status_code == 204

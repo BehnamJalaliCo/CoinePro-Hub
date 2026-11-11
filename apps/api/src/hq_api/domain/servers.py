@@ -79,6 +79,9 @@ PAIR_INTERVAL_S = 5
 CLAIM_SLACK_S = 60  # an approved code is still taken this long after it expired (a last poll)
 ONLINE_S = 90  # a runner long-polls at most 30 s at a time: three missed polls = offline
 ROTATE_GRACE_S = 600  # the previous credential still works this long after a rotation
+# ... counted from the first use of the new one: until then (a lost rotate answer, the hub down
+# meanwhile) the previous one keeps working, at most this long
+ROTATE_PREV_MAX_S = 7 * 86400
 DISPATCH_GRACE_S = 120  # beyond the job's own timeout, before the hub fails it
 # ⟨1.10.1⟩ the runner (0.2.0) sends an event's text up to 64 000 characters and
 # streams 10 MB of a job's output; the hub keeps all of it, and what came past
@@ -777,19 +780,33 @@ async def runner_by_token(tx: Tx, token: str) -> dict[str, Any] | None:
     if row["server_state"] == "revoked":
         return None
     row["current"] = hmac.compare_digest(row["token_sha256"], h)
+    if row["current"] and row["prev_valid_until"] is not None:
+        # the runner has the new credential: the previous one only for the grace from now
+        await tx.exec(
+            """UPDATE infra.runners SET prev_valid_until = now() + make_interval(secs => :g)
+               WHERE id = :id AND prev_valid_until > now() + make_interval(secs => :g)""",
+            id=row["id"],
+            g=ROTATE_GRACE_S,
+        )
     return row
 
 
 async def rotate(tx: Tx, runner: dict[str, Any]) -> dict[str, Any]:
+    """A fresh credential. The previous one keeps working until the new one is first used (then
+    for ROTATE_GRACE_S), so a lost answer never locks the runner out; a rotation asked with the
+    previous credential (its answer was lost) replaces the new one it never got and keeps the
+    previous one as it is."""
     token = new_runner_token()
     await tx.exec(
-        """UPDATE infra.runners SET prev_sha256 = token_sha256,
+        """UPDATE infra.runners SET
+               prev_sha256 = CASE WHEN CAST(:cur AS boolean) THEN token_sha256 ELSE prev_sha256 END,
                prev_valid_until = now() + make_interval(secs => :g),
                token_sha256 = :t, rotated_at = now()
            WHERE id = :id""",
         id=runner["id"],
         t=token_digest(token),
-        g=ROTATE_GRACE_S,
+        g=ROTATE_PREV_MAX_S,
+        cur=bool(runner.get("current", True)),
     )
     await audit.record(
         tx,
