@@ -693,6 +693,11 @@ async def test_the_revenue_board_on_fixed_data(
         and "4" in early.forecast_basis_fa
     )
     assert early.ltv_usdt is None  # fewer than 3 complete months
+    # every period starts after this month (prepaid): an empty month, never an error
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ahead = await RB.build(tx, co["id"], co["code"], now=datetime(2025, 12, 10, tzinfo=UTC))
+    assert [m.month for m in ahead.months] == ["2025-12"]
+    assert ahead.months[0].mrr_usdt == 0 and ahead.months[0].active == 0
 
 
 async def test_cac_and_payback(hub: Hub, new_company: Callable[..., Any], su: Any) -> None:
