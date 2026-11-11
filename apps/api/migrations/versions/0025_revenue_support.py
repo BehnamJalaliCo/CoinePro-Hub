@@ -1044,21 +1044,31 @@ def upgrade() -> None:
     execute_script(_kinds_sql(NEW_KINDS, (), valid=False))
 
 
+# The academy part of the downgrade. It revokes only what the upgrade granted:
+# a table-level REVOKE UPDATE would also take every column grant, among them
+# 0022's UPDATE (baseline, updated_at) for hq_worker (a suite's first good run
+# sets its baseline on the worker), so the worker keeps updated_at here.
+ACADEMY_DOWNGRADE = """
+-- NOT VALID: shadow runs and support-shadow suites made since stay.
+ALTER TABLE academy.eval_runs DROP CONSTRAINT eval_runs_purpose_check;
+ALTER TABLE academy.eval_runs ADD CONSTRAINT eval_runs_purpose_check
+    CHECK (purpose IN ('manual', 'skill', 'teaching')) NOT VALID;
+REVOKE INSERT ON academy.eval_runs FROM hq_worker;
+REVOKE INSERT ON academy.eval_suites FROM hq_worker;
+REVOKE UPDATE (cases, version) ON academy.eval_suites FROM hq_worker;
+REVOKE UPDATE (cases, version) ON academy.eval_suites FROM hq_api;
+ALTER TABLE academy.eval_suites DROP COLUMN version;
+ALTER TABLE academy.eval_suites DROP CONSTRAINT eval_suites_ref_check;
+ALTER TABLE academy.eval_suites ADD CONSTRAINT eval_suites_ref_check
+    CHECK (ref ~ '^EV-[0-9]{3,6}$') NOT VALID;
+"""
+
+
 def downgrade() -> None:
     execute_script(
         _kinds_sql((), NEW_KINDS, valid=False)
+        + ACADEMY_DOWNGRADE
         + """
-        -- NOT VALID: shadow runs and support-shadow suites made since stay.
-        ALTER TABLE academy.eval_runs DROP CONSTRAINT eval_runs_purpose_check;
-        ALTER TABLE academy.eval_runs ADD CONSTRAINT eval_runs_purpose_check
-            CHECK (purpose IN ('manual', 'skill', 'teaching')) NOT VALID;
-        REVOKE INSERT ON academy.eval_runs FROM hq_worker;
-        REVOKE INSERT, UPDATE ON academy.eval_suites FROM hq_worker;
-        REVOKE UPDATE (cases, version) ON academy.eval_suites FROM hq_api;
-        ALTER TABLE academy.eval_suites DROP COLUMN version;
-        ALTER TABLE academy.eval_suites DROP CONSTRAINT eval_suites_ref_check;
-        ALTER TABLE academy.eval_suites ADD CONSTRAINT eval_suites_ref_check
-            CHECK (ref ~ '^EV-[0-9]{3,6}$') NOT VALID;
         DROP SCHEMA intake CASCADE;
         DROP SCHEMA feedback CASCADE;
         DROP SCHEMA growth CASCADE;
