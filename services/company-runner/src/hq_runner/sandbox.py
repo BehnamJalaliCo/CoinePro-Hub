@@ -63,6 +63,7 @@ ACCESS_REFER = 1 << 13  # ABI 2
 ACCESS_TRUNCATE = 1 << 14  # ABI 3
 ACCESS_IOCTL_DEV = 1 << 15  # ABI 5
 FILE_ACCESS = (1 << 0) | (1 << 1) | (1 << 2) | ACCESS_TRUNCATE | ACCESS_IOCTL_DEV
+READ_ONLY = (1 << 0) | (1 << 2) | (1 << 3)  # execute, read a file, list a folder
 SCOPE_SIGNAL = 1 << 1  # ABI 6: no signal to a process outside the wall
 
 EXIT_NO_WALL = 126  # the wrapper could not put the wall up (the command was not run)
@@ -103,10 +104,11 @@ def access_of(version: int) -> int:
     return rights
 
 
-def restrict(paths: Iterable[str]) -> int:
+def restrict(paths: Iterable[str], read_only: Iterable[str] = ()) -> int:
     """Puts the wall around this process (and every process it starts): only `paths` (each a
-    file, or a folder with everything beneath it) can be opened, made in or removed from.
-    Returns how many rules were added. It cannot be taken down again."""
+    file, or a folder with everything beneath it) can be opened, made in or removed from, and
+    `read_only` can only be read and run. Returns how many rules were added. It cannot be
+    taken down again."""
     version = abi()
     if version < MIN_ABI:
         raise SandboxError(f"this kernel has no Landlock (ABI {version}, {MIN_ABI} needed)")
@@ -125,14 +127,16 @@ def restrict(paths: Iterable[str]) -> int:
         raise SandboxError(f"landlock_create_ruleset: {exc.strerror}") from exc
     added = 0
     try:
-        for path in dict.fromkeys(paths):
+        rules = [(p, rights) for p in dict.fromkeys(paths)]
+        rules += [(p, rights & READ_ONLY) for p in dict.fromkeys(read_only)]
+        for path, granted in rules:
             try:
                 fd = os.open(path, os.O_PATH | os.O_CLOEXEC)
             except OSError:
                 continue  # gone, or not this user's to open anyway
             try:
                 is_dir = stat.S_ISDIR(os.fstat(fd).st_mode)
-                allowed = rights if is_dir else rights & FILE_ACCESS
+                allowed = granted if is_dir else granted & FILE_ACCESS
                 rule = struct.pack("<Qi", allowed, fd)
                 with contextlib.suppress(OSError):
                     _syscall(
@@ -168,11 +172,14 @@ def _beneath(path: str, root: str) -> bool:
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
-def open_paths(protect: Iterable[str | Path], allow: Iterable[str | Path]) -> list[str]:
+def open_paths(
+    protect: Iterable[str | Path], allow: Iterable[str | Path], readonly: Iterable[str | Path] = ()
+) -> list[str]:
     """Every path that gets a rule: all that exists beside the closed paths, and `allow` (the
     turn's own folders, which may lie inside a closed one). A symbolic link gets no rule: what
-    it points to is open under its own name, or closed."""
-    closed = sorted({_real(p) for p in protect})
+    it points to is open under its own name, or closed. A `readonly` path is walked around as
+    a closed one: it gets its own rule (read and run only, in restrict())."""
+    closed = sorted({_real(p) for p in [*protect, *readonly]})
     out: list[str] = []
 
     def holds_closed(path: str) -> bool:
@@ -205,11 +212,18 @@ def open_paths(protect: Iterable[str | Path], allow: Iterable[str | Path]) -> li
 COPY_MAX = 1024 * 1024  # a dotfile this small is copied (a tool may rewrite it); else linked
 
 
-def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) -> None:
+def make_home(
+    real_home: str | Path,
+    home: Path,
+    protect: Iterable[str | Path],
+    readonly: Iterable[str | Path] = (),
+) -> None:
     """The turn's own home: a link to every entry of the real home that is not closed (a small
-    file is copied; a folder that holds a closed path becomes a folder of the same kind, one
-    level deeper). What the work itself put there stays; a link whose target is gone goes."""
+    file is copied; a folder that holds a closed or a read-only path becomes a folder of the
+    same kind, one level deeper, so what is new lands in the work's home). What the work itself
+    put there stays; a link whose target is gone goes."""
     closed = {_real(p) for p in protect}
+    ro = {_real(p) for p in readonly}
 
     def mirror(src: str, dst: Path) -> None:
         dst.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -222,7 +236,10 @@ def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) 
             if any(_beneath(real, c) for c in closed):
                 continue
             target = dst / e.name
-            if e.is_dir(follow_symlinks=False) and any(_beneath(c, real) for c in closed):
+            holds = any(_beneath(c, real) for c in closed) or any(
+                c != real and _beneath(c, real) for c in ro
+            )
+            if e.is_dir(follow_symlinks=False) and holds:
                 if target.is_symlink() or (target.exists() and not target.is_dir()):
                     target.unlink()  # the session's own file or link where a folder goes
                 mirror(e.path, target)
@@ -309,6 +326,7 @@ class Plan:
     private: Path
     protect: list[str]
     allow: list[str] = field(default_factory=list)
+    readonly: list[str] = field(default_factory=list)  # code that also runs outside the wall
 
     @property
     def home(self) -> Path:
@@ -327,6 +345,33 @@ class Plan:
         return self.job / "hook.sock"
 
 
+def code_paths(
+    claude: str | None, home: Path, keep: Iterable[str], extra: Iterable[str] = ()
+) -> list[str]:
+    """The code a walled turn may read and run but never change, because it also runs outside
+    the wall: this runner's installation and its Python (the wrapper imports it before the wall
+    goes up; the runner after a restart), the CLI's folder and the folder its command is linked
+    from (the runner runs `claude --help` itself, and an unwalled turn runs it). Only folders
+    this user can write are listed (what root owns is safe as it is), never the home or a folder
+    above it, and never one that holds a path of `keep` (closed, or the turn's own)."""
+    found = [package_root(), sys.prefix, sys.exec_prefix, sys.base_prefix, *extra]
+    if sys.argv and os.path.isabs(sys.argv[0]):
+        found.append(os.path.dirname(sys.argv[0]))  # e.g. ~/.local/bin, where hq-runner is
+    if claude:
+        found += [os.path.dirname(os.path.abspath(claude)), os.path.dirname(_real(claude))]
+    real_home = _real(home)
+    kept = [_real(k) for k in keep]
+    out: list[str] = []
+    for f in found:
+        r = _real(f)
+        if r == "/" or _beneath(real_home, r) or not os.path.isdir(r):
+            continue
+        if any(_beneath(k, r) for k in kept) or not os.access(r, os.W_OK):
+            continue
+        out.append(r)
+    return list(dict.fromkeys(out))
+
+
 def plan(
     ref: str,
     work: Path,
@@ -334,18 +379,17 @@ def plan(
     cfg_path: Path,
     claude: str | None,
     real_home: Path | None = None,
+    code: list[str] | None = None,
 ) -> Plan:
+    """`code`: the read-only paths (code_paths() when None)."""
     home = real_home or Path.home()
     private = workspaces / PRIVATE / ref
     protect = [str(workspaces), str(cfg_path.parent), str(home / ".claude")]
     protect += [str(p) for p in home.glob(".claude.json*")]
     allow = [str(work), str(private)]
-    if claude:
-        # a CLI installed inside ~/.claude (its old place) stays runnable, and only it
-        binary = _real(claude)
-        if _beneath(binary, _real(home / ".claude")):
-            allow.append(os.path.dirname(binary))
-    return Plan(ref, work, private, protect, allow)
+    # a CLI installed inside ~/.claude (its old place) stays runnable, read-only like the rest
+    readonly = code if code is not None else code_paths(claude, home, [*protect, *allow])
+    return Plan(ref, work, private, protect, allow, readonly)
 
 
 def _own_dir(d: Path, *, empty: bool) -> None:
@@ -373,7 +417,7 @@ def prepare(p: Plan, real_home: Path | None = None) -> None:
     _own_dir(p.home, empty=False)
     for d in (p.tmp, p.job):
         _own_dir(d, empty=True)
-    make_home(real_home or Path.home(), p.home, p.protect)
+    make_home(real_home or Path.home(), p.home, p.protect, p.readonly)
 
 
 # the wrapper is this same installation of the runner, found without PYTHONPATH (which the
@@ -391,6 +435,8 @@ def wrap(p: Plan, argv: list[str]) -> list[str]:
         out += ["--protect", c]
     for a in p.allow:
         out += ["--allow", a]
+    for r in p.readonly:
+        out += ["--readonly", r]
     return [*out, "--", *argv]
 
 
@@ -627,13 +673,15 @@ def ask_hook_socket(
 
 
 # ------------------------------------------------------------------ the wrapper --
-def exec_main(protect: list[str], allow: list[str], argv: list[str]) -> int:
+def exec_main(
+    protect: list[str], allow: list[str], argv: list[str], readonly: list[str] | None = None
+) -> int:
     """`hq-runner sandbox-exec`: the wall, then the command in this same process."""
     if not argv:
         print("hq-sandbox: no command", file=sys.stderr)
         return EXIT_NO_WALL
     try:
-        restrict(open_paths(protect, allow))
+        restrict(open_paths(protect, allow, readonly or ()), readonly or ())
     except SandboxError as exc:
         print(f"hq-sandbox: {exc}", file=sys.stderr)
         return EXIT_NO_WALL

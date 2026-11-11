@@ -278,6 +278,7 @@ def build_parser() -> argparse.ArgumentParser:
     sx = sub.add_parser("sandbox-exec", help=argparse.SUPPRESS)
     sx.add_argument("--protect", action="append", default=[])
     sx.add_argument("--allow", action="append", default=[])
+    sx.add_argument("--readonly", action="append", default=[])
     sx.add_argument("command", nargs=argparse.REMAINDER)
     sub.add_parser(
         "sandbox-check",
@@ -341,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
         from hq_runner import sandbox
 
         command = args.command[1:] if args.command[:1] == ["--"] else args.command
-        return sandbox.exec_main(args.protect, args.allow, command)
+        return sandbox.exec_main(args.protect, args.allow, command, args.readonly)
     if args.cmd == "sandbox-check":
         from hq_runner import sandbox
 

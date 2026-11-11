@@ -346,3 +346,66 @@ def test_what_a_turn_left_in_its_private_area_never_takes_the_wall_down(
         assert d.is_dir() and not d.is_symlink(), d
     assert os.listdir(p.tmp) == [] and os.listdir(p.job) == []
     assert (elsewhere / "keep.txt").read_text() == "not the turn's"  # a link is never followed
+
+
+def test_the_code_that_also_runs_outside_the_wall_is_read_only_behind_it(
+    place: dict[str, Path], cfg: Config
+) -> None:
+    """contract §43.9: the runner's own installation, its Python and the CLI's folder (under
+    ~/.local on the workshop) also run outside the wall (the wrapper imports the runner before
+    the wall goes up; the runner itself runs `claude --help`). A walled turn can read and run
+    them, never change them; the rest of ~/.local stays as it was."""
+    local = place["home"] / ".local"
+    venv = local / "share" / "hq-runner" / "venv"
+    (venv / "site").mkdir(parents=True)
+    (venv / "site" / "net.py").write_text("X = 1\n")
+    (local / "bin").mkdir(parents=True)
+    tool = local / "bin" / "claude"
+    tool.write_text("#!/bin/sh\necho cli\n")
+    tool.chmod(0o755)
+    (local / "share" / "other").mkdir()
+    # what is found on its own: this runner's installation and the CLI's folder, never the home
+    found = sandbox.code_paths(str(tool), place["home"], [str(place["ws"])])
+    assert str(local / "bin") in found
+    root = sandbox.package_root()
+    assert (root in found) == os.access(root, os.W_OK)  # what root owns needs no rule
+    assert str(place["home"]) not in found and "/" not in found
+    p = sandbox.plan(
+        "W-000111", place["ws"] / "W-000111", place["ws"], place["cfg"], str(tool),
+        code=[str(venv), str(local / "bin")],
+    )  # fmt: skip
+    sandbox.prepare(p)
+    # the turn's home holds its own ~/.local: what is new lands there, the code is a link
+    assert not (p.home / ".local").is_symlink() and (p.home / ".local" / "bin").is_symlink()
+    if sandbox.abi() < sandbox.MIN_ABI:
+        return
+    save(cfg, place["cfg"])
+    code = r"""
+import json, os, subprocess, sys
+venv, bin_, share = sys.argv[1:4]
+def t(fn):
+    try:
+        fn()
+        return "ok"
+    except OSError as exc:
+        return type(exc).__name__
+print(json.dumps({
+    "read": t(lambda: open(venv + "/site/net.py").read()),
+    "run": t(lambda: subprocess.run([bin_ + "/claude"], check=True, capture_output=True)),
+    "append": t(lambda: open(venv + "/site/net.py", "a").write("import os")),
+    "new": t(lambda: open(venv + "/site/evil.pth", "w").write("import os")),
+    "remove": t(lambda: os.remove(venv + "/site/net.py")),
+    "relink": t(lambda: os.symlink("/bin/sh", bin_ + "/claude2")),
+    "rest": t(lambda: open(share + "/other/x", "w").write("x")),
+}))
+"""
+    argv = sandbox.wrap(p, [sys.executable, "-c", code, str(venv), str(local / "bin"),
+                            str(local / "share")])  # fmt: skip
+    out = subprocess.run(argv, env=sandbox.env_of(p, dict(os.environ)), cwd=p.work,
+                         capture_output=True, text=True, timeout=60, check=False)  # fmt: skip
+    assert out.returncode == 0, out.stderr
+    seen = json.loads(out.stdout)
+    assert seen["read"] == "ok" and seen["run"] == "ok" and seen["rest"] == "ok", seen
+    for denied in ("append", "new", "remove", "relink"):
+        assert seen[denied] == "PermissionError", (denied, seen)
+    assert (venv / "site" / "net.py").read_text() == "X = 1\n"
