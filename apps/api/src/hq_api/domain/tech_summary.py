@@ -127,7 +127,7 @@ async def build(tx: Tx, start: datetime, end: datetime) -> tuple[str, str]:
     body = "\n\n".join(
         [
             "خلاصه‌ی فنی هفته (قاعده‌محور، بدون مدل). رسیدگی با مدیر فنی هر شرکت و "
-            "SRE پلتفرم هلدینگ است؛ این فقط برای آگاهی شماست.",
+            "SRE پلتفرم هلدینگ است؛ این فقط برای آگاهی توست.",
             *sections,
             "### کل هلدینگ\n" + "\n".join(spend.lines(total)),
         ]

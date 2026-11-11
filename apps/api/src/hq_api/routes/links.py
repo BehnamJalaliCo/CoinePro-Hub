@@ -66,7 +66,7 @@ async def change_link(
             422,
             "validation_failed",
             fields={"body": "kind, purpose_fa or state"},
-            message_fa="چیزی برای تغییر نفرستادید.",
+            message_fa="چیزی برای تغییر نفرستادی.",
         )
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:

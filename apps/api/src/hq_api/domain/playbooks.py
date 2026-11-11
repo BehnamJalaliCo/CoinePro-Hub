@@ -768,7 +768,7 @@ async def store_draft(
     if m.conversation:
         conv = await store.conversation(tx, m.conversation, lock=True)
         key = OT.holder_key(conv)
-        say = f"کارگروه از این جلسه آماده است: {ref}. باز کنید، ویرایش کنید و مُهر بزنید."
+        say = f"کارگروه از این جلسه آماده است: {ref}. باز کن، ویرایش کن و مُهر بزن."
         show = say + ("\n\n" + "\n".join(f"- {n}" for n in notes) if notes else "")
         tid = await OT.post_turn(tx, conv, key, say, show)
         card = await store.add_card(
@@ -1072,7 +1072,7 @@ async def apply_as_is(tx: Tx, hub: Any, ref: str, company: Any) -> dict[str, Any
     row = await row_of(tx, ref, lock=True)
     if row["state"] != "sealed" or row.get("group_id") is None:
         raise ApiError(409, "validation_failed", f"the playbook is {row['state']}",
-                       message_fa="عضویت مستقیم فقط برای کارگروه مُهرشده است؛ این یکی را اول مُهر بزنید.")  # fmt: skip
+                       message_fa="عضویت مستقیم فقط برای کارگروه مُهرشده است؛ این یکی را اول مُهر بزن.")  # fmt: skip
     grow = dict(await tx.one("SELECT * FROM growth.groups WHERE id = :g", g=row["group_id"]))
     if grow["state"] != "on":
         await tx.exec("UPDATE growth.groups SET state = 'on', updated_at = now() WHERE id = :id",

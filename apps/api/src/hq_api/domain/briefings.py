@@ -608,7 +608,7 @@ async def on_delivered(
             company_code=w["company"],
             level="report",
             title_fa=f"نامه‌ی هفتگی {name}" + (f" ({UNSOURCED})" if mark else ""),
-            body_fa=f"مدیرعامل {name} نامه‌ی این هفته‌اش را برای شما نوشت.",
+            body_fa=f"مدیرعامل {name} نامه‌ی این هفته‌اش را برای تو نوشت.",
             link_kind="deliverable",
             link_ref=dl["ref"],
             domain="business",

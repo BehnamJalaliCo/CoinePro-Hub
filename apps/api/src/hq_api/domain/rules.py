@@ -289,17 +289,17 @@ def report_text(o: dict[str, Any], c: RuleCounts) -> tuple[str, str]:
     """(title, body) of the first enforcement report, plain Persian (§29.7)."""
     rule = humanize.humanize(" ".join(str(o["text_md"]).split()))[:300]
     if c.violations == 0:
-        what = f"قانون شما در 24 ساعت اول در {c.runs} اجرای کارمندها رعایت شد و هیچ تخلفی دیده نشد."
+        what = f"قانون تو در 24 ساعت اول در {c.runs} اجرای کارمندها رعایت شد و هیچ تخلفی دیده نشد."
     else:
         what = (
-            f"قانون شما در 24 ساعت اول در {c.runs} اجرای کارمندها به کار رفت؛ "
+            f"قانون تو در 24 ساعت اول در {c.runs} اجرای کارمندها به کار رفت؛ "
             f"{c.violations} تخلف دیده شد و {c.fixed} مورد رفع شد."
         )
     need = None
     if c.violations > c.fixed:
-        need = "اگر قانون روشن نیست، متنش را دقیق‌تر کنید؛ ناظر بقیه را پیگیری میکند."
+        need = "اگر قانون روشن نیست، متنش را دقیق‌تر کن؛ ناظر بقیه را پیگیری میکند."
     body = humanize.plain(what, f"قانون: {rule}", need)
-    return "نخستین گزارش اجرای قانون شما", body
+    return "نخستین گزارش اجرای قانون تو", body
 
 
 async def report_due(tx: Tx, now: datetime | None = None) -> int:

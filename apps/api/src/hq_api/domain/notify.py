@@ -62,7 +62,7 @@ COLUMNS = """n.id, n.company_id, c.code AS company, n.level, n.title_fa, n.body_
 # A notification only its handler sees: stored, shown on «فنی», never pushed.
 HANDLER_ONLY = {"state": "delivered", "queue_reason": None, "in_app": True, "push": False,
                 "sound": False}  # fmt: skip
-UNTITLED_FA = "یک مورد تازه برای شما"
+UNTITLED_FA = "یک مورد تازه برای تو"
 
 
 @dataclass(frozen=True)

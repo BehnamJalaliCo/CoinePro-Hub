@@ -3,7 +3,7 @@ conversation, a log, the Audit body or a model prompt.
 
 Every turn's text passes `clean` before it is stored and before any model
 call. The providers' key shapes (seed/talk/secrets.yaml) become «[کلید حذف شد]»
-and are reported, so the persona answers «کلید را با دکمه‌ی 🔑 بدهید» instead of
+and are reported, so the persona answers «کلید را با دکمه‌ی 🔑 بده» instead of
 sending anything to a model; hq_common.redact then masks whatever other
 credential shape is left (personal data stays: the owner may speak of people).
 """

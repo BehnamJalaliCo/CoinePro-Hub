@@ -755,7 +755,7 @@ async def after_reply(
         company_code=str(holding_code),
         level="report",
         title_fa=f"یادداشت مشاور: {KIND_FA.get(t['kind'], t['kind'])}",
-        body_fa="یک یادداشت کوتاه در گفت‌وگوی شما با مشاور.",
+        body_fa="یک یادداشت کوتاه در گفت‌وگوی تو با مشاور.",
         link_kind="message",
         link_ref=message["ref"],
         source_kind="agent",

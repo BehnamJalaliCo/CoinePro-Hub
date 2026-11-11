@@ -108,9 +108,7 @@ async def _order(tx: Tx, ref: str) -> dict[str, Any]:
 def _session_keeps(raw: dict[str, Any]) -> list[str]:
     out: list[str] = []
     if int(raw.get("built") or 0):
-        out.append(
-            "گروه کاری یا خط تولیدی که این جلسه راه انداخت؛ آن را در صفحه‌ی خودش جدا پاک کنید"
-        )
+        out.append("گروه کاری یا خط تولیدی که این جلسه راه انداخت؛ آن را در صفحه‌ی خودش جدا پاک کن")
     if int(raw.get("filed") or 0):
         out.append(
             "سندهایی که از خروجی‌های این جلسه در بایگانی ثبت شده‌اند؛ از بایگانی جدا پاک میشوند"

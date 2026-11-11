@@ -353,7 +353,7 @@ def trigger_of(raw: Any, company: str | None) -> dict[str, Any]:
             raise Refused("این رویداد در فهرست رویدادهای مجاز نیست.")
         return {"kind": "event", "type": raw["type"]}
     if company is None:
-        raise Refused("برای سنجیدن یک عدد باید نام شرکت را هم بگویید.")
+        raise Refused("برای سنجیدن یک عدد باید نام شرکت را هم بگویی.")
     return {"kind": "metric", **metric_of(raw, named="عدد")}
 
 
@@ -426,7 +426,7 @@ def action_of(
         if got is not None:
             out[name] = got
     if needs_company and company is None and "company" not in out:
-        raise Refused("برای این کار باید نام شرکت را بگویید.")
+        raise Refused("برای این کار باید نام شرکت را بگویی.")
     return {"kind": kind, "args": out}
 
 
@@ -443,7 +443,7 @@ def validate_rule(
     changed, for the preview."""
     reasons: list[str] = []
     if not isinstance(raw, dict) or set(raw) - {"trigger", "conditions", "actions"}:
-        return None, ["قاعده درست ساخته نشد؛ جمله را ساده‌تر بنویسید."]
+        return None, ["قاعده درست ساخته نشد؛ جمله را ساده‌تر بنویس."]
     out: dict[str, Any] = {}
     try:
         out["trigger"] = trigger_of(raw.get("trigger"), company)
@@ -453,7 +453,7 @@ def validate_rule(
     if not isinstance(conds, list) or len(conds) > MAX_CONDITIONS:
         reasons.append(f"شرط‌ها باید حداکثر {MAX_CONDITIONS} تا باشند.")
     elif conds and company is None:
-        reasons.append("برای شرط عددی باید نام شرکت را هم بگویید.")
+        reasons.append("برای شرط عددی باید نام شرکت را هم بگویی.")
     else:
         out["conditions"] = []
         for c in conds:
@@ -512,9 +512,9 @@ def action_fa(a: dict[str, Any], company: str | None, titles: dict[str, str] | N
     if k == "line.run":
         return f"خط تولید «{g['line']}»{at} یک بار اجرا میشود"
     if k == "line.pause":
-        return f"خط تولید «{g['line']}»{at} متوقف میشود (بعداً با دست شما دوباره روشن میشود)"
+        return f"خط تولید «{g['line']}»{at} متوقف میشود (بعداً با دست تو دوباره روشن میشود)"
     if k == "notify.owner":
-        return f"برای شما این خبر فرستاده میشود: «{g['title_fa']}»"
+        return f"برای تو این خبر فرستاده میشود: «{g['title_fa']}»"
     if k == "notify.lead":
         return f"مسئول رشد{at} با این عنوان خبردار میشود: «{g['title_fa']}»"
     if k == "ad.pause":
@@ -536,7 +536,7 @@ def preview_fa(
     changed (a role nobody holds)."""
     t = rule["trigger"]
     if t["kind"] == "schedule":
-        when = when_fa(t["rrule"]) + " (به وقت شما)"
+        when = when_fa(t["rrule"]) + " (به وقت تو)"
     elif t["kind"] == "event":
         when = f"هر بار که این اتفاق بیفتد: {EVENT_TYPES[t['type']]}"
     else:
@@ -549,7 +549,7 @@ def preview_fa(
     lines += list(dict.fromkeys(notes or []))
     lines.append(
         "غیر از این‌ها هیچ کار دیگری نمیکند: بودجه‌ای را بالا نمیبرد، چیزی را حذف نمیکند و "
-        "تا مُهر شما نخورد اجرا نمیشود."
+        "تا مُهر تو نخورد اجرا نمیشود."
     )
     return "\n".join(lines)
 
@@ -728,7 +728,7 @@ async def compile_sentence(
             422,
             "validation_failed",
             "the model did not answer in the schema",
-            message_fa="نتوانستم این جمله را به قاعده‌ی روشن تبدیل کنم؛ دوباره و ساده‌تر بنویسید.",
+            message_fa="نتوانستم این جمله را به قاعده‌ی روشن تبدیل کنم؛ دوباره و ساده‌تر بنویس.",
             fields={"sentence_fa": "not compiled"},
         )
     item = routes[0]
@@ -745,7 +745,7 @@ async def compile_sentence(
             rule=None,
             preview_fa=None,
             refused_fa=refused
-            or ["این جمله به یک کار روشن و مجاز تبدیل نشد؛ زمان و کار را دقیق‌تر بنویسید."],
+            or ["این جمله به یک کار روشن و مجاز تبدیل نشد؛ زمان و کار را دقیق‌تر بنویس."],
         )
     preview = preview_fa(rule, company, role_titles(getattr(hub, "charters", None)), notes)
     return Compiled(rule=rule, preview_fa=preview, refused_fa=refused)
@@ -1223,7 +1223,7 @@ async def fire(
                 body_fa=humanize.plain(
                     "چند بار پشت سر هم انجام نشد و خودش خاموش شد.",
                     None,
-                    "اگر هنوز لازمش دارید، در اپ دوباره روشنش کنید.",
+                    "اگر هنوز لازمش داری، در اپ دوباره روشنش کن.",
                 ),
                 link_kind="automation",
                 link_ref=auto["ref"],

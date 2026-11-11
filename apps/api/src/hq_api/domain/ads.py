@@ -335,7 +335,7 @@ def google_secret(secret: str | None) -> dict[str, str]:
         if not str(v or "").strip():
             raise CN.ReadError(
                 "رمز اتصال تبلیغات گوگل کامل نیست؛ چهار مقدار لازم را طبق راهنما "
-                "به‌صورت یک متن JSON بگذارید."
+                "به‌صورت یک متن JSON بگذار."
             )
         out[snake] = str(v).strip()
     return out
@@ -439,7 +439,7 @@ async def read_google_ads(ctx: CN.ReadCtx) -> tuple[list[DayRow], list[CampaignI
 
 def meta_account(secret: str | None) -> dict[str, Any]:
     if not secret:
-        raise CN.ReadError("توکن Meta Ads گذاشته نشده است؛ طبق راهنما توکن را در اپ بگذارید.")
+        raise CN.ReadError("توکن Meta Ads گذاشته نشده است؛ طبق راهنما توکن را در اپ بگذار.")
     return {
         "key": "growth-meta-ads",
         "site": META_SITE,
@@ -689,7 +689,7 @@ async def _api_ctx(hub: Any, company_id: UUID, code: str, kind: str, today: date
         )
     secret = await CN.read_secret(getattr(hub, "bao", None), code, kind)
     if row is None or not secret:
-        raise CN.ReadError("اتصال تبلیغ کامل نیست؛ رمز یا شناسه‌ی حساب را در اپ بگذارید.")
+        raise CN.ReadError("اتصال تبلیغ کامل نیست؛ رمز یا شناسه‌ی حساب را در اپ بگذار.")
     return CN.ReadCtx(
         hub=hub,
         tx_factory=factory,

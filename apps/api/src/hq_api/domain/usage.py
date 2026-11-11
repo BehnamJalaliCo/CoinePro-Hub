@@ -394,9 +394,11 @@ def fallback_text(pack: UsagePack) -> UsageText:
         lines.append(f"هزینه‌ی تبلیغات {pack.ads_spend_usd:.2f} دلار بود.")
     while len(lines) < LINES_MIN:
         lines.append("مصرف صدا و خط‌های تولید در جزئیات آمده است.")
-    saving = "برای صرفه‌جویی، از بخش پرمصرف شروع کنید."
+    saving = "برای صرفه‌جویی، از بخش پرمصرف شروع کن."
     if top is not None:
-        saving = f"برای صرفه‌جویی، اول سقف مصرف «{spend.DOMAIN_FA.get(top.domain, top.domain)}» را ببینید."
+        saving = (
+            f"برای صرفه‌جویی، اول سقف مصرف «{spend.DOMAIN_FA.get(top.domain, top.domain)}» را ببین."
+        )
     return UsageText(lines_fa=[_plain(x) or x for x in lines[:LINES_MAX]], saving_fa=saving)
 
 

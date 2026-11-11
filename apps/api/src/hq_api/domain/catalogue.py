@@ -309,9 +309,7 @@ async def start(
            RETURNING id""",
         co=company.id,
         st=state,
-        why=None
-        if jobs
-        else "این شرکت هنوز سرور جفت‌شده‌ای ندارد؛ اول runner را روی سرورش نصب کنید.",
+        why=None if jobs else "این شرکت هنوز سرور جفت‌شده‌ای ندارد؛ اول runner را روی سرورش نصب کن.",
         jobs=json.dumps(jobs, ensure_ascii=False),
         prev=_done_id(current),
         bk=by_kind,
@@ -355,7 +353,7 @@ def _done_id(c: dict[str, Any] | None) -> UUID | None:
 # session is refused the reads it is asked for
 OLD_RUNNER_FA = (
     "runner این سرور قدیمی است (پیش از 0.2.1): جواب‌های بلند را کوتاه میکند یا اجازه‌ی "
-    "دستورهای خواندنی را به Claude نمیدهد؛ runner را به‌روز کنید."
+    "دستورهای خواندنی را به Claude نمیدهد؛ runner را به‌روز کن."
 )
 CURRENT_RUNNER = (0, 2, 1)
 

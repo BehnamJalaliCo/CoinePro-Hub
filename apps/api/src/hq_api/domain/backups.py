@@ -156,7 +156,7 @@ async def _more_alerts(tx: Tx, holding: Any, hourly: dict[str, Any] | None) -> l
                 "خطر از دست رفتن داده: فایل وضعیت backup ساعتی (hourly.json) پیدا نمیشود",
                 f"backup:missing:{since}",
                 f"آخرین اجرای ثبت‌شده: {since}. وضعیت backup دیگر دیده نمیشود؛ "
-                "systemctl list-timers 'coinepro-hq-*' و /home/Hub/backups/status را ببینید.",
+                "systemctl list-timers 'coinepro-hq-*' و /home/Hub/backups/status را ببین.",
                 "missing",
                 {"last_run_at": since},
             )

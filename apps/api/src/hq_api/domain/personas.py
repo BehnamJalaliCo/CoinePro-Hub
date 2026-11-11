@@ -35,8 +35,8 @@ KB_ENTRIES = 12
 KB_CHARS = 700
 SOURCES = ("owner", "kb_suggested")
 
-BAD_ANSWER_FA = "پاسخ مدل قابل‌اعتماد نبود؛ کمی بعد دوباره امتحان کنید."
-DOWN_FA = "مدل در دسترس نبود؛ کمی بعد دوباره امتحان کنید."
+BAD_ANSWER_FA = "پاسخ مدل قابل‌اعتماد نبود؛ کمی بعد دوباره امتحان کن."
+DOWN_FA = "مدل در دسترس نبود؛ کمی بعد دوباره امتحان کن."
 
 
 # ------------------------------------------------------------------ shapes --
@@ -141,7 +141,7 @@ async def create(
             409,
             "validation_failed",
             f"at most {MAX_PERSONAS} personas",
-            message_fa=f"هر شرکت حداکثر {MAX_PERSONAS} پرسونا دارد؛ یکی را بایگانی کنید.",
+            message_fa=f"هر شرکت حداکثر {MAX_PERSONAS} پرسونا دارد؛ یکی را بایگانی کن.",
         )
     row = await tx.first(
         """INSERT INTO growth.personas (company_id, name_fa, summary_fa, pains_fa, objections_fa,
@@ -278,7 +278,7 @@ async def suggest(hub: Any, company: Any) -> PersonaSuggestion:
             422,
             "validation_failed",
             "the company has no approved knowledge",
-            message_fa="برای پیشنهاد پرسونا، شرکت باید دانش تأییدشده داشته باشد؛ ابتدا پایگاه دانش را پر کنید.",
+            message_fa="برای پیشنهاد پرسونا، شرکت باید دانش تأییدشده داشته باشد؛ ابتدا پایگاه دانش را پر کن.",
             fields={"knowledge": "empty"},
         )
     prompt = {
@@ -301,7 +301,7 @@ async def suggest(hub: Any, company: Any) -> PersonaSuggestion:
     return PersonaSuggestion(
         company=company.code,
         personas=drafts,
-        basis_fa=f"بر پایه‌ی {len(kb)} نوشته‌ی تأییدشده‌ی دانش شرکت؛ تا نگه نداشته‌اید ذخیره نمیشود.",
+        basis_fa=f"بر پایه‌ی {len(kb)} نوشته‌ی تأییدشده‌ی دانش شرکت؛ تا نگه نداشته‌ای ذخیره نمیشود.",
     )
 
 
@@ -393,7 +393,7 @@ async def run_test(
             422,
             "validation_failed",
             "the company has no personas",
-            message_fa="برای این شرکت پرسونایی تعریف نشده؛ ابتدا پرسونا بسازید.",
+            message_fa="برای این شرکت پرسونایی تعریف نشده؛ ابتدا پرسونا بساز.",
             fields={"personas": "none"},
         )
     labels = {f"p{i + 1}": r for i, r in enumerate(rows)}

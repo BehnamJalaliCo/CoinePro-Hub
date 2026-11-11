@@ -250,10 +250,10 @@ def connection_entries(d: dict[str, Any]) -> list[dict[str, str]]:
 def todo_of(d: dict[str, Any]) -> list[str]:
     """What the owner still has to do after the company exists (plain Persian)."""
     todo = [
-        f"اتصال «{c['label_fa']}» را در صفحه‌ی اتصال‌های شرکت وصل کنید" for c in connection_entries(d)
+        f"اتصال «{c['label_fa']}» را در صفحه‌ی اتصال‌های شرکت وصل کن" for c in connection_entries(d)
     ]
     if d.get("lines"):
-        todo.append("هر خط تولید پیش‌نویس است؛ بعد از وصل شدن حساب‌ها یکی‌یکی آن را روشن کنید")
+        todo.append("هر خط تولید پیش‌نویس است؛ بعد از وصل شدن حساب‌ها یکی‌یکی آن را روشن کن")
     todo.append("جاهای خالی تیم با استخدام خودکار پر میشود؛ استخدام باید باز باشد")
     todo.append("سرور شرکت جدا و با تأسیس ساخته میشود؛ با این فرمان سروری ساخته نشد")
     return todo
@@ -395,7 +395,7 @@ async def _add_lines(
         except Exception as e:  # noqa: BLE001 - one refused line must not undo the company
             why = e.code if isinstance(e, ApiError) else type(e).__name__
             log.warning("a kit line was refused", extra={"template": x["template"], "why": why})
-            pending.append({**x, "why_fa": "این خط ساخته نشد؛ از صفحه‌ی خط‌ها دوباره بسازید"})
+            pending.append({**x, "why_fa": "این خط ساخته نشد؛ از صفحه‌ی خط‌ها دوباره بساز"})
             continue
         made.append({**x, "ref": _ref_of(line)})
     return made, pending

@@ -16,8 +16,8 @@ from hq_api.voice.engines._ctx import FILE_NAME
 PROVIDER = "google"
 # code -> (the light it leaves, plain Persian reason, a retry might help)
 REASONS: dict[str, tuple[str, str]] = {
-    "no_key": ("missing", "کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بدهید."),
-    "bad_key": ("failing", "کلید درست نیست؛ کلید تازه بدهید."),
+    "no_key": ("missing", "کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بده."),
+    "bad_key": ("failing", "کلید درست نیست؛ کلید تازه بده."),
     "no_model_access": ("failing", "این کلید به مدل صدا دسترسی ندارد."),
     "billing_off": ("failing", "صورتحساب این پروژه فعال نیست."),
     "quota": ("failing", "سهمیه تمام شده است."),

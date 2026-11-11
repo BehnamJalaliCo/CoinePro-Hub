@@ -785,7 +785,7 @@ async def draft(hub: Any, ref: str, ask: Ask | None = None) -> LeadDraft:
     if text is None:
         raise ApiError(
             422, "validation_failed", "the model gave no usable draft",
-            message_fa="پیش‌نویس ساخته نشد؛ کمی بعد دوباره امتحان کنید.",
+            message_fa="پیش‌نویس ساخته نشد؛ کمی بعد دوباره امتحان کن.",
             fields={"draft": "not made"},
         )  # fmt: skip
     async with hub.db.tx(await hub.companies.ids()) as tx:

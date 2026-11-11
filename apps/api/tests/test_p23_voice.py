@@ -310,7 +310,7 @@ async def test_the_events_of_the_light_and_the_meter_are_sent(
 @pytest.mark.parametrize(
     ("where", "code", "reason"),
     [
-        ("models_get", "bad_key", "کلید درست نیست؛ کلید تازه بدهید."),
+        ("models_get", "bad_key", "کلید درست نیست؛ کلید تازه بده."),
         ("models_get", "no_model_access", "این کلید به مدل صدا دسترسی ندارد."),
         ("speak", "billing_off", "صورتحساب این پروژه فعال نیست."),
         ("speak", "quota", "سهمیه تمام شده است."),
@@ -426,7 +426,7 @@ async def test_the_check_route_is_free_and_refuses_with_a_plain_reason(
     assert await su.fetchval("SELECT count(*) FROM talk.voice_usage") == 0
     voice.egress.fail["models_get"] = "bad_key"
     r = await client.post(f"/api/v1/voice/engines/{FLASH}/check", headers=h)
-    assert r.status_code == 502 and r.json()["message_fa"] == "کلید درست نیست؛ کلید تازه بدهید."
+    assert r.status_code == 502 and r.json()["message_fa"] == "کلید درست نیست؛ کلید تازه بده."
     assert (await engine_view(client, h, FLASH))["state"] == "failing"
     assert (await client.post("/api/v1/voice/engines/none/check", headers=h)).status_code == 404
 
@@ -584,7 +584,7 @@ async def test_an_engine_that_fails_hands_the_sentence_on_and_the_voice_never_st
     voice.piper.fail = True
     with pytest.raises(VoiceUnavailable) as e:
         await S.speak(hub, req(seq=3))
-    assert "جواب را بخوانید" in e.value.reason_fa
+    assert "جواب را بخوان" in e.value.reason_fa
 
 
 async def test_a_failing_engine_is_tried_again_after_a_while(
@@ -1037,13 +1037,13 @@ async def test_the_gemini_adapter_reads_the_light_from_the_metadata_call(
     voice.bao.data[PATH] = KEY
     assert await eng.check(hub) == ("ok", None)
     voice.bao.data[PATH] = ""
-    assert await eng.check(hub) == ("missing", "کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بدهید.")
+    assert await eng.check(hub) == ("missing", "کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بده.")
     voice.bao.data[PATH] = KEY
     for code, want in (
-        ("bad_key", ("failing", "کلید درست نیست؛ کلید تازه بدهید.")),
+        ("bad_key", ("failing", "کلید درست نیست؛ کلید تازه بده.")),
         ("billing_off", ("failing", "صورتحساب این پروژه فعال نیست.")),
         ("quota", ("failing", "سهمیه تمام شده است.")),
-        ("no_key", ("missing", "کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بدهید.")),
+        ("no_key", ("missing", "کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بده.")),
     ):
         voice.egress.fail["models_get"] = code
         assert await eng.check(hub) == want

@@ -78,7 +78,7 @@ LABEL_FA = {
     "delegate": "سپردن کار", "budget": "بودجه", "group": "کارگروه", "line": "خط تولید",
     "playbook": "کارگروه از جلسه",
 }  # fmt: skip
-CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید."
+CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کن."
 
 
 def _fail(why: str, field: str = "payload") -> ApiError:
@@ -392,7 +392,7 @@ async def _carry_out(
         # ⟨2026-11-07⟩ the one line of the session: what was set up, and what code changed
         changed = [x for x in (compiled.preview_fa or "").split("\n") if x.startswith("کسی با نقش")]
         title = str(payload.get("title_fa") or card["title_fa"])[:120]
-        note.append(" ".join([f"خودکارسازی ثبت شد: {title}؛ تا مُهر شما اجرا نمیشود.", *changed]))
+        note.append(" ".join([f"خودکارسازی ثبت شد: {title}؛ تا مُهر تو اجرا نمیشود.", *changed]))
         return [_ref_of(out)], []
     if kind in ("decision", "hire"):
         return await _decision(ctx, card, p, payload, text)
@@ -521,7 +521,7 @@ async def _asked(
         if row is not None:
             if company and company != row["company"]:
                 raise _fail(
-                    f"{to} در شرکت {row['company']} است، نه {company}؛ یکی از این دو را بگویید.",
+                    f"{to} در شرکت {row['company']} است، نه {company}؛ یکی از این دو را بگو.",
                     "payload.company",
                 )
             return await _employee_row(tx, str(row["code"]))
@@ -921,7 +921,7 @@ async def _playbook_card(
             raise _fail("این کارگروه از جلسه‌ی دیگری است.", "payload.playbook")
         if draft is None:
             if note is not None:
-                note.append(f"کارگروه {ref} آماده‌ی بازبینی است؛ در صفحه‌اش باز، ویرایش و مُهر کنید.")
+                note.append(f"کارگروه {ref} آماده‌ی بازبینی است؛ در صفحه‌اش باز، ویرایش و مُهر کن.")
             return [ref], []
         notes: list[str] = []
         out = await PB.patch(tx, ctx.hub, ref, draft, notes=notes)
@@ -947,7 +947,7 @@ async def _decision(
         code = str(payload.get("company") or "")
         role = str(payload.get("role") or "ceo")
         if not re.fullmatch(CODE, code):
-            raise _fail("شرکتِ این استخدام را روشن بگویید.", "payload.company")
+            raise _fail("شرکتِ این استخدام را روشن بگو.", "payload.company")
         company = await ctx.hub.companies.by_code(code)
         async with ctx.tx() as tx:
             out = await hiring.auto_fill(
@@ -1010,7 +1010,7 @@ async def _decision(
 # -------------------------------------------------------------- invites --
 NO_SESSION_FA = (
     "ChatGPT، Gemini و DeepSeek فقط در جلسه‌ی یک فرمان به گفتگو می‌آیند؛ "
-    "این کار را به شکل فرمان بدهید تا جلسه‌اش باز شود."
+    "این کار را به شکل فرمان بده تا جلسه‌اش باز شود."
 )
 
 
@@ -1024,7 +1024,7 @@ async def _invite_player(
     player = str(payload.get("player") or "").strip().lower()
     player = player.split(":", 1)[1] if player.startswith("player:") else player
     if player not in SE.PLAYERS:
-        raise _fail("بازیکن را از میان ChatGPT، Gemini و DeepSeek انتخاب کنید.", "payload.player")
+        raise _fail("بازیکن را از میان ChatGPT، Gemini و DeepSeek انتخاب کن.", "payload.player")
     ref = conv.get("order_ref")
     if not ref:
         raise _fail(NO_SESSION_FA, "payload.player")

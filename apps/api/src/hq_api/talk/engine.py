@@ -79,8 +79,8 @@ RESULT_CHARS = 12_000
 SPEECH_WAIT_S = 120.0  # the sentences of one answer, spoken one by one
 RUN_TTL_S = 900
 PRIORITY = 1  # the owner is waiting
-BRAIN_FA = "الان به مغزم دسترسی ندارم؛ تا {wait} صبر کنید یا متن را بفرستم برای {who}."
-BAD_FA = "نتوانستم جواب روشنی بسازم؛ لطفاً ساده‌تر بپرسید."
+BRAIN_FA = "الان به مغزم دسترسی ندارم؛ تا {wait} صبر کن یا متن را بفرستم برای {who}."
+BAD_FA = "نتوانستم جواب روشنی بسازم؛ لطفاً ساده‌تر بپرس."
 
 
 def card_room(conv: dict[str, Any], n: int) -> bool:
@@ -270,7 +270,7 @@ class TurnRun:
             last = step > TOOL_STEPS or room < MIN_OUTPUT * 2
             if room < MIN_OUTPUT:
                 return await self._finish(
-                    "done", "", "سقف توکن این نوبت پر شد؛ دوباره و کوتاه‌تر بپرسید.", cards=[]
+                    "done", "", "سقف توکن این نوبت پر شد؛ دوباره و کوتاه‌تر بپرس.", cards=[]
                 )
             body = self._body(system, messages, step, room, tools=not last and bool(p.tools),
                               minutes=directive == "minutes")  # fmt: skip

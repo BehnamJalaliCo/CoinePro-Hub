@@ -108,7 +108,7 @@ def line_of(open_works: int, open_sessions: int) -> str:
     if open_works:
         parts.append(f"{fa(open_works)} کار باز")
     if open_sessions:
-        parts.append(f"{fa(open_sessions)} فرمان شما در جریان")
+        parts.append(f"{fa(open_sessions)} فرمان تو در جریان")
     return "؛ ".join(parts)
 
 
@@ -263,7 +263,7 @@ async def create(tx: Tx, holding: UUID, body: LinkIn) -> UUID:
             "version_conflict",
             "the link exists",
             message_fa="این پیوند از پیش هست"
-            + ("؛ خاموش است، روشنش کنید." if taken["state"] == "off" else "."),
+            + ("؛ خاموش است، روشنش کن." if taken["state"] == "off" else "."),
         )
     return UUID(
         str(

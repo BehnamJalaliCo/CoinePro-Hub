@@ -40,7 +40,7 @@ CHARS_PER_SECOND = 12.0  # Persian speech, for the cap's estimate of a sentence 
 CHARS_PER_TEXT_TOKEN = 3.0
 RETRY_FAILING_AFTER = timedelta(minutes=2)  # a failing engine is tried again after this
 DEFAULT_VOICE = {"زن": "Kore", "مرد": "Charon"}
-UNAVAILABLE_FA = "صدا الان در دسترس نیست؛ جواب را بخوانید."
+UNAVAILABLE_FA = "صدا الان در دسترس نیست؛ جواب را بخوان."
 
 
 # ------------------------------------------------------------------ voices --
@@ -187,7 +187,7 @@ async def _maybe_warn(tx: Any, holding: Any, clk: store.Clock) -> dict[str, Any]
             title_fa="هزینه‌ی صدا به سقف ماه رسید",
             body_fa=(
                 f"این ماه {month:.2f} دلار برای صدا خرج شد (سقف {cap:g} دلار). از حالا صدا با "
-                "گویای ساده ادامه میدهد؛ اگر سقف بیشتری میخواهید، در تنظیمات عوضش کنید."
+                "گویای ساده ادامه میدهد؛ اگر سقف بیشتری میخواهی، در تنظیمات عوضش کن."
             ),
             link_kind="voice_cap",
             link_ref=ref,

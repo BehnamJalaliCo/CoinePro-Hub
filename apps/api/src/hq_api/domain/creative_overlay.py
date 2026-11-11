@@ -296,8 +296,8 @@ async def render_png(hub: Any, svg_text: str, font: dict[str, Any] | None = None
 
 
 # ⟨1.18⟩ §36.3 the owner's font on a picture
-FONT_UNKNOWN_FA = "این فونت پیدا نشد یا مال این کار نیست؛ فونت را در جلسه‌ی همین فرمان بفرستید."
-FONT_WOFF2_FA = "فونت WOFF2 را نمیشود روی تصویر گذاشت؛ نسخه‌ی TTF یا OTF همین فونت را بفرستید."
+FONT_UNKNOWN_FA = "این فونت پیدا نشد یا مال این کار نیست؛ فونت را در جلسه‌ی همین فرمان بفرست."
+FONT_WOFF2_FA = "فونت WOFF2 را نمیشود روی تصویر گذاشت؛ نسخه‌ی TTF یا OTF همین فونت را بفرست."
 OVERLAY_FONTS = ("font/ttf", "font/otf", "font/woff")
 
 

@@ -194,45 +194,45 @@ async def pass_time(su: Any, s: dict[str, Any], minutes: int) -> None:
         await su.fetchval("SELECT steps FROM owner.order_reports WHERE ref = $1", s["ref"]) or "[]"
     )
     for st in steps:
-        at = datetime.fromisoformat(str(st["at"]))
-        st["at"] = (at - m).isoformat()
+        st["at"] = (datetime.fromisoformat(str(st["at"])) - m).isoformat()
+    back = "make_interval(mins => $2)"
     async with su.transaction():
         await su.execute("SET LOCAL session_replication_role = replica")
         await su.execute(
-            """UPDATE agents.runs SET queued_at = queued_at - $2, created_at = created_at - $2,
-                   started_at = started_at - $2, finished_at = finished_at - $2,
-                   dispatched_at = dispatched_at - $2
+            f"""UPDATE agents.runs SET queued_at = queued_at - {back},
+                   created_at = created_at - {back}, started_at = started_at - {back},
+                   finished_at = finished_at - {back}, dispatched_at = dispatched_at - {back}
                WHERE work_id = ANY($1::uuid[])""",
-            ids, m,
+            ids, minutes,
         )  # fmt: skip
         await su.execute(
-            """UPDATE agents.steps SET at = at - $2
+            f"""UPDATE agents.steps SET at = at - {back}
                WHERE run_id IN (SELECT id FROM agents.runs WHERE work_id = ANY($1::uuid[]))""",
-            ids, m,
+            ids, minutes,
         )  # fmt: skip
         await su.execute(
-            """UPDATE substitutes.calls SET created_at = created_at - $2,
-                   claimed_at = claimed_at - $2, finished_at = finished_at - $2
+            f"""UPDATE substitutes.calls SET created_at = created_at - {back},
+                   claimed_at = claimed_at - {back}, finished_at = finished_at - {back}
                WHERE purpose_kind = 'caller_work' AND purpose_ref = ANY($1::text[])""",
-            [str(i) for i in ids], m,
+            [str(i) for i in ids], minutes,
         )  # fmt: skip
         await su.execute(
-            """UPDATE notify.notifications SET created_at = created_at - $2
+            f"""UPDATE notify.notifications SET created_at = created_at - {back}
                WHERE link_ref = ANY($1::text[])""",
-            [x for x in (s["ref"], s.get("talk_ref")) if x], m,
+            [x for x in (s["ref"], s.get("talk_ref")) if x], minutes,
         )  # fmt: skip
         await su.execute(
-            """UPDATE owner.session_tasks SET updated_at = updated_at - $2,
-                   created_at = created_at - $2
+            f"""UPDATE owner.session_tasks SET updated_at = updated_at - {back},
+                   created_at = created_at - {back}
                WHERE ref = $1""",
-            s["ref"], m,
+            s["ref"], minutes,
         )  # fmt: skip
         await su.execute(
-            """UPDATE owner.order_reports SET last_step_at = last_step_at - $2,
-                   acked_at = acked_at - $2, created_at = created_at - $2,
+            f"""UPDATE owner.order_reports SET last_step_at = last_step_at - {back},
+                   acked_at = acked_at - {back}, created_at = created_at - {back},
                    steps = $3::jsonb
                WHERE ref = $1""",
-            s["ref"], m, json.dumps(steps, ensure_ascii=False),
+            s["ref"], minutes, json.dumps(steps, ensure_ascii=False),
         )  # fmt: skip
 
 

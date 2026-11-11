@@ -37,7 +37,7 @@ from hq_api.talk.scrub import clean
 log = logging.getLogger("hq_api.talk.service")
 EVENTS_PATH = "/api/v1/talk/turns/{id}/events"
 EVERYONE_MAX = 5
-CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید."
+CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کن."
 
 
 async def new_conversation(

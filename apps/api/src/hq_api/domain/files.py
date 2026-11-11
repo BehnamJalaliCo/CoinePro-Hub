@@ -183,8 +183,8 @@ async def attach(tx: Tx, ids: list[UUID], thread_company: UUID, holding_id: UUID
     return unique
 
 
-UNKNOWN_FA = "این فایل پیدا نشد؛ دوباره بارگذاری کنید."
-ELSEWHERE_FA = "این فایل پیش‌تر در گفتگوی یک شرکت فرستاده شده است؛ دوباره بارگذاری کنید."
+UNKNOWN_FA = "این فایل پیدا نشد؛ دوباره بارگذاری کن."
+ELSEWHERE_FA = "این فایل پیش‌تر در گفتگوی یک شرکت فرستاده شده است؛ دوباره بارگذاری کن."
 
 
 async def owner_uploads(tx: Tx, ids: list[UUID], holding_id: UUID) -> list[dict[str, Any]]:

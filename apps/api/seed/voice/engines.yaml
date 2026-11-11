@@ -123,7 +123,7 @@ piper_voices:
   - {name: fa_IR-mana-medium, gender_fa: زن, trait_fa: مانا}
 
 # The sample line and the check word (spoken in Persian; their cost goes on the meter).
-sample_text_fa: سلام، من صدای شما در گفتگو هستم.
+sample_text_fa: سلام، من صدای تو در گفتگو هستم.
 check_text_fa: سلام
 
 # The default chain when the owner has set none. Piper is appended last by code only while the owner's

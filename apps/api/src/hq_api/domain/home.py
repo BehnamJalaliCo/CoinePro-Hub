@@ -634,7 +634,7 @@ async def morning_lines(tx: Tx, tz: str, today: date) -> list[str]:
         await tx.scalar("SELECT count(*) FROM owner.suggestions WHERE state = 'new'") or 0
     )
     if decisions or suggestions:
-        lines.append(f"منتظر شما: {decisions} تصمیم و {suggestions} پیشنهاد.")
+        lines.append(f"منتظر تو: {decisions} تصمیم و {suggestions} پیشنهاد.")
     unlinked = await tx.all(
         """SELECT k.kind, c.name_fa, c.code FROM growth.connections k
            JOIN core.companies c ON c.id = k.company_id
@@ -657,7 +657,7 @@ async def morning_lines(tx: Tx, tz: str, today: date) -> list[str]:
         or 0
     )
     if open_orders:
-        lines.append(f"فرمان‌های در جریان شما: {open_orders}.")
+        lines.append(f"فرمان‌های در جریان تو: {open_orders}.")
     base = [x for x in (clean(line, 300) for line in lines) if x and shown(x)][:5]
     # ⟨1.15⟩ §33.1 (2026-11-06): of the usage, only a company over its money budget,
     # one plain line in dollars, inside the 5
@@ -747,7 +747,7 @@ async def orders(tx: Tx) -> list[HomeOrder]:
         text = clean(" ".join(str(o["text"] or "").split())[:160], 160)
         summary = clean(o["summary_fa"], 300)
         if not shown(text):
-            text = ORDER_STATE_FA.get(st, "فرمان شما")
+            text = ORDER_STATE_FA.get(st, "فرمان تو")
         if not shown(summary):
             summary = ORDER_STATE_FA.get(st, "")
         out.append(HomeOrder(ref=o["ref"], text_fa=text, state=st, summary_fa=summary))

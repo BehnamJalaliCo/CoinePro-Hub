@@ -289,8 +289,8 @@ async def after_hire(
         level="report",
         title_fa=f"مدیرعامل {name} یک نفر استخدام کرد"[:300],
         body_fa=(
-            f"{payload['title_fa']} · دوره‌ی آزمایشی ۷ روز. اگر نمیخواهید، از صفحه‌ی همین"
-            " کارمند برش گردانید."
+            f"{payload['title_fa']} · دوره‌ی آزمایشی ۷ روز. اگر نمیخواهی، از صفحه‌ی همین"
+            " کارمند برش گردان."
         ),
         link_kind="employee",
         link_ref=employee_code,

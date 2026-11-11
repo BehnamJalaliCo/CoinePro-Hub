@@ -580,7 +580,7 @@ async def test_suggestions_come_from_the_knowledge_and_are_saved_only_when_kept(
     assert r.status_code == 200, r.text
     out = r.json()
     assert (
-        len(out["personas"]) == 4 and "تا نگه نداشته‌اید" in out["basis_fa"]
+        len(out["personas"]) == 4 and "تا نگه نداشته‌ای" in out["basis_fa"]
     )  # clipped; the empty one is dropped
     q = router.of("persona_suggest")
     assert len(q) == 1 and q[0]["task_class"] == "persona_test" and "sonnet" in q[0]["model"]

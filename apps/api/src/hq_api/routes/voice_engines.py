@@ -265,7 +265,7 @@ def _light(
         state == "checking"
         and (now - row["updated_at"]).total_seconds() > store.CHECKING_STALE_MIN * 60
     ):
-        return "failing", "بررسی کلید به نتیجه نرسید؛ دوباره بسنجید.", at
+        return "failing", "بررسی کلید به نتیجه نرسید؛ دوباره بسنج.", at
     return state, reason, at
 
 
@@ -369,7 +369,7 @@ async def put_voice_secret(
             422,
             "validation_failed",
             fields={"secret": "not a key"},
-            message_fa="این شبیه کلید نیست؛ کلید را کامل و بدون فاصله بچسبانید.",
+            message_fa="این شبیه کلید نیست؛ کلید را کامل و بدون فاصله بچسبان.",
         )
     holding = await ctx.hub.companies.holding()
     bao = ctx.hub.bao
@@ -461,7 +461,7 @@ async def _usable(ctx: Ctx, tx: Any, e: catalog.EngineDef) -> None:
     if not st[e.key]["secret_set"]:
         raise ApiError(
             409, "validation_failed", "no key",
-            message_fa="کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بدهید.",
+            message_fa="کلید صدا داده نشده است؛ با دکمه‌ی کلید آن را بده.",
         )  # fmt: skip
 
 
@@ -515,7 +515,7 @@ async def voice_sample(body: VoiceSampleIn, ctx: Ctx = Depends(owner_ctx)) -> Vo
         if p.key_pattern and re.search(p.key_pattern, text):
             raise ApiError(
                 422, "validation_failed", fields={"text": "a key"},
-                message_fa="کلید را با دکمه‌ی کلید بدهید، نه در متن.",
+                message_fa="کلید را با دکمه‌ی کلید بده، نه در متن.",
             )  # fmt: skip
     if not text:
         raise ApiError(422, "validation_failed", fields={"text": "empty"})
@@ -584,7 +584,7 @@ def _price_object(body: VoicePriceIn, today: date) -> dict[str, Any]:
     if body.valid_until is not None and body.next is None:
         raise ApiError(
             422, "validation_failed", fields={"next": "valid_until needs a next price"},
-            message_fa="برای «تا چه روزی» قیمت بعدی را هم بنویسید.",
+            message_fa="برای «تا چه روزی» قیمت بعدی را هم بنویس.",
         )  # fmt: skip
 
     def money(x: float) -> str:

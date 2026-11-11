@@ -93,7 +93,7 @@ PROFILES: dict[str, Profile] = {
         Profile("tts", "HQ_TTS", "tts", "صدای ساده‌ی هاب",
                 "خواندن گزارش‌ها و پیام‌ها با صدای فارسی خود هاب (Piper)"),
         Profile("stt", "HQ_STT", "stt", "تبدیل گفتار به متن",
-                "نوشتن پیام‌های صوتی شما؛ فقط وقتی پیامی میآید بالا میآید"),
+                "نوشتن پیام‌های صوتی تو؛ فقط وقتی پیامی میآید بالا میآید"),
         Profile("ocr", "HQ_OCR", "ocr", "خواندن اسکن بایگانی",
                 "خواندن متن فایل‌های اسکن‌شده‌ی بایگانی"),
         Profile("newsletter", "HQ_NEWSLETTER", "newsletter", "خبرنامه",
@@ -103,7 +103,7 @@ PROFILES: dict[str, Profile] = {
         Profile("mcp", "HQ_MCP", "mcp", "سرورهای MCP",
                 "ابزارهای MCP در کانتینر (زمان و جستجوی کد)", toggle=False,
                 note_fa="روشن کردن MCP از اینجا هنوز ممکن نیست: سرورهایش را سرور هاب یک‌بار میسازد "
-                        "(make mcp-build) و جای حافظه‌اش تصمیم شماست."),
+                        "(make mcp-build) و جای حافظه‌اش تصمیم توست."),
         Profile("tracing", "HQ_TRACING", "tracing", "ردگیری درخواست‌ها",
                 "ردگیری فنی درخواست‌ها برای پیدا کردن کندی‌ها (Tempo)"),
     )
@@ -280,19 +280,21 @@ OPS: dict[str, Op] = {
 
 # Never in the catalogue (contract §38.1): the owner's own step for each, in plain Persian.
 _STEP_SSH = (
-    "دسترسی SSH، کاربرها و sudo فقط کار خود شماست، از ترمینال خودتان؛ هیچ ایجنتی به آن دست نمیزند."
+    "دسترسی SSH، کاربرها و sudo فقط کار خود توست، از ترمینال خودت؛ هیچ ایجنتی به آن دست نمیزند."
 )
-_STEP_FW = "فایروال فقط از کنسول هتزنر و به دست شما تنظیم میشود."
-_STEP_BAO = "گاوصندوق رمزها (OpenBao) فقط با شماست: باز کردنش با make unseal از ترمینال خودتان."
+_STEP_FW = "فایروال فقط از کنسول هتزنر و به دست تو تنظیم میشود."
+_STEP_BAO = "گاوصندوق رمزها (OpenBao) فقط با توست: باز کردنش با make unseal از ترمینال خودت."
 _STEP_KEYS = (
     "رمزها و کلیدها هرگز از اینجا خوانده یا نوشته نمیشوند: برای گذاشتن یک کلید، صفحه‌ی همان "
-    "اتصال در اپ، یا هدف make همان رمز از ترمینال خودتان (مثلاً make account-secret KEY=…)."
+    "اتصال در اپ، یا هدف make همان رمز از ترمینال خودت (مثلاً make account-secret KEY=…)."
 )
 _STEP_LOGIN = (
-    "ورود به حساب‌ها کار خود شماست: make <نام>-web-login از ترمینال خودتان با تونل، و پنجره‌اش "
+    "ورود به حساب‌ها کار خود توست: make <نام>-web-login از ترمینال خودت با تونل، و پنجره‌اش "
     "در 127.0.0.1:6080."
 )
-_STEP_DELETE = "پاک کردن داده، volume یا پایگاه داده از اینجا ممکن نیست؛ اگر لازم است، با سرور هاب و مُهر خودتان."
+_STEP_DELETE = (
+    "پاک کردن داده، volume یا پایگاه داده از اینجا ممکن نیست؛ اگر لازم است، با سرور هاب و مُهر خودت."
+)
 DENIED: dict[str, str] = {
     "ssh": _STEP_SSH,
     "users": _STEP_SSH,
@@ -312,21 +314,21 @@ DENIED: dict[str, str] = {
     "secrets": _STEP_KEYS,
     "secret": _STEP_KEYS,
     "env": _STEP_KEYS,
-    "gdrive-auth": "وصل کردن پشتیبان به Google Drive کار خود شماست: make gdrive-auth از ترمینال خودتان.",
-    "reboot": "راه‌اندازی دوباره‌ی خود سرور فقط با اجازه و به دست شماست.",
-    "shutdown": "خاموش کردن سرور فقط با اجازه و به دست شماست.",
+    "gdrive-auth": "وصل کردن پشتیبان به Google Drive کار خود توست: make gdrive-auth از ترمینال خودت.",
+    "reboot": "راه‌اندازی دوباره‌ی خود سرور فقط با اجازه و به دست توست.",
+    "shutdown": "خاموش کردن سرور فقط با اجازه و به دست توست.",
     "volume.delete": _STEP_DELETE,
     "db.drop": _STEP_DELETE,
     "delete": _STEP_DELETE,
-    "down": "پایین آوردن کل هاب از اینجا ممکن نیست؛ سرویس‌ها را یکی‌یکی با restart یا profile کار کنید.",
-    "exec": "دستور آزاد روی خود هاب در فهرست نیست؛ فقط کارهای همین فهرست. اگر کاری کم است، به سرور هاب بگویید.",
-    "shell": "دستور آزاد روی خود هاب در فهرست نیست؛ فقط کارهای همین فهرست. اگر کاری کم است، به سرور هاب بگویید.",
+    "down": "پایین آوردن کل هاب از اینجا ممکن نیست؛ سرویس‌ها را یکی‌یکی با restart یا profile کار کن.",
+    "exec": "دستور آزاد روی خود هاب در فهرست نیست؛ فقط کارهای همین فهرست. اگر کاری کم است، به سرور هاب بگو.",
+    "shell": "دستور آزاد روی خود هاب در فهرست نیست؛ فقط کارهای همین فهرست. اگر کاری کم است، به سرور هاب بگو.",
     "deploy": (
-        "deploy هنوز از اینجا نیست: هر deploy یک پرامپت بازبینی‌شده برای سرور هاب و مُهر شماست. "
-        "بخواهید تا Claude سشن مشورت پرامپت deploy بنویسد."
+        "deploy هنوز از اینجا نیست: هر deploy یک پرامپت بازبینی‌شده برای سرور هاب و مُهر توست. "
+        "بخواه تا Claude سشن مشورت پرامپت deploy بنویسد."
     ),
     "catalogue.refresh": (
-        "هاب برای تازه کردن فهرست هدفی ندارد؛ فهرست یک شرکت را با catalogue.start شروع کنید."
+        "هاب برای تازه کردن فهرست هدفی ندارد؛ فهرست یک شرکت را با catalogue.start شروع کن."
     ),
 }
 
@@ -341,7 +343,7 @@ def denied_step(op: str) -> str | None:
     if low.endswith(("-secret", "-token")) or "password" in low:
         return _STEP_KEYS
     if low.startswith("owner-"):
-        return "کارهای owner-* فقط از ترمینال خود شماست."
+        return "کارهای owner-* فقط از ترمینال خود توست."
     if low.startswith(("ssh", "user")):
         return _STEP_SSH
     return None
@@ -525,9 +527,9 @@ async def seal_card(tx: Tx, j: dict[str, Any], c: Checked, *, by: Principal) -> 
     }
     din = D.DecisionIn(
         kind="hub_op",
-        title=f"کار هاب با مُهر شما: {c.op.title_fa}"[:300],
+        title=f"کار هاب با مُهر تو: {c.op.title_fa}"[:300],
         what=f"`{' '.join(c.argv)[:1500]}`\n\n{json.dumps(payload['args'], ensure_ascii=False)[:3000]}",
-        why=f"این کار روی خود هاب است و بی مُهر شما اجرا نمیشود. درخواست از {by.code}.",
+        why=f"این کار روی خود هاب است و بی مُهر تو اجرا نمیشود. درخواست از {by.code}.",
         risk="medium",
         reversible=c.op.name != "n8n.create",
         payload=payload,

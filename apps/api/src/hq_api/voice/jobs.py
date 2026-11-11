@@ -119,7 +119,7 @@ async def _local(hub: Any, provider: str, speech: bool) -> None:
 async def _stuck(hub: Any, provider: str) -> None:
     for e in catalog.load().engines_of(provider):
         with contextlib.suppress(Exception):
-            await _settle(hub, e.key, "failing", "بررسی کلید به نتیجه نرسید؛ دوباره بسنجید.")
+            await _settle(hub, e.key, "failing", "بررسی کلید به نتیجه نرسید؛ دوباره بسنج.")
 
 
 async def drain() -> None:

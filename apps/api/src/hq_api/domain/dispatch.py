@@ -352,7 +352,7 @@ def by_rules(
     named = companies_in_order(norm, d)
     if not named and hint in d["companies"]:
         named = [str(hint)]
-        dr.why.append("شرکت از انتخاب شما در اپ")
+        dr.why.append("شرکت از انتخاب تو در اپ")
     elif named:
         dr.why.append("شرکت از نام آن در متن")
     dr.companies = named
@@ -360,7 +360,7 @@ def by_rules(
     player, mode = PL.from_voice(text)
     dr.player, dr.mode = player or "auto", mode or "single"
     if mode == "council":
-        dr.why.append("شورا چون خودتان گفتید")
+        dr.why.append("شورا چون خودت گفتی")
     titled = O.roles_addressed(norm)
     roles = [r for r in O.roles_named(norm) if r not in ("ceo", "advisor")]
     if kind == "question" and len(named) == 1 and titled and titled[0] != "advisor":
@@ -391,10 +391,10 @@ def by_rules(
         owners = {str(k): str(v) for k, v in (rules().get("output_department") or {}).items()}
         if titled and titled[0] not in ("ceo", "advisor"):
             dr.department, dr.department_open = titled[0], False
-            dr.why.append("مدیر را خودتان نام بردید")
+            dr.why.append("مدیر را خودت نام بردی")
         elif titled and titled[0] == "ceo":
             dr.department_open = False
-            dr.why.append("مدیرعامل را خودتان نام بردید")
+            dr.why.append("مدیرعامل را خودت نام بردی")
         elif is_automation(norm):
             # ⟨2026-11-06⟩ never a production department by a stray word: the CEO proposes it
             dr.automation = True
@@ -422,7 +422,7 @@ def kit_draft(dr: Draft, made: tuple[str, str | None], d: dict[str, Any]) -> Dra
     dr.companies = [O.holding_code(d)]
     dr.department, dr.department_open = None, False
     dr.output_kind, dr.count = "other", None
-    dr.why = ["شرکت تازه خواستید؛ پیش‌نمایش ساخته شد و تا مُهر شما چیزی ساخته نمیشود"]
+    dr.why = ["شرکت تازه خواستی؛ پیش‌نمایش ساخته شد و تا مُهر تو چیزی ساخته نمیشود"]
     dr.confidence = confidence(dr)
     return dr
 
@@ -442,7 +442,7 @@ def apply_memory(dr: Draft, to: dict[str, Any]) -> None:
     if to.get("collaborators"):
         dr.companies = list(dict.fromkeys([*dr.companies, *map(str, to["collaborators"])]))
     dr.remembered = True
-    dr.why.insert(0, "مثل اصلاح قبلی شما برای فرمانی شبیه همین")
+    dr.why.insert(0, "مثل اصلاح قبلی تو برای فرمانی شبیه همین")
 
 
 def confidence(dr: Draft) -> float:
@@ -549,7 +549,7 @@ def preview_line(r: Route, d: dict[str, Any], names: dict[str, dict[str, str]]) 
         title = (KT.kits().get(r.kit or "") or {}).get("title_fa") or "شرکت تازه"
         name = f"؛ نام: {r.kit_name_fa}" if r.kit_name_fa else ""
         return humanize.humanize(
-            f"→ شرکت تازه از روی «{title}»{name}؛ تا مُهر نکنید چیزی ساخته نمیشود"
+            f"→ شرکت تازه از روی «{title}»{name}؛ تا مُهر نکنی چیزی ساخته نمیشود"
         )
     if r.kind == "question" and r.mode == "single":
         head = "مشاور هلدینگ"

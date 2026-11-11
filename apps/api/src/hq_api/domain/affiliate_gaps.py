@@ -103,7 +103,7 @@ def parse_month(text: str) -> date:
     if m is None:
         raise ApiError(
             422, "validation_failed", fields={"month": "YYYY-MM"},
-            message_fa="ماه را به شکل 2026-10 بنویسید.",
+            message_fa="ماه را به شکل 2026-10 بنویس.",
         )  # fmt: skip
     return date(int(m.group(1)), int(m.group(2)), 1)
 

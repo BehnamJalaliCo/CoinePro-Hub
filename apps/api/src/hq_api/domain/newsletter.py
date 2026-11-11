@@ -44,9 +44,9 @@ KIND = "newsletter"
 SOURCE = "listmonk"
 READ_DAYS = 30  # a campaign is read daily for a month after its send
 TIMEOUT_S = 30.0
-OFF_FA = "خبرنامه هنوز روشن نیست؛ پروفایل خبرنامه را روشن کنید (make newsletter-on)."
+OFF_FA = "خبرنامه هنوز روشن نیست؛ پروفایل خبرنامه را روشن کن (make newsletter-on)."
 NO_CRED_FA = "کلید کاربر API لیست‌مانک هنوز در OpenBao گذاشته نشده است (make newsletter-secret)."
-DOWN_FA = "لیست‌مانک پاسخ نداد؛ بعداً دوباره امتحان کنید."
+DOWN_FA = "لیست‌مانک پاسخ نداد؛ بعداً دوباره امتحان کن."
 Status = Literal["draft", "scheduled", "running", "finished", "paused", "cancelled"]
 STATES: tuple[str, ...] = ("draft", "scheduled", "running", "finished", "paused", "cancelled")
 # Listmonk's status words -> ours (Listmonk has no «paused by us»).

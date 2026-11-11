@@ -262,7 +262,7 @@ async def test_a_pasted_key_is_never_stored_nor_sent(
     cv = await open_cv(client, owner)
     out = await say(client, owner, cv["ref"], f"این کلید گوگل است {KEY} وصلش کن")
     assert KEY not in out["owner_turn"]["text"] and "[کلید حذف شد]" in out["owner_turn"]["text"]
-    assert out["answer"]["show_md"].startswith("کلید را با دکمه‌ی 🔑 بدهید")
+    assert out["answer"]["show_md"].startswith("کلید را با دکمه‌ی 🔑 بده")
     assert talk["router"].bodies == []  # no model saw that turn
     await say(client, owner, cv["ref"], "خب، حالا وضعیت فروش؟")
     assert KEY not in talk["router"].text_sent()  # nor the next one's context
