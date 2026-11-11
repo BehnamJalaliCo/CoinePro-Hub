@@ -43,7 +43,14 @@ from sqlalchemy.exc import DBAPIError
 
 from hq_api import audit, events
 from hq_api.agents import protocol as P
-from hq_api.agents.clients import Gateway, LivePush, ModelCall, Router
+from hq_api.agents.clients import (
+    GATEWAY_TIMEOUT_S,
+    ROUTER_MARGIN_S,
+    Gateway,
+    LivePush,
+    ModelCall,
+    Router,
+)
 from hq_api.db import Tx
 from hq_api.domain import academy as AC
 from hq_api.domain import charter as CH
@@ -179,6 +186,22 @@ TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case", "archivist": "archive"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
+# The run_execute activity's start_to_close (worker/workflows.py RUN_LIMIT, which imports nothing
+# but temporalio, so the figure is kept here too; a test holds the two equal).
+RUN_LIMIT_S = 58 * 60
+
+
+def step_reserve_s(step_timeout_s: int, actions_per_step: int) -> int:
+    """How long one step may still take once it has passed the deadline check: its model call
+    (the router's timeout plus the HTTP margin), its actions and a partial deliverable after it,
+    each at the gateway's timeout."""
+    return int(step_timeout_s + ROUTER_MARGIN_S + (actions_per_step + 1) * GATEWAY_TIMEOUT_S)
+
+
+def run_window_s(max_run_s: int, reserve_s: int, token_left_s: float) -> float:
+    """How long after its start a run may begin a new step: its own cap, but never so late that
+    the step (and the partial deliverable after it) outlives the run's token or the activity."""
+    return max(0.0, min(float(max_run_s), token_left_s - reserve_s, RUN_LIMIT_S - reserve_s))
 
 
 @dataclass
@@ -351,7 +374,8 @@ class Runner:
                 # In a meeting the effort is at most medium (prompt 11 §1.4), a few steps.
                 effort = effort if effort in MF.EFFORTS else "medium"
                 steps_cap = min(steps_cap, 3)
-            ttl = min(agent_tokens.MAX_TTL_S, self.s.agent_max_run_s + 120)
+            # the token outlives the run's last step: one may start just before the deadline
+            ttl = min(agent_tokens.MAX_TTL_S, self.s.agent_max_run_s + self._reserve_s() + 120)
             await tx.exec(
                 """UPDATE agents.runs SET state = 'running', started_at = now(), priority = :prio,
                        charter_role = :role, charter_version = :ver, model = :model, effort = :effort,
@@ -507,11 +531,10 @@ class Runner:
         if charter is None:
             return await self.finish(run_id, "failed", "no_charter")
         expires = run["token_expires_at"] or datetime.now(UTC)
+        token_ttl_s = max(60, int((expires - datetime.now(UTC)).total_seconds()))
+        minted = time.monotonic()
         token = agent_tokens.mint(
-            self.hub.secrets.agent_token_key,
-            emp["code"],
-            str(run["id"]),
-            ttl_s=max(60, int((expires - datetime.now(UTC)).total_seconds())),
+            self.hub.secrets.agent_token_key, emp["code"], str(run["id"]), ttl_s=token_ttl_s
         )
         rc = RunCtx(run=run, emp=emp, charter=charter, token=token, lib=lib)
         if run["work_id"] is not None:
@@ -534,7 +557,11 @@ class Runner:
         handed = await DR.hand_over(self.hub, run, emp)
         if handed is not None:
             return await self.finish(run_id, "done", None, note=handed)
-        deadline = time.monotonic() + self.s.agent_max_run_s
+        # ⟨audit 2026-11-11⟩ the last step starts early enough to end (its actions and a partial
+        # deliverable too) while the token and the activity still live
+        now = time.monotonic()
+        token_left_s = token_ttl_s - (now - minted)
+        deadline = now + run_window_s(self.s.agent_max_run_s, self._reserve_s(), token_left_s)
         try:
             outcome = await self._steps(rc, deadline)
         except Exception:
@@ -548,6 +575,9 @@ class Runner:
             note=note,
             partial=state == "done" and code in ("limit_reached", "budget"),
         )
+
+    def _reserve_s(self) -> int:
+        return step_reserve_s(self.s.agent_step_timeout_s, self.s.agent_actions_per_step)
 
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
         run, charter = rc.run, rc.charter
