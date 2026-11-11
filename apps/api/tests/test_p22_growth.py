@@ -803,6 +803,15 @@ async def test_the_campaign_calendar_merges_every_source_and_marks_conflicts(
     assert [i["kind"] for i in wide.json()["items"]] == ["campaign"] and wide.json()["items"][0][
         "day"
     ] == "2027-03-19"
+    # `to` is the last day shown: a campaign starting the day after is not in it
+    before = await client.get(
+        "/api/v1/campaign-calendar",
+        headers=h,
+        params={"from": "2027-03-10", "to": "2027-03-18", "company": c},
+    )
+    assert before.status_code == 200
+    assert all(i["day"] <= "2027-03-18" for i in before.json()["items"])
+    assert "campaign" not in {i["kind"] for i in before.json()["items"]}
     too_long = await client.get(
         "/api/v1/campaign-calendar", headers=h, params={"from": "2027-01-01", "to": "2027-12-31"}
     )
