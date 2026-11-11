@@ -295,9 +295,12 @@ for _ in $(seq 30); do
 done
 inject() { printf '%s\n' "$@" >"$T/rules/rules"; }
 
+# max_connections as production's full profile (compose.yaml, full.env): above
+# the default 100, so the PITR drill must carry the primary's limits over.
 docker run -d --name "$N-pg" --network none -e POSTGRES_PASSWORD="$(openssl rand -hex 12)" \
   -e WALG_FILE_PREFIX=/wal -e WALG_COMPRESSION_METHOD=zstd -v "$B/wal:/wal" "$PG_IMAGE_T" postgres \
-  -c archive_mode=on -c 'archive_command=/usr/local/bin/wal-g wal-push %p' -c archive_timeout=60s >/dev/null
+  -c archive_mode=on -c 'archive_command=/usr/local/bin/wal-g wal-push %p' -c archive_timeout=60s \
+  -c max_connections=200 >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$N-pg" psql -h 127.0.0.1 -U postgres -Atc 'SELECT 1' >/dev/null 2>&1 && break
   sleep 1
