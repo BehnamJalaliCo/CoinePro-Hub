@@ -391,6 +391,34 @@ async def test_a_turn_that_does_not_fit_is_not_run(
     assert queued == 1  # only the first turn ever ran
 
 
+async def test_a_turns_cache_reads_count_at_a_tenth_on_the_meeting(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """Audit: one token everywhere. A turn's cache reads cost the meeting what the
+    runner's cap counts (a tenth), not the raw ledger: a cached turn does not close it."""
+    co = (await new_company())["code"]
+    m = await ad_hoc(client, owner, type="company", company=co)
+    await start(hub, m["ref"])
+    await take_turn(su, hub, m["ref"])
+    run_id = (await load(hub, m["ref"]))["pending_run_id"]
+    await su.execute(
+        """UPDATE agents.runs SET state = 'done', finished_at = now(), input_tokens = 1000,
+               output_tokens = 500, cache_read_tokens = 100000, cache_write_tokens = 2000
+           WHERE id = $1""",
+        run_id,
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await MF.run_tokens(tx, run_id) == 1000 + 500 + 2000 + 10000
+        await MF.turn_finished(tx, {"id": run_id})
+    after = await load(hub, m["ref"])
+    assert after["used"] == 13500  # raw 103500 would be over the 40000 reserved
+    assert after["end_reason"] != "budget"
+
+
 async def test_a_whisper_reaches_the_owner_only(
     client: httpx.AsyncClient,
     hub: Hub,
