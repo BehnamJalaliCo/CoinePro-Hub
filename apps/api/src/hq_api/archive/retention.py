@@ -652,8 +652,14 @@ async def _dispose(tx: Tx, r: dict[str, Any], *, card_ref: str | None, erase: bo
            WHERE record_id = :r AND state <> 'done'""",
         r=r["id"],
     )
+    # the intake's suggestion holds the document's own words (its first line,
+    # dates, amounts, numbers): it goes with the text; an erase leaves no name
     await tx.exec(
-        "UPDATE archive.intake SET text = NULL, updated_at = now() WHERE file_id = ANY(:f)",
+        """UPDATE archive.intake SET text = NULL, suggestion = NULL, updated_at = now(),
+               name = CASE WHEN :erase THEN :blank ELSE name END
+           WHERE file_id = ANY(:f)""",
+        erase=erase,
+        blank=ERASED_FA,
         f=[
             x["id"]
             for x in await tx.all(
