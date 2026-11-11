@@ -413,3 +413,50 @@ async def test_the_new_decision_kinds_and_the_shadow_suites(su: Any) -> None:
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'eval_runs_purpose_check'"
     )
     assert "'shadow'" in purposes
+
+
+def _load_0025() -> Any:
+    import importlib.util
+    from pathlib import Path
+
+    versions = Path(__file__).resolve().parents[1] / "migrations" / "versions"
+    spec = importlib.util.spec_from_file_location("m0025", versions / "0025_revenue_support.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+async def test_the_0025_downgrade_keeps_the_worker_baseline_grant_of_0022(su: Any) -> None:
+    """The academy part of the 0025 downgrade (run inside a transaction that is
+    rolled back) takes back only 0025's grants: the worker keeps 0022's
+    UPDATE (baseline, updated_at), which a suite's first good run needs."""
+    mod = _load_0025()
+    assert mod.revision == "0025"
+
+    async def can(role: str, column: str, priv: str = "UPDATE") -> bool:
+        return bool(
+            await su.fetchval(
+                "SELECT has_column_privilege($1, 'academy.eval_suites', $2, $3)",
+                role,
+                column,
+                priv,
+            )
+        )
+
+    tx = su.transaction()
+    await tx.start()
+    try:
+        await su.execute(mod.ACADEMY_DOWNGRADE)
+        assert await can("hq_worker", "baseline") and await can("hq_worker", "updated_at")
+        assert await can("hq_api", "baseline") and await can("hq_api", "updated_at")
+        assert not await can("hq_worker", "cases") and not await can("hq_api", "cases")
+        assert not await su.fetchval(
+            "SELECT has_table_privilege('hq_worker', 'academy.eval_suites', 'INSERT')"
+        )
+        assert await su.fetchval(
+            "SELECT has_table_privilege('hq_worker', 'academy.eval_suites', 'SELECT')"
+        )
+    finally:
+        await tx.rollback()
+    assert await can("hq_worker", "version")
