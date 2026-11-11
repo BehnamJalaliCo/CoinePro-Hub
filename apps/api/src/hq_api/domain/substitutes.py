@@ -2168,9 +2168,9 @@ async def _web_files(hub: Any, c: dict[str, Any]) -> list[dict[str, str]] | None
 
 
 async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
-    await tx.exec(
+    skipped = await tx.one(
         """UPDATE substitutes.calls SET state = 'skipped', state_reason = :r, finished_at = now(), input_md = NULL
-           WHERE id = :id""",
+           WHERE id = :id RETURNING *""",
         r=reason,
         id=c["id"],
     )
@@ -2181,6 +2181,9 @@ async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
             why=f"not made: the browser profile is {reason}",
             ref=c["purpose_ref"],
         )
+    # Whoever waits on the call hears why (an agent whose substitute.call said `queued` has no
+    # other way back: nothing sweeps its calls), as a failed call does.
+    await _applied(tx, hub, skipped)
 
 
 async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str, Any]) -> None:
