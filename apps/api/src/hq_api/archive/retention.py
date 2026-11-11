@@ -299,17 +299,30 @@ async def release(tx: Tx, h: dict[str, Any], step_up_id: UUID) -> dict[str, Any]
 
 
 # ================================================================== sweep ==
-async def due(tx: Tx, today: date | None = None, *, limit: int = 500) -> list[dict[str, Any]]:
+# what the sweep has nothing left to do for: retention_due fired, and its
+# review item made, or it is on a card, kept by the owner or held
+_HANDLED = """r.due_seen_at IS NOT NULL AND (
+                 (x.then_do = 'review' AND r.review_work_ref IS NOT NULL)
+                 OR (x.then_do = 'dispose_card' AND (r.disposal_ref IS NOT NULL OR r.disposal_kept
+                     OR cardinality(archive.held_by(r.id)) > 0)))"""
+
+
+async def due(
+    tx: Tx, today: date | None = None, *, limit: int = 500, pending: bool = False
+) -> list[dict[str, Any]]:
     """Records whose retention ended (RetentionDue, §23.12), within the
-    reader's clearance."""
+    reader's clearance. `pending`: only those the sweep still has to act on
+    (a reviewed or kept record stays due for good and would otherwise fill
+    the window before any record due later)."""
     today = today or datetime.now(UTC).date()
     rows = await tx.all(
         """SELECT r.ref, r.title_fa, co.code AS scope, r.class_key, x.ref AS rule, r.trigger_at, r.due_at,
                   x.then_do, archive.held_by(r.id) AS holds, r.disposal_ref, r.review_work_ref, r.disposal_kept
            FROM archive.records r JOIN core.companies co ON co.id = r.company_id
            JOIN archive.retention_rules x ON x.id = r.retention_rule_id
-           WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.due_at IS NOT NULL AND r.due_at <= :d
-           ORDER BY r.due_at, r.ref LIMIT :lim""",
+           WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.due_at IS NOT NULL AND r.due_at <= :d"""
+        + (f" AND NOT ({_HANDLED})" if pending else "")
+        + " ORDER BY r.due_at, r.ref LIMIT :lim",
         d=today,
         lim=limit,
     )
@@ -333,7 +346,9 @@ async def due(tx: Tx, today: date | None = None, *, limit: int = 500) -> list[di
 
 
 async def _recompute_pending(tx: Tx) -> int:
-    """case_closed triggers that arrived since (a case closed)."""
+    """case_closed triggers that arrived since (a case closed). Only records
+    that link a closed case: one whose case is open, or that links none,
+    stays without a trigger and would take the same slots every day."""
     from hq_api.archive import records as R
     from hq_api.archive import schema as SC
 
@@ -341,7 +356,15 @@ async def _recompute_pending(tx: Tx) -> int:
     for x in await tx.all(
         """SELECT r.ref FROM archive.records r JOIN archive.retention_rules x ON x.id = r.retention_rule_id
            WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.trigger_at IS NULL
-             AND x.trigger = 'case_closed' LIMIT 500"""
+             AND x.trigger = 'case_closed'
+             AND (EXISTS (SELECT 1 FROM archive.links l JOIN legal.cases c ON c.ref = l.to_ref
+                          WHERE l.record_id = r.id AND l.to_kind = 'case' AND l.removed_at IS NULL
+                            AND c.status = 'closed' AND c.closed_at IS NOT NULL)
+                  OR EXISTS (SELECT 1 FROM jsonb_each(r.metadata) m JOIN legal.cases c
+                               ON jsonb_typeof(m.value) = 'object' AND m.value ->> 'kind' = 'case'
+                              AND c.ref = m.value ->> 'ref'
+                             WHERE c.status = 'closed' AND c.closed_at IS NOT NULL))
+           ORDER BY r.ref LIMIT 500"""
     ):
         r = await R.load(tx, x["ref"])
         cls = await SC.class_at(tx, r["class_key"], r["class_version"])
@@ -406,7 +429,7 @@ async def sweep(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]
         await CL.full(tx)
         out["recomputed"] = await _recompute_pending(tx)
         lock = await gate.holding_lock(tx)
-        rows = await due(tx, today, limit=2000)
+        rows = await due(tx, today, limit=2000, pending=True)
         out["due"] = len(rows)
         for x in rows:  # retention_due, once per record
             n = await tx.exec(

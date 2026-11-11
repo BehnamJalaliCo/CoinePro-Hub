@@ -211,6 +211,38 @@ async def test_a_record_held_between_the_card_and_its_seal_is_skipped(
     assert rec["ref"] in res.json()["body"] and "held" in res.json()["body"]
 
 
+
+async def test_the_sweep_window_holds_only_records_it_still_has_to_act_on(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A reviewed record stays due for good; the sweep reads past it, so
+    reviewed or kept records never fill its window before one due later."""
+    from hq_api.archive import clearance as CL
+
+    co = await new_company()
+    h = owner_session["headers"]
+    async with fakes(ocr=False):
+        done = await filed(client, h, co["code"], title="بازبینی‌شده", text="reviewed")
+        todo = await filed(client, h, co["code"], title="تازه سررسید", text="newly due")
+    await su.execute(
+        """UPDATE archive.records SET due_at = DATE '2000-01-01', due_seen_at = now(),
+               review_work_ref = 'W-000001' WHERE ref = $1""",
+        done["ref"],
+    )
+    await su.execute(
+        "UPDATE archive.records SET due_at = DATE '2000-01-02' WHERE ref = $1", todo["ref"]
+    )
+    async with txf(hub)() as tx:
+        await CL.full(tx)
+        every = {x["ref"] for x in await RT.due(tx, limit=100000)}
+        pending = {x["ref"] for x in await RT.due(tx, limit=100000, pending=True)}
+    assert {done["ref"], todo["ref"]} <= every
+    assert todo["ref"] in pending and done["ref"] not in pending
+
 # --------------------------------------------------------------- reminders --
 async def test_a_contract_ending_in_30_days_gets_one_cartable_reminder(
     client: httpx.AsyncClient,
