@@ -17,7 +17,7 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
-> **v1.34 (۲۰۲۶-۱۱-۱۲، پرامپت ۳۶):** هیچ جلسه‌ای بی‌صدا نمی‌ایستد (§۵۶؛ جلسه‌ی ریلز پروچارت ۱۲ ساعت بعد از «از ChatGPT خواسته شد و در صف است» ایستاد): مهلت و خبر برای هر درخواست بازیکن ذخیره، کار در صف بیرونی «کار زنده» است، ریشه‌ی جلسه تا تمام شدن برنامه باز میماند، بیدارباش با سقف و بعد «گیر کرده»، اکانت پر و برگشت کار، راستی ایجنت درباره‌ی کار ردشده، مسیر انتشار از تنظیم هلدینگ، و «ایستاده» در اپ.
+> **v1.34 (۲۰۲۶-۱۱-۱۲، پرامپت ۳۶):** هیچ جلسه‌ای بی‌صدا نمی‌ایستد (§۵۶؛ جلسه‌ی ریلز پروچارت ۱۲ ساعت بعد از «از ChatGPT خواسته شد و در صف است» ایستاد): مهلت و خبر برای هر درخواست بازیکن ذخیره، کار در صف بیرونی «کار زنده» است، ریشه‌ی جلسه تا تمام شدن برنامه باز میماند، بیدارباش با سقف و بعد «گیر کرده»، اکانت پر و برگشت کار، راستی ایجنت درباره‌ی کار ردشده، مسیر انتشار از تنظیم هلدینگ، و «ایستاده» در اپ؛ همراه ممیزی سرور هاب ۲۰۲۶-۱۱-۱۱ (§۵۶.۸، migration `0063`، runner 0.3.6).
 >
 > **v1.33 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** آنچه ظاهر تازه‌ی اپ میخواند (§۵۵، پرامپت ۳۵): خط زنده‌ی کار و «چراغ حال» جلسه (`Worker.kind`، `cap_s`، `last_fa`، `SessionActivity.mood`)، «میز انتشار» (`GET /publish-desk`)، حلقه‌ی هر اکانت Claude و کنتور امروز (`GET /treasury/limits`)، و یک ردیف برای هر انتشار (کارهای پیگیری و لغو دیگر ردیف جدا نیستند). فقط خواندنی و افزودنی؛ migration ندارد.
 >
@@ -5213,3 +5213,13 @@ A session that is open, unfinished, with nobody working, nothing asked and no kn
 **«ایستاده»** and shows one card above the composer: «الان کسی روی این جلسه کار نمیکند؛ آخرین کار: … (دیشب
 22:28)» with «ادامه بده» (the existing nudge) as the page's one gold. A `call` worker shows in the «الان» bar
 with the model's mark, no ring and no «نگه دار». The owner is «تو» everywhere.
+
+### 56.8 The hub server's audit of 2026-11-11 (merged into prompt 36)
+The hub server's audit (`docs/ops/reports/AUDIT_2026-11-11.md`) ships with this prompt; its migration is `0063`
+(after `0062`). What a client or a runner sees:
+- `POST /internal/v1/tools/mcp/consume` (gateway → api) and `ResolveIn.defer`: an MCP call's budget is booked once,
+  after it ran. The api and the gateway are deployed together.
+- `ShadowReport.pass` (no longer `pass_` on the wire; both apps already read `pass`).
+- `GET /api/v1/egress/recent` pages with a cursor.
+- `POST /api/v1/revenue/affiliate-receipts` requires `Idempotency-Key` (no app calls it).
+- Runner **0.3.6**: the audit's runner fixes, compatible with 0.3.5; the hub raises no minimum.
