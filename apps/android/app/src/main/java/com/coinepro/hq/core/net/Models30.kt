@@ -35,8 +35,24 @@ data class LineTemplate(
     val version: Int = 1,
     val steps: List<StepDef> = emptyList(),
     val defaults: JsonObject = JsonObject(emptyMap()),
-    val outputsFa: String = "",
+    /** ⟨2026-11-11⟩ audit: the hub sends a list (`list[str]`); an older answer's single string is read as one item. */
+    @Serializable(with = StringList::class) val outputsFa: List<String> = emptyList(),
 )
+
+/** A list of strings that also takes a single string (one item) or null (none). */
+object StringList : kotlinx.serialization.KSerializer<List<String>> {
+    private val list = kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>())
+    override val descriptor = list.descriptor
+    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: List<String>) = list.serialize(encoder, value)
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): List<String> {
+        val e = (decoder as? kotlinx.serialization.json.JsonDecoder)?.decodeJsonElement() ?: return list.deserialize(decoder)
+        return when (e) {
+            is kotlinx.serialization.json.JsonArray -> e.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+            is JsonPrimitive -> if (e.isString && e.content.isNotBlank()) listOf(e.content) else emptyList()
+            else -> emptyList()
+        }
+    }
+}
 
 @Serializable
 data class LineChannel(val kind: String = "", val subject: String = "")

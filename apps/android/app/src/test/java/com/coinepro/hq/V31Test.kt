@@ -35,11 +35,23 @@ class V31Test {
         assertEquals(18, i.best.hour)
         assertNull(i.best.voice)
         assertEquals(2, i.lessonsFa.size)
-        val k = Api.json.decodeFromString(Kit.serializer(), """{"key":"k","title_fa":"ک","purpose_fa":"x","team_template":"t","groups":["content"],"lines":[{"template":"instagram_reel","platform":"instagram_reel","title_fa":"ریلز"}],"kpis":["reach"],"connections":["instagram"],"defaults":{}}""")
+        // ⟨2026-11-11⟩ audit: as the hub writes a kit (`KitSummary`): its groups, KPIs and connections are objects
+        val k = Api.json.decodeFromString(Kit.serializer(), """{"key":"k","title_fa":"ک","purpose_fa":"x","team_template":"t","team":{"departments":[{"code":"CONTENT","name_fa":"محتوا"}],"positions":4},
+            "groups":[{"key":"content","title_fa":"کارگروه محتوا"}],"lines":[{"template":"instagram_reel","platform":"instagram_reel","title_fa":"ریلز","ref":null,"why_fa":null}],
+            "kpis":[{"key":"reach","name_fa":"دسترسی","card":"growth","unit":"","manual":false}],"connections":[{"kind":"instagram","label_fa":"اینستاگرام"}],"todo_fa":["اینستاگرام را وصل کن"]}""")
         assertEquals("instagram_reel", k.lines.single().platform)
-        // The preview and the result may leave any part out.
-        assertTrue(Api.json.decodeFromString(KitPreview.serializer(), """{"preview_fa":"x"}""").todoFa.isEmpty())
-        assertEquals(listOf("اینستاگرام را وصل کن"), Api.json.decodeFromString(KitResult.serializer(), """{"company":{"code":"NV","name_fa":"ن"},"todo_fa":["اینستاگرام را وصل کن"]}""").todoFa)
+        assertEquals("کارگروه محتوا", k.groups.single().titleFa)
+        assertEquals("دسترسی", k.kpis.single().nameFa)
+        assertEquals("اینستاگرام", k.connections.single().labelFa)
+        assertEquals(4, k.team?.positions)
+        // The preview (`KitPreview`): the kit and whether the code is free; the result (`KitCreated`): its lines as drafts, objects
+        val p = Api.json.decodeFromString(KitPreview.serializer(), """{"kit":{"key":"k"},"code":"TY","name_fa":"ت","name_en":"T","code_free":false,"problems":["این کد را شرکت دیگری دارد"],"nothing_written":true}""")
+        assertFalse(p.codeFree)
+        assertEquals("k", p.kit?.key)
+        val made = Api.json.decodeFromString(KitResult.serializer(), """{"company":{"code":"NV","name_fa":"ن"},"kit":"k","team":{},"groups":["content"],"kpis":3,"connections":2,
+            "lines":[{"template":"instagram_reel","platform":"instagram_reel","title_fa":"ریلز","ref":"LN-0040"}],"lines_pending":[],"todo_fa":["اینستاگرام را وصل کن"]}""")
+        assertEquals("LN-0040", made.lines.single().ref)
+        assertEquals(listOf("اینستاگرام را وصل کن"), made.todoFa)
     }
 
     @Test

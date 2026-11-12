@@ -29,12 +29,15 @@ class V30Test {
     @Test
     fun aTemplateAndALineDecodeWithTheirSteps() {
         val t = Api.json.decodeFromString(LineTemplate.serializer(), """
-            {"key":"instagram_reel","title_fa":"ریل","platform":"instagram_reel","version":2,"outputs_fa":"x",
+            {"key":"instagram_reel","title_fa":"ریل","platform":"instagram_reel","version":2,"outputs_fa":["ویدیوی ۳۰ ثانیه‌ای","کپشن"],
              "steps":[{"key":"script","kind":"gpt_text","title_fa":"فیلمنامه","prompt_fa":"بنویس","settings":{},"inputs":[],"gate":"auto","optional":false,"enabled":true,"max_attempts":2,"timeout_s":90},
                       {"key":"voice","kind":"tts","title_fa":"صدا","prompt_fa":null,"settings":{"speaker":"Kore"},"inputs":["script"],"gate":"owner","optional":true,"enabled":false,"max_attempts":1,"timeout_s":60}],
              "defaults":{"auto_after":7},"new_field":1}
         """.trimIndent())
         assertEquals(2, t.steps.size)
+        // ⟨2026-11-11⟩ audit: the hub's `outputs_fa` is a list; an older single string reads as one item
+        assertEquals(listOf("ویدیوی ۳۰ ثانیه‌ای", "کپشن"), t.outputsFa)
+        assertEquals(listOf("x"), Api.json.decodeFromString(LineTemplate.serializer(), """{"key":"k","outputs_fa":"x"}""").outputsFa)
         assertEquals("owner", t.steps[1].gate)
         assertNull(t.steps[1].promptFa)
         assertFalse(t.steps[1].enabled)

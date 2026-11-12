@@ -383,12 +383,15 @@ private fun jsonOf(s: String): JsonObject? = runCatching { Api.json.parseToJsonE
  *  `error` (a Problem) and `awaiting_seal`; an unnamed event with a JSON body says which by its keys. */
 fun termEventOf(m: SseMessage): TermEvent? {
     val o = jsonOf(m.data)
-    fun text(): String = o?.str("text") ?: o?.str("data") ?: m.data
+    // ⟨2026-11-11⟩ audit: the runner sends each output line as one event, without its newline; a blank line is a line too (never the
+    // raw `{"text":""}`).
+    fun raw(k: String): String? = (o?.get(k) as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull
+    fun line(): String = (raw("text") ?: raw("data") ?: if (o == null) m.data else "").let { if (it.endsWith("\n")) it else "$it\n" }
     return when (m.event ?: o?.str("type") ?: o?.str("stream")) {
-        "stdout", "out", "output" -> TermEvent.Out(text())
-        "stderr", "err" -> TermEvent.Out(text(), err = true)
+        "stdout", "out", "output" -> TermEvent.Out(line())
+        "stderr", "err" -> TermEvent.Out(line(), err = true)
         "exit", "done", "end" -> TermEvent.Exit((o?.get("exit_code") as? JsonPrimitive)?.intOrNull ?: 0, (o?.get("duration_ms") as? JsonPrimitive)?.longOrNull)
-        "error" -> TermEvent.Failed(o?.str("code") ?: "internal_error", o?.str("message_fa") ?: o?.str("detail") ?: m.data)
+        "error" -> TermEvent.Failed(o?.str("code") ?: "internal_error", o?.str("message_fa") ?: o?.str("message") ?: o?.str("detail") ?: m.data)
         "awaiting_seal" -> TermEvent.AwaitingSeal(o?.str("decision_ref") ?: o?.str("decision") ?: o?.str("ref"), o?.str("message_fa") ?: "این فرمان ویرانگر است و منتظر مُهر تو ماند.")
         null, "message" -> when {
             o == null -> if (m.data.isEmpty()) null else TermEvent.Out(m.data)

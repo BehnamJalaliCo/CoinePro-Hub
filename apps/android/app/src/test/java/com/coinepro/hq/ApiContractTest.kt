@@ -409,6 +409,18 @@ class ApiContractTest {
         assertEquals("/api/v1/connections/c2/secret", req.url.encodedPath)
     }
 
+    /** ⟨2026-11-11⟩ audit: the hub binds `company.create` from a kit to the SHA-256 of the exact body, never to the code. */
+    @Test
+    fun aCompanyFromAKitIsSignedOnItsExactBody() = runTest {
+        val (a, t, req) = signed("""{"company":{"code":"NV","name_fa":"ن"},"kit":"k","team":{},"groups":[],"kpis":0,"connections":0,"lines":[],"todo_fa":[]}""") {
+            api.createFromKit("k", "NV", "نوین", "Novin", null, it)
+        }
+        val body = req.body!!.utf8()
+        assertEquals("company.create", a)
+        assertEquals(Api.sha256(body), t)
+        assertEquals("/api/v1/companies/from-kit", req.url.encodedPath)
+    }
+
     @Test
     fun newCompanyIsSignedOnItsCodeAndFreezesTakeAnUntil() = runTest {
         val (a, t, req) = signed("""{"id":"co-NW","code":"NW","kind":"company","status":"active","created_at":"2026-10-18T10:00:00Z"}""") { api.createCompany(com.coinepro.hq.core.net.CompanyIn("NW", "تازه", "New"), it) }

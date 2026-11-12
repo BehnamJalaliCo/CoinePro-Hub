@@ -278,7 +278,7 @@ internal class V30Demo {
     }
 
     private fun template(key: String, title: String, platform: String, steps: List<JsonObject>, outputs: String) = jo(
-        "key" to key, "title_fa" to title, "platform" to platform, "version" to 1, "steps" to ja(steps), "defaults" to jo("auto_after" to 7), "outputs_fa" to outputs,
+        "key" to key, "title_fa" to title, "platform" to platform, "version" to 1, "steps" to ja(steps), "defaults" to jo("auto_after" to 7), "outputs_fa" to ja(listOf(JsonPrimitive(outputs))),
     )
 
     private fun line(

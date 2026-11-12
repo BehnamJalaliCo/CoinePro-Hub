@@ -32,39 +32,62 @@ data class Insights(
 
 // ---------------------------------------------------------------- §31.2 --
 @Serializable
-data class KitLine(val template: String = "", val platform: String = "", val titleFa: String = "")
+data class KitLine(val template: String = "", val platform: String = "", val titleFa: String = "", val ref: String? = null, val whyFa: String? = null)
 
+/** ⟨2026-11-11⟩ audit: the hub's kit parts are objects (`KitGroup`, `KitKpi`, `KitConnection`, `KitTeam`), never bare strings. */
+@Serializable
+data class KitGroup(val key: String = "", val titleFa: String = "")
+
+@Serializable
+data class KitKpi(val key: String = "", val nameFa: String = "", val card: String = "", val unit: String = "", val manual: Boolean = false)
+
+@Serializable
+data class KitConnection(val kind: String = "", val labelFa: String = "")
+
+@Serializable
+data class KitDepartment(val code: String = "", val nameFa: String = "")
+
+@Serializable
+data class KitTeam(val departments: List<KitDepartment> = emptyList(), val positions: Int = 0)
+
+/** `GET /kits` (`KitSummary`): what a kit makes. */
 @Serializable
 data class Kit(
     val key: String,
     val titleFa: String = "",
     val purposeFa: String = "",
     val teamTemplate: String = "",
-    val groups: List<String> = emptyList(),
+    val team: KitTeam? = null,
+    val groups: List<KitGroup> = emptyList(),
     val lines: List<KitLine> = emptyList(),
-    val kpis: List<String> = emptyList(),
-    val connections: List<String> = emptyList(),
+    val kpis: List<KitKpi> = emptyList(),
+    val connections: List<KitConnection> = emptyList(),
+    val todoFa: List<String> = emptyList(),
     val defaults: JsonObject = JsonObject(emptyMap()),
 )
 
-/** `POST /companies/from-kit/preview`: what the call will make, in the owner's words (nothing is created). Every part may be absent. */
+/** `POST /companies/from-kit/preview`: the kit as it would be made for this company, and whether its code is free (nothing is created). */
 @Serializable
 data class KitPreview(
-    val previewFa: String = "",
-    val teamFa: List<String> = emptyList(),
-    val groups: List<String> = emptyList(),
-    val lines: List<KitLine> = emptyList(),
-    val kpis: List<String> = emptyList(),
-    val connections: List<String> = emptyList(),
-    val todoFa: List<String> = emptyList(),
+    val kit: Kit? = null,
+    val code: String = "",
+    val nameFa: String = "",
+    val nameEn: String = "",
+    val codeFree: Boolean = true,
+    val problems: List<String> = emptyList(),
 )
 
 @Serializable
 data class KitCompany(val code: String = "", val nameFa: String? = null)
 
-/** `POST /companies/from-kit`: the company made, and what the owner still has to connect ([todoFa]). */
+/** `POST /companies/from-kit` (`KitCreated`): the company made, its lines as drafts, and what the owner still has to connect ([todoFa]). */
 @Serializable
-data class KitResult(val company: KitCompany = KitCompany(), val lines: List<String> = emptyList(), val todoFa: List<String> = emptyList())
+data class KitResult(
+    val company: KitCompany = KitCompany(),
+    val lines: List<KitLine> = emptyList(),
+    val linesPending: List<KitLine> = emptyList(),
+    val todoFa: List<String> = emptyList(),
+)
 
 // ---------------------------------------------------------------- §31.3 --
 @Serializable

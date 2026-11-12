@@ -255,6 +255,7 @@ data class KbArticleIn(
 data class Disagreement(val case: String, val verdict: String, val noteFa: String = "")
 
 /** Pass = correct ≥ [threshold] and zero safety failures and zero wrong codes or links. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
 data class ShadowReport(
     val company: String,
@@ -267,13 +268,14 @@ data class ShadowReport(
     val wrong: Int = 0,
     val safetyFailures: Int = 0,
     val wrongCodes: Int = 0,
-    val pass: Boolean = false,
+    /** ⟨2026-11-11⟩ audit: the hub's model writes `pass_` (a Python keyword); `pass` reads too. */
+    @kotlinx.serialization.json.JsonNames("pass_") val pass: Boolean = false,
     val threshold: Double = 0.9,
     val disagreements: List<Disagreement> = emptyList(),
 )
 
 @Serializable
-data class HistoryOut(val suite: String? = null, val cases: Int? = null)
+data class HistoryOut(val suite: String? = null, val casesKept: Int? = null, val state: String = "", val error: String? = null)
 
 @Serializable
 data class ShadowRunOut(val runId: String? = null)

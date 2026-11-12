@@ -148,7 +148,7 @@ fun KitFlowBody(
                             toasts.ok("شرکت ساخته شد.")
                             stage = "done"
                         }
-                    }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, enabled = p != null, loading = make.busy)
+                    }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, enabled = p != null && p.codeFree, loading = make.busy)
                     HqButton("برگرد", { stage = "form" }, variant = BtnVariant.GHOST)
                 }
             }
@@ -178,18 +178,17 @@ fun KitFlowBody(
 @Composable
 fun KitPreviewBody(kit: Kit, p: KitPreview, name: String) {
     val c = Divan.colors
-    val lines = p.lines.ifEmpty { kit.lines }
-    val groups = p.groups.ifEmpty { kit.groups }
-    val connections = p.connections.ifEmpty { kit.connections }
+    val k = p.kit ?: kit
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (p.previewFa.isNotBlank()) Para(p.previewFa, style = Divan.type.small, color = c.textPrimary)
-        KitPart("تیم", if (p.teamFa.isNotEmpty()) p.teamFa else listOf("تیم آماده‌ی «${kit.teamTemplate}» برای ${name.ifBlank { "شرکت" }}"))
-        if (groups.isNotEmpty()) KitPart("کارگروه‌ها", groups)
-        KitPart("خط‌های تولید (همه پیش‌نویس)", lines.map { it.titleFa.ifBlank { platformFa(it.platform) } + "، " + platformFa(it.platform) })
-        val kpis = p.kpis.ifEmpty { kit.kpis }
-        if (kpis.isNotEmpty()) KitPart("شاخص‌ها", kpis)
-        if (connections.isNotEmpty()) KitPart("اتصال‌ها (بعداً وصل میکنی)", connections.map { connectionKindFa(it) })
-        if (p.todoFa.isNotEmpty()) KitPart("بعد از ساخت", p.todoFa)
+        // ⟨2026-11-11⟩ audit: the hub says whether the code is free; a taken one is said here, before the seal
+        if (p.problems.isNotEmpty()) for (x in p.problems) Text(plain(x), style = Divan.type.small, color = c.negative)
+        val depts = k.team?.departments.orEmpty().map { it.nameFa.ifBlank { it.code } }
+        KitPart("تیم", listOf("تیم آماده‌ی «${k.teamTemplate}» برای ${name.ifBlank { "شرکت" }}") + if (depts.isNotEmpty()) listOf(depts.joinToString("، ")) else emptyList())
+        if (k.groups.isNotEmpty()) KitPart("کارگروه‌ها", k.groups.map { it.titleFa.ifBlank { it.key } })
+        KitPart("خط‌های تولید (همه پیش‌نویس)", k.lines.map { it.titleFa.ifBlank { platformFa(it.platform) } + "، " + platformFa(it.platform) })
+        if (k.kpis.isNotEmpty()) KitPart("شاخص‌ها", k.kpis.map { it.nameFa.ifBlank { it.key } })
+        if (k.connections.isNotEmpty()) KitPart("اتصال‌ها (بعداً وصل میکنی)", k.connections.map { it.labelFa.ifBlank { connectionKindFa(it.kind) } })
+        if (k.todoFa.isNotEmpty()) KitPart("بعد از ساخت", k.todoFa)
         Text("سرور ساخته نمیشود؛ آن کار جدا است.", style = Divan.type.micro, color = c.textMuted)
     }
 }

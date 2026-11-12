@@ -640,7 +640,8 @@ private fun ShadowCard(company: String, name: String, r: ShadowReport?) {
             val out = env.api.supportHistory(company, ref.id)
             sending = false
             env.cache.invalidate("support")
-            toasts.ok("مجموعه‌ی آزمون ${out.suite ?: ""} ساخته شد" + (out.cases?.let { "، $it سؤال ماسک‌شده" } ?: "") + ". حالا اجرا کن.")
+            if (out.state == "failed") toasts.error(out.error?.ifBlank { null } ?: "این تاریخچه خوانده نشد؛ فایل دیگری بده.")
+            else toasts.ok("مجموعه‌ی آزمون ${out.suite ?: ""} ساخته شد" + (out.casesKept?.let { "، $it سؤال ماسک‌شده" } ?: "") + ". حالا اجرا کن.")
         }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri) }
@@ -704,7 +705,7 @@ private fun ShadowCard(company: String, name: String, r: ShadowReport?) {
                         env.cache.invalidate("support")
                         toasts.ok("اجرا شروع شد؛ هزینه‌اش از سقف آکادمی است.")
                     }
-                }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, enabled = r != null, loading = run.busy)
+                }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = run.busy)
             }
         }
     }

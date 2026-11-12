@@ -36,11 +36,13 @@ export function KitFlow({ kit, order, nameFa: nameFa0, onBack, onStart }: { kit:
   };
   const make = () => { onStart?.(); create.mutate(body(), { onSuccess: (r) => setDone(r), onError: (e) => toast({ tone: 'error', text: errText(e, 'ساخته نشد؛ دوباره بزن.') }) }); };
   const blocked = prev ? prev.code_free === false || !!prev.problems?.length : false;
+  // The hub nests what would be made under `kit` (KitPreview); the kit itself is the fallback for an older hub.
+  const pk: Kit = prev?.kit ?? kit;
 
   if (done) {
     return (
       <Card as="section" className="tahrir hq-rise flex flex-col gap-4 p-5" aria-label="شرکت ساخته شد">
-        <SectionTitle title={<>شرکت «{done.company.name_fa}» ساخته شد</>} note="تیم، کارگروه‌ها و خط‌های پیش‌نویس آماده‌اند" />
+        <SectionTitle title={<>شرکت «{done.company.name_fa ?? done.company.code}» ساخته شد</>} note="تیم، کارگروه‌ها و خط‌های پیش‌نویس آماده‌اند" />
         <div className="flex flex-col gap-2" aria-label="چه چیزی هنوز باید وصل شود">
           <h3 className="text-[13px] font-semibold text-sec">چه چیزی هنوز باید وصل شود</h3>
           {done.todo_fa.length ? <ul className="flex flex-col gap-1.5">{done.todo_fa.map((t) => <li key={t} className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6"><FaText text={t} /></li>)}</ul> : <p className="text-[13px] text-muted">چیزی نمانده.</p>}
@@ -71,13 +73,13 @@ export function KitFlow({ kit, order, nameFa: nameFa0, onBack, onStart }: { kit:
           <SectionTitle title="این‌ها ساخته میشود" note="تا مُهر نزنی چیزی ساخته نمیشود" />
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5"><h3 className="text-[13px] font-semibold text-sec">خط‌های تولید (پیش‌نویس)</h3>
-              <ul className="flex flex-col gap-1 text-[13px]">{prev.lines.map((l, i) => <li key={i}><FaText text={l.title_fa} /> <span className="text-muted">· {platformFa(l.platform)}</span></li>)}</ul></div>
+              <ul className="flex flex-col gap-1 text-[13px]">{pk.lines.map((l, i) => <li key={i}><FaText text={l.title_fa} /> <span className="text-muted">· {platformFa(l.platform)}</span></li>)}</ul></div>
             <div className="flex flex-col gap-1.5"><h3 className="text-[13px] font-semibold text-sec">کارگروه‌ها، شاخص‌ها و اتصال‌ها</h3>
-              <p className="text-[13px] leading-6">{prev.groups.length ? `کارگروه: ${prev.groups.join('، ')}` : ''}<br />{prev.kpis.length ? `شاخص: ${prev.kpis.join('، ')}` : ''}<br />{prev.connections.length ? `اتصال (هنوز وصل نیست): ${prev.connections.join('، ')}` : ''}</p></div>
+              <p className="text-[13px] leading-6">{pk.groups.length ? `کارگروه: ${pk.groups.map((g) => g.title_fa).join('، ')}` : ''}<br />{pk.kpis.length ? `شاخص: ${pk.kpis.map((k) => k.name_fa).join('، ')}` : ''}<br />{pk.connections.length ? `اتصال (هنوز وصل نیست): ${pk.connections.map((c) => c.label_fa).join('، ')}` : ''}</p></div>
           </div>
           {prev.code_free === false ? <p className="rounded-[10px] bg-neg-soft px-3 py-2 text-[13px]" role="alert">این کد قبلاً به شرکت دیگری داده شده؛ کد دیگری بنویس.</p> : null}
           {prev.problems?.length ? <ul className="flex flex-col gap-1.5" aria-label="مشکل‌ها">{prev.problems.map((p) => <li key={p} className="rounded-[10px] bg-neg-soft px-3 py-2 text-[13px]"><FaText text={p} /></li>)}</ul> : null}
-          {prev.todo_fa.length ? <ul className="flex flex-col gap-1.5" aria-label="بعد از ساخت باید وصل شود">{prev.todo_fa.map((t) => <li key={t} className="rounded-[10px] bg-tile px-3 py-2 text-[13px]"><FaText text={t} /></li>)}</ul> : null}
+          {pk.todo_fa.length ? <ul className="flex flex-col gap-1.5" aria-label="بعد از ساخت باید وصل شود">{pk.todo_fa.map((t) => <li key={t} className="rounded-[10px] bg-tile px-3 py-2 text-[13px]"><FaText text={t} /></li>)}</ul> : null}
           <div><Button variant="primary" icon="seal" loading={create.isPending} disabled={blocked} onClick={make}>بساز و مُهر کن</Button></div>
         </Card>
       ) : null}

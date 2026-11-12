@@ -1611,8 +1611,11 @@ class Api(
     suspend fun previewKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int? = null): KitPreview =
         post("/companies/from-kit/preview", kitBody(kit, code, nameFa, nameEn, colorIndex))
     /** 🔏 `company.create` on the new company's code. */
-    suspend fun createFromKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?, stepUp: StepUp): KitResult =
-        post("/companies/from-kit", kitBody(kit, code, nameFa, nameEn, colorIndex), stepUp("company.create", code))
+    /** 🔏 `company.create`, bound to the SHA-256 of the exact body (⟨2026-11-11⟩ audit: never to the code). */
+    suspend fun createFromKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?, stepUp: StepUp): KitResult {
+        val text = json.encodeToString(JsonElement.serializer(), kitBody(kit, code, nameFa, nameEn, colorIndex))
+        return send("POST", "/companies/from-kit", text, stepUp = stepUp("company.create", sha256(text)))
+    }
 
     suspend fun newsletter(code: String): Newsletter = get("/companies/${seg(code)}/newsletter")
     suspend fun newNewsletter(code: String, list: String, subject: String, subjectB: String?, bodyMd: String): NlCampaign =

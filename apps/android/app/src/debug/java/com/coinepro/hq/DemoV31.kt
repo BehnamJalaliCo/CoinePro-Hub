@@ -29,14 +29,15 @@ internal class V31Demo {
     private fun at(off: Long, h: Int, m: Int = 0): String = today.plusDays(off).atTime(h, m).atZone(tehran).toInstant().toString()
     private val last30 = (29 downTo 0L).map { day(-it) }
 
-    private val kits = listOf(
+    // (lazy: the names it reads are declared further down)
+    private val kits by lazy { listOf(
         kit("media_channel", "شرکت رسانه‌ی کانال‌محور", "یک شرکت تازه که هر روز برای کانال‌هایش (اینستاگرام، تلگرام و سایت) محتوا میسازد و منتشر میکند، با تیم محتوا و عددهای واقعی.",
             listOf("content"), listOf(kl("instagram_reel", "instagram_reel", "ریلز آموزشی"), kl("telegram_post", "telegram_post", "پست روزانه‌ی کانال"), kl("site_article", "site_article", "مقاله‌ی هفتگی")),
             listOf("reach", "followers", "published"), listOf("instagram", "telegram", "search_console")),
         kit("newsletter_brand", "برند خبرنامه‌ای", "شرکتی که مخاطبش را در فهرست ایمیل خودش نگه میدارد و هفته‌ای یک خبرنامه با مقاله‌ی سایت میفرستد.",
             listOf("content"), listOf(kl("site_article", "site_article", "مقاله‌ی هفتگی"), kl("newsletter", "newsletter", "خبرنامه‌ی هفتگی")),
             listOf("subscribers", "opens", "clicks"), listOf("search_console", "ga4")),
-    )
+    ) }
 
     private val newsletters = linkedMapOf(
         "TY" to jo(
@@ -108,11 +109,12 @@ internal class V31Demo {
         if (path == "/kits" && method == "GET") return 200 to ja(kits)
         if (path == "/companies/from-kit/preview" && method == "POST") {
             val kit = kits.firstOrNull { it.str("key") == body?.str("kit") } ?: return 404 to problem(404, "not_found", "این بسته پیدا نشد.")
-            val name = body?.str("name_fa").orEmpty()
+            // ⟨2026-11-11⟩ as the hub answers (`KitPreview`): the kit, the names, and whether the code is free
+            val code = body?.str("code").orEmpty()
+            val taken = code in setOf("TY", "FX", "PC", "HQ")
             return 200 to jo(
-                "preview_fa" to "شرکت «$name» با تیم آماده‌ی رسانه، ${kit.arr("lines").size} خط تولید پیش‌نویس و ${kit.arr("kpis").size} شاخص ساخته میشود. هیچ خطی بدون مُهر تو منتشر نمیکند.",
-                "team_fa" to ja(listOf("مدیرعامل", "مدیر محتوا", "نویسنده", "طراح تصویر", "تحلیلگر عملکرد").map { JsonPrimitive(it) }),
-                "todo_fa" to ja(todo(kit)),
+                "kit" to kit, "code" to code, "name_fa" to body?.str("name_fa").orEmpty(), "name_en" to body?.str("name_en").orEmpty(),
+                "code_free" to !taken, "problems" to ja(if (taken) listOf(JsonPrimitive("این کد را شرکت دیگری دارد")) else emptyList()), "nothing_written" to true,
             )
         }
         if (path == "/companies/from-kit" && method == "POST") {
@@ -121,7 +123,7 @@ internal class V31Demo {
             if (!Regex("^[A-Z][A-Z0-9]{1,9}$").matches(code)) return 422 to problem(422, "validation_failed", "کد شرکت باید حرف انگلیسی بزرگ باشد.")
             return 201 to jo(
                 "company" to jo("code" to code, "name_fa" to body?.str("name_fa")),
-                "lines" to ja(kit.arr("lines").indices.map { JsonPrimitive("LN-%04d".format(40 + it)) }),
+                "lines" to ja(kit.arr("lines").mapIndexed { i, l -> JsonObject((l as JsonObject) + ("ref" to JsonPrimitive("LN-%04d".format(40 + i)))) }),
                 "todo_fa" to ja(todo(kit)),
             )
         }
@@ -259,13 +261,22 @@ internal class V31Demo {
 
     // ------------------------------------------------------------ the data --
     private fun kl(template: String, platform: String, title: String) = jo("template" to template, "platform" to platform, "title_fa" to title)
-    private fun kit(key: String, title: String, purpose: String, groups: List<String>, lines: List<JsonObject>, kpis: List<String>, connections: List<String>) = jo(
-        "key" to key, "title_fa" to title, "purpose_fa" to purpose, "team_template" to "media_company", "groups" to ja(groups.map { JsonPrimitive(it) }), "lines" to ja(lines),
-        "kpis" to ja(kpis.map { JsonPrimitive(it) }), "connections" to ja(connections.map { JsonPrimitive(it) }), "defaults" to jo(),
-    )
+    // ⟨2026-11-11⟩ as the hub writes a kit (`KitSummary`): its groups, KPIs and connections are objects with their Persian names
+    private val groupFa = mapOf("content" to "کارگروه محتوا")
+    private val kpiFa = mapOf("reach" to "دسترسی", "followers" to "دنبال‌کننده", "published" to "منتشرشده", "subscribers" to "مشترک", "opens" to "بازشدن", "clicks" to "کلیک")
+    private fun kit(key: String, title: String, purpose: String, groups: List<String>, lines: List<JsonObject>, kpis: List<String>, connections: List<String>): JsonObject {
+        val k = jo(
+            "key" to key, "title_fa" to title, "purpose_fa" to purpose, "team_template" to "media_company",
+            "team" to jo("departments" to ja(listOf(jo("code" to "CONTENT", "name_fa" to "محتوا"), jo("code" to "GROWTH", "name_fa" to "رشد"))), "positions" to 5),
+            "groups" to ja(groups.map { jo("key" to it, "title_fa" to (groupFa[it] ?: it)) }), "lines" to ja(lines),
+            "kpis" to ja(kpis.map { jo("key" to it, "name_fa" to (kpiFa[it] ?: it), "card" to "growth", "unit" to "", "manual" to false) }),
+            "connections" to ja(connections.map { jo("kind" to it, "label_fa" to (connectionFa[it] ?: it)) }),
+        )
+        return JsonObject(k + ("todo_fa" to ja(todo(k))))
+    }
     private val connectionFa = mapOf("instagram" to "اینستاگرام", "telegram" to "تلگرام", "search_console" to "کنسول جست‌وجو", "ga4" to "آمار سایت")
     private fun todo(kit: JsonObject): List<JsonElement> =
-        (kit["connections"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.map { JsonPrimitive("اتصال ${connectionFa[it] ?: it} را وصل کن تا عددهایش بیاید.") } + JsonPrimitive("یک سرور برای شرکت از بخش تأسیس درخواست کن.")
+        (kit["connections"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.str("label_fa") }.map { JsonPrimitive("اتصال $it را وصل کن تا عددهایش بیاید.") } + JsonPrimitive("یک سرور برای شرکت از بخش تأسیس درخواست کن.")
 
     private fun ci(off: Long, atIso: String?, co: String, kind: String, ref: String, title: String, platform: String?, state: String, conflict: String?) = jo(
         "day" to day(off), "at" to atIso, "company" to co, "kind" to kind, "ref" to ref, "title_fa" to title, "platform" to platform, "state" to state, "conflict_fa" to conflict,

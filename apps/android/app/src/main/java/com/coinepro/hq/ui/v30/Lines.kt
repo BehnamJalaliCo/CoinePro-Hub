@@ -155,7 +155,7 @@ fun TemplateList(list: List<LineTemplate>, onPick: (LineTemplate) -> Unit) {
                 }
             }
             StepChips(t.steps.filter { it.enabled }.map { it.kind }, Modifier.padding(top = 10.dp))
-            if (t.outputsFa.isNotBlank()) Para(t.outputsFa, Modifier.padding(top = 8.dp), style = Divan.type.caption, color = c.textSecondary)
+            if (t.outputsFa.isNotEmpty()) Para(t.outputsFa.joinToString("، "), Modifier.padding(top = 8.dp), style = Divan.type.caption, color = c.textSecondary)
         }
     }
 }
