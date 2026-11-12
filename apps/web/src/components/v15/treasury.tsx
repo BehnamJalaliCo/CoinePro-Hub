@@ -10,7 +10,7 @@ import { ApiError } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import { downloadCsv, useBudgets, useCallPages, useQuota, useTreasuryAction, useWhatIf, type BudgetIn, type BudgetUse, type Connection } from '@/lib/api/v15';
 import { ModelName } from '@/components/brand/model-mark';
-import { cx, jDateTime, percentValue, tokens, until, usd } from '@/lib/format';
+import { OWNER_TZ, cx, jDateTime, parseNum, percentValue, tokens, until, usd } from '@/lib/format';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
 const fail = (toast: ReturnType<typeof useToast>, e: unknown) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'انجام نشد.' });
@@ -47,9 +47,9 @@ const MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
 /** "What would this month have cost on model X" from our own price table (design list #22). */
 export function WhatIfCard({ company }: { company: string | null }) {
   const [model, setModel] = useState(MODELS[2]!);
-  const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const to = now.toISOString().slice(0, 10);
+  // The owner's (Tehran) calendar day: the API reads a date as that day in the owner's zone.
+  const to = new Intl.DateTimeFormat('en-CA', { timeZone: OWNER_TZ }).format(new Date());
+  const from = `${to.slice(0, 8)}01`;
   const q = useWhatIf({ model, from, to, company });
   const d = q.data;
   const diff = d?.difference_usd != null ? Number(d.difference_usd) : null;
@@ -72,8 +72,11 @@ export function WhatIfCard({ company }: { company: string | null }) {
 // ---------------------------------------------------------------- budgets --
 const M = 1_000_000;
 const toM = (n: number | null | undefined) => (n == null ? '' : String(Math.round((n / M) * 100) / 100));
-const fromM = (s: string) => (s.trim() === '' ? null : Math.round(Number(s.replace(/[٬,]/g, '').replace('٫', '.')) * M));
-type Row = { key: string; company: string; scope_type: 'holding' | 'company'; period: 'day' | 'month'; tokens: string; usd: string };
+// Persian digits, ٫ and thousands separators read as the number they are (parseNum); anything else is not a number.
+const fromM = (s: string) => { const n = parseNum(s); return n == null ? null : Math.round(n * M); };
+const positive = (s: string) => s.trim() === '' || (parseNum(s) ?? 0) > 0;
+/** `had`: the stored budget, so a row emptied by the owner is sent switched off (its old limits keep the body valid), not left out. */
+type Row = { key: string; company: string; scope_type: 'holding' | 'company'; period: 'day' | 'month'; tokens: string; usd: string; had: { token_limit: number | null; usd_limit: string | null } | null };
 
 /** Budgets per scope and period (§9 PUT /budgets): the holding's month in tokens and dollars, each company's month and day. Sealed on the body. */
 export function BudgetEditor({ onClose }: { onClose: () => void }) {
@@ -85,14 +88,19 @@ export function BudgetEditor({ onClose }: { onClose: () => void }) {
   const holding = companies?.find((c) => c.kind === 'holding')?.code ?? 'HQ';
   if (q.data && companies && !rows) {
     const find = (scope: 'holding' | 'company', company: string, period: 'day' | 'month') => q.data.find((b: BudgetUse) => b.scope_type === scope && b.company === company && b.period === period);
-    const mk = (scope: 'holding' | 'company', company: string, period: 'day' | 'month'): Row => { const b = find(scope, company, period); return { key: `${scope}-${company}-${period}`, company, scope_type: scope, period, tokens: toM(b?.token_limit), usd: b?.usd_limit ?? '' }; };
+    const mk = (scope: 'holding' | 'company', company: string, period: 'day' | 'month'): Row => { const b = find(scope, company, period); return { key: `${scope}-${company}-${period}`, company, scope_type: scope, period, tokens: toM(b?.token_limit), usd: b?.usd_limit ?? '', had: b && (b.token_limit != null || b.usd_limit != null) ? { token_limit: b.token_limit, usd_limit: b.usd_limit } : null }; };
     setRows([mk('holding', holding, 'month'), ...companies.filter((c) => c.kind !== 'holding').flatMap((c) => [mk('company', c.code, 'month'), mk('company', c.code, 'day')])]);
   }
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs!.map((r) => (r.key === key ? { ...r, ...p } : r)));
-  const valid = !!rows && rows.every((r) => (r.tokens === '' || Number(r.tokens.replace('٫', '.')) > 0) && (r.usd === '' || Number(r.usd) > 0));
+  const items: BudgetIn[] = (rows ?? []).flatMap((r): BudgetIn[] => {
+    const base = { company: r.company, scope_type: r.scope_type, scope_ref: r.company, period: r.period };
+    if (r.tokens.trim() !== '' || r.usd.trim() !== '') { const u = parseNum(r.usd); return [{ ...base, token_limit: fromM(r.tokens), usd_limit: u == null ? null : u.toFixed(2), enabled: true }]; }
+    // Emptied: «خالی یعنی بی‌سقف» — the stored cap is switched off.
+    return r.had ? [{ ...base, token_limit: r.had.token_limit, usd_limit: r.had.usd_limit, enabled: false }] : [];
+  });
+  const valid = !!rows && items.length > 0 && rows.every((r) => positive(r.tokens) && positive(r.usd));
   const save = async () => {
     if (!rows) return;
-    const items: BudgetIn[] = rows.filter((r) => r.tokens !== '' || r.usd !== '').map((r) => ({ company: r.company, scope_type: r.scope_type, scope_ref: r.company, period: r.period, token_limit: fromM(r.tokens), usd_limit: r.usd === '' ? null : Number(r.usd).toFixed(2), enabled: true }));
     try { await act.budgets.mutateAsync(items); toast({ tone: 'ok', text: 'بودجه‌ها ذخیره شد.' }); onClose(); } catch (e) { fail(toast, e); }
   };
   const label = (r: Row) => (r.scope_type === 'holding' ? 'کل هلدینگ' : companies?.find((c) => c.code === r.company)?.name_fa ?? r.company);

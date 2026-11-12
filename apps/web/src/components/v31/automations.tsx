@@ -28,7 +28,7 @@ export function Automations() {
     setBusy(true);
     try { setOut(await compileAutomation(sentence.trim(), company)); } catch (e) { toast({ tone: 'error', text: errText(e, 'ساخته نشد؛ دوباره بزن.') }); } finally { setBusy(false); }
   };
-  const register = () => out && act.register.mutate({ rule: out.rule, sentence_fa: sentence.trim(), company }, {
+  const register = () => out?.rule && act.register.mutate({ rule: out.rule, sentence_fa: sentence.trim(), company }, {
     onSuccess: () => { toast({ tone: 'ok', text: 'ثبت و مُهر شد؛ روشن است.' }); setOut(null); setSentence(''); },
     onError: (e) => toast({ tone: 'error', text: errText(e, 'ثبت نشد.') }),
   });
@@ -49,8 +49,8 @@ export function Automations() {
 
       {out ? (
         <Card as="section" className="tahrir hq-rise flex flex-col gap-3 p-5" aria-label="پیش‌نمایش اتوماسیون">
-          <SectionTitle title="این کار انجام میشود" note="تا مُهر نزنی چیزی اجرا نمیشود" />
-          <FaPara text={out.preview_fa} className="text-[14px] leading-7" />
+          <SectionTitle title={out.rule ? 'این کار انجام میشود' : 'این جمله قاعده نشد'} note={out.rule ? 'تا مُهر نزنی چیزی اجرا نمیشود' : 'جمله را ساده‌تر یا دقیق‌تر بنویس'} />
+          {out.preview_fa ? <FaPara text={out.preview_fa} className="text-[14px] leading-7" /> : null}
           {out.refused_fa.length ? (
             <div className="flex flex-col gap-1.5" aria-label="این کارها انجام نمیشود">
               <h3 className="text-[13px] font-semibold text-sec">این‌ها را انجام نمیدهد</h3>
@@ -58,7 +58,7 @@ export function Automations() {
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" icon="seal" loading={act.register.isPending} onClick={register}>ثبت و مُهر</Button>
+            {out.rule ? <Button variant="primary" icon="seal" loading={act.register.isPending} onClick={register}>ثبت و مُهر</Button> : null}
             <Button onClick={() => setOut(null)}>بی‌خیال</Button>
           </div>
         </Card>
@@ -78,13 +78,16 @@ export function Automations() {
   );
 }
 
+const OUTCOME_FA: Record<string, string> = { ok: 'انجام شد', failed: 'ناموفق', skipped: 'اجرا نشد' };
+
 function AutomationRow({ a, open, onOpen, name }: { a: Automation; open: boolean; onOpen: () => void; name: string }) {
   const act = useAutomationActions();
   const toast = useToast();
   const det = useAutomation(open ? a.ref : null);
   const st = AUTOMATION_STATE[a.state];
-  const runs = det.data ? (Array.isArray(det.data.runs) ? det.data.runs : []) : [];
-  const count = typeof a.runs === 'number' ? a.runs : a.runs.length;
+  // The detail's history is `run_log`; `runs` is only the count.
+  const runs = det.data?.run_log ?? [];
+  const count = a.runs;
   return (
     <li className="flex flex-col gap-2 border-t border-div py-3 first:border-0" aria-label={`اتوماسیون ${a.ref}`}>
       <div className="flex flex-wrap items-center gap-3">
@@ -100,7 +103,7 @@ function AutomationRow({ a, open, onOpen, name }: { a: Automation; open: boolean
         <div className="flex flex-col gap-2 rounded-[12px] bg-tile p-3" aria-label="اجراها">
           {det.data?.preview_fa ? <FaPara text={det.data.preview_fa} className="text-[13px] leading-6 text-sec" /> : null}
           {det.isLoading ? <Skeleton className="h-10" /> : !runs.length ? <p className="text-[12px] text-muted">هنوز اجرا نشده.</p> : (
-            <ul className="flex flex-col gap-1">{runs.map((r, i) => <li key={i} className="flex flex-wrap gap-2 text-[12px]"><span>{jDateTime(r.at)}</span><Pill tone={r.ok === false ? 'warn' : 'pos'} dot>{r.ok === false ? 'ناموفق' : 'انجام شد'}</Pill>{r.note_fa ? <span className="text-sec"><FaText text={r.note_fa} /></span> : null}</li>)}</ul>
+            <ul className="flex flex-col gap-1">{runs.map((r) => <li key={r.key} className="flex flex-wrap gap-2 text-[12px]"><span>{jDateTime(r.at)}</span><Pill tone={r.outcome === 'failed' ? 'warn' : r.outcome === 'skipped' ? 'silver' : 'pos'} dot>{OUTCOME_FA[r.outcome] ?? r.outcome}</Pill>{r.error_fa ? <span className="text-sec"><FaText text={r.error_fa} /></span> : null}</li>)}</ul>
           )}
         </div>
       ) : null}

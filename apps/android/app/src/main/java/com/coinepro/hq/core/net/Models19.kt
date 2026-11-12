@@ -122,10 +122,13 @@ val MEDIA_CHECKS = listOf("brand", "red_lines", "risk_warning", "facts", "rights
 data class SeriesTarget(
     /** telegram · instagram */
     val channel: String,
-    /** A `/tools/accounts` key: `telegram-<co>`, `instagram-<co>`. */
-    val account: String,
+    /** A `/tools/accounts` key: `telegram-<co>`, `instagram-<co>` (none for a company runner's channel). */
+    val account: String? = null,
     /** telegram_post · telegram_story · instagram_reel · instagram_story · instagram_post */
     val placement: String,
+    /** ⟨2026-11-11⟩ audit: a `runner` channel's company server and command (§26.1b), carried back unchanged on an edit. */
+    val server: String? = null,
+    val command: String? = null,
 )
 
 @Serializable
@@ -209,7 +212,7 @@ data class MediaSource(val kind: String = "", val ref: String? = null, val url: 
 data class Script(val textFa: String = "", val sources: List<MediaSource> = emptyList(), val by: Actor? = null)
 
 @Serializable
-data class Shot(val n: Int, val durationS: Double = 0.0, val visualFa: String = "", val textOnScreenFa: String? = null, val voiceFa: String? = null)
+data class Shot(val n: Int = 0, val durationS: Double = 0.0, val visualFa: String = "", val textOnScreenFa: String? = null, val voiceFa: String? = null)
 
 @Serializable
 data class Direction(val shots: List<Shot> = emptyList(), val by: Actor? = null)
@@ -525,7 +528,7 @@ fun placementFits(kind: String, aspect: String, placement: String): String? = wh
 }
 
 /** The aspects each kind may take, the first the default. */
-val KIND_ASPECTS = linkedMapOf("reel" to listOf("9:16"), "story" to listOf("9:16"), "post" to listOf("1:1", "4:5", "16:9"), "carousel" to listOf("4:5", "1:1"))
+val KIND_ASPECTS = linkedMapOf("reel" to listOf("9:16"), "story" to listOf("9:16"), "post" to listOf("1:1", "4:5"), "carousel" to listOf("4:5", "1:1"))
 
 /** The owner's default daily caps (prompt 13 §0.9 #5). */
 val KIND_CAP = mapOf("reel" to 2, "story" to 3, "post" to 2, "carousel" to 2)

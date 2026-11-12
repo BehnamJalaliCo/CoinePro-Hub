@@ -19,11 +19,11 @@ import { useCompanies } from '@/lib/api/hooks';
 import type { Actor } from '@/lib/api/v13';
 import {
   faError, useMeetingAction, useMeetingSettings, useMeetings, useSaveMeetingSettings,
-  type Meeting, type MeetingItem, type MeetingType, type MeetingTypeKey, type OwnerPresence, type Turn, type Whisper,
+  type AdHocMeetingType, type Meeting, type MeetingItem, type MeetingType, type MeetingTypeKey, type OwnerPresence, type Turn, type Whisper,
 } from '@/lib/api/v17';
 import { companyOf } from '@/lib/company';
 import { useNow } from '@/lib/store';
-import { cx, jDate, jTime, jWeekday, tokens, until } from '@/lib/format';
+import { cx, jDate, jTime, jWeekday, latinNum, numText, tokens, until } from '@/lib/format';
 import { ACTOR_ROLE_FA, ActorAvatar, CLAIM_STATUS, MEETING_STATE, MEETING_TYPE, PRESENCE_FA, RefChip, VOTE_FA, budgetFig, pctOf } from './bits';
 
 // A second clock for the room's timers; 0 on the server (timers render client-side only).
@@ -484,7 +484,7 @@ export function PrepRoom({ m }: { m: Meeting }) {
             <Bar pct={share} tone={budgetTone(share)} label="برآورد در برابر بودجه" />
             {m.trimmed_fa ? <p className="flex items-start gap-2 rounded-[12px] bg-warn-soft p-3 text-[12px] leading-6 text-ink"><span className="text-warn"><Icon name="info" size={16} /></span><span><Prose text={m.trimmed_fa} /></span></p> : null}
             <label className="flex flex-col gap-1 text-[12px] text-sec">کم کردن بودجه (هزار توکن)
-              <input inputMode="numeric" dir="ltr" value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} placeholder={m.budget.cap != null ? String(m.budget.cap / 1000) : '—'} className={cx(field, 'fig', capBad && 'border-[var(--hq-neg-line)]')} />
+              <input inputMode="numeric" dir="ltr" value={cap} onChange={(e) => setCap(numText(e.target.value))} placeholder={m.budget.cap != null ? String(m.budget.cap / 1000) : '—'} className={cx(field, 'fig', capBad && 'border-[var(--hq-neg-line)]')} />
               {capBad ? <span className="text-neg">فقط کمتر از سقف فعلی؛ افزایش فقط در جلسه‌ی زنده و با خود تو.</span> : <span className="text-muted">موقع شروع از سقف روزانه‌ی ایجنت‌ها رزرو میشود.</span>}
             </label>
           </Card>
@@ -654,20 +654,22 @@ export function MeetingList({ type, company }: { type: MeetingTypeKey | null; co
 }
 
 // ------------------------------------------------------------------ new meeting --
-const AD_HOC: MeetingTypeKey[] = ['board', 'company', 'strategy', 'postmortem'];
+// The hub makes these three by hand; a postmortem follows an incident by itself.
+const AD_HOC: AdHocMeetingType[] = ['board', 'company', 'strategy'];
 export function NewMeetingSheet({ onClose }: { onClose: () => void }) {
   const act = useMeetingAction();
   const toast = useToast();
   const router = useRouter();
   const { data: companies } = useCompanies();
-  const [type, setType] = useState<MeetingTypeKey>('company');
+  const [type, setType] = useState<AdHocMeetingType>('company');
   const [company, setCompany] = useState<string | null>(null);
   const [when, setWhen] = useState('');
-  const [items, setItems] = useState<Array<{ title_fa: string; time_box_min: number }>>([{ title_fa: '', time_box_min: 10 }]);
+  // An item is its title; its time box is the meeting's rule, not the owner's.
+  const [items, setItems] = useState<Array<{ title_fa: string }>>([{ title_fa: '' }]);
   const key = useRef<string | null>(null);
-  const perCompany = type === 'company' || type === 'postmortem';
+  const perCompany = type === 'company';
   const valid = !!when && (!perCompany || !!company) && items.some((x) => x.title_fa.trim());
-  const create = () => act.create.mutateAsync({ key: (key.current ??= crypto.randomUUID()), body: { type, ...(perCompany ? { company: company! } : {}), starts_at: new Date(when).toISOString(), items: items.filter((x) => x.title_fa.trim()) } })
+  const create = () => act.create.mutateAsync({ key: (key.current ??= crypto.randomUUID()), body: { type, ...(perCompany ? { company: company! } : {}), starts_at: new Date(when).toISOString(), items: items.filter((x) => x.title_fa.trim()).map((x) => ({ title_fa: x.title_fa.trim() })) } })
     .then((m) => { toast({ tone: 'ok', text: <>جلسه‌ی <span className="fig">{m.ref}</span> ساخته شد؛ بودجه و سخنگوها با قاعده.</> }); onClose(); router.push(`/meetings/${m.ref}`); })
     .catch((e) => toast({ tone: 'error', text: faError(e) }));
   return (
@@ -686,13 +688,10 @@ export function NewMeetingSheet({ onClose }: { onClose: () => void }) {
           {items.map((x, i) => (
             <div key={i} className="flex items-center gap-2">
               <input value={x.title_fa} onChange={(e) => setItems((xs) => xs.map((y, j) => (j === i ? { ...y, title_fa: e.target.value } : y)))} placeholder={`دستور ${i + 1}`} maxLength={200} className={cx(field, 'min-w-0 flex-1')} />
-              <select value={x.time_box_min} onChange={(e) => setItems((xs) => xs.map((y, j) => (j === i ? { ...y, time_box_min: Number(e.target.value) } : y)))} aria-label="وقت دستور" className={cx(field, 'w-24')}>
-                {[5, 10, 15, 20, 30].map((n) => <option key={n} value={n}>{n} دقیقه</option>)}
-              </select>
               {items.length > 1 ? <Button size="sm" variant="ghost" icon="close" aria-label="حذف دستور" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))} /> : null}
             </div>
           ))}
-          {items.length < 8 ? <Button size="sm" variant="ghost" icon="add" className="self-start" onClick={() => setItems((xs) => [...xs, { title_fa: '', time_box_min: 10 }])}>دستور دیگر</Button> : null}
+          {items.length < 8 ? <Button size="sm" variant="ghost" icon="add" className="self-start" onClick={() => setItems((xs) => [...xs, { title_fa: '' }])}>دستور دیگر</Button> : null}
         </div>
       </div>
     </Sheet>
@@ -715,7 +714,8 @@ export function MeetingSettings() {
   const rows = useMemo(() => (q.data ?? []).map((t) => ({ ...t, ...edit[t.key] })), [q.data, edit]);
   const set = (k: string, p: Partial<MeetingType>) => setEdit((e) => ({ ...e, [k]: { ...e[k], ...p } }));
   const changed = Object.keys(edit).length > 0;
-  const run = () => save.mutateAsync(rows).then(() => { toast({ tone: 'ok', text: 'تنظیمات جلسه‌ها مُهر و ذخیره شد.' }); setEdit({}); setConfirm(false); }).catch((e) => toast({ tone: 'error', text: faError(e) }));
+  // Only the types that changed, each as its key, version and the changed fields (MeetingTypeIn; nothing the GET adds, like `calendar`).
+  const run = () => save.mutateAsync(Object.entries(edit).map(([k, p]) => ({ key: k, version: q.data!.find((t) => t.key === k)!.version, ...p }))).then(() => { toast({ tone: 'ok', text: 'تنظیمات جلسه‌ها مُهر و ذخیره شد.' }); setEdit({}); setConfirm(false); }).catch((e) => toast({ tone: 'error', text: faError(e) }));
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return <Skeleton className="h-72" />;
   return (
@@ -736,7 +736,7 @@ export function MeetingSettings() {
             </span>
             <span>
               {t.budget_tokens == null ? <span className="text-[12px] text-sec">بی‌سقف</span> : (
-                <span className="flex items-center gap-1"><input inputMode="numeric" dir="ltr" value={String(Math.round(t.budget_tokens / 1000))} onChange={(e) => set(t.key, { budget_tokens: Number(e.target.value.replace(/\D/g, '') || 0) * 1000 })} aria-label={`بودجه ${t.title_fa}`} className={cx(field, 'fig h-8 w-16 px-2')} /><span className="fig text-[12px] text-muted">K</span></span>
+                <span className="flex items-center gap-1"><input inputMode="numeric" dir="ltr" value={String(Math.round(t.budget_tokens / 1000))} onChange={(e) => set(t.key, { budget_tokens: Number(latinNum(e.target.value).replace(/\D/g, '') || 0) * 1000 })} aria-label={`بودجه ${t.title_fa}`} className={cx(field, 'fig h-8 w-16 px-2')} /><span className="fig text-[12px] text-muted">K</span></span>
               )}
             </span>
             <select value={t.owner_presence} onChange={(e) => set(t.key, { owner_presence: e.target.value as OwnerPresence })} aria-label={`حضور ${t.title_fa}`} className={cx(field, 'h-8 px-2')}>

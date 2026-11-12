@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.AD_ACTION_FA
+import com.coinepro.hq.core.data.AD_STATUS_FA
 import com.coinepro.hq.core.data.adFigures
+import com.coinepro.hq.core.data.adRuleLoosens
 import com.coinepro.hq.core.data.adPlatformFa
 import com.coinepro.hq.core.data.roasText
 import com.coinepro.hq.core.format.Tone
@@ -79,13 +81,14 @@ fun CompanyAds(code: String) {
                 AccountsCard(a.accounts)
                 CampaignsCard(a.campaigns)
                 RulesCard(code, rules.data.orEmpty(), a.campaigns) { editing = it }
+
             }
         }
     }
     editing?.let { id ->
         val rule = rules.data.orEmpty().firstOrNull { it.id.idText == id }
         com.coinepro.hq.ui.v14.HqSheet({ editing = null }, if (id == "new") "قاعده‌ی تازه" else "ویرایش قاعده", sub = "قاعده فقط متوقف میکند یا خبر میدهد.") {
-            RuleForm(code, rule, ads.data?.campaigns.orEmpty()) { editing = null }
+            RuleForm(code, rule, ads.data?.campaigns.orEmpty(), ads.data?.accounts.orEmpty()) { editing = null }
         }
     }
 }
@@ -99,7 +102,7 @@ fun AccountsCard(list: List<AdAccount>) {
         else Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             for (x in list) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(adPlatformFa(x.platform), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Text(x.accountId, style = Divan.type.figureSmall, color = c.textMuted)
+                Text(plain(x.labelFa), style = Divan.type.caption, color = c.textMuted)
                 Pill(if (x.state == "connected") "وصل" else "وصل نیست", if (x.state == "connected") Tone.POS else Tone.WARN, dot = true)
             }
         }
@@ -130,10 +133,10 @@ fun CampaignsCard(list: List<AdCampaign>) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(plain(k.titleFa ?: k.id), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                        Pill(if (k.state == "on") "روشن" else "متوقف", if (k.state == "on") Tone.POS else Tone.WARN, dot = true)
+                        Pill(AD_STATUS_FA[k.state] ?: k.state, if (k.state == "active") Tone.POS else Tone.WARN, dot = true)
                     }
                     Text(plain("${adPlatformFa(k.platform)}؛ خرج ${tokens(f.spend.toLong())}، فروش ${tokens(f.revenue.toLong())}، بازده ${roasText(f.roas)}"), style = Divan.type.caption, color = c.textSecondary)
-                    Text(plain("${f.clicks} کلیک، ${f.conversions} خرید"), style = Divan.type.micro, color = c.textMuted)
+                    Text(plain("${f.clicks} کلیک، ${Math.round(f.conversions)} خرید"), style = Divan.type.micro, color = c.textMuted)
                     if (k.state == "paused") {
                         k.pausedReasonFa?.let { Para(it, style = Divan.type.caption, color = c.warning) }
                         HqButton("ادامه", {
@@ -154,7 +157,9 @@ fun CampaignsCard(list: List<AdCampaign>) {
 @Composable
 fun RulesCard(code: String, rules: List<AdRule>, campaigns: List<AdCampaign>, onEdit: (String) -> Unit) {
     val env = LocalEnv.current
+    val act = activity()
     val c = Divan.colors
+    val sign: StepUp = { a, t -> env.auth.stepUp(act, a, t) }
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("قاعده‌های توقف", note = "اگر خرج بالا رفت و بازده نیامد، خودش متوقف میکند") {
             HqButton("قاعده‌ی تازه", { onEdit("new") }, variant = BtnVariant.SILVER, size = BtnSize.SM, icon = DivanIcon.ADD)
@@ -171,13 +176,14 @@ fun RulesCard(code: String, rules: List<AdRule>, campaigns: List<AdCampaign>, on
                         Text(plain(scope), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
                         Pill(AD_ACTION_FA[r.action] ?: r.action, if (r.action == "pause") Tone.WARN else Tone.LAPIS)
                         HqSwitch(r.state == "on", { on ->
-                            toggle.run { env.api.saveAdRule(code, r.id.idText, buildJsonObject { put("state", if (on) "on" else "off") }); env.cache.invalidate("ads") }
+                            // switching a rule off lets money through: the passkey (⟨2026-11-11⟩ audit)
+                            toggle.run { env.api.saveAdRule(code, r.id.idText, buildJsonObject { put("state", if (on) "on" else "off") }, if (on) null else sign); env.cache.invalidate("ads") }
                         }, "روشن بودن قاعده")
                     }
                     Text(plain("سقف خرج روزانه ${tokens(r.dailyCap.toLong())}؛ در ${r.windowDays} روز اگر بازده کمتر از ${roasText(r.minRoas)} بود (بعد از خرج ${tokens(r.minSpendBeforeJudging.toLong())})"), style = Divan.type.caption, color = c.textSecondary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         HqButton("ویرایش", { onEdit(r.id.idText) }, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.EDIT)
-                        HqButton("حذف", { remove.run { env.api.deleteAdRule(code, r.id.idText); env.cache.invalidate("ads") } }, variant = BtnVariant.GHOST, size = BtnSize.SM, loading = remove.busy)
+                        HqButton("حذف", { remove.run { env.api.deleteAdRule(code, r.id.idText, sign); env.cache.invalidate("ads") } }, variant = BtnVariant.GHOST, size = BtnSize.SM, loading = remove.busy)
                     }
                 }
             }
@@ -185,9 +191,10 @@ fun RulesCard(code: String, rules: List<AdRule>, campaigns: List<AdCampaign>, on
     }
 }
 
-/** A rule made or changed. A higher daily cap than the rule had is signed (🔏 `ads.cap`). */
+/** A rule made or changed. A change that lets more money through than the rule did is signed (🔏 `ads.cap`, as the hub's `loosens`). A new
+ *  rule names its platform (the hub requires it; a rule keeps it). */
 @Composable
-fun RuleForm(code: String, rule: AdRule?, campaigns: List<AdCampaign>, onDone: () -> Unit) {
+fun RuleForm(code: String, rule: AdRule?, campaigns: List<AdCampaign>, accounts: List<AdAccount> = emptyList(), onDone: () -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val act = activity()
@@ -199,13 +206,21 @@ fun RuleForm(code: String, rule: AdRule?, campaigns: List<AdCampaign>, onDone: (
     var roas by rememberSaveable(rule?.id?.idText) { mutableStateOf(rule?.minRoas?.toString() ?: "1.2") }
     var minSpend by rememberSaveable(rule?.id?.idText) { mutableStateOf(rule?.minSpendBeforeJudging?.toLong()?.toString().orEmpty()) }
     var act2 by rememberSaveable(rule?.id?.idText) { mutableStateOf(rule?.action ?: "pause") }
+    val platforms = (accounts.map { it.platform } + campaigns.map { it.platform }).filter { it.isNotBlank() }.distinct()
+    var platform by rememberSaveable(rule?.id?.idText) { mutableStateOf(rule?.platform?.ifBlank { null } ?: platforms.firstOrNull().orEmpty()) }
     val capN = cap.toLongOrNull()
-    val valid = capN != null && capN > 0 && window.toIntOrNull() != null && roas.toDoubleOrNull() != null && minSpend.toLongOrNull() != null
+    val valid = capN != null && capN > 0 && window.toIntOrNull() != null && roas.toDoubleOrNull() != null && minSpend.toLongOrNull() != null && (rule != null || platform.isNotBlank())
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (rule == null && platforms.size > 1) {
+            Text("کدام تبلیغات", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (p in platforms) FilterChip(adPlatformFa(p), platform == p, { platform = p; scope = "account" })
+            }
+        }
         Text("برای", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip("کل حساب", scope == "account", { scope = "account" })
-            for (k in campaigns) FilterChip(k.titleFa ?: k.id, scope == k.id, { scope = k.id })
+            for (k in campaigns.filter { rule != null || it.platform == platform }) FilterChip(k.titleFa ?: k.id, scope == k.id, { scope = k.id })
         }
         for ((label, v, set) in listOf(
             Triple("سقف خرج روزانه", cap, { x: String -> cap = x.filter { it.isDigit() } }),
@@ -220,14 +235,19 @@ fun RuleForm(code: String, rule: AdRule?, campaigns: List<AdCampaign>, onDone: (
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for ((k, l) in AD_ACTION_FA) FilterChip(l, act2 == k, { act2 = k })
         }
-        if (rule != null) Text("بالا بردن سقف با مُهر توست.", style = Divan.type.micro, color = c.textMuted)
+        if (rule != null) Text("شل‌تر کردن قاعده (سقف بالاتر، بازده کمتر، فقط خبر دادن…) با مُهر توست.", style = Divan.type.micro, color = c.textMuted)
         HqButton(if (rule == null) "بساز" else "ذخیره", {
             action.run {
                 val body = buildJsonObject {
+                    // a new rule names its platform; a rule's edit never does (`AdRuleEdit` has none)
+                    if (rule == null) put("platform", platform)
                     put("scope", scope); put("daily_cap", capN ?: 0L); put("window_days", window.toInt()); put("min_roas", roas.toDouble())
                     put("min_spend_before_judging", minSpend.toLong()); put("action", act2); put("state", rule?.state ?: "on")
                 }
-                val raised = rule != null && (capN ?: 0L) > rule.dailyCap
+                val raised = rule != null && adRuleLoosens(rule, rule.copy(
+                    scope = scope, dailyCap = (capN ?: 0L).toDouble(), windowDays = window.toInt(), minRoas = roas.toDouble(),
+                    minSpendBeforeJudging = minSpend.toDouble(), action = act2,
+                ))
                 val sign: StepUp = { a, t -> env.auth.stepUp(act, a, t) }
                 env.api.saveAdRule(code, rule?.id?.idText, body, if (raised) sign else null)
                 env.cache.invalidate("ads")

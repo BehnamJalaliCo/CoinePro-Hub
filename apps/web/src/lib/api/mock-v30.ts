@@ -32,8 +32,8 @@ const POST_STEPS = () => [
   step('publish', 'publish', 'انتشار در تلگرام', { inputs: ['text'], gate: 'owner', settings: { kind: 'post', text_from: 'text', in_min: 0 } }),
 ];
 const TEMPLATES = [
-  { key: 'instagram_reel', title_fa: 'ریلز اینستاگرام', platform: 'instagram_reel', version: 1, steps: REEL_STEPS(), defaults: { caps: { runs_per_day: 1, tokens_per_run: 120000, opus_per_day: 2 } }, outputs_fa: 'یک ریلز کامل با صدا، کاور و کپشن؛ بعد از انتشار، استوری همان روز.' },
-  { key: 'telegram_post', title_fa: 'پست تلگرام', platform: 'telegram_post', version: 1, steps: POST_STEPS(), defaults: { caps: { runs_per_day: 3, tokens_per_run: 30000, opus_per_day: 0 } }, outputs_fa: 'یک پست متنی کوتاه برای کانال.' },
+  { key: 'instagram_reel', title_fa: 'ریلز اینستاگرام', platform: 'instagram_reel', version: 1, steps: REEL_STEPS(), defaults: { caps: { runs_per_day: 1, tokens_per_run: 120000, opus_per_day: 2 } }, outputs_fa: ['یک ریلز کامل با صدا، کاور و کپشن؛ بعد از انتشار، استوری همان روز.'] },
+  { key: 'telegram_post', title_fa: 'پست تلگرام', platform: 'telegram_post', version: 1, steps: POST_STEPS(), defaults: { caps: { runs_per_day: 3, tokens_per_run: 30000, opus_per_day: 0 } }, outputs_fa: ['یک پست متنی کوتاه برای کانال.'] },
 ];
 const CAPS = { runs_per_day: 1, tokens_per_run: 120000, opus_per_day: 2 };
 

@@ -38,6 +38,7 @@ export function RoleDraftSheet({ refId, onClose }: { refId: string; onClose: () 
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
   const d = q.data;
+  const writer = typeof d?.written_by === 'string' ? { kind: 'agent', code: d.written_by } : d?.written_by ?? null;
   const retire = async () => {
     if (!d) return;
     try { await act.retire.mutateAsync(d.ref); setConfirm(false); toast({ tone: 'info', text: 'بازنشسته شد؛ استخدام تازه روی آن نیست و کارمندهایش تا جابه‌جایی کار میکنند.' }); }
@@ -56,7 +57,7 @@ export function RoleDraftSheet({ refId, onClose }: { refId: string; onClose: () 
           {d.state_note_fa ? <div className="flex items-start gap-2 rounded-[12px] bg-neg-soft p-3 text-[13px] leading-6 text-ink"><span className="text-neg"><Icon name="urgent" size={16} /></span><span className="min-w-0 flex-1"><MdInline text={d.state_note_fa} /></span></div> : null}
           <div className="flex flex-wrap items-center gap-3 text-[12px] text-muted">
             {d.requested_by ? <span className="flex items-center gap-1.5"><ActorAvatar a={d.requested_by} size={18} />خواسته‌ی {ACTOR_FA(d.requested_by)}</span> : null}
-            {d.written_by ? <span className="flex items-center gap-1.5"><ActorAvatar a={d.written_by} size={18} />نوشته‌ی {ACTOR_FA(d.written_by)}</span> : null}
+            {writer ? <span className="flex items-center gap-1.5"><ActorAvatar a={writer} size={18} />نوشته‌ی {ACTOR_FA(writer)}</span> : null}
             <span>{ago(d.created_at)}</span>
           </div>
           {d.brief_md ? <Block title="خواسته"><p className="rounded-[12px] bg-tile p-3 text-[13px] leading-6 text-ink">«{d.brief_md}»</p></Block> : null}

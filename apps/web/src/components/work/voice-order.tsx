@@ -35,12 +35,15 @@ import { ago, cx } from '@/lib/format';
 // بودجه: …»), which the owner may change (company, department, collaborators, output, mode, player) before «بفرست»; a rule is cleaned into
 // one imperative and sealed with one tap.
 
-const KIND: Record<OrderRoute['kind'], { fa: string; icon: 'task' | 'code' | 'meeting' | 'advisor' }> = {
+const KIND: Record<OrderRoute['kind'], { fa: string; icon: 'task' | 'code' | 'meeting' | 'advisor' | 'companies' }> = {
   work: { fa: 'کار', icon: 'task' },
   code: { fa: 'کارگاه کد', icon: 'code' },
   meeting: { fa: 'جلسه', icon: 'meeting' },
   question: { fa: 'پرسش', icon: 'advisor' },
+  kit: { fa: 'شرکت آماده', icon: 'companies' },
 };
+/** A kind this panel does not know yet (a newer hub) still renders. */
+const kindOf = (k: string) => KIND[k as OrderRoute['kind']] ?? { fa: k, icon: 'task' as const };
 
 function routeHref(r: OrderRoute): string | null {
   if (r.session_ref) return `/workshop/${r.session_ref}`;
@@ -58,8 +61,8 @@ function Route({ r, onGo }: { r: OrderRoute; onGo?: () => void }) {
   const body = (
     <>
       <span className="text-sec"><CompanyMark code={r.company} height={13} mono /></span>
-      <span className="text-sec"><Icon name={KIND[r.kind].icon} size={15} /></span>
-      <span className="text-ink">{KIND[r.kind].fa}</span>
+      <span className="text-sec"><Icon name={kindOf(r.kind).icon} size={15} /></span>
+      <span className="text-ink">{kindOf(r.kind).fa}</span>
       <span className="text-muted">←</span>
       <span className="truncate text-ink">{who}</span>
     </>
@@ -82,10 +85,12 @@ type Edits = Partial<Pick<SecretaryRoute, 'companies' | 'department' | 'collabor
 function useSecretary(text: string, source: 'voice' | 'text', on: boolean) {
   const [settled, setSettled] = useState(text.trim());
   useEffect(() => { const t = setTimeout(() => setSettled(text.trim()), 600); return () => clearTimeout(t); }, [text]);
-  return useQuery({
+  const q = useQuery({
     queryKey: ['orders', 'preview', settled, source], enabled: on && settled.length >= 3, staleTime: 60_000, retry: false,
     queryFn: () => previewOrder(settled, source),
   });
+  // The reading belongs to `settled`; while the words have moved on (or it is being read again) it is not the route of what is typed.
+  return { q, fresh: settled === text.trim() && !q.isFetching };
 }
 
 /** The one line and, behind «تغییر», the company, department, collaborators, output and count. Mode and player are the picker's. */
@@ -183,7 +188,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
   // ⟨2026-11-09⟩ «با من یا خودکار؟» before the order goes (every order is a session); nothing is chosen for the owner
   const [pace, setPace] = useState<Pace | null>(null);
   const source = voice ? 'voice' : 'text';
-  const sec = useSecretary(text, source, open && mode === 'order' && phase === 'review');
+  const { q: sec, fresh } = useSecretary(text, source, open && mode === 'order' && phase === 'review');
   const preview = sec.data;
   const option = chosen ?? heard?.option ?? (preview ? optionOfWork(preview.player, preview.mode) : optionOf('auto'));
   const lv = useLongVoice({
@@ -236,7 +241,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
   const footer = phase === 'review'
     ? mode === 'rule'
       ? <Button variant="primary" icon="seal" className="w-full" disabled={text.trim().length < 3} loading={ruleAct.create.isPending} onClick={sendRule}>بفرست به‌عنوان قانون</Button>
-      : <Button variant="primary" icon="send" className="w-full" disabled={text.trim().length < 3 || !pace} loading={busy} onClick={sendOrder}>بفرست</Button>
+      : <Button variant="primary" icon="send" className="w-full" disabled={text.trim().length < 3 || !pace || !fresh} loading={busy} onClick={sendOrder}>بفرست</Button>
     : phase === 'sent'
       ? <Button variant="secondary" icon="mic" className="w-full" onClick={reset}>{mode === 'rule' ? 'قانون بعدی' : 'فرمان بعدی'}</Button>
       : undefined;

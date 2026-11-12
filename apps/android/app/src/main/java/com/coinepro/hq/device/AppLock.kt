@@ -58,8 +58,12 @@ class AppLock(private val context: Context, private val prefs: Prefs) : DefaultL
         val builder = BiometricPrompt.Builder(activity)
             .setTitle("باز کردن ستاد")
             .setSubtitle("با اثر انگشت، چهره یا قفل گوشی")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) builder.setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG or Authenticators.DEVICE_CREDENTIAL)
-        else @Suppress("DEPRECATION") builder.setDeviceCredentialAllowed(true)
+        // ⟨2026-11-11⟩ audit: Android 9 (the app's floor) has neither call: there the prompt is biometric only and needs its own way out
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> builder.setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG or Authenticators.DEVICE_CREDENTIAL)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> @Suppress("DEPRECATION") builder.setDeviceCredentialAllowed(true)
+            else -> builder.setNegativeButton("بعداً", activity.mainExecutor) { _, _ -> }
+        }
         builder.build().authenticate(CancellationSignal(), activity.mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { state.value = false }
             override fun onAuthenticationError(code: Int, message: CharSequence) {

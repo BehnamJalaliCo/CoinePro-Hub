@@ -261,9 +261,16 @@ fun OrderSessionScreen(ref: String) {
     // Without the stream (the phone between networks, a hub restarting) the page asks again on its own: often while someone works.
     val streamState by env.stream.state.collectAsStateWithLifecycle()
     val workingNow = live?.working?.isNotEmpty() == true
+    // ⟨2026-11-11⟩ audit: the report and the talk too (a turn or a question that came while the stream was down), and on a hub without
+    // the live work as well
     LaunchedEffect(ref, liveOn, streamState, workingNow) {
-        if (!liveOn || streamState == StreamState.LIVE) return@LaunchedEffect
-        while (true) { delay(if (workingNow) 10_000 else 30_000); aq.refresh() }
+        if (streamState == StreamState.LIVE) return@LaunchedEffect
+        while (true) {
+            delay(if (workingNow) 10_000 else 30_000)
+            if (liveOn) aq.refresh()
+            q.refresh()
+            if (!talk.busy) talk.reload()
+        }
     }
 
     val closed = o?.let(::sessionClosed) == true
@@ -337,6 +344,8 @@ fun OrderSessionScreen(ref: String) {
     val stopOn = served(HubFeature.WORK_STOP)
     val workRef = o?.let(::liveWorkRef)
     var stopped by remember(ref) { mutableStateOf(false) }
+    // ⟨2026-11-11⟩ audit: the hold ends whenever the work is seen at work again (a nudge from anywhere, his word, the hub's own wake)
+    LaunchedEffect(workingNow) { if (workingNow) stopped = false }
     val hold = rememberAction()
     fun holdNow() {
         val w = workRef ?: return
@@ -429,13 +438,16 @@ fun OrderSessionScreen(ref: String) {
     val waitsOn: Pair<String, FileRef>? = if (ready) outs.firstNotNullOfOrNull { so -> leadFile(so.panel, so.files)?.let { so.ref to it } } else null
     var closeState by remember(ref) { mutableStateOf(DecisionState.IDLE) }
     val bar = (ready && !asked) || closeState != DecisionState.IDLE
-    val closeKey = remember(ref) { UUID.randomUUID().toString() }
+    // One key per press, kept across a retry of the same press; ⟨2026-11-11⟩ audit: a fresh one after a close went through (a session
+    // reopened and closed again is a new close, never the old one replayed).
+    var closeKey by remember(ref) { mutableStateOf(UUID.randomUUID().toString()) }
     fun closeNow() {
         if (closeState != DecisionState.IDLE) return
         closeState = DecisionState.WORKING
         scope.launch {
             try {
                 val out = env.api.closeSession(ref, "ok", null, closeKey)
+                closeKey = UUID.randomUUID().toString()
                 haptics.seal()
                 closeState = DecisionState.DONE
                 q.set(out)

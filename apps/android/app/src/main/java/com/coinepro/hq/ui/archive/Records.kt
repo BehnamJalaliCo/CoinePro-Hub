@@ -241,10 +241,10 @@ fun FileFacts(f: RecordFile) {
 fun ExpiringStrip(m: ArchiveMaps) {
     val c = Divan.colors
     val nav = LocalNav.current
-    val q = rememberQuery("archive:records:expiring", "archive") { records(RecordFilters(expiringWithinDays = 365)) }
-    val rows = q.data?.items.orEmpty().mapNotNull { r ->
-        r.reminders.filter { it.state != "done" }.minByOrNull { it.at }?.let { Triple(r, it, daysTo(it.at)) }
-    }.sortedBy { it.third }.take(8)
+    // ⟨2026-11-11⟩ audit: a list row carries no reminders; the reminders' own list does (each with its record and days left)
+    val q = rememberQuery("archive:reminders:due", "archive") { dueReminders() }
+    val rows = q.data.orEmpty().filter { it.state != "done" }.groupBy { it.record }.values.mapNotNull { xs -> xs.minByOrNull { it.at } }
+        .map { Triple(it, it, daysTo(it.at)) }.sortedBy { it.third }.take(8)
     if (q.data == null && q.error == null) return Skeleton(Modifier.fillMaxWidth().height(112.dp), radius = 14.dp)
     if (rows.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -257,7 +257,7 @@ fun ExpiringStrip(m: ArchiveMaps) {
                 val tone = when { left <= 7 -> c.negative; left <= 30 -> c.warning; else -> c.textSecondary }
                 val f = m.cls(r.cls)?.fields?.firstOrNull { it.key == x.field }
                 Column(
-                    Modifier.width(212.dp).clip(RoundedCornerShape(14.dp)).background(c.card).clickable(role = Role.Button) { nav.go("archive/${r.ref}") }.padding(12.dp),
+                    Modifier.width(212.dp).clip(RoundedCornerShape(14.dp)).background(c.card).clickable(role = Role.Button) { nav.go("archive/${r.record}") }.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -302,7 +302,8 @@ fun DraftsBlock(scope: String?, m: ArchiveMaps) {
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     ScopeTag(r.scope)
-                    Text("${r.current?.files?.size ?: 0} فایل", style = Divan.type.micro, color = c.textMuted)
+                    // (a list row does not say how many files a draft has: said only when it does)
+                    r.current?.files?.takeIf { it.isNotEmpty() }?.let { Text("${it.size} فایل", style = Divan.type.micro, color = c.textMuted) }
                     Text(ago(r.createdAt), style = Divan.type.micro, color = c.textMuted)
                 }
                 if (r.suggestion != null) SuggestionLine(r.suggestion, m) else Text("بی‌پیشنهاد؛ بایگان هنوز نگاهش نکرده.", style = Divan.type.micro, color = c.textMuted)

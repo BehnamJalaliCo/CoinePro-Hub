@@ -65,7 +65,8 @@ fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed
                     ) { com.coinepro.hq.ui.owner.LockScreen(graph) }
                 }
             }
-            ToastHost(toasts)
+            // ⟨2026-11-11⟩ audit: nothing of the shell shows over the lock (an alert's toast would say what it is and could be tapped)
+            if (!(locked && signedIn && !env.demo)) ToastHost(toasts)
         }
     }
 }

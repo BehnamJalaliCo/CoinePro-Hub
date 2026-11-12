@@ -42,7 +42,7 @@ data class LineTemplate(
 
 /** A list of strings that also takes a single string (one item) or null (none). */
 object StringList : kotlinx.serialization.KSerializer<List<String>> {
-    private val list = kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>())
+    private val list = kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>())
     override val descriptor = list.descriptor
     override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: List<String>) = list.serialize(encoder, value)
     override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): List<String> {
@@ -103,8 +103,10 @@ data class Line(
 data class LineVersion(
     val line: String = "",
     val version: Int = 1,
-    val body: Line? = null,
-    val by: String? = null,
+    /** ⟨2026-11-11⟩ audit: the hub's body of a version (template, steps, caps… but no `ref`): kept as it came. */
+    val body: JsonObject? = null,
+    /** Who made it (`{kind, code}`). */
+    val by: Actor? = null,
     val at: String? = null,
     val noteFa: String = "",
 )

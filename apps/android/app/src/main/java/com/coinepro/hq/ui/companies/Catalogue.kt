@@ -171,7 +171,8 @@ fun CatalogueScreen(code: String, section0: String? = null) {
                             for (s in k.sections) FilterChip(s.titleFa.ifBlank { s.key }, section == s.key, { section = if (section == s.key) null else s.key }, count = s.count)
                         }
                     }
-                    for (s in k.sections.filter { section == null || it.key == section }) item(key = "cat-${s.key}") { SectionCard(s) }
+                    // ⟨2026-11-11⟩ audit: while a catalogue runs one section comes per finished job, so a key repeats until the merge
+                    k.sections.withIndex().filter { section == null || it.value.key == section }.forEach { (i, s) -> item(key = "cat-${s.key}-$i") { SectionCard(s) } }
                 }
                 if (k.sections.isEmpty() && !k.running) item { HqCard(Modifier.fillMaxWidth()) { BriefList() } }
             }

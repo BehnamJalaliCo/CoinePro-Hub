@@ -148,7 +148,8 @@ fun CampaignCalendarScreen(kind0: String? = null) {
 
 /** Where a calendar item opens (a line, or nothing for what has no page of its own). */
 fun routeOf(x: CampaignItem): String? = when (x.kind) {
-    "line" -> x.ref.takeIf { it.startsWith("LN-") }?.let { "lines/$it" }
+    // ⟨2026-11-11⟩ audit: a run that already happened opens its run
+    "line" -> when { x.ref.startsWith("LN-") -> "lines/${x.ref}"; x.ref.startsWith("RN-") -> "line-runs/${x.ref}"; else -> null }
     else -> null
 }
 
@@ -260,11 +261,13 @@ fun CampaignForm(camp: Campaign?, company0: String?, onDone: () -> Unit) {
             for (p in PLATFORM_FA.keys) FilterChip(platformFa(p), p in picked, { channels = (if (p in picked) picked - p else picked + p).joinToString(",") })
         }
         Text("بودجه (اختیاری)", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-        HqTextField(budget, { budget = it.filter { ch -> ch.isDigit() } }, "—", Modifier.fillMaxWidth(), figure = true, maxLength = 12)
+        HqTextField(budget, { budget = com.coinepro.hq.core.data.asciiDigits(it).filter { ch -> ch in '0'..'9' } }, "—", Modifier.fillMaxWidth(), figure = true, maxLength = 12)
         HqButton(if (camp == null) "بساز" else "ذخیره", {
             action.run {
                 val body = buildJsonObject {
-                    put("company", co); put("title_fa", title.trim()); put("goal_fa", goal.trim()); put("starts", starts); put("ends", ends)
+                    // ⟨2026-11-11⟩ audit: an edit never names the company (`CampaignPut` refuses it); a new campaign does
+                    if (camp == null) put("company", co)
+                    put("title_fa", title.trim()); put("goal_fa", goal.trim()); put("starts", starts); put("ends", ends)
                     put("channels", JsonArray(picked.map { JsonPrimitive(it) })); put("budget", budget.toLongOrNull())
                 }
                 env.api.saveCampaign(key, body)

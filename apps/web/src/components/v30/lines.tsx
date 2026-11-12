@@ -64,7 +64,7 @@ function LineCard({ line }: { line: Line }) {
         <div className="flex items-center gap-3">
           <KindIcon kind={line.steps.find((s) => s.kind === 'publish')?.kind ?? 'publish'} />
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[15px] font-semibold"><FaText text={line.name_fa || line.title_fa} /></span>
+            <span className="text-[15px] font-semibold"><FaText text={line.title_fa} /></span>
             <span className="text-[12px] text-muted">{platformFa(line.platform)} · <FaText text={line.channel.subject} /></span>
           </span>
           <LineStatePill state={line.state} />
@@ -106,7 +106,7 @@ function NewLineSheet({ code, open, onOpenChange }: { code: string; open: boolea
               <li key={t.key}>
                 <button type="button" onClick={() => choose(t)} aria-label={`الگوی ${t.title_fa}`} className="hq-tile flex w-full flex-col gap-1.5 rounded-[14px] bg-tile p-4 text-start transition-colors hover:bg-hover">
                   <span className="flex items-center gap-2"><span className="flex-1 text-[14px] font-semibold">{t.title_fa}</span><Pill tone="silver">{platformFa(t.platform)}</Pill></span>
-                  <FaPara text={t.outputs_fa} className="text-[12px] leading-5 text-sec" />
+                  <FaPara text={(Array.isArray(t.outputs_fa) ? t.outputs_fa : [t.outputs_fa]).join('، ')} className="text-[12px] leading-5 text-sec" />
                   <span className="text-[11px] text-muted"><span className="fig">{t.steps.length}</span> قدم</span>
                 </button>
               </li>
@@ -414,8 +414,8 @@ function VoicePicker({ speaker, style, textFrom, set }: { speaker: string; style
 
 function CoverPicker({ company, folder, maxFiles, set }: { company: string; folder: string; maxFiles: number; set: (k: string, v: unknown) => void }) {
   const q = useLibrary(company, 'cover_folder');
-  const holding = useLibrary(null, 'cover_folder');
-  const all = [...(q.data ?? []), ...(holding.data ?? []).filter((a) => !a.company)];
+  // The company's list already carries the holding's folders (company null).
+  const all = q.data ?? [];
   return (
     <div className="flex flex-col gap-2" role="group" aria-label="پوشه‌ی کاور">
       <span className="text-[12px] text-sec">پوشه‌ی کاور</span>

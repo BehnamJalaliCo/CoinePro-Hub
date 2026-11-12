@@ -126,9 +126,15 @@ function MessagesInner() {
                 {current.kind === 'advisor' ? <Orb size={36} /> : <Avatar kind={agentKind(current.kind)} size={36} />}
                 <div className="flex flex-col"><span className="text-[15px] font-semibold">{current.title_fa}</span></div>
               </div>
-              <Chat code={current.code} agentKind={agentKind(current.kind)} placeholder="پیام…" />
+              {/* Keyed by thread: the draft, the voice note and the live reply belong to one thread and never carry over. */}
+              <Chat key={current.code} code={current.code} agentKind={agentKind(current.kind)} placeholder="پیام…" />
             </>
-          ) : <Empty icon="messages" title="یک گفت‌وگو را انتخاب کن" body="مدیرعامل‌ها گزارش و پیشنهاد میدهند؛ پیام‌های غیرفوری‌شان دسته‌ای میرسد." />}
+          ) : (
+            <>
+              {sel ? <div className="lg:hidden"><IconButton icon="back" label="برگشت" mirror onClick={() => router.replace('/messages')} /></div> : null}
+              <Empty icon="messages" title="یک گفت‌وگو را انتخاب کن" body="مدیرعامل‌ها گزارش و پیشنهاد میدهند؛ پیام‌های غیرفوری‌شان دسته‌ای میرسد." />
+            </>
+          )}
         </Card>
       </div>
     </>

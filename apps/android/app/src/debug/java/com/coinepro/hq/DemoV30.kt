@@ -291,8 +291,10 @@ internal class V30Demo {
         "library" to ja(library.map { JsonPrimitive(it) }), "created_at" to at(ageMin + 60), "updated_at" to at(ageMin), "next_at" to null, "last_run" to last,
     )
 
+    // ⟨2026-11-11⟩ as the hub writes a version: its body without the line's own ref and state, and who made it as `{kind, code}`
     private fun snapshot(l: JsonObject, note: String, by: String, atIso: String?) = jo(
-        "line" to l.str("ref"), "version" to l.int("version"), "body" to l, "by" to by, "at" to (atIso ?: at(0)), "note_fa" to note,
+        "line" to l.str("ref"), "version" to l.int("version"), "body" to JsonObject(l - setOf("ref", "state", "company", "created_at", "updated_at", "next_at", "last_run", "version")),
+        "by" to jo("kind" to "owner", "code" to "owner", "display_fa" to by), "at" to (atIso ?: at(0)), "note_fa" to note,
     )
 
     private fun asset(id: String, company: String?, kind: String, title: String, config: JsonObject, files: List<String>, ageMin: Long) = jo(

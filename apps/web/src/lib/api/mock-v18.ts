@@ -546,10 +546,11 @@ function ranks(period: 'week' | 'month') {
   }
   return rows;
 }
-type Emp = { code: string; title_fa: string; score: number; prev: number | null; stars: number | null; eff: number | null; owner: number | null; failed: number; findings: number; refuted: number; probation: string | null; highFinding?: boolean };
+type Emp = { code: string; title_fa: string; score: number | null; prev: number | null; stars: number | null; eff: number | null; owner: number | null; failed: number; findings: number; refuted: number; probation: string | null; highFinding?: boolean };
 /** The flags are rules (§21.5). */
 function flagsOf(e: Emp): string[] {
   const out: string[] = [];
+  if (e.score == null) return out; // a hire in its first month: in the round, no score yet
   if (e.score >= 8.5 && (e.prev ?? 0) >= 8.5 && (e.stars ?? 0) >= 4 && !e.highFinding) out.push('promote_candidate');
   if ((e.prev != null && e.prev - e.score >= 1.5) || (e.score >= 5 && e.score < 6)) out.push('coach');
   if (e.score < 5 && e.prev != null && e.prev < 5) out.push('demote_candidate');
@@ -562,6 +563,8 @@ const HR_EMP: Record<string, Emp[]> = {
     { code: 'TY-GROWTH-01', title_fa: 'تحلیلگر سئوی فنی', score: 8.6, prev: 8.7, stars: 4.3, eff: 88, owner: 8.6, failed: 0.04, findings: 0, refuted: 0, probation: null },
     { code: 'TY-GROWTH-MGR', title_fa: 'مدیر مارکتینگ', score: 7.9, prev: 7.6, stars: 3.8, eff: 81, owner: 8.0, failed: 0.07, findings: 1, refuted: 0, probation: null },
     { code: 'TY-TECH-MGR', title_fa: 'مدیر فنی', score: 7.4, prev: 7.7, stars: 3.5, eff: 69, owner: null, failed: 0.11, findings: 0, refuted: 0, probation: null },
+    // A hire in its first month: in the round, with no score yet (the hub sends score null).
+    { code: 'TY-CONTENT-02', title_fa: 'تولیدکننده‌ی محتوا', score: null, prev: null, stars: null, eff: null, owner: null, failed: 0, findings: 0, refuted: 0, probation: null },
   ],
   FX: [
     { code: 'FX-TECH-MGR', title_fa: 'مدیر فنی', score: 7.7, prev: 7.5, stars: 3.9, eff: 74, owner: 8.1, failed: 0.09, findings: 0, refuted: 0, probation: null },

@@ -1,5 +1,6 @@
 package com.coinepro.hq.core.net
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -91,17 +92,18 @@ data class KitResult(
 
 // ---------------------------------------------------------------- §31.3 --
 @Serializable
-data class NlList(val id: JsonPrimitive = JsonPrimitive(""), val name: String = "", val subscribers: Long = 0, val sizeLimit: Long? = null)
+data class NlList(val id: JsonPrimitive = JsonPrimitive(""), val listmonkId: Long? = null, val name: String = "", val subscribers: Long = 0, val sizeLimit: Long? = null)
 
+/** ⟨2026-11-11⟩ audit: as `CampaignOut` writes it: `list_id` (the list's number in the mail service) and `send_at`. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
 data class NlCampaign(
     val id: JsonPrimitive = JsonPrimitive(""),
-    val list: JsonPrimitive? = null,
+    @kotlinx.serialization.json.JsonNames("list_id") val list: JsonPrimitive? = null,
     val subject: String = "",
-    val subjectB: String? = null,
-    /** draft · scheduled · sending · sent · cancelled */
+    /** draft · scheduled · running · finished · paused · cancelled (an older answer: sending · sent) */
     val state: String = "draft",
-    val scheduledAt: String? = null,
+    @kotlinx.serialization.json.JsonNames("send_at") val scheduledAt: String? = null,
     val sent: Long? = null,
     val opens: Long? = null,
     val clicks: Long? = null,
@@ -109,7 +111,7 @@ data class NlCampaign(
 )
 
 @Serializable
-data class Newsletter(val lists: List<NlList> = emptyList(), val campaigns: List<NlCampaign> = emptyList())
+data class Newsletter(val lists: List<NlList> = emptyList(), val campaigns: List<NlCampaign> = emptyList(), val sizeLimit: Long? = null, val noteFa: String? = null)
 
 // ---------------------------------------------------------------- §31.4 --
 @Serializable
@@ -169,22 +171,30 @@ data class Campaign(
 )
 
 // ---------------------------------------------------------------- §31.6 --
+/** ⟨2026-11-11⟩ audit: as `domain/ads.py` writes an account: its name, whether it is connected, whether its key is set. */
 @Serializable
-data class AdAccount(val company: String = "", val platform: String = "", val accountId: String = "", val state: String = "")
+data class AdAccount(
+    val platform: String = "", val labelFa: String = "", val state: String = "", val secret: String = "", val missingFa: List<String> = emptyList(),
+    val lastReadAt: String? = null, val lastErrorFa: String? = null,
+)
 
+/** A campaign's day; conversions may be fractional (the platforms count a share of a purchase). */
 @Serializable
 data class AdDaily(
     val platform: String = "", val campaignId: String = "", val day: String = "", val spend: Double = 0.0, val clicks: Long = 0,
-    val conversions: Long = 0, val revenue: Double = 0.0, val roas: Double? = null,
+    val conversions: Double = 0.0, val revenue: Double = 0.0, val roas: Double? = null,
 )
 
+/** ⟨2026-11-11⟩ audit: as the hub writes a campaign: `campaign_id`, `name`, `status` (active · paused · removed). */
 @Serializable
 data class AdCampaign(
     val platform: String = "",
-    val id: String = "",
-    val titleFa: String? = null,
-    /** on · paused */
-    val state: String = "on",
+    @SerialName("campaign_id") val id: String = "",
+    @SerialName("name") val titleFa: String? = null,
+    /** active · paused · removed */
+    @SerialName("status") val state: String = "active",
+    /** rule · owner · platform */
+    val pausedBy: String? = null,
     val pausedReasonFa: String? = null,
     val days: List<AdDaily> = emptyList(),
 )
@@ -196,6 +206,8 @@ data class Ads(val accounts: List<AdAccount> = emptyList(), val campaigns: List<
 data class AdRule(
     val id: JsonPrimitive = JsonPrimitive(""),
     val company: String = "",
+    /** meta · google (the rule's platform; set when it is made, never changed) */
+    val platform: String = "",
     val scope: String = "account",
     val dailyCap: Double = 0.0,
     val windowDays: Int = 7,

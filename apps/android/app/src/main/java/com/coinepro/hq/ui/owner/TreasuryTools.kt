@@ -168,7 +168,7 @@ fun BudgetSheet(onDismiss: () -> Unit) {
             tok[key(s)] = m(b?.tokenLimit); usdV[key(s)] = b?.usdLimit.orEmpty()
         }
     }
-    val valid = scopes.all { s -> tok[key(s)].orEmpty().isBlank() || parseMillions(tok[key(s)].orEmpty()) != null } && scopes.all { s -> usdV[key(s)].orEmpty().isBlank() || (usdV[key(s)]!!.toDoubleOrNull() ?: -1.0) > 0 }
+    val valid = scopes.all { s -> tok[key(s)].orEmpty().isBlank() || parseMillions(tok[key(s)].orEmpty()) != null } && scopes.all { s -> usdV[key(s)].orEmpty().isBlank() || (com.coinepro.hq.core.data.asciiDigits(usdV[key(s)]!!).toDoubleOrNull() ?: -1.0) > 0 }
     HqSheet(onDismiss, "ویرایش بودجه‌ها", sub = "به میلیون توکن؛ خالی یعنی بی‌سقف. پاکت ماهانه‌ی هر شرکت همان سقف استخدام مدیرعامل است.") {
         if (q.data == null) Skeleton(Modifier.fillMaxWidth().height(160.dp))
         else scopes.filter { it.third == "month" }.forEach { s ->
@@ -189,10 +189,17 @@ fun BudgetSheet(onDismiss: () -> Unit) {
         }
         HqButton("ذخیره با اثر انگشت", {
             action.run {
-                val rows = scopes.filter { s -> tok[key(s)].orEmpty().isNotBlank() || usdV[key(s)].orEmpty().isNotBlank() }.map { s ->
-                    BudgetRowIn(s.second, s.first, s.second, s.third, parseMillions(tok[key(s)].orEmpty()), usdV[key(s)].orEmpty().takeIf { it.isNotBlank() }?.toDouble()?.let { String.format(java.util.Locale.US, "%.2f", it) })
+                fun usd(s: Triple<String, String, String>) = com.coinepro.hq.core.data.asciiDigits(usdV[key(s)].orEmpty()).takeIf { it.isNotBlank() }?.toDouble()?.let { String.format(java.util.Locale.US, "%.2f", it) }
+                val rows = scopes.mapNotNull { s ->
+                    val had = q.data.orEmpty().firstOrNull { it.scopeType == s.first && it.company == s.second && it.period == s.third }
+                    when {
+                        tok[key(s)].orEmpty().isNotBlank() || usdV[key(s)].orEmpty().isNotBlank() -> BudgetRowIn(s.second, s.first, s.second, s.third, parseMillions(tok[key(s)].orEmpty()), usd(s))
+                        // ⟨2026-11-11⟩ audit: «خالی یعنی بی‌سقف»: a cap he emptied is switched off (the hub keeps a row it is not sent)
+                        had != null && (had.tokenLimit != null || had.usdLimit != null) -> BudgetRowIn(s.second, s.first, s.second, s.third, had.tokenLimit, had.usdLimit, enabled = false)
+                        else -> null
+                    }
                 }
-                env.api.putBudgets(rows) { target -> env.auth.stepUp(act, "budgets.update", target) }
+                if (rows.isNotEmpty()) env.api.putBudgets(rows) { target -> env.auth.stepUp(act, "budgets.update", target) }
                 env.cache.invalidate("treasury", "hiring")
                 toasts.ok("بودجه‌ها ذخیره شد.")
                 onDismiss()

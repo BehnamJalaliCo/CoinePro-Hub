@@ -8,7 +8,7 @@ import { Card, SectionTitle, Segmented, Skeleton, Switch } from '@/components/ui
 import { useToast } from '@/components/ui/toast';
 import { WEEKDAY_FA } from '@/components/v17/bits';
 import { faError, useDigitalCeo, useSaveSettings18, useSettings18, type ManagementSettings, type SettingsPatch } from '@/lib/api/v18';
-import { cx } from '@/lib/format';
+import { cx, latinNum, numText, parseNum } from '@/lib/format';
 
 const KEYS = ['advisor', 'weekly_review', 'audio_briefings', 'ceo_weekly_letter', 'reminders', 'digital_ceo', 'substitutes'] as const;
 const DAYS = ['sa', 'su', 'mo', 'tu', 'we', 'th', 'fr'];
@@ -31,6 +31,8 @@ export function ManagementSettingsCard() {
   const toast = useToast();
   const base = q.data;
   const [draft, setDraft] = useState<ManagementSettings | null>(null);
+  // The ratio as typed ("0.", Persian digits); the setting takes its number once it is one.
+  const [ratio, setRatio] = useState<string | null>(null);
   const loaded = base && KEYS.every((k) => base[k] != null);
   const d: ManagementSettings | null = draft ?? (loaded ? (Object.fromEntries(KEYS.map((k) => [k, base[k]])) as unknown as ManagementSettings) : null);
   if (q.isLoading) return <Card className="p-5"><Skeleton className="h-40" /></Card>;
@@ -39,18 +41,18 @@ export function ManagementSettingsCard() {
   const patch: SettingsPatch = Object.fromEntries(KEYS.filter((k) => JSON.stringify(d[k]) !== JSON.stringify(base[k])).map((k) => [k, d[k]]));
   const dirty = Object.keys(patch).length > 0;
   const hidden = dceo.data?.hidden ?? 0;
-  const submit = async () => { try { await save.mutateAsync({ version: base.version, patch }); setDraft(null); toast({ tone: 'ok', text: 'تنظیمات ابزار مدیریت ذخیره شد.' }); } catch (e) { toast({ tone: 'error', text: faError(e) }); } };
+  const submit = async () => { try { await save.mutateAsync({ version: base.version, patch }); setDraft(null); setRatio(null); toast({ tone: 'ok', text: 'تنظیمات ابزار مدیریت ذخیره شد.' }); } catch (e) { toast({ tone: 'error', text: faError(e) }); } };
   return (
     <Card className="flex flex-col gap-2 p-5">
       <SectionTitle title="ابزار مدیریت" note="یادداشت خودکار، مرور هفتگی، گزارش صوتی، یادآوری، مدیر کل دیجیتال و بازیکن‌های ذخیره" />
       <div className="flex flex-col divide-y divide-div">
         <Row label="یادداشت خودکار مشاور" note="کارت پرریسک، انتشار، تأسیس و طرح سرور">
-          <input aria-label="سقف روزانه‌ی یادداشت خودکار" value={d.advisor.auto_memo.max_per_day} onChange={(e) => set('advisor', { auto_memo: { ...d.advisor.auto_memo, max_per_day: Number(e.target.value.replace(/\D/g, '') || 0) } })} inputMode="numeric" className={num} />
+          <input aria-label="سقف روزانه‌ی یادداشت خودکار" value={d.advisor.auto_memo.max_per_day} onChange={(e) => set('advisor', { auto_memo: { ...d.advisor.auto_memo, max_per_day: Number(latinNum(e.target.value).replace(/\D/g, '') || 0) } })} inputMode="numeric" className={num} />
           <span className="text-[11px] text-muted">در روز</span>
           <Switch label="یادداشت خودکار مشاور" checked={d.advisor.auto_memo.enabled} onChange={(v) => set('advisor', { auto_memo: { ...d.advisor.auto_memo, enabled: v } })} />
         </Row>
         <Row label="گزارش فعال مشاور" note="هرگز فوری؛ بالای سقف ثبت میشود و نمیرود">
-          <input aria-label="سقف گزارش فعال" value={d.advisor.proactive_per_day} onChange={(e) => set('advisor', { proactive_per_day: Number(e.target.value.replace(/\D/g, '') || 0) })} inputMode="numeric" className={num} /><span className="text-[11px] text-muted">در روز</span>
+          <input aria-label="سقف گزارش فعال" value={d.advisor.proactive_per_day} onChange={(e) => set('advisor', { proactive_per_day: Number(latinNum(e.target.value).replace(/\D/g, '') || 0) })} inputMode="numeric" className={num} /><span className="text-[11px] text-muted">در روز</span>
         </Row>
         <Row label="مرور هفتگی با مشاور" note="دستور ۳۰ دقیقه پیش‌تر با کد ساخته میشود">
           <select aria-label="روز مرور" value={d.weekly_review.day} onChange={(e) => set('weekly_review', { day: e.target.value })} className="h-9 rounded-[8px] border border-strong bg-card px-2 text-[13px] text-ink">{DAYS.map((x) => <option key={x} value={x}>{WEEKDAY_FA[x.toUpperCase()]}</option>)}</select>
@@ -69,13 +71,13 @@ export function ManagementSettingsCard() {
         </Row>
         {d.digital_ceo.reveal === 'before' && hidden < 30 ? <p className="flex items-start gap-2 rounded-[10px] bg-warn-soft p-2.5 text-[12px] leading-5 text-ink"><Icon name="urgent" size={14} className="mt-0.5 text-warn" />دقت هنوز سنجیده نشده: فقط {hidden} پیش‌بینی پنهان داریم (دست‌کم ۳۰ لازم است). پیش‌بینی‌هایی که پیش از تصمیم ببینی در دقت «تمیز» شمرده نمیشوند.</p> : null}
         <Row label="بازیکن‌های ذخیره" note="اگر روز ۱۵ ماه ارزش مصرف زیر این نسبت باشد، پیشنهاد باز کردن جایگاه میاید؛ خودبه‌خود باز نمیشود">
-          <input aria-label="نسبت عقب ماندن" value={d.substitutes.behind_ratio} onChange={(e) => set('substitutes', { behind_ratio: Math.min(1, Math.max(0, Number(e.target.value) || 0)) })} inputMode="decimal" className={num} />
+          <input aria-label="نسبت عقب ماندن" value={ratio ?? String(d.substitutes.behind_ratio)} onChange={(e) => { const t = numText(e.target.value); setRatio(t); const v = parseNum(t); if (v != null) set('substitutes', { behind_ratio: Math.min(1, v) }); }} inputMode="decimal" className={num} />
           <div className="w-44"><Segmented label="بازیکن پیش‌فرض عکس" value={d.substitutes.creative_default_image} onChange={(v) => set('substitutes', { creative_default_image: v })} options={[{ value: 'gpt', label: 'ChatGPT' }, { value: 'gemini', label: 'Gemini' }]} /></div>
         </Row>
       </div>
       <div className={cx('flex flex-wrap gap-2 pt-1', !dirty && 'opacity-80')}>
         <Button variant="primary" disabled={!dirty} loading={save.isPending} onClick={submit}>ذخیره‌ی ابزار مدیریت</Button>
-        {dirty ? <Button variant="ghost" onClick={() => setDraft(null)}>برگرداندن</Button> : null}
+        {dirty ? <Button variant="ghost" onClick={() => { setDraft(null); setRatio(null); }}>برگرداندن</Button> : null}
       </div>
     </Card>
   );

@@ -432,7 +432,7 @@ fun ServersControlCard(company: String?, stopped: Boolean, onOpen: () -> Unit) {
     // The last jobs on every online server (a handful of servers per company), newest first.
     val calls = list.filter { it.online }.take(6).flatMap { s ->
         androidx.compose.runtime.key(s.id) {
-            rememberQuery("server:activity:${s.id}::", "servers", maxAgeMs = 15_000) { serverActivity(s.id, limit = 3) }.data?.items.orEmpty().map { serverNameOf(s.company, com.coinepro.hq.ui.companyOf(companies, s.company).nameFa, s.name, list.count { it.company == s.company }).text to it }
+            rememberQuery("server:activity:${s.id}::3", "servers", maxAgeMs = 15_000) { serverActivity(s.id, limit = 3) }.data?.items.orEmpty().map { serverNameOf(s.company, com.coinepro.hq.ui.companyOf(companies, s.company).nameFa, s.name, list.count { it.company == s.company }).text to it }
         }
     }.sortedByDescending { it.second.at }.take(3)
     HqCard(Modifier.fillMaxWidth(), onClick = onOpen, onClickLabel = "سرورها") {

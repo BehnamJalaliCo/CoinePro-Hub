@@ -60,7 +60,16 @@ class V31Test {
         assertEquals("1", n.lists.single().id.idText)
         assertEquals("12", n.campaigns.single().id.idText)
         assertEquals("1", n.campaigns.single().list?.idText)
-        assertNull(n.campaigns.single().subjectB)
+        // ⟨2026-11-11⟩ audit: as `NewsletterOut` writes it: the size limit at the top, a campaign's `list_id` and `send_at`
+        val h = Api.json.decodeFromString(Newsletter.serializer(), """{"company":"TY","active":true,"size_limit":2000,"lists":[{"id":"0193c0de-0001-7000-8000-000000000001","listmonk_id":7,"name":"a","subscribers":2400}],
+            "campaigns":[{"id":"0193c0de-0002-7000-8000-000000000001","company":"TY","listmonk_id":40,"list_id":7,"subject":"s","state":"finished","send_at":"2026-11-07T04:00:00Z","list_size":2400,"sent":2380,"created_at":"2026-11-06T04:00:00Z"}]}""")
+        assertEquals(2000L, h.sizeLimit)
+        val camp = h.campaigns.single()
+        assertEquals("2026-11-07T04:00:00Z", camp.scheduledAt)
+        assertTrue(com.coinepro.hq.core.data.nlSent(camp.state))
+        val list = com.coinepro.hq.core.data.nlListOf(h.lists, camp)
+        assertEquals("a", list?.name)
+        assertTrue(com.coinepro.hq.core.data.nlOver(list, h.sizeLimit))
     }
 
     @Test
@@ -82,9 +91,26 @@ class V31Test {
         assertEquals(21_100.0 to 1_100.0, competitorFigure(daily, "1", "followers"))
         assertNull(competitorFigure(daily, "1", "subscribers"))
         assertEquals(6.0, competitorNewPages(daily, "1"), 0.0)
-        val ads = Api.json.decodeFromString(Ads.serializer(), """{"accounts":[{"company":"TY","platform":"google_ads","account_id":"1","state":"connected"}],"campaigns":[{"platform":"google_ads","id":"c-1","state":"paused","paused_reason_fa":"r","days":[{"platform":"google_ads","campaign_id":"c-1","day":"2026-11-01","spend":100,"clicks":10,"conversions":2,"revenue":260,"roas":2.6},{"platform":"google_ads","campaign_id":"c-1","day":"2026-11-02","spend":100,"clicks":12,"conversions":1,"revenue":100,"roas":null}]}]}""")
-        val f = adFigures(ads.campaigns.single())
+        // ⟨2026-11-11⟩ audit: as `domain/ads.py` writes it: campaign_id, name, status, a float `conversions`, an account's name
+        val ads = Api.json.decodeFromString(Ads.serializer(), """{"company":"TY","accounts":[{"platform":"google_ads","label_fa":"گوگل ادز","state":"connected","secret":"set","missing_fa":[],"last_read_at":null,"last_error_fa":null}],
+            "campaigns":[{"platform":"google_ads","campaign_id":"c-1","name":"جست‌وجو","status":"paused","paused_by":"rule","paused_at":null,"paused_reason_fa":"r","totals":{"spend":200.0,"clicks":22,"conversions":3.0,"revenue":360.0,"roas":1.8},
+            "days":[{"day":"2026-11-01","spend":100.0,"clicks":10,"conversions":2.0,"revenue":260.0,"roas":2.6},{"day":"2026-11-02","spend":100.0,"clicks":12,"conversions":1.5,"revenue":100.0,"roas":null}]}],"trips":[]}""")
+        val camp = ads.campaigns.single()
+        assertEquals("c-1", camp.id)
+        assertEquals("جست‌وجو", camp.titleFa)
+        assertEquals("paused", camp.state)
+        assertEquals("گوگل ادز", ads.accounts.single().labelFa)
+        val f = adFigures(camp)
+        assertEquals(3.5, f.conversions, 0.0001)
         assertEquals(1.8, f.roas!!, 0.0001)
+        // a change that lets more money through is sealed, as the hub's `loosens`; a tighter one is not
+        val rule = com.coinepro.hq.core.net.AdRule(scope = "account", dailyCap = 100.0, minRoas = 1.2, minSpendBeforeJudging = 50.0, action = "pause", state = "on")
+        assertTrue(com.coinepro.hq.core.data.adRuleLoosens(rule, rule.copy(dailyCap = 120.0)))
+        assertTrue(com.coinepro.hq.core.data.adRuleLoosens(rule, rule.copy(minRoas = 1.0)))
+        assertTrue(com.coinepro.hq.core.data.adRuleLoosens(rule, rule.copy(action = "notify")))
+        assertTrue(com.coinepro.hq.core.data.adRuleLoosens(rule, rule.copy(state = "off")))
+        assertTrue(com.coinepro.hq.core.data.adRuleLoosens(rule, rule.copy(scope = "c-1")))
+        assertFalse(com.coinepro.hq.core.data.adRuleLoosens(rule, rule.copy(dailyCap = 80.0, minRoas = 1.5)))
         assertEquals("1.8×", roasText(f.roas))
         assertEquals("—", roasText(null))
     }

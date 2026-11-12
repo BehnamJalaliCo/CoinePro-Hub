@@ -16,7 +16,7 @@ import {
   CONTACT_RE, LEAD_SOURCE_FA, dec0, stageFa, useAffiliateGaps, useLead, useLeadActions, useLeads, usePipeline,
   type GapState, type Lead, type LeadDraft, type LeadPatch, type PipelineStage,
 } from '@/lib/api/v33';
-import { cx, jDate, jDateTime } from '@/lib/format';
+import { cx, jDate, jDateTime, numText, parseNum } from '@/lib/format';
 import { useNow } from '@/lib/store';
 import { Loading, Txt, pctOf, usdt } from './bits';
 
@@ -92,8 +92,9 @@ function LeadSheet({ code, leadRef, onClose, stages }: { code: string; leadRef: 
           ) : null}
           {value != null ? (
             <div className="hq-rise flex flex-col gap-2 rounded-[12px] bg-tile p-3" aria-label="ارزش سرنخ">
-              <Txt label="ارزش برآوردی (USDT)" value={value} set={(v) => setValue(v.replace(/[^\d.]/g, ''))} ltr />
-              <div className="flex gap-2"><Button variant="primary" size="sm" loading={act.edit.isPending} onClick={() => patch({ value_usdt: value ? Number(value) : null }, 'ارزش ثبت شد.', () => setValue(null))}>ثبت</Button><Button size="sm" onClick={() => setValue(null)}>بی‌خیال</Button></div>
+              <Txt label="ارزش برآوردی (USDT)" value={value} set={(v) => setValue(numText(v))} ltr />
+              {/* Empty clears the value; anything typed must read as a number (Persian digits included), never a silent null. */}
+              <div className="flex gap-2"><Button variant="primary" size="sm" loading={act.edit.isPending} disabled={value.trim() !== '' && parseNum(value) == null} onClick={() => patch({ value_usdt: value.trim() ? parseNum(value) : null }, 'ارزش ثبت شد.', () => setValue(null))}>ثبت</Button><Button size="sm" onClick={() => setValue(null)}>بی‌خیال</Button></div>
             </div>
           ) : <Button size="sm" className="self-start" onClick={() => setValue(d.value_usdt == null ? '' : String(dec0(d.value_usdt)))}>تغییر ارزش</Button>}
           {d.stage === 'lost' && d.lost_reason_fa ? <p className="rounded-[10px] bg-neg-soft px-3 py-2 text-[13px] leading-6">دلیل از دست رفتن: <FaText text={d.lost_reason_fa} /></p> : null}

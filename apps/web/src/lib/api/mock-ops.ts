@@ -267,6 +267,7 @@ export async function handleOps(req: Request, p: string, u: URL, s: OpsState): P
   if (p === '/ops/sites' && m === 'PUT') {
     const b = await body<{ company: string; sites: Array<{ url: string; kind: string; method: string; interval_s: number; enabled: boolean }> }>();
     if (b.sites.some((x) => /localhost|127\.|10\.|192\.168\./.test(x.url))) return problem(422, 'validation_failed', 'نشانی داخلی یا خصوصی پایش نمیشود.');
+    if (b.sites.some((x) => x.interval_s < 60)) return problem(422, 'validation_failed', 'فاصله‌ی چک دست‌کم ۶۰ ثانیه است.');
     for (const x of sites) if (x.company === b.company && !x.canary && !b.sites.some((y) => y.url === x.url)) x.enabled = false;
     for (const y of b.sites) { const x = sites.find((z) => z.company === b.company && z.url === y.url); if (x) Object.assign(x, y, { version: x.version + 1 }); else sites.push(site(b.company, y.url, y.kind, { ...y, last: null, uptime_24h: null })); }
     return json(sites.filter((x) => x.company === b.company));

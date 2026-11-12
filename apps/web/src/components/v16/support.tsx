@@ -60,7 +60,8 @@ export function QueueTab() {
 
 // ------------------------------------------------------- conversations --
 const CONV_STATES: ConversationState[] = ['waiting_owner', 'open', 'answered', 'closed'];
-const CHANNELS: ChannelKind[] = ['telegram_bot', 'telegram_business', 'chatwoot', 'product_bot', 'mystery'];
+// The hub filters by these four (the mystery shopper's talks are marked on the conversation, not a channel of their own).
+const CHANNELS: ChannelKind[] = ['telegram_bot', 'telegram_business', 'chatwoot', 'product_bot'];
 
 export function ConversationsTab({ initialCompany }: { initialCompany: string | null }) {
   const [company, setCompany] = useState<string | null>(initialCompany);
@@ -312,9 +313,16 @@ function ShadowCard({ company, r }: { company: string; r: ShadowReport | undefin
   const upload = async (file: File) => {
     setPct(0);
     try {
-      const ref = await uploadFile(file, file.name, setPct);
+      // /files takes text as text/plain (not JSON or CSV types); the hub tells CSV from the Telegram export by the file's name, which stays.
+      const ref = await uploadFile(new File([file], file.name, { type: 'text/plain' }), file.name, setPct);
       const out = await act.history.mutateAsync({ company, file_id: ref.id });
-      toast({ tone: 'ok', text: <>مجموعه‌ی آزمون {out.suite ? <span className="fig">{out.suite}</span> : null} ساخته شد{out.cases ? <>، {out.cases} سؤال ماسک‌شده</> : null}. حالا اجرا کن.</> });
+      if (out.state === 'failed') {
+        toast({ tone: 'error', text: out.error === 'no question and answer pairs' ? 'در این فایل هیچ پرسش و پاسخی پیدا نشد؛ خروجی گفت‌وگوهای پشتیبانی را بده.' : 'این فایل خوانده نشد؛ خروجی JSON تلگرام دسکتاپ یا CSV پرسش و پاسخ را بده.' });
+      } else if (out.state !== 'done') {
+        toast({ tone: 'info', text: 'فایل رسید و در حال خواندن است؛ مجموعه‌ی آزمون کمی بعد آماده میشود.' });
+      } else {
+        toast({ tone: 'ok', text: <>مجموعه‌ی آزمون {out.suite ? <span className="fig">{out.suite}</span> : null} ساخته شد{out.cases_kept ? <>، {out.cases_kept} سؤال ماسک‌شده</> : null}. حالا اجرا کن.</> });
+      }
     } catch (e) { toast({ tone: 'error', text: faError(e) }); }
     finally { setPct(null); }
   };

@@ -3,7 +3,7 @@
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Button } from '@/components/ui/button';
-import { Card, PageHeader, Pill, SectionTitle, Skeleton, StatTile } from '@/components/ui/primitives';
+import { Card, ErrorState, PageHeader, Pill, SectionTitle, Skeleton, StatTile } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { IntakeCard } from '@/components/v16/intake';
 import { ConnectionsCard } from '@/components/v18/connection';
@@ -26,25 +26,26 @@ export default function ToolsPage() {
   const toast = useToast();
   const err = (e: unknown) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : e instanceof Error ? e.message : 'انجام نشد.' });
   const s = sum.data;
+  const top = s?.by_company[0];
   return (
     <>
       <PageHeader eyebrow="تصمیم تو: اینترنت کامل برای ایجنت‌ها؛ مهم برآیند و کیفیت کار است" title="ابزارها و اینترنت">
         <p className="max-w-3xl text-[13px] leading-6 text-sec">جستجو، خواندن، مرورگر کامل و API بیرونی از درگاه خروجی؛ شبکه‌ی خصوصی و سرورهای همسایه بسته‌اند؛ تعهد بیرونی به نام هلدینگ (پرداخت، انتشار، پیام به آدم بیرونی، ساخت حساب) کارت تصمیم میشود.</p>
       </PageHeader>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {!s ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />) : (
+        {sum.error ? <div className="col-span-2 lg:col-span-4"><ErrorState error={sum.error} onRetry={() => sum.refetch()} /></div> : !s ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />) : (
           <>
-            <StatTile label="درخواست امروز" value={<span className="fig">{s.requests.toLocaleString('en-US')}</span>} sub={<span className="fig">{(s.bytes_in / 1e6).toFixed(0)} MB</span>} />
+            <StatTile label="درخواست امروز" value={<span className="fig">{s.requests.toLocaleString('en-US')}</span>} sub={<span className="fig">{(s.bytes / 1e6).toFixed(0)} MB</span>} />
             <StatTile label="مسدودشده" value={<span className="fig">{s.blocked}</span>} tone={s.blocked ? 'warn' : undefined} sub="شبکه‌ی خصوصی، داده‌ی داخلی، سقف" />
-            <StatTile label="به مُهر تو رسید" value={<span className="fig">{s.needs_owner}</span>} sub="تعهد بیرونی ← کارت تصمیم" />
-            <StatTile label="بیشترین ابزار" value={<span className="fig text-[18px]">{Object.entries(s.by_tool).sort((a, b) => b[1] - a[1])[0]?.[0]}</span>} sub={<span className="fig">{Object.entries(s.by_tool).sort((a, b) => b[1] - a[1])[0]?.[1]}</span>} />
+            <StatTile label="مرورگر" value={<span className="fig">{Math.round(s.browser_s / 60).toLocaleString('en-US')}</span>} sub="دقیقه‌ی مرورگر کامل امروز" />
+            <StatTile label="پرکارترین شرکت" value={top ? <CompanyMark code={top.company} height={16} mono /> : '—'} sub={top ? <span className="fig">{top.requests.toLocaleString('en-US')}</span> : undefined} />
           </>
         )}
       </div>
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card className="flex flex-col gap-2 p-4">
           <SectionTitle title="آخرین درخواست‌ها" note="هر درخواست با ایجنت، ابزار، مقصد و نتیجه ثبت میشود" />
-          {log.isLoading ? <Skeleton className="h-48" /> : (
+          {log.error ? <ErrorState error={log.error} onRetry={() => log.refetch()} /> : log.isLoading ? <Skeleton className="h-48" /> : (
             <ul className="flex flex-col">
               {(log.data?.items ?? []).map((e) => (
                 <li key={e.id} className="flex items-center gap-3 border-b border-div py-2 text-[12px] last:border-0">
@@ -74,8 +75,8 @@ export default function ToolsPage() {
                 <div className="flex flex-wrap gap-1">{m.tools.map((t) => <span key={t.name} className="fig rounded-full bg-card px-2 py-0.5 text-[11px] text-sec">{t.name} · {t.class}</span>)}</div>
                 <div className="flex items-center gap-2 text-[11px] text-muted">
                   {m.companies === 'all' ? <span>همه‌ی شرکت‌ها</span> : <span className="flex items-center gap-2">{m.companies.map((c) => <CompanyMark key={c} code={c} height={12} mono />)}</span>}<span className="flex-1" />
-                  {m.status === 'enabled' ? <Button size="sm" variant="ghost" onClick={() => act.disable.mutateAsync(m.key).catch(err)}>خاموش کن</Button>
-                    : <Button size="sm" variant="primary" icon="seal" loading={act.enable.isPending} onClick={() => act.enable.mutateAsync(m.key).then(() => toast({ tone: 'ok', text: 'روشن شد.' })).catch(err)}>مُهر و روشن</Button>}
+                  {m.status === 'enabled' ? <Button size="sm" variant="ghost" loading={act.disable.isPending && act.disable.variables === m.key} onClick={() => act.disable.mutateAsync(m.key).catch(err)}>خاموش کن</Button>
+                    : <Button size="sm" variant="primary" icon="seal" loading={act.enable.isPending && act.enable.variables === m.key} onClick={() => act.enable.mutateAsync(m.key).then(() => toast({ tone: 'ok', text: 'روشن شد.' })).catch(err)}>مُهر و روشن</Button>}
                 </div>
               </div>
             ))}

@@ -53,7 +53,9 @@ const BURST_MIN = 3;
 const BURST_PATHS = 8;
 const KEY = 'hq.errors';
 
-type Stored = { app: string; entries: ErrorEntry[] };
+/** `seq`: the highest id ever given in this version, kept beside the entries so an emptied log never hands an old id out again (the
+ *  upload map marks ids as sent; a reused id would never be sent). */
+type Stored = { app: string; entries: ErrorEntry[]; seq?: number };
 type Archive = { app: string; entries: ErrorEntry[]; archived: string };
 
 // ------------------------------------------------------------------------------------------------------------ masking --
@@ -181,7 +183,7 @@ class ErrorLog {
       stored = null;
     }
     this.entries = stored?.entries ?? [];
-    this.seq = this.entries.reduce((m, e) => Math.max(m, e.id), 0);
+    this.seq = this.entries.reduce((m, e) => Math.max(m, e.id), stored?.seq ?? 0);
     this.opened();
     window.addEventListener('error', (ev) => this.crash(ev.error ?? ev.message, 'error'));
     window.addEventListener('unhandledrejection', (ev) => this.crash(ev.reason, 'unhandled rejection'));
@@ -288,7 +290,7 @@ class ErrorLog {
 
   private update(next: ErrorEntry[]) {
     this.entries = next;
-    try { localStorage.setItem(`${KEY}.current`, JSON.stringify({ app: APP, entries: next } satisfies Stored)); } catch { /* full or private: memory only */ }
+    try { localStorage.setItem(`${KEY}.current`, JSON.stringify({ app: APP, entries: next, seq: this.seq } satisfies Stored)); } catch { /* full or private: memory only */ }
     for (const l of this.listeners) l();
   }
 

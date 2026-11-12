@@ -213,10 +213,11 @@ private fun RuleRow(r: AuthorityRule, draft: AuthorityChange?, onChange: (Author
             n != null -> androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     HqTextField(text, { v ->
-                        val clean = v.filter { it.isDigit() || it == '.' }
+                        // ⟨2026-11-11⟩ audit: a Persian keyboard's digits are the number they are; what does not read as one keeps the limit
+                        val clean = com.coinepro.hq.core.data.asciiDigits(v).filter { it in '0'..'9' || it == '.' }
                         text = clean
-                        val num = clean.toDoubleOrNull() ?: 0.0
-                        set(JsonObject((limit ?: JsonObject(emptyMap())) + (n.first to numberOf(num))), actor)
+                        val num = clean.toDoubleOrNull()
+                        if (num != null) set(JsonObject((limit ?: JsonObject(emptyMap())) + (n.first to numberOf(num))), actor)
                     }, "0", Modifier.width(120.dp), maxLength = 12, figure = true)
                 }
                 Text(UNIT[n.first].orEmpty(), style = Divan.type.caption, color = c.textMuted)

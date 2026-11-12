@@ -18,7 +18,21 @@ fun growthMetricFa(m: String?): String = GROWTH_METRIC_FA[m] ?: "نتیجه"
 val NL_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
     "draft" to ("پیش‌نویس" to Tone.SILVER), "scheduled" to ("زمان‌بندی‌شده" to Tone.LAPIS), "sending" to ("در حال ارسال" to Tone.SILVER),
     "sent" to ("فرستاده شد" to Tone.POS), "cancelled" to ("لغو شد" to Tone.SILVER),
+    // ⟨2026-11-11⟩ audit: the hub's own words for a campaign's state
+    "running" to ("در حال ارسال" to Tone.SILVER), "finished" to ("فرستاده شد" to Tone.POS), "paused" to ("نگه داشته شد" to Tone.WARN),
 )
+
+/** A campaign that went out (the hub says `finished`; an older answer `sent`). */
+fun nlSent(state: String): Boolean = state == "sent" || state == "finished"
+
+/** The list a campaign goes to: by the mail service's number the campaign names, else by the list's own id. */
+fun nlListOf(lists: List<com.coinepro.hq.core.net.NlList>, camp: com.coinepro.hq.core.net.NlCampaign?): com.coinepro.hq.core.net.NlList? {
+    val l = camp?.list?.contentOrNull ?: return null
+    return lists.firstOrNull { it.listmonkId?.toString() == l } ?: lists.firstOrNull { it.id.contentOrNull == l }
+}
+
+/** Over the size the hub sends without a seal: the list's own limit, else the company's. */
+fun nlOver(list: com.coinepro.hq.core.net.NlList?, limit: Long?): Boolean = list != null && (list.sizeLimit ?: limit ?: Long.MAX_VALUE) < list.subscribers
 
 val CAL_KIND31_FA = mapOf("line" to "خط تولید", "newsletter" to "خبرنامه", "ad" to "تبلیغ", "campaign" to "کمپین", "manual" to "دستی")
 
@@ -37,11 +51,20 @@ fun adPlatformFa(p: String?): String = AD_PLATFORM_FA[p] ?: (p ?: "تبلیغا�
 val AD_ACTION_FA = mapOf("pause" to "متوقف کن", "notify" to "فقط خبر بده")
 
 /** An ad campaign's last-30-days figures: what it spent, what came back, and the return (revenue over spend; null with nothing spent). */
-data class AdFigures(val spend: Double, val revenue: Double, val clicks: Long, val conversions: Long) {
+data class AdFigures(val spend: Double, val revenue: Double, val clicks: Long, val conversions: Double) {
     val roas: Double? get() = if (spend > 0) revenue / spend else null
 }
 
 fun adFigures(c: AdCampaign): AdFigures = AdFigures(c.days.sumOf { it.spend }, c.days.sumOf { it.revenue }, c.days.sumOf { it.clicks }, c.days.sumOf { it.conversions })
+
+/** ⟨2026-11-11⟩ audit: as the hub's `loosens`: the changed rule lets more money through (a higher cap, a lower return floor, a larger
+ *  spend before judging, only telling instead of pausing, switched off, fewer campaigns covered): 🔏 `ads.cap`. */
+fun adRuleLoosens(old: com.coinepro.hq.core.net.AdRule, new: com.coinepro.hq.core.net.AdRule): Boolean =
+    new.dailyCap > old.dailyCap || new.minRoas < old.minRoas || new.minSpendBeforeJudging > old.minSpendBeforeJudging ||
+        (old.action == "pause" && new.action == "notify") || (old.state == "on" && new.state == "off") || (old.scope == "account" && new.scope != "account")
+
+/** The words of a campaign's state. */
+val AD_STATUS_FA = mapOf("active" to "روشن", "paused" to "متوقف", "removed" to "حذف شد")
 
 /** «2.6×» (a return, Latin). */
 fun roasText(r: Double?): String = if (r == null) "—" else String.format(java.util.Locale.US, "%.1f×", r)

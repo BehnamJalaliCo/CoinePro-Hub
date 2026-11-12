@@ -91,10 +91,13 @@ function ClassIcon({ cls, m }: { cls: string | null; m: ArchiveMaps }) {
 // ------------------------------------------------------------------ the record form (intake, a draft, a correction) --
 export type RecordDraft = { class: string | null; title_fa: string; metadata: Record<string, unknown>; level: string | null; folder: string | null };
 const cleanMeta = (md: Record<string, unknown>) => Object.fromEntries(Object.entries(md).filter(([, v]) => !emptyValue(v)));
-/** The metadata to send: only the class's fields (a suggestion may carry keys of another class), nothing empty. */
-export const metaFor = (m: ArchiveMaps, d: RecordDraft) => {
+/** The metadata to send: only the class's fields (a suggestion may carry keys of another class), nothing empty. For a PATCH ([prev], the
+ *  stored metadata), a field the owner cleared goes as null: the hub merges the body over what is stored, so a missing key would stay. */
+export const metaFor = (m: ArchiveMaps, d: RecordDraft, prev?: Record<string, unknown>) => {
   const keys = new Set((m.cls(d.class)?.fields ?? []).map((f) => f.key));
-  return cleanMeta(Object.fromEntries(Object.entries(d.metadata).filter(([k]) => keys.has(k))));
+  const own = Object.entries(d.metadata).filter(([k]) => keys.has(k));
+  if (!prev) return cleanMeta(Object.fromEntries(own));
+  return Object.fromEntries(own.flatMap(([k, v]) => (!emptyValue(v) ? [[k, v]] : k in prev && !emptyValue(prev[k]) ? [[k, null]] : [])));
 };
 /** Parties of a record, read from its party fields (the field's title is the role), then any other the suggestion named. */
 export function partiesFor(m: ArchiveMaps, d: RecordDraft, extra: string[] = []): Array<{ party: string; role_fa: string }> {
@@ -198,6 +201,7 @@ export function IntakeSheet({ onClose, scope: scope0 }: { onClose: () => void; s
   const [drag, setDrag] = useState(false);
   const [got, setGot] = useState<Intake | null>(null);
   const [touched, setTouched] = useState(false);
+  const touchedRef = useRef(false);
   const [form, setForm] = useState<RecordDraft>({ class: null, title_fa: '', metadata: {}, level: null, folder: null });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<unknown>(null);
@@ -229,9 +233,9 @@ export function IntakeSheet({ onClose, scope: scope0 }: { onClose: () => void; s
         return;
       } catch (e) {
         if (e instanceof ApiError && e.code === 'secret_in_document') {
-          // The refusal names the file (its key in `fields`), never what it held.
-          const names = Object.keys(e.fields ?? {});
-          const hit = list.find((u) => !u.refused && u.id && ids.includes(u.id) && names.includes(u.file.name)) ?? list.find((u) => u.id === ids[0]);
+          // The refusal names the file by its id (`fields.file_ids`), never what it held.
+          const bad = (e.fields as Record<string, unknown> | null | undefined)?.file_ids;
+          const hit = bad != null ? list.find((u) => !u.refused && u.id === String(bad)) : list.find((u) => u.id === ids[0]);
           if (!hit) { setFailure(e); return; }
           patchUp(hit.key, { refused: true });
           ids = ids.filter((id) => id !== hit.id);
@@ -253,14 +257,15 @@ export function IntakeSheet({ onClose, scope: scope0 }: { onClose: () => void; s
         patchUp(u.key, { id: ref.id, pct: 100 });
       } catch (e) { patchUp(u.key, { error: faError(e) }); }
     }));
-    await scan(upsRef.current, touched);
+    // Read after the uploads: the owner may have started editing the form while they ran.
+    await scan(upsRef.current, touchedRef.current);
   };
   const remove = (k: string) => {
     const next = upsRef.current.filter((u) => u.key !== k);
     put(next);
     if (next.some((u) => !u.refused && u.id)) void scan(next, touched); else setGot(null);
   };
-  const edit = (d: RecordDraft) => { setTouched(true); setForm(d); };
+  const edit = (d: RecordDraft) => { setTouched(true); touchedRef.current = true; setForm(d); };
   const pickScope = (s: string | null) => { setScope(s); if (s) setForm((f) => ({ ...f, folder: defaultFolder(m, s, f.class) })); };
 
   const c = m.cls(form.class);

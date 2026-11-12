@@ -486,8 +486,8 @@ async function intakeAll(ids: string[]): Promise<StoredFile[] | Response> {
   const out: StoredFile[] = [];
   for (const id of ids) {
     const f = await intake(id);
-    // Refused before anything is stored or logged: only the file's name and the pattern's kind come back.
-    if ('secret' in f) return problem(422, 'secret_in_document', `در «${f.name}» الگوی رمز، کلید خصوصی یا عبارت بازیابی پیدا شد؛ فایل ذخیره نشد.`, { fields: { [f.name]: 'secret_pattern' } });
+    // Refused before anything is stored or logged: as the hub, the refused file's id (`file_ids`) and the pattern's kind come back.
+    if ('secret' in f) return problem(422, 'secret_in_document', `در «${f.name}» الگوی رمز، کلید خصوصی یا عبارت بازیابی پیدا شد؛ فایل ذخیره نشد.`, { fields: { file_ids: id, kinds: 'secret_pattern' } });
     out.push(f);
   }
   return out;

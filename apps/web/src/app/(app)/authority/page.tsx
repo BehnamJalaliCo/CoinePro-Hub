@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { Prose } from '@/components/v16/bits';
 import { ACTOR_ROLE_FA, WEEKDAY_FA } from '@/components/v17/bits';
 import { faError, limitNumber, useAuthority, useAuthorityAction, type AuthorityChange, type AuthorityRule, type Limit, type Weekday } from '@/lib/api/v17';
-import { cx, tokens, usd } from '@/lib/format';
+import { cx, numText, parseNum, tokens, usd } from '@/lib/format';
 
 const UNIT: Record<string, string> = { tokens_month: 'توکن در ماه', usd: 'دلار', count_day: 'در روز', count_hour: 'در ساعت', items: 'کارت' };
 const DAYS: Weekday[] = ['SA', 'SU', 'MO', 'TU', 'WE', 'TH', 'FR'];
@@ -26,9 +26,12 @@ function Row({ r, draft, onChange }: { r: AuthorityRule; draft: AuthorityChange 
   const limit = draft ? draft.limit : r.limit;
   const actor = draft?.actor ?? r.actor;
   const num = limitNumber(limit);
-  const out = !!num && !!r.bounds && (num.value < r.bounds.min || num.value > r.bounds.max);
+  // The typed text is kept as typed ("2.", Persian digits); the limit holds its number, NaN while it is not one.
+  const [text, setText] = useState(num ? String(num.value) : '');
+  const out = !!num && (Number.isNaN(num.value) || (!!r.bounds && (num.value < r.bounds.min || num.value > r.bounds.max)));
   const set = (p: Partial<AuthorityChange>) => {
-    const next = { key: r.key, version: r.version, limit, ...(actor !== r.actor ? { actor } : {}), ...p };
+    const next: AuthorityChange = { key: r.key, version: r.version, limit, ...(actor !== r.actor ? { actor } : {}), ...p };
+    if (next.actor === r.actor) delete next.actor;
     const same = JSON.stringify(next.limit) === JSON.stringify(r.limit) && (next.actor ?? r.actor) === r.actor;
     onChange(same ? null : next);
   };
@@ -46,8 +49,8 @@ function Row({ r, draft, onChange }: { r: AuthorityRule; draft: AuthorityChange 
       <span className="flex flex-wrap items-center gap-2">
         {num ? (
           <>
-            <input inputMode="decimal" dir="ltr" value={String(num.value)} aria-label={`مقدار ${r.title_fa}`} aria-invalid={out}
-              onChange={(e) => set({ limit: { ...limit, [num.key]: Number(e.target.value.replace(/[^\d.]/g, '') || 0) } })} className={cx(field, 'fig', out && 'border-[var(--hq-neg-line)]')} />
+            <input inputMode="decimal" dir="ltr" value={text} aria-label={`مقدار ${r.title_fa}`} aria-invalid={out}
+              onChange={(e) => { const t = numText(e.target.value); setText(t); set({ limit: { ...limit, [num.key]: parseNum(t) ?? Number.NaN } }); }} className={cx(field, 'fig', out && 'border-[var(--hq-neg-line)]')} />
             <span className="text-[12px] text-muted">{UNIT[num.key]}</span>
             {r.bounds ? <span className={cx('text-[11px]', out ? 'text-neg' : 'text-muted')}>بین <span className="fig">{r.bounds.min.toLocaleString('en-US')}</span> و <span className="fig">{r.bounds.max.toLocaleString('en-US')}</span></span> : null}
           </>
@@ -74,7 +77,7 @@ export default function AuthorityPage() {
   const open = rules.filter((r) => !r.locked);
   const locked = rules.filter((r) => r.locked);
   const changes = Object.values(drafts);
-  const bad = changes.some((c) => { const r = rules.find((x) => x.key === c.key); const n = limitNumber(c.limit); return !!r?.bounds && !!n && (n.value < r.bounds.min || n.value > r.bounds.max); });
+  const bad = changes.some((c) => { const r = rules.find((x) => x.key === c.key); const n = limitNumber(c.limit); return !!n && (Number.isNaN(n.value) || (!!r?.bounds && (n.value < r.bounds.min || n.value > r.bounds.max))); });
   const run = () => save.mutateAsync(changes).then(() => { toast({ tone: 'ok', text: 'ماتریس اختیار مُهر و ذخیره شد؛ OPA از همین لحظه عدد تازه را اجرا میکند.' }); setDrafts({}); setConfirm(false); }).catch((e) => toast({ tone: 'error', text: faError(e) }));
   return (
     <>
@@ -86,7 +89,7 @@ export default function AuthorityPage() {
         <>
           <Card className="flex flex-col p-4 md:p-5">
             <SectionTitle title="ردیف‌های باز" note="سقف‌ها، سهمیه‌ها و این‌که چه کسی تأیید میکند" />
-            <ul className="mt-2 flex flex-col">{open.map((r) => <Row key={r.key} r={r} draft={drafts[r.key]} onChange={(c) => setDrafts((d) => { const n = { ...d }; if (c) n[r.key] = c; else delete n[r.key]; return n; })} />)}</ul>
+            <ul className="mt-2 flex flex-col">{open.map((r) => <Row key={`${r.key}@${r.version}`} r={r} draft={drafts[r.key]} onChange={(c) => setDrafts((d) => { const n = { ...d }; if (c) n[r.key] = c; else delete n[r.key]; return n; })} />)}</ul>
           </Card>
           <Card className="flex flex-col gap-2 p-4 md:p-5">
             <SectionTitle title="ثابت‌های قفل" note="در کد، مستقل از داده؛ هیچ ذخیره‌ای عوضشان نمیکند" />
@@ -109,7 +112,7 @@ export default function AuthorityPage() {
         <div className="flex flex-col gap-2">
           <span>این ردیف‌ها عوض میشوند:</span>
           <ul className="flex flex-col gap-1.5">
-            {changes.map((c) => { const r = rules.find((x) => x.key === c.key); return <li key={c.key} className="flex flex-wrap items-center gap-2 text-[13px]"><span className="text-ink">{r?.title_fa}</span><span className="text-muted line-through">{limitFa(r?.limit ?? null)}</span><span className="font-semibold text-ink">{limitFa(c.limit)}</span>{c.actor ? <span className="text-gold-ink">فقط با تو</span> : null}</li>; })}
+            {changes.map((c) => { const r = rules.find((x) => x.key === c.key); return <li key={c.key} className="flex flex-wrap items-center gap-2 text-[13px]"><span className="text-ink">{r?.title_fa}</span><span className="text-muted line-through">{limitFa(r?.limit ?? null)}</span><span className="font-semibold text-ink">{limitFa(c.limit)}</span>{c.actor === 'owner' ? <span className="text-gold-ink">فقط با تو</span> : null}</li>; })}
           </ul>
         </div>
       </Dialog>

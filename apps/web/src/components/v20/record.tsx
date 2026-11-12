@@ -38,8 +38,12 @@ const addKeep = (d: string, k: { years?: number; months?: number }) => {
 /** Values that need a whole row even on a phone; the rest sit two to a row. */
 const WIDE = new Set(['long_text', 'date_range', 'party', 'url', 'ref', 'multi_enum', 'email', 'text']);
 const draftOf = (r: ArchiveRecord): RecordDraft => ({ class: r.class, title_fa: r.title_fa, metadata: { ...r.metadata }, level: r.level, folder: r.folder });
-/** The name a secret refusal gave (its key in `fields`), never what the file held. */
-const refusedName = (e: unknown) => (e instanceof ApiError && e.code === 'secret_in_document' ? Object.keys(e.fields ?? {})[0] ?? null : null);
+/** The file a secret refusal named: the hub sends its id in `fields.file_ids` (never what the file held). */
+export const refusedId = (e: unknown): string | null => {
+  if (!(e instanceof ApiError && e.code === 'secret_in_document')) return null;
+  const id = (e.fields as Record<string, unknown> | null | undefined)?.file_ids;
+  return id == null ? '' : String(id);
+};
 
 // ------------------------------------------------------------------ a disposed record --
 /** After the owner's disposal seal only the tombstone stays: ref, class, title, dates, hashes and the decision (§23.0). */
@@ -87,9 +91,16 @@ function DraftPanel({ r }: { r: ArchiveRecord }) {
     for (const [k, v] of Object.entries(s.metadata ?? {})) if (md[k] == null || md[k] === '') md[k] = v;
     setD({ ...d, class: cls, title_fa: s.title_fa ?? d.title_fa, metadata: md, level: m.rank(nc?.default_level) > m.rank(d.level) ? nc!.default_level : d.level, folder: d.folder ?? (nc ? m.folders.find((f) => f.scope === r.scope && f.classes.includes(nc.key))?.ref ?? null : null) });
   };
-  const patch = async (): Promise<ArchiveRecord> => act.patch.mutateAsync({
-    r, body: { ...(d.class !== r.class ? { class: d.class } : {}), title_fa: d.title_fa.trim(), metadata: metaFor(m, d), folder: d.folder, parties: partiesFor(m, d, s?.parties ?? []), ...(d.level && d.level !== r.level ? { level: d.level } : {}) },
-  });
+  // Lowering the level is the owner's alone (🔏 archive.declassify), even on a draft: the other fields go first, the lower level after.
+  const lower = !!d.level && d.level !== r.level && m.rank(d.level) < m.rank(r.level);
+  const patch = async (): Promise<ArchiveRecord> => {
+    const saved = await act.patch.mutateAsync({
+      r, body: { ...(d.class !== r.class ? { class: d.class } : {}), title_fa: d.title_fa.trim(), metadata: metaFor(m, d, r.metadata), folder: d.folder, parties: partiesFor(m, d, s?.parties ?? []), ...(d.level && d.level !== r.level && !lower ? { level: d.level } : {}) },
+    });
+    return lower ? act.declassify.mutateAsync({ r: saved, level: d.level! }) : saved;
+  };
+  const files = r.versions.find((v) => v.n === r.current_version)?.files.length ?? 0;
+  const fewFiles = !!c && files < (c.required_files ?? 0);
   const save = async () => {
     setErrors({}); setFailure(null);
     try { await patch(); toast({ tone: 'info', text: 'پیش‌نویس ذخیره شد.' }); } catch (e) { setErrors(fieldErrors(e)); setFailure(e); }
@@ -100,7 +111,11 @@ function DraftPanel({ r }: { r: ArchiveRecord }) {
       const saved = await patch();
       await act.file.mutateAsync(saved);
       toast({ tone: 'ok', text: <>سند <span className="fig">{r.ref}</span> ثبت شد.</> });
-    } catch (e) { setErrors(fieldErrors(e)); setFailure(e); }
+    } catch (e) {
+      // Said as a toast too: a save that bumped the version re-renders this panel, and the line below may be gone by then.
+      setErrors(fieldErrors(e)); setFailure(e);
+      toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'ثبت نشد.' });
+    }
   };
   return (
     <Panel title="پیش‌نویس، منتظر ثبت" note="بایگان طبقه‌بندی میکند و مشخصات را کامل؛ ثبت با توست. پیشنهاد هیچ‌وقت خودش ثبت نمیشود." className="tahrir ring-1 ring-[var(--hq-gold-ink)]">
@@ -115,9 +130,9 @@ function DraftPanel({ r }: { r: ArchiveRecord }) {
       ) : null}
       <RecordForm scope={r.scope} value={d} onChange={setD} errors={errors} />
       <ErrorLine error={failure} />
-      {c && lacking.length ? <p className="text-[12px] text-muted">برای ثبت کم است: {lacking.map((f) => `«${f.title_fa}»`).join('، ')}.</p> : null}
+      {c && (lacking.length || fewFiles) ? <p className="text-[12px] text-muted">برای ثبت کم است: {[...lacking.map((f) => `«${f.title_fa}»`), ...(fewFiles ? [`دست‌کم ${c.required_files} فایل (نسخه‌ی تازه بیاور)`] : [])].join('، ')}.</p> : null}
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" icon="seal" disabled={!c || lacking.length > 0 || !d.title_fa.trim()} loading={act.file.isPending || (act.patch.isPending && act.file.isIdle)} onClick={file}>ثبت کن</Button>
+        <Button variant="primary" icon="seal" disabled={!c || lacking.length > 0 || fewFiles || !d.title_fa.trim()} loading={act.file.isPending || (act.patch.isPending && act.file.isIdle)} onClick={file}>ثبت کن</Button>
         <Button variant="secondary" disabled={!d.title_fa.trim()} loading={act.patch.isPending && !act.file.isPending} onClick={save}>ذخیره‌ی پیش‌نویس</Button>
       </div>
     </Panel>
@@ -142,7 +157,7 @@ function MetadataPanel({ r }: { r: ArchiveRecord }) {
     if (!editing) return;
     setErrors({}); setFailure(null);
     try {
-      await act.patch.mutateAsync({ r, body: { title_fa: editing.title_fa.trim(), metadata: metaFor(m, editing), folder: editing.folder, parties: partiesFor(m, editing) } });
+      await act.patch.mutateAsync({ r, body: { title_fa: editing.title_fa.trim(), metadata: metaFor(m, editing, r.metadata), folder: editing.folder, parties: partiesFor(m, editing) } });
       setEditing(null);
       toast({ tone: 'info', text: 'مشخصات ذخیره شد.' });
     } catch (e) { setErrors(fieldErrors(e)); setFailure(e); }
@@ -227,17 +242,18 @@ function VersionSheet({ r, onClose }: { r: ArchiveRecord; onClose: () => void })
   const act = useRecordAction();
   const toast = useToast();
   const pick = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<Array<{ name: string; id: string | null; pct: number }>>([]);
+  // Each row has its own key: two files with one name stay two uploads, and a failed one can be taken out.
+  const [files, setFiles] = useState<Array<{ key: string; name: string; id: string | null; pct: number; failed?: boolean }>>([]);
   const [note, setNote] = useState('');
   const [failure, setFailure] = useState<unknown>(null);
   const add = async (list: FileList) => {
-    const fresh = [...list].slice(0, 20);
-    setFiles((xs) => [...xs, ...fresh.map((f) => ({ name: f.name, id: null, pct: 0 }))]);
-    for (const f of fresh) {
+    const fresh = [...list].slice(0, 20).map((f) => ({ f, key: crypto.randomUUID() }));
+    setFiles((xs) => [...xs, ...fresh.map(({ f, key }) => ({ key, name: f.name, id: null, pct: 0 }))]);
+    for (const { f, key } of fresh) {
       try {
-        const ref = await uploadFile(f, f.name, (pct) => setFiles((xs) => xs.map((x) => (x.name === f.name && !x.id ? { ...x, pct } : x))));
-        setFiles((xs) => xs.map((x) => (x.name === f.name && !x.id ? { ...x, id: ref.id, pct: 100 } : x)));
-      } catch (e) { setFailure(e); }
+        const ref = await uploadFile(f, f.name, (pct) => setFiles((xs) => xs.map((x) => (x.key === key ? { ...x, pct } : x))));
+        setFiles((xs) => xs.map((x) => (x.key === key ? { ...x, id: ref.id, pct: 100 } : x)));
+      } catch (e) { setFailure(e); setFiles((xs) => xs.map((x) => (x.key === key ? { ...x, failed: true } : x))); }
     }
   };
   const send = async () => {
@@ -248,18 +264,19 @@ function VersionSheet({ r, onClose }: { r: ArchiveRecord; onClose: () => void })
       onClose();
     } catch (e) { setFailure(e); }
   };
-  const refused = refusedName(failure);
+  const refusedKey = refusedId(failure);
+  const refused = refusedKey == null ? null : files.find((x) => x.id === refusedKey) ?? null;
   return (
     <Sheet open onOpenChange={(v) => !v && onClose()} width={520} title="نسخه‌ی تازه" description="اصلاح هیچ‌وقت روی نسخه‌ی قبلی نیست: همه‌ی فایل‌های نسخه‌ی تازه را بیاور؛ نسخه‌ی قبلی جایگزین‌شده میماند."
-      footer={<div className="flex gap-2"><Button variant="primary" icon="add" disabled={!files.length || files.some((x) => !x.id) || !note.trim()} loading={act.version.isPending} onClick={send}>نسخه‌ی تازه را ثبت کن</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>}>
+      footer={<div className="flex gap-2"><Button variant="primary" icon="add" disabled={!files.some((x) => x.id) || files.some((x) => !x.id && !x.failed) || !note.trim()} loading={act.version.isPending} onClick={send}>نسخه‌ی تازه را ثبت کن</Button><Button variant="ghost" onClick={onClose}>انصراف</Button></div>}>
       <div className="flex flex-col gap-3 text-[13px]">
         <Button variant="secondary" icon="attach" onClick={() => pick.current?.click()} className="self-start">انتخاب فایل</Button>
         <input ref={pick} type="file" multiple hidden aria-label="فایل‌های نسخه‌ی تازه" onChange={(e) => { if (e.target.files) void add(e.target.files); e.target.value = ''; }} />
-        {files.length ? <ul className="flex flex-col gap-1">{files.map((f, i) => <li key={i} className={cx('flex items-center gap-2 rounded-[10px] px-3 py-2', refused === f.name ? 'bg-neg-soft' : 'bg-tile')}><span dir="ltr" className="fig min-w-0 flex-1 truncate text-start text-ink">{f.name}</span><span className="fig text-[11px] text-muted">{f.id ? 'ok' : `${f.pct}%`}</span></li>)}</ul> : null}
+        {files.length ? <ul className="flex flex-col gap-1">{files.map((f) => <li key={f.key} className={cx('flex items-center gap-2 rounded-[10px] px-3 py-2', refused?.key === f.key || f.failed ? 'bg-neg-soft' : 'bg-tile')}><span dir="ltr" className="fig min-w-0 flex-1 truncate text-start text-ink">{f.name}</span><span className="fig text-[11px] text-muted">{f.failed ? '—' : f.id ? 'ok' : `${f.pct}%`}</span>{f.failed || refused?.key === f.key ? <Button size="sm" variant="ghost" icon="close" aria-label={`برداشتن ${f.name}`} onClick={() => { setFiles((xs) => xs.filter((x) => x.key !== f.key)); setFailure(null); }} /> : null}</li>)}</ul> : null}
         <label className="flex flex-col gap-1.5 font-semibold text-sec">چه چیزی عوض شد
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={2000} placeholder="مثلاً: الحاقیه‌ی ۲، کمیسیون تازه" className={fieldArea()} />
         </label>
-        {refused ? <p role="alert" className="rounded-[12px] bg-neg-soft p-3 text-[12px] leading-5 text-neg">«<span className="fig">{refused}</span>» رد شد: الگوی رمز، کلید خصوصی یا عبارت بازیابی در آن بود. ذخیره نشد و هیچ بخشی از آن ثبت نشد.</p> : <ErrorLine error={failure} />}
+        {refusedKey != null ? <p role="alert" className="rounded-[12px] bg-neg-soft p-3 text-[12px] leading-5 text-neg">«<span className="fig">{refused?.name ?? 'یک فایل'}</span>» رد شد: الگوی رمز، کلید خصوصی یا عبارت بازیابی در آن بود. ذخیره نشد و هیچ بخشی از آن ثبت نشد.</p> : <ErrorLine error={failure} />}
       </div>
     </Sheet>
   );
@@ -561,7 +578,7 @@ export function RecordView({ refId }: { refId: string }) {
           {r.doc_date ? <span className="text-[12px] text-muted">تاریخ سند <JDay d={r.doc_date} className="text-sec" /></span> : null}
         </div>
       </PageHeader>
-      {r.state === 'draft' ? <DraftPanel key={r.version} r={r} /> : null}
+      {r.state === 'draft' ? <DraftPanel key={r.ref} r={r} /> : null}
       <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-4">
           <MetadataPanel r={r} />

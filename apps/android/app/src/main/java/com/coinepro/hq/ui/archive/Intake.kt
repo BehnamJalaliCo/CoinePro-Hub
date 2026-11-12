@@ -118,9 +118,12 @@ fun IntakeContent(scope0: String?, onClose: () -> Unit, picked0: List<Uri> = emp
                     return
                 } catch (e: ApiException) {
                     if (e.code == "secret_in_document") {
-                        // The refusal names the file (its key in `fields`), never what it held.
+                        // The refusal names the file by its id (`fields.file_ids`, ⟨2026-11-11⟩ audit), never what it held; an older hub
+                        // named it by its file name in the keys. Never a guess: an unnamed refusal stops the intake with its words.
+                        val bad = e.fields["file_ids"]?.trim()
                         val names = e.fields.keys + e.fieldKeys
-                        val hit = ups.firstOrNull { !it.refused && it.id in ids && it.name in names } ?: ups.firstOrNull { it.id == ids.first() }
+                        val hit = ups.firstOrNull { !it.refused && it.id in ids && bad != null && it.id == bad }
+                            ?: ups.firstOrNull { !it.refused && it.id in ids && it.name in names }
                         if (hit == null) { failure = e; return }
                         patch(hit.key) { it.copy(refused = true) }
                         ids = ids - hit.id!!

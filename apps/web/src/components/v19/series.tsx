@@ -14,7 +14,7 @@ import { useAccounts } from '@/lib/api/v14';
 import { CHECKS, faError, usePlatformLimits, useSeriesAction, useVoices, type Aspect, type MediaKind, type MediaPlacement, type Series, type SeriesIn, type SeriesTarget } from '@/lib/api/v19';
 import { companyOf } from '@/lib/company';
 import { ACTOR_FA } from '@/lib/labels';
-import { cx, jDateTime, until } from '@/lib/format';
+import { cx, jDateTime, latinNum, until } from '@/lib/format';
 import { CHANNEL_FA, CHECK_FA, DAY_FA, DAY_SHORT, KIND_FA, LicenceBadge, PLACEMENT_FA, SERIES_STATUS, Schedule, StateNote, buildRrule, hhmm, parseRrule, type Rule } from './bits';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
@@ -209,6 +209,9 @@ export function SeriesEditor({ s, onClose, onSaved }: { s: Series | null; onClos
   const voices = useVoices();
   const [key] = useState(() => crypto.randomUUID());
   const rule0: Rule = (s && parseRrule(s.schedule)) || { freq: 'WEEKLY', days: ['SA', 'TU'], hour: 18, minute: 30 };
+  // A stored rule the simple editor cannot read (several hours, monthly, hourly) is kept as it is unless the owner changes the schedule.
+  const raw = s && !parseRrule(s.schedule) ? s.schedule : null;
+  const [keepRaw, setKeepRaw] = useState(!!raw);
   const [company, setCompany] = useState<string | null>(s?.company ?? null);
   const [title, setTitle] = useState(s?.title_fa ?? '');
   const [kind, setKind] = useState<MediaKind>(s?.kind ?? 'reel');
@@ -230,13 +233,13 @@ export function SeriesEditor({ s, onClose, onSaved }: { s: Series | null; onClos
   const pickKind = (k: MediaKind) => { setKind(k); setAspect(ASPECTS[k][0]!); setCap(CAP[k]); setTargets((ts) => ts.filter((t) => !placementFits(k, ASPECTS[k][0]!, t.placement))); };
   const toggle = (t: SeriesTarget) => setTargets((ts) => (ts.some((x) => x.account === t.account && x.placement === t.placement) ? ts.filter((x) => !(x.account === t.account && x.placement === t.placement)) : [...ts, t]));
   const topics = { pool: pool.split('\n').map((x) => x.trim()).filter(Boolean), rule_fa: topicRule.trim() || null };
-  const ok = !!company && title.trim().length >= 3 && targets.length > 0 && (topics.pool.length > 0 || !!topics.rule_fa) && (rule.freq === 'DAILY' || rule.days.length > 0);
+  const ok = !!company && title.trim().length >= 3 && targets.length > 0 && (topics.pool.length > 0 || !!topics.rule_fa) && ((keepRaw && !!raw) || rule.freq === 'DAILY' || rule.days.length > 0);
   const sealedNow = s?.status === 'sealed' || s?.status === 'paused';
 
   const submit = async () => {
     if (!company) return;
     const body: SeriesIn = {
-      company, title_fa: title.trim(), kind, targets, schedule: buildRrule(rule), topics,
+      company, title_fa: title.trim(), kind, targets, schedule: keepRaw && raw ? raw : buildRrule(rule), topics,
       format: { aspect, duration_s: timed ? duration : null, voice: timed && voiceId ? { voice_id: voiceId } : null, captions: timed && captions, music: 'none', overlay: { cta_fa: cta.trim() || null, mark } },
       checks: CHECKS, auto_publish: auto, max_per_day: cap,
     };
@@ -283,12 +286,19 @@ export function SeriesEditor({ s, onClose, onSaved }: { s: Series | null; onClos
           )}
         </fieldset>
         <fieldset className="flex flex-col gap-2"><legend className="pb-2 font-semibold text-sec">زمان‌بندی (منطقه‌ی زمانی تو)</legend>
+          {keepRaw && raw ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-tile p-3 text-[12px] text-sec" aria-label="زمان‌بندی فعلی">
+              <span className="min-w-0 flex-1"><Schedule rrule={raw} /> · <span dir="ltr" className="fig">{raw}</span></span>
+              <Button size="sm" variant="secondary" onClick={() => setKeepRaw(false)}>تغییر زمان‌بندی</Button>
+            </div>
+          ) : (<>
           <Segmented label="تکرار" value={rule.freq} onChange={(v) => setRule({ ...rule, freq: v })} options={[{ value: 'DAILY', label: 'هر روز' }, { value: 'WEEKLY', label: 'روزهای هفته' }]} />
           {rule.freq === 'WEEKLY' ? <div className="flex flex-wrap gap-1.5">{DAYS.map((d) => <FilterChip key={d} selected={rule.days.includes(d)} onClick={() => setRule({ ...rule, days: rule.days.includes(d) ? rule.days.filter((x) => x !== d) : [...rule.days, d] })}>{DAY_FA[d]}</FilterChip>)}</div> : null}
           <label className="flex items-center gap-2 text-sec">ساعت
             <input type="time" dir="ltr" value={hhmm(rule.hour, rule.minute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); if (Number.isFinite(h) && Number.isFinite(m)) setRule({ ...rule, hour: h!, minute: m! }); }} aria-label="ساعت انتشار" className="fig h-10 rounded-[10px] border border-strong bg-card px-3 text-ink outline-none focus:border-gold-ink" />
           </label>
           <span className="text-[11px] text-muted"><Schedule rrule={buildRrule(rule)} /> · <span dir="ltr" className="fig">{buildRrule(rule)}</span></span>
+          </>)}
         </fieldset>
         <fieldset className="flex flex-col gap-2"><legend className="pb-2 font-semibold text-sec">موضوع‌ها</legend>
           <textarea value={pool} onChange={(e) => setPool(e.target.value)} rows={3} placeholder="هر خط یک موضوع؛ به ترتیب برداشته میشوند" aria-label="فهرست موضوع" className="w-full rounded-[10px] border border-strong bg-card p-3 text-[14px] leading-6 text-ink outline-none focus:border-gold-ink" />
@@ -297,7 +307,7 @@ export function SeriesEditor({ s, onClose, onSaved }: { s: Series | null; onClos
         <fieldset className="flex flex-col gap-3 rounded-[12px] bg-tile p-3"><legend className="px-1 text-[12px] font-semibold text-sec">قالب</legend>
           {timed ? (
             <>
-              <label className="flex items-center gap-2 text-sec">مدت<input value={duration ?? ''} onChange={(e) => setDuration(Number(e.target.value.replace(/\D/g, '')) || null)} inputMode="numeric" aria-label="مدت به ثانیه" className="fig h-9 w-16 rounded-[8px] border border-strong bg-card px-2 text-center text-ink" />ثانیه</label>
+              <label className="flex items-center gap-2 text-sec">مدت<input value={duration ?? ''} onChange={(e) => setDuration(Number(latinNum(e.target.value).replace(/\D/g, '')) || null)} inputMode="numeric" aria-label="مدت به ثانیه" className="fig h-9 w-16 rounded-[8px] border border-strong bg-card px-2 text-center text-ink" />ثانیه</label>
               <div className="flex flex-col gap-1.5">
                 <span className="text-sec">صدا</span>
                 <div className="flex flex-wrap gap-1.5">
@@ -318,7 +328,7 @@ export function SeriesEditor({ s, onClose, onSaved }: { s: Series | null; onClos
           <label className="flex items-start gap-3 rounded-[12px] bg-tile p-3 text-sec"><Switch label="انتشار خودکار" checked={auto} onChange={setAuto} />
             <span className="flex flex-col gap-0.5"><span className="font-semibold text-ink">انتشار خودکار</span><span className="text-[12px] leading-5">فقط وقتی هر هفت چک قبول باشد، در زمان برنامه. خاموش: هر آیتم کارت توست. برنامه‌ی تازه را خاموش شروع کن.</span></span>
           </label>
-          <label className="flex items-center gap-2 text-sec">سقف روزانه<input value={cap} onChange={(e) => setCap(Math.min(10, Number(e.target.value.replace(/\D/g, '')) || 1))} inputMode="numeric" aria-label="سقف روزانه" className="fig h-9 w-14 rounded-[8px] border border-strong bg-card px-2 text-center text-ink" />آیتم در روز</label>
+          <label className="flex items-center gap-2 text-sec">سقف روزانه<input value={cap} onChange={(e) => setCap(Math.min(10, Number(latinNum(e.target.value).replace(/\D/g, '')) || 1))} inputMode="numeric" aria-label="سقف روزانه" className="fig h-9 w-14 rounded-[8px] border border-strong bg-card px-2 text-center text-ink" />آیتم در روز</label>
           <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted"><Icon name="seal" size={12} />چک‌ها همیشه هر هفت تا:{CHECKS.map((k) => <span key={k} className="rounded-full bg-tile px-2 py-0.5">{CHECK_FA[k]?.fa}</span>)}</span>
         </div>
       </div>

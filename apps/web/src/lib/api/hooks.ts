@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import type { paths } from '@/generated/api';
 import { handled } from './observe';
 import { ApiError, api, ok, type Schemas } from './client';
@@ -31,6 +31,13 @@ export function useSetKhalvat() {
 export type DecisionFilter = Query<'/api/v1/decisions'>;
 export const useDecisions = (f: DecisionFilter = {}) =>
   useQuery({ queryKey: ['decisions', f], queryFn: () => ok(api.GET('/api/v1/decisions', { params: { query: f } })) });
+/** The cartable's list, page by page (the hub's largest page, then `next_cursor`), so nothing past the first page is out of sight. */
+export const useDecisionPages = (f: DecisionFilter = {}) =>
+  useInfiniteQuery({
+    queryKey: ['decisions', 'pages', f], initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => ok(api.GET('/api/v1/decisions', { params: { query: { ...f, limit: 200, ...(pageParam ? { cursor: pageParam } : {}) } } })),
+    getNextPageParam: (last) => last.next_cursor ?? null,
+  });
 export const useDecision = (ref: string | null) =>
   useQuery({ queryKey: ['decisions', 'one', ref], enabled: !!ref, queryFn: () => ok(api.GET('/api/v1/decisions/{ref}', { params: { path: { ref: ref! } } })) });
 

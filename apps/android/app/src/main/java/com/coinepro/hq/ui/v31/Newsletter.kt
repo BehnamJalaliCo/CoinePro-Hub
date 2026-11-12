@@ -19,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.NL_STATE_FA
+import com.coinepro.hq.core.data.nlListOf
+import com.coinepro.hq.core.data.nlOver
+import com.coinepro.hq.core.data.nlSent
 import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.jDateTime
@@ -82,9 +85,9 @@ fun CompanyNewsletter(code: String) {
     }
     scheduling?.let { id ->
         val camp = n?.campaigns?.firstOrNull { it.id.idText == id }
-        val list = n?.lists?.firstOrNull { it.id.idText == camp?.list?.idText }
+        val list = nlListOf(n?.lists.orEmpty(), camp)
         if (camp != null) com.coinepro.hq.ui.v14.HqSheet({ scheduling = null }, "زمان فرستادن", sub = camp.subject) {
-            ScheduleBody(camp, list) { scheduling = null }
+            ScheduleBody(camp, list, n?.sizeLimit) { scheduling = null }
         }
     }
 }
@@ -100,7 +103,7 @@ fun NewsletterBody(n: Newsletter, onSchedule: (String) -> Unit) {
                 Text(plain(l.name), style = Divan.type.bodyStrong, modifier = Modifier.weight(1f))
                 Text(plain("${l.subscribers} نفر"), style = Divan.type.caption, color = c.textSecondary)
             }
-            val limit = l.sizeLimit
+            val limit = l.sizeLimit ?: n.sizeLimit
             if (limit != null && limit > 0) {
                 val over = l.subscribers > limit
                 MeterBar(l.subscribers * 100.0 / limit, Modifier.padding(top = 8.dp), tone = if (over) BarTone.WARN else BarTone.SILVER)
@@ -114,9 +117,8 @@ fun NewsletterBody(n: Newsletter, onSchedule: (String) -> Unit) {
                 Text(plain(k.subject), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f), maxLines = 2)
                 Pill(st.first, st.second, dot = true)
             }
-            if (!k.subjectB.isNullOrBlank()) Text(plain("موضوع دوم (آزمایش): " + k.subjectB), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.padding(top = 4.dp))
-            k.scheduledAt?.let { Text(plain((if (k.state == "sent") "فرستاده شد " else "زمان فرستادن: ") + jDateTime(it)), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(top = 4.dp)) }
-            if (k.state == "sent") Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            k.scheduledAt?.let { Text(plain((if (nlSent(k.state)) "فرستاده شد " else "زمان فرستادن: ") + jDateTime(it)), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(top = 4.dp)) }
+            if (nlSent(k.state)) Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(plain("فرستاده: ${k.sent ?: 0}"), style = Divan.type.caption, color = c.textSecondary)
                 Text(plain("باز شد: " + pct(k.opens, k.sent)), style = Divan.type.caption, color = c.textSecondary)
                 Text(plain("کلیک: " + pct(k.clicks, k.sent)), style = Divan.type.caption, color = c.textSecondary)
@@ -134,7 +136,6 @@ fun NewsletterForm(code: String, lists: List<NlList>, onDone: () -> Unit) {
     val c = Divan.colors
     var list by rememberSaveable { mutableStateOf(lists.firstOrNull()?.id?.idText.orEmpty()) }
     var subject by rememberSaveable { mutableStateOf("") }
-    var subjectB by rememberSaveable { mutableStateOf("") }
     var body by rememberSaveable { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (lists.size > 1) {
@@ -145,13 +146,11 @@ fun NewsletterForm(code: String, lists: List<NlList>, onDone: () -> Unit) {
         }
         Text("موضوع", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
         HqTextField(subject, { subject = it }, "موضوع ایمیل", Modifier.fillMaxWidth(), maxLength = 150)
-        Text("موضوع دوم، برای آزمایش (اختیاری)", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-        HqTextField(subjectB, { subjectB = it }, "نصف مخاطبان این را میبینند", Modifier.fillMaxWidth(), maxLength = 150)
         Text("متن", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
         HqTextField(body, { body = it }, "متن خبرنامه", Modifier.fillMaxWidth(), singleLine = false, minLines = 6, maxLength = 20000)
         HqButton("بساز", {
             action.run {
-                env.api.newNewsletter(code, list, subject.trim(), subjectB.trim().ifBlank { null }, body.trim())
+                env.api.newNewsletter(code, list, subject.trim(), body.trim())
                 env.cache.invalidate("newsletter", "campaign-calendar")
                 toasts.ok("پیش‌نویس خبرنامه ساخته شد.")
                 onDone()
@@ -162,7 +161,7 @@ fun NewsletterForm(code: String, lists: List<NlList>, onDone: () -> Unit) {
 
 /** The send time: a few mornings ahead (07:00, the owner's zone); a list over its limit asks for the passkey. */
 @Composable
-fun ScheduleBody(camp: NlCampaign, list: NlList?, onDone: () -> Unit) {
+fun ScheduleBody(camp: NlCampaign, list: NlList?, sizeLimit: Long? = null, onDone: () -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val act = activity()
@@ -170,7 +169,7 @@ fun ScheduleBody(camp: NlCampaign, list: NlList?, onDone: () -> Unit) {
     val c = Divan.colors
     val tz = ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)
     val today = HqClock.today()
-    val over = list != null && (list.sizeLimit ?: Long.MAX_VALUE) < list.subscribers
+    val over = nlOver(list, sizeLimit)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (over) Text("این فهرست از سقفش بزرگ‌تر است؛ زمان‌بندی با مُهر توست.", style = Divan.type.caption, color = c.warning)
         HorizontalDivider(color = c.lineDivider)

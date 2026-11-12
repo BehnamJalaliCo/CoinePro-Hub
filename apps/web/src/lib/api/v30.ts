@@ -43,7 +43,7 @@ export type StepDef = {
   key: string; kind: StepKind | string; title_fa: string; prompt_fa: string | null; settings: Record<string, unknown>; inputs: string[];
   gate: Gate; optional: boolean; enabled: boolean; max_attempts: number; timeout_s: number;
 };
-export type Template = { key: string; title_fa: string; platform: string; version: number; steps: StepDef[]; defaults: Record<string, unknown>; outputs_fa: string };
+export type Template = { key: string; title_fa: string; platform: string; version: number; steps: StepDef[]; defaults: Record<string, unknown>; outputs_fa: string[] };
 export type Caps = { runs_per_day: number; tokens_per_run: number; opus_per_day: number };
 export type LineState = 'draft' | 'on' | 'paused';
 export type LineMode = 'draft' | 'auto';
@@ -53,7 +53,7 @@ export type Line = {
   ref: string; company: string; template: string; template_version: number; platform: string; channel: { kind: string; subject: string }; title_fa: string;
   schedule: string | null; state: LineState; mode: LineMode; good_runs: number; auto_after: number; caps: Caps; version: number; steps: StepDef[]; library: string[];
   created_at: string; updated_at: string;
-  /** As built (routes/lines.py): the next run, the last run, whether the app offers «خودکار کن», the owner's own name and the line it was copied from. */
+  /** As built (routes/lines.py): the next run, the last run, whether the app offers «خودکار کن», the company's name (`name_fa`, not the line's: that is `title_fa`) and the line it was copied from. */
   next_at?: string | null; last_run?: { ref: string; state: RunState; at: string } | null; offer_auto?: boolean; name_fa?: string | null; copied_from?: string | null;
 };
 export type LineVersion = { line: string; version: number; body: Line; by: Actor; at: string; note_fa: string | null };

@@ -110,8 +110,9 @@ export function kpiFig(v: number | null | undefined, unit: string): string {
   if (unit === '%') return `${n}%`;
   return unit ? `${n} ${unit}` : n;
 }
-/** Is a KPI at or beyond its target, given its direction? */
-export const onTarget = (v: number | null, target: number | null, direction: 'up' | 'down' = 'up') => (v == null || target == null ? null : direction === 'down' ? v <= target : v >= target);
+/** Is a KPI at or beyond its target, given its direction? A 'range' KPI is on target between target and target_max (as the hub's at_target). */
+export const onTarget = (v: number | null, target: number | null, direction: 'up' | 'down' | 'range' = 'up', targetMax?: number | null) =>
+  (v == null || target == null ? null : direction === 'down' ? v <= target : direction === 'range' ? target <= v && v <= (targetMax ?? target) : v >= target);
 /** Tokens of a budget: "61K / 120K", a missing cap reads «بی‌سقف». */
 export const budgetFig = (used: number, cap: number | null) => (cap == null ? `${tokens(used)}` : `${tokens(used)} / ${tokens(cap)}`);
 export const pctOf = (used: number, cap: number | null) => (cap ? Math.min(100, (used / cap) * 100) : 0);

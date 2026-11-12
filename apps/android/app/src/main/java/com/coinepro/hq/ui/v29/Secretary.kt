@@ -70,6 +70,8 @@ fun rememberPreview(text: String, source: String, on: Boolean, preview0: OrderRo
     val env = LocalEnv.current
     val p = remember { Preview().apply { route = preview0 } }
     LaunchedEffect(text, on) {
+        // ⟨2026-11-11⟩ audit: the route read for the old words never goes with the new ones (it is read again, or the hub decides)
+        if (!p.edited && preview0 == null) p.route = null
         if (!on || p.edited || preview0 != null || text.trim().length < 8 || !env.api.gaps.has(HubFeature.PREVIEW)) return@LaunchedEffect
         delay(650)
         p.loading = true
@@ -78,6 +80,7 @@ fun rememberPreview(text: String, source: String, on: Boolean, preview0: OrderRo
         } catch (e: ApiException) {
             // The preview is a help, never a gate: without it the hub decides as before.
             e.logged?.let { env.api.failures?.forget(it) }
+            p.route = null
         } finally {
             p.loading = false
         }

@@ -46,6 +46,7 @@ import com.coinepro.hq.core.data.stepKindIcon
 import com.coinepro.hq.core.data.withSetting
 import com.coinepro.hq.core.data.withVariable
 import com.coinepro.hq.core.format.Tone
+import com.coinepro.hq.core.format.actorFa
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.net.Asset
 import com.coinepro.hq.core.net.HubFeature
@@ -443,7 +444,7 @@ fun VersionsBody(l: Line, onDone: () -> Unit) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(plain("نسخه‌ی ${v.version}" + (if (v.version == l.version) " (الان)" else "")), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-                        Text(plain(listOfNotNull(v.at?.let { ago(it) }, v.by?.takeIf { it.isNotBlank() }).joinToString("، ")), style = Divan.type.micro, color = c.textMuted)
+                        Text(plain(listOfNotNull(v.at?.let { ago(it) }, v.by?.let { actorFa(it) }?.takeIf { it.isNotBlank() }).joinToString("، ")), style = Divan.type.micro, color = c.textMuted)
                         if (v.noteFa.isNotBlank()) Para(v.noteFa, style = Divan.type.caption)
                     }
                     if (v.version != l.version) HqButton("برگرد به این", {

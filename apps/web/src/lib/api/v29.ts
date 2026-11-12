@@ -8,7 +8,7 @@
 // The hub deploys §29 after the panel: a route that answers 404/405/501 is «not served yet» and every screen says so calmly.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { stepUp } from '@/lib/auth';
+import { bodyTarget, stepUp } from '@/lib/auth';
 import { ApiError, isMock, type Problem } from './client';
 import { handled, observed } from './observe';
 import { call } from './v13';
@@ -142,7 +142,7 @@ export const useOrderItems = () => useQuery({ queryKey: ['orders', 'items'], que
 export type Route = OrderRouteFields & { count: number | null; preview_fa: string; confidence: number; why_fa: string };
 /** One line before an order goes; null on a hub without the secretary (the order then goes as before). */
 export const previewOrder = (text: string, source: 'voice' | 'text') => served(call<Route>('POST', '/orders/preview', { text, source }));
-export type OrderOut29 = { ref: string; summary_fa: string; routes: Array<{ company: string; to: string; kind: 'work' | 'code' | 'meeting' | 'question'; work_ref?: string; session_ref?: string; decision_ref?: string }> };
+export type OrderOut29 = { ref: string; summary_fa: string; routes: Array<{ company: string; to: string; kind: 'work' | 'code' | 'meeting' | 'question' | 'kit'; work_ref?: string; session_ref?: string; decision_ref?: string }> };
 /** `POST /orders {text, source, file_id?, route?, pace?}`: with the (possibly edited) preview the hub follows it exactly.
  *  ⟨2026-11-09⟩ `pace` is the owner's answer to «با من یا خودکار؟» when he makes the session; it wins over his words (§34.1). A hub
  *  before it refuses the field (422 `fields.pace`): the order goes without and the pace is set on its session at once. */
@@ -240,7 +240,7 @@ export function useRuleActions() {
     /** One tap, sealed with the passkey (🔏 the standing order's own seal). */
     seal: useMutation({ mutationFn: async (ref: string) => call<Rule>('POST', `/oversight/orders/${enc(ref)}/seal`, {}, { 'X-Step-Up': await stepUp('oversight.order', ref) }), onSettled: done }),
     /** `PUT /rules/{ref}`: a new version, sealed. */
-    edit: useMutation({ mutationFn: async (v: { ref: string; text: string }) => call<Rule>('PUT', `/rules/${enc(v.ref)}`, { text: v.text }, { 'X-Step-Up': await stepUp('rule.seal', v.ref) }), onSettled: done }),
+    edit: useMutation({ mutationFn: async (v: { ref: string; text: string }) => call<Rule>('PUT', `/rules/${enc(v.ref)}`, { text_md: v.text }, { 'X-Step-Up': await stepUp('rule.seal', v.ref) }), onSettled: done }),
     retire: useMutation({
       mutationFn: async (ref: string) => (await served(call<Rule>('POST', `/rules/${enc(ref)}/retire`, {}))) ?? call<Rule>('POST', `/oversight/orders/${enc(ref)}/retire`, {}),
       onSettled: done,
@@ -313,7 +313,9 @@ export const useExperiments = (key: string, company: string | null) =>
  * rows of `growth.metrics_daily` (`[{company, day, key, value}]`), grouped here. A missing day stays missing, never zero.
  */
 export function parseKpis(x: unknown): KpiSeries[] {
-  const rows = listOf(x as unknown[] | { items?: unknown[] });
+  // The hub's GroupKpis nests the series per company: `{group, days, companies: [{code, name_fa, kpis: [{key, title_fa, unit, source, series}]}]}`.
+  const nested = (x as { companies?: Array<{ code: string; kpis?: Array<Record<string, unknown>> }> } | null)?.companies;
+  const rows = Array.isArray(nested) ? nested.flatMap((c) => (c.kpis ?? []).map((k) => ({ ...k, company: c.code }))) : listOf(x as unknown[] | { items?: unknown[] });
   const out = new Map<string, KpiSeries>();
   for (const r0 of rows) {
     const r = r0 as Record<string, unknown>;
@@ -377,12 +379,17 @@ export const useConnectionGuide = (kind: string | null) =>
 export function useConnectionActions(code: string, kind: string) {
   const qc = useQueryClient();
   const done = () => Promise.all(['connections', 'groups', 'home'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
-  const target = `${code}/${kind}`;
   return {
-    /** Settings that are not secret; sealed when they widen what is read (the hub says so). */
-    config: useMutation({ mutationFn: (config: Record<string, unknown>) => withStepUp('connection.config', target, (h) => call<Connection>('PUT', `/companies/${enc(code)}/connections/${enc(kind)}`, { config }, h)), onSettled: done }),
-    /** Write-only (🔏): the secret goes to the hub's vault and never comes back; the answer says only «set». */
-    secret: useMutation({ mutationFn: async (secret: string) => call<Connection | undefined>('PUT', `/companies/${enc(code)}/connections/${enc(kind)}/secret`, { secret }, { 'X-Step-Up': await stepUp('connection.secret', target) }), onSettled: done }),
+    /** Settings that are not secret; sealed when they widen what is read (the hub says so), on the SHA-256 of the exact body. */
+    config: useMutation({
+      mutationFn: async (config: Record<string, unknown>) => {
+        const body = { config };
+        return withStepUp('connection.config', await bodyTarget(JSON.stringify(body)), (h) => call<Connection>('PUT', `/companies/${enc(code)}/connections/${enc(kind)}`, body, h));
+      },
+      onSettled: done,
+    }),
+    /** Write-only (🔏): the secret goes to the hub's vault and never comes back; the answer says only «set». Sealed on `<code>:<kind>`. */
+    secret: useMutation({ mutationFn: async (secret: string) => call<Connection | undefined>('PUT', `/companies/${enc(code)}/connections/${enc(kind)}/secret`, { secret }, { 'X-Step-Up': await stepUp('connection.secret', `${code}:${kind}`) }), onSettled: done }),
     test: useMutation({ mutationFn: () => call<{ ok?: boolean; message_fa?: string | null } & Partial<Connection>>('POST', `/companies/${enc(code)}/connections/${enc(kind)}/test`, {}), onSettled: done }),
   };
 }

@@ -252,7 +252,8 @@ private fun TargetsSheet(company: String, onClose: () -> Unit) {
                         Text("هدف", style = Divan.type.caption, color = c.textSecondary)
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             HqTextField(text[k.key] ?: p.target?.let(::num).orEmpty(), { v ->
-                                val clean = v.filter { it.isDigit() || it == '.' }
+                                // ⟨2026-11-11⟩ audit: a Persian keyboard's digits (and «٫») read as the number they are
+                                val clean = com.coinepro.hq.core.data.asciiDigits(v).filter { it in '0'..'9' || it == '.' }
                                 text[k.key] = clean
                                 put(p.copy(target = clean.toDoubleOrNull()))
                             }, "—", Modifier.width(96.dp), maxLength = 12, figure = true)

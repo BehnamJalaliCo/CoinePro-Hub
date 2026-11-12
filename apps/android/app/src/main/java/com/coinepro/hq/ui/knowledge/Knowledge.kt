@@ -109,12 +109,14 @@ fun KnowledgeScreen(open0: String? = null) {
     var open by rememberSaveable { mutableStateOf(open0) }
     var edit by remember { mutableStateOf<KnowledgeEntry?>(null) }
     var create by remember { mutableStateOf(false) }
-    val q = rememberQuery("knowledge:list:${layer.orEmpty()}:${company.orEmpty()}:${kind.orEmpty()}:${status.orEmpty()}:${text.trim()}:$expired:$pages", "knowledge") {
+    // ⟨2026-11-11⟩ audit: the search starts at two letters (the hub refuses one)
+    val qText = text.trim().takeIf { it.length >= 2 }
+    val q = rememberQuery("knowledge:list:${layer.orEmpty()}:${company.orEmpty()}:${kind.orEmpty()}:${status.orEmpty()}:${qText.orEmpty()}:$expired:$pages", "knowledge") {
         // Pages one after another, as many as the owner asked for (each holds 50).
         var cursor: String? = null
         val all = mutableListOf<KnowledgeEntry>()
         repeat(pages) {
-            val p = knowledge(layer, company, null, kind, status, text, expired, cursor)
+            val p = knowledge(layer, company, null, kind, status, qText, expired, cursor)
             all += p.items; cursor = p.nextCursor
             if (cursor == null) return@rememberQuery Page(all, null)
         }

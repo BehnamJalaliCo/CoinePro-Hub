@@ -301,7 +301,8 @@ fun PartyContent(p: Party?, m: ArchiveMaps, onClose: () -> Unit) {
         action.run(onError = { e -> if (e.status != 0) key = UUID.randomUUID().toString(); errors = e.fields; failure = e }) {
             if (p != null) {
                 val b: JsonObject = if (status != null) buildJsonObject { put("status", status) }
-                else com.coinepro.hq.core.net.Api.jsonBody.encodeToJsonElement(PartyIn.serializer(), body()) as JsonObject
+                // ⟨2026-11-11⟩ audit: a party's kind is set once; the PATCH (`ArchivePartyPatch`) refuses it
+                else JsonObject((com.coinepro.hq.core.net.Api.jsonBody.encodeToJsonElement(PartyIn.serializer(), body()) as JsonObject) - "kind")
                 env.api.patchParty(p, b)
             } else env.api.createParty(body(), key)
             env.cache.invalidate("archive")
@@ -312,7 +313,7 @@ fun PartyContent(p: Party?, m: ArchiveMaps, onClose: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             FieldLabel("نوع")
-            Select(kind, kinds.map { Opt(it.key, it.titleFa) }, { kind = it ?: kind }, "نوع طرف", Modifier.fillMaxWidth(), error = errors["kind"] != null)
+            Select(kind, kinds.map { Opt(it.key, it.titleFa) }, { if (p == null) kind = it ?: kind }, "نوع طرف", Modifier.fillMaxWidth(), error = errors["kind"] != null)
         }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             FieldLabel("نام فارسی")

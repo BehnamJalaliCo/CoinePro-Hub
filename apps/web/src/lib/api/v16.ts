@@ -127,7 +127,7 @@ export function useChannelAction() {
 export const useConversations = (f: ConversationFilter) =>
   useInfiniteQuery({
     queryKey: ['support', 'conversations', f.company ?? '', f.state ?? '', f.channel ?? '', f.q ?? ''],
-    queryFn: ({ pageParam }) => call<Page<Conversation>>('GET', `/support/conversations${qs({ company: f.company, state: f.state, channel: f.channel, q: f.q?.trim(), limit: 30, cursor: pageParam })}`),
+    queryFn: ({ pageParam }) => call<Page<Conversation>>('GET', `/support/conversations${qs({ company: f.company, state: f.state, channel: f.channel, q: (f.q?.trim().length ?? 0) >= 2 ? f.q!.trim() : null, limit: 30, cursor: pageParam })}`),
     initialPageParam: null as string | null, getNextPageParam: (l) => l.next_cursor, placeholderData: keepPreviousData, refetchInterval: 30_000,
   });
 export const useConversation = (ref: string) => useQuery({ queryKey: ['support', 'conversation', ref], queryFn: () => call<ConversationDetail>('GET', `/support/conversations/${enc(ref)}`), refetchInterval: 15_000 });
@@ -167,7 +167,11 @@ export type KbArticleIn = {
 export type ShadowReport = {
   company: string; suite: string; run_id: string; at: string; total: number; correct: number; partial: number; wrong: number;
   safety_failures: number; wrong_codes: number; pass: boolean; threshold: number; disagreements: Array<{ case: string; verdict: string; note_fa: string }>;
+  /** The hub's field name (`pass` is a word Python keeps); read through `pass`, which useShadow fills. */
+  pass_?: boolean;
 };
+/** POST /support/history answers 201 even when the export could not be read: `state` 'failed' with `error`. */
+export type SupportHistoryOut = { id: string; company: string; state: 'queued' | 'parsing' | 'done' | 'failed'; format: string | null; pairs_found: number | null; cases_kept: number | null; topics?: unknown; suite: string | null; error: string | null };
 export const useKb = (f: { company?: string | null; kind?: KbKind | null; status?: KbStatus | null; q?: string }) =>
   useQuery({
     queryKey: ['support', 'kb', f.company ?? '', f.kind ?? '', f.status ?? '', f.q ?? ''],
@@ -185,13 +189,13 @@ export function useKbAction() {
   };
 }
 /** The latest report of each company. */
-export const useShadow = () => useQuery({ queryKey: ['support', 'shadow'], queryFn: async () => items(await call<ShadowReport[] | Page<ShadowReport>>('GET', '/support/shadow')) });
+export const useShadow = () => useQuery({ queryKey: ['support', 'shadow'], queryFn: async () => items(await call<ShadowReport[] | Page<ShadowReport>>('GET', '/support/shadow')).map((r) => ({ ...r, pass: r.pass ?? r.pass_ ?? false })) });
 export function useShadowAction() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ['support'] });
   return {
     // A chat export (Telegram Desktop JSON or a CSV of question and answer), already uploaded through /files, builds the private suite.
-    history: useMutation({ mutationFn: (b: { company: string; file_id: string }) => call<{ suite?: string; cases?: number }>('POST', '/support/history', b), onSuccess: done }),
+    history: useMutation({ mutationFn: (b: { company: string; file_id: string }) => call<SupportHistoryOut>('POST', '/support/history', b), onSuccess: done }),
     // An academy eval run of the support charter on the suite (§18.6).
     run: useMutation({ mutationFn: (company: string) => call<{ run_id?: string }>('POST', `/support/shadow/${enc(company)}/run`, {}), onSuccess: done }),
   };
@@ -260,8 +264,13 @@ export function useFeedbackAction() {
 
 // ------------------------------------------------------------- intake (§19.8) --
 export type IntakeKind = 'telegram' | 'chatwoot' | 'product';
-export type IntakeSource = { company: string; kind: IntakeKind; configured: boolean; last_event_at: string | null; events_24h: number; rejected_24h: number };
-export type IntakeSourceIn = { company: string; kind: IntakeKind; allowed_ips: string[]; kinds: string[] };
+export type TelegramChannel = 'telegram_bot' | 'telegram_business';
+export type IntakeSource = { company: string; kind: IntakeKind; channel?: string | null; configured: boolean; last_event_at: string | null; events_24h: number; rejected_24h: number };
+/** A Telegram source names its channel (the hub refuses one without it); Chatwoot and product sources take none. */
+export type IntakeSourceIn = { company: string; kind: IntakeKind; channel?: TelegramChannel; allowed_ips: string[]; kinds: string[] };
+/** Where a source's secret is set in the owner's terminal: Telegram's bot token per channel, the others' HMAC secret. */
+export const intakeSecretCommand = (company: string, kind: IntakeKind, channel?: string | null) =>
+  kind === 'telegram' ? `make telegram-bot-token COMPANY=${company} CHANNEL=${channel ?? 'telegram_bot'}` : `make intake-secret COMPANY=${company} SOURCE=${kind}`;
 export const PRODUCT_EVENTS = ['signup', 'uid_submitted', 'referral_verified', 'referral_failed', 'vip_activated', 'support_message'] as const;
 export const useIntakeSources = () => useQuery({ queryKey: ['intake', 'sources'], queryFn: async () => items(await call<IntakeSource[] | Page<IntakeSource>>('GET', '/intake/sources')), refetchInterval: 120_000 });
 export function useIntakeAction() {

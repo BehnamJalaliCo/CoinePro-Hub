@@ -95,8 +95,11 @@ function series(company: string, key: string): Array<{ day: string; value: numbe
     return { day, value: v };
   });
 }
-const kpiRows = (company: string | null) =>
-  (company ? [company] : ['TY', 'FX', 'PC']).flatMap((c) => GROUP.kpis.map((k) => ({ company: c, key: k.key, title_fa: k.title_fa, unit: k.unit, series: series(c, k.key) })));
+/** The hub's GroupKpis: the series nested per company. */
+const groupKpis = (company: string | null, days: number) => ({
+  group: 'content', days,
+  companies: (company ? [company] : ['TY', 'FX', 'PC']).map((c) => ({ code: c, name_fa: c, kpis: GROUP.kpis.map((k) => ({ key: k.key, title_fa: k.title_fa, unit: k.unit, source: 'metrics_daily', series: series(c, k.key) })) })),
+});
 
 // ======================================================================================== readiness ==
 type Check = { key: string; ok: boolean; title_fa: string; detail_fa: string; fix: any };
@@ -546,9 +549,11 @@ export async function handle29(req: Request, p: string, q: URLSearchParams, next
     if (ru[2] && m === 'POST') { r.status = 'retired'; return json(r); }
     if (!ru[2] && m === 'PUT') {
       if (!stepUp) return needStepUp();
-      const b = await body<{ text: string }>();
-      if (!b.text?.trim()) return problem(422, 'validation_failed', 'متن قانون لازم است.');
-      Object.assign(r, { text_md: cleanRule(b.text), text: b.text, version: r.version + 1, status: 'sealed', sealed_at: at(DAY, '06:10') });
+      // RuleEdit (extra keys forbidden): `text_md` and/or `applies_to`.
+      const b = await body<{ text_md?: string; applies_to?: unknown }>();
+      if (Object.keys(b).some((k) => k !== 'text_md' && k !== 'applies_to')) return problem(422, 'validation_failed', 'فقط text_md و applies_to پذیرفته میشود.');
+      if (!b.text_md?.trim()) return problem(422, 'validation_failed', 'متن قانون لازم است.');
+      Object.assign(r, { text_md: cleanRule(b.text_md), text: b.text_md, version: r.version + 1, status: 'sealed', sealed_at: at(DAY, '06:10') });
       return json(r);
     }
   }
@@ -570,7 +575,7 @@ export async function handle29(req: Request, p: string, q: URLSearchParams, next
       return json(mem);
     }
     if (gr[2] === 'runs' && m === 'GET') return json(RUNS.filter((r) => !co || r.company === co).map((r) => ({ ...r, group: 'content' })));
-    if (gr[2] === 'kpis' && m === 'GET') return json(kpiRows(co));
+    if (gr[2] === 'kpis' && m === 'GET') return json(groupKpis(co, Number(q.get('days') ?? 30)));
     if (gr[2] === 'experiments' && m === 'GET') return json(EXPERIMENTS.filter((x) => !co || x.company === co));
     if (gr[4] && m === 'PUT') {
       if (!(gr[4] in routineState)) return problem(404, 'not_found', 'این روال پیدا نشد.');

@@ -171,7 +171,7 @@ fun ConnectionBody(code: String, x: CompanyConnection) {
                 }
                 HorizontalDivider(color = c.lineDivider)
                 SectionTitle("کلید", note = if (x.secret == "set") "کلید گذاشته شده؛ برای عوض کردن، تازه‌اش را بگذار" else "فقط یک بار میگذاری؛ هیچ‌وقت نشان داده نمیشود")
-                com.coinepro.hq.ui.v18.SecretField(secret, { secret = it }, "••••••••", label = "کلید ${connectionKindFa(x.kind, x.labelFa)}")
+                com.coinepro.hq.ui.v18.SecretField(secret, { secret = it }, "••••••••", label = "کلید ${connectionKindFa(x.kind, x.labelFa)}", maxLength = 20_000)
                 HqButton(g.secretLabelFa?.let { "ثبت $it" } ?: "ثبت کلید", {
                     key.run {
                         env.api.putConnectionSecret(code, x.kind, secret.trim()) { a, t -> env.auth.stepUp(act, a, t) }

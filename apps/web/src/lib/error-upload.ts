@@ -15,6 +15,9 @@ const SENT = 'hq.errors.sent';
 const FIRST_MS = 8_000;
 const EVERY_MS = 60_000;
 const BATCH = 50;
+/** A batch's body stays under this many bytes: a keepalive request (the hidden tab's) over 64 KiB is refused by the browser outright. */
+const BATCH_BYTES = 60_000;
+const bytes = (x: unknown) => new TextEncoder().encode(JSON.stringify(x)).length;
 
 export type UploadState = { on: boolean; lastAt: string | null; lastCount: number; pending: number; served: boolean | null; failing: boolean };
 
@@ -59,26 +62,36 @@ export function dedupe(list: ErrorEntry[]): Array<{ entry: ErrorEntry; ids: Arra
   return [...by.values()];
 }
 
-async function post(body: unknown): Promise<Response> {
+async function post(body: unknown, keepalive: boolean): Promise<Response> {
   const req = new Request(new URL('/api/v1/client/errors', window.location.origin), {
-    method: 'POST', credentials: 'same-origin', keepalive: true, body: JSON.stringify(body),
+    method: 'POST', credentials: 'same-origin', keepalive, body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-HQ-Client': 'web', 'Idempotency-Key': crypto.randomUUID() },
   });
   if (process.env.NEXT_PUBLIC_HQ_MOCK === '1') return (await import('@/lib/api/mock-v21')).handle(req);
   return fetch(req);
 }
 
-/** Sends what is due, in batches of fifty. */
-export async function flush(): Promise<void> {
+/** The next batch: up to fifty entries while the body stays under BATCH_BYTES (always at least one). */
+export function nextBatch<T extends { entry: unknown }>(list: T[]): T[] {
+  const part: T[] = [];
+  for (const g of list.slice(0, BATCH)) {
+    if (part.length && bytes({ app: 'web', version: APP, entries: [...part, g].map((x) => x.entry) }) > BATCH_BYTES) break;
+    part.push(g);
+  }
+  return part;
+}
+
+/** Sends what is due, batch by batch. [hidden]: the tab is being put away, so the request outlives the page (keepalive). */
+export async function flush(hidden = false): Promise<void> {
   if (busy || !state.on || typeof window === 'undefined') return;
   busy = true;
   try {
     const s = readSent();
     let batch = dedupe(due(errorLog.list(), s.sent));
     while (batch.length) {
-      const part = batch.slice(0, BATCH);
+      const part = nextBatch(batch);
       let res: Response;
-      try { res = await post({ app: 'web', version: APP, entries: part.map((g) => g.entry) }); } catch { emit({ failing: true }); return; }
+      try { res = await post({ app: 'web', version: APP, entries: part.map((g) => g.entry) }, hidden); } catch { emit({ failing: true }); return; }
       // A hub before ⟨1.10⟩: the entries stay queued, quietly, and the panel asks again later.
       if (res.status === 404 || res.status === 405) { emit({ served: false, failing: false }); retryLater(); return; }
       if (!res.ok) { emit({ failing: true }); return; }
@@ -87,7 +100,7 @@ export async function flush(): Promise<void> {
       s.lastCount = part.length;
       writeSent(s);
       emit({ served: true, failing: false, lastAt: s.lastAt, lastCount: s.lastCount });
-      batch = batch.slice(BATCH);
+      batch = batch.slice(part.length);
     }
   } finally {
     busy = false;
@@ -120,7 +133,7 @@ export function startUploads() {
     if (n && state.served !== false) schedule(EVERY_MS);
   });
   // A tab put away sends what it has, so a report is not lost with a closed tab.
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && state.pending) void flush(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && state.pending) void flush(true); });
   schedule(FIRST_MS);
 }
 

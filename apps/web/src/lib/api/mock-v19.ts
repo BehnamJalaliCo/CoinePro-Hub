@@ -247,7 +247,7 @@ You keep TradeYar's Telegram group calm and on-topic.
 const roleDrafts: any[] = [
   {
     ref: 'RD-0001', company: 'FX', department: 'MEDIA', role: 'podcast_editor', title_fa: 'تدوینگر پادکست', title_en: 'Podcast Editor', state: 'active',
-    brief_md: 'یه تدوینگر پادکست میخوام برای نسخه‌ی صوتی تحلیل هفتگی طلا در کانال تلگرام.', requested_by: owner, written_by: mediaMgr('FX'),
+    brief_md: 'یه تدوینگر پادکست میخوام برای نسخه‌ی صوتی تحلیل هفتگی طلا در کانال تلگرام.', requested_by: owner, written_by: (mediaMgr('FX')).code,
     why_md: 'هیچ منشوری نسخه‌ی صوتی بلند با فصل‌بندی را نمیپوشاند: **تهیه‌کننده‌ی صدا** فقط روایت هم‌زمان با قاب‌ها را میسازد و **کارگردان ویدیو** برای تصویر است. این نقش فقط فصل‌بندی و فهرست برش مینویسد؛ متن تازه نمینویسد.',
     compared: ['voice_producer', 'video_director', 'scriptwriter'], originality: { ok: true, closest: 'voice_producer', note_fa: 'شباهت منشور ۳۱٪؛ زیر آستانه‌ی ۶۰٪.' },
     charter_md: PODCAST_CHARTER, tools: ['work.get', 'knowledge.search', 'memory.read', 'memory.write', 'deliver', 'message.thread', 'work.accept', 'work.progress', 'work.fail', 'activity.set', 'files.read', 'media.item', 'media.voice'],
@@ -263,7 +263,7 @@ const roleDrafts: any[] = [
   },
   {
     ref: 'RD-0002', company: 'TY', department: 'MEDIA', role: 'subtitler_en', title_fa: 'زیرنویس‌نویس انگلیسی', title_en: 'English Subtitler', state: 'eval',
-    brief_md: null, requested_by: mediaMgr('TY'), written_by: mediaMgr('TY'),
+    brief_md: null, requested_by: mediaMgr('TY'), written_by: (mediaMgr('TY')).code,
     why_md: 'هفته‌ی گذشته ۱۱ پرسش انگلیسی زیر استوری‌ها آمد و هیچ منشوری ترجمه‌ی زمان‌دار را نمیپوشاند.', compared: ['scriptwriter', 'visual_designer'],
     originality: { ok: true, closest: 'scriptwriter', note_fa: 'شباهت ۲۲٪.' }, charter_md: SUBTITLE_CHARTER,
     tools: ['work.get', 'knowledge.search', 'memory.read', 'memory.write', 'deliver', 'message.thread', 'work.accept', 'work.progress', 'work.fail', 'activity.set', 'files.read', 'media.item'],
@@ -279,7 +279,7 @@ const roleDrafts: any[] = [
   },
   {
     ref: 'RD-0003', company: 'TY', department: 'GROWTH', role: 'community_moderator', title_fa: 'ناظر گروه تلگرام', title_en: 'Community Moderator', state: 'rejected',
-    brief_md: null, requested_by: agent('TY-GROWTH-MGR', 'مدیر مارکتینگ تریدیار'), written_by: agent('TY-GROWTH-MGR', 'مدیر مارکتینگ تریدیار'),
+    brief_md: null, requested_by: agent('TY-GROWTH-MGR', 'مدیر مارکتینگ تریدیار'), written_by: (agent('TY-GROWTH-MGR', 'مدیر مارکتینگ تریدیار')).code,
     why_md: 'پرسش‌های تکراری گروه بی‌جواب میماند.', compared: ['support_agent'], originality: { ok: true, closest: 'support_agent', note_fa: 'شباهت ۴۸٪.' },
     charter_md: COMMUNITY_CHARTER, tools: ['work.get', 'knowledge.search', 'deliver', 'message.thread', 'work.accept', 'work.progress', 'activity.set'],
     model: 'claude-haiku-5-5', effort: 'low', limits: LIM(3, 15000, 40000),
@@ -290,7 +290,7 @@ const roleDrafts: any[] = [
   },
   {
     ref: 'RD-0004', company: 'PC', department: 'MEDIA', role: 'thumbnail_designer', title_fa: 'طراح کاور ویدیو', title_en: 'Thumbnail Designer', state: 'in_review',
-    brief_md: null, requested_by: mediaMgr('PC'), written_by: mediaMgr('PC'),
+    brief_md: null, requested_by: mediaMgr('PC'), written_by: (mediaMgr('PC')).code,
     why_md: 'کاور ریلزهای آموزشی ترمینال جداگانه ساخته میشود و طراح گرافیک پشت صف است.', compared: ['visual_designer'],
     originality: { ok: true, closest: 'visual_designer', note_fa: 'شباهت ۵۷٪؛ نزدیک آستانه.' }, charter_md: '# Your role\nYou design the cover frame of each reel …',
     tools: ['work.get', 'knowledge.search', 'deliver', 'message.thread', 'work.accept', 'work.progress', 'work.fail', 'activity.set', 'files.read', 'substitute.call'],
@@ -777,7 +777,7 @@ export async function handle19(req: Request, p: string, u: URL): Promise<Respons
     const mgr = b.company === 'HQ' ? owner : agent(`${b.company}-${b.department}-MGR`, `مدیر ${b.department} ${NAME[b.company] ?? b.company}`);
     const d = { id: `rd${n}`, ref: `RD-${pad(n, 4)}`, company: b.company, department: b.department, role: '', title_fa: b.brief_md.trim().slice(0, 40), title_en: '', why_md: '', charter_md: '', tools: [], model: '', effort: '', limits: LIM(0, 0, 0),
       eval: { suite: '', cases: [] }, state: 'drafting', review: null, eval_run: null, approver: null, decision_ref: null, version: 1, created_at: stamp(), activated_at: null,
-      brief_md: b.brief_md.trim(), requested_by: owner, written_by: mgr, compared: [], originality: null, hires: 0, retired_at: null };
+      brief_md: b.brief_md.trim(), requested_by: owner, written_by: (mgr).code, compared: [], originality: null, hires: 0, retired_at: null };
     roleDrafts.unshift(d);
     remember(k, 201, d);
     return json(d, 201);
