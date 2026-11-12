@@ -91,7 +91,20 @@ class V30Test {
         assertEquals("متن {{a}}", withVariable("متن", "a"))
         assertTrue(capsRaised(LineCaps(3, 100, 2), LineCaps(4, 100, 2)))
         assertFalse(capsRaised(LineCaps(3, 100, 2), LineCaps(2, 50, 2)))
-        assertTrue(capsRaised(LineCaps(3, 100, 2), LineCaps(3, 100, null)))
+        // ⟨2026-11-11⟩ audit: as the hub's `caps_rise` (a missing cap counts as 0); an emptied field keeps the line's own cap
+        assertFalse(capsRaised(LineCaps(3, 100, 2), LineCaps(3, 100, null)))
+        assertTrue(capsRaised(LineCaps(3, 100, null), LineCaps(3, 100, 1)))
+        assertEquals(LineCaps(3, 100, 2), com.coinepro.hq.core.data.capsToSave(LineCaps(3, 100, 2), LineCaps(3, null, null)))
+        // a removed schedule is `clear_schedule` (`schedule: null` is «unchanged» on the hub); a set one is sent as it is
+        val cleared = com.coinepro.hq.core.data.lineBody("خط", null, steps, LineCaps(1, 1, 1))
+        assertEquals(JsonPrimitive(true), cleared["clear_schedule"])
+        assertFalse("schedule" in cleared)
+        val set = com.coinepro.hq.core.data.lineBody("خط", "FREQ=DAILY;BYHOUR=9", steps, LineCaps(1, 1, 1))
+        assertEquals(JsonPrimitive("FREQ=DAILY;BYHOUR=9"), set["schedule"])
+        assertFalse("clear_schedule" in set)
+        // a step of 120 s is written, not dropped as the default (the hub's default is 300)
+        val withTimeout = com.coinepro.hq.core.data.lineBody("خط", null, listOf(StepDef("a", "gpt_text", timeoutS = 120)), LineCaps(1, 1, 1))
+        assertTrue(withTimeout["steps"].toString().contains("\"timeout_s\":120"))
         assertEquals(5L, (settingFrom("5", JsonPrimitive(1)) as JsonPrimitive).content.toLong())
     }
 

@@ -1457,7 +1457,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val co = body?.str("company") ?: return Reply(422, problem16(422, "validation_failed", "شرکت لازم است."))
             val r = list("/support/shadow").map { it.jsonObject }.firstOrNull { it.str("company") == co }
             val v = (r?.str("suite")?.substringAfter('@')?.toIntOrNull() ?: 0) + 1
-            return Reply(201, buildJsonObject { put("suite", "support-shadow-$co@$v"); put("cases", 100) })
+            return Reply(201, buildJsonObject { put("suite", "support-shadow-$co@$v"); put("cases_kept", 100); put("state", "done") })
         }
         Regex("^/support/shadow/([A-Z0-9]+)/run$").find(path)?.let { m ->
             val co = m.groupValues[1]

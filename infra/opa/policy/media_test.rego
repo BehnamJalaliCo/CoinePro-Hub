@@ -68,7 +68,8 @@ test_speech_is_the_media_roles_in_their_own_company if {
 	not allowed(ty_media_01, "speech.make", {"company": "FX", "charter": "voice_producer"})
 	not allowed(ty_media_01, "speech.make", {"company": "TY", "charter": "publisher"})
 	not allowed(ty_media_01, "speech.make", {"company": "TY", "charter": "visual_designer"})
-	not allowed(f.ty_ceo, "speech.make", {"company": "TY", "charter": "ceo"})
+	allowed(f.ty_ceo, "speech.make", {"company": "TY", "charter": "ceo"})
+	not allowed(f.ty_ceo, "speech.make", {"company": "FX", "charter": "ceo"})
 	not allowed(tts, "speech.make", {"company": "TY", "charter": "voice_producer"})
 	not allowed(f.owner, "speech.make", {"company": "TY", "charter": "voice_producer"})
 }

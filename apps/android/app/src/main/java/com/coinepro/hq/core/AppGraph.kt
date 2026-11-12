@@ -19,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -207,8 +208,9 @@ class AppGraph(context: Context) {
         // The home-screen widget follows the cartable with the app closed too: a card's event (the alert lane carries them) reads the
         // counts once its burst is over.
         if (!demo) scope.launch {
-            stream.events.collectLatest { e ->
-                if (!e.type.startsWith("decision.")) return@collectLatest
+            // ⟨2026-11-11⟩ audit: filtered first, so an unrelated event (the notification the same card raises a moment later) does not
+            // cancel the wait; an urgent notification moves the widget's count too
+            stream.events.filter { e -> e.type.startsWith("decision.") || e.type.startsWith("notification.") }.collectLatest {
                 delay(3_000)
                 runCatching { api.inbox() }.onSuccess { i -> com.coinepro.hq.device.CartableWidget.update(app, i.decisionsPending, i.notifications["urgent"] ?: 0) }
             }

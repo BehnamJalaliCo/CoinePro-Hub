@@ -24,7 +24,14 @@ PUBLISHER = gate(employee="TY-MEDIA-06", kind="employee", role="publisher", depa
 JOB = "0193e7a1-0000-7000-8000-0000000000aa"
 # ⟨2026-11-10⟩ the owner made it clear that what he switched off is his own voice talk with the
 # app: the narrator of content is on, and the media roles hold the tool again
-ROLES = {"media_director", "voice_producer", "video_director", "motion_designer", "scriptwriter"}
+ROLES = {
+    "media_director",
+    "voice_producer",
+    "video_director",
+    "motion_designer",
+    "scriptwriter",
+    "ceo",
+}
 
 
 @pytest.fixture

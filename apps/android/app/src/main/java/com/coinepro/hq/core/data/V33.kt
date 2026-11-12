@@ -288,14 +288,22 @@ val PERSONA_SOURCE_FA = mapOf("owner" to "از طرف تو", "kb_suggested" to "
 fun nextAtIso(days: Long, today: java.time.LocalDate = com.coinepro.hq.core.format.HqClock.today()): String =
     today.plusDays(days).atTime(9, 0).atZone(java.time.ZoneId.of("Asia/Tehran")).toInstant().toString()
 
-/** A value typed by the owner as the hub's decimal ("1,250" → "1250"; "12.5" stays); null when it is not a non-negative number. */
+/** ⟨2026-11-11⟩ What a Persian keyboard types, as the numbers parse it: ۰-۹ and ٠-٩ as 0-9, the Persian decimal mark «٫» as «.». */
+fun asciiDigits(s: String): String =
+    s.map { ch -> if (ch in '۰'..'۹') '0' + (ch - '۰') else if (ch in '٠'..'٩') '0' + (ch - '٠') else if (ch == '٫') '.' else ch }.joinToString("")
+
+/** A value typed by the owner as the hub's decimal ("1,250" → "1250"; "12.5" stays); null when it is not a non-negative number or has
+ *  more than the hub's four decimals (⟨2026-11-11⟩ audit: `value_usdt` allows at most 4). */
 fun usdtInput(s: String): String? {
-    val t = s.trim().replace(",", "").replace("٬", "")
-        .map { ch -> if (ch in '۰'..'۹') '0' + (ch - '۰') else if (ch in '٠'..'٩') '0' + (ch - '٠') else ch }.joinToString("")
+    val t = asciiDigits(s.trim().replace(",", "").replace("٬", ""))
     if (t.isEmpty()) return null
     val v = t.toBigDecimalOrNull() ?: return null
-    return if (v.signum() < 0) null else v.stripTrailingZeros().toPlainString()
+    if (v.signum() < 0 || v.stripTrailingZeros().scale() > 4) return null
+    return v.stripTrailingZeros().toPlainString()
 }
+
+/** ⟨2026-11-11⟩ audit: a lead's pseudonym as the hub takes it (`^[A-Za-z0-9_:.-]{8,128}$`): blank, or one it accepts. */
+fun leadContactOk(s: String): Boolean = s.isBlank() || Regex("^[A-Za-z0-9_:.-]{8,128}$").matches(s.trim())
 
 /** The stages of a lead's company from its pipeline (the company's own data), else the default list. */
 fun leadStages(p: com.coinepro.hq.core.net.SalesPipeline?): List<com.coinepro.hq.core.net.PipeStage> =

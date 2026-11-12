@@ -22,6 +22,8 @@ fx := {"company": "FX"}
 
 as_charter(t, c) := object.union(t, {"charter": c})
 
+hq_sec := {"kind": "agent", "code": "HQ-SEC", "role": "system", "company": "HQ", "department": null, "scope": "holding"}
+
 test_conversations_stay_with_the_company_support_people if {
 	every c in ["support_lead", "support_agent", "referral_rescue"] {
 		allowed(ty_support, "support.read", as_charter(ty, c))
@@ -76,6 +78,9 @@ test_the_radar_and_the_funnel if {
 		allowed(f.hq_ovr, op, ty)
 		not allowed(f.ty_growth_mgr, op, ty)
 		not allowed(f.hq_pa, op, ty)
+		allowed(hq_sec, op, as_charter(fx, "holding_secretary"))
+		not allowed(hq_sec, op, as_charter(fx, "advisor_assistant"))
+		not allowed(f.ty_ceo, op, as_charter(fx, "holding_secretary"))
 	}
 	allowed(ty_support, "funnel.read", as_charter(ty, "referral_rescue"))
 	not allowed(ty_support, "revenue.read", as_charter(ty, "referral_rescue"))

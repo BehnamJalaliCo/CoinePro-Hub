@@ -28,7 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.GATE_FA
 import com.coinepro.hq.core.data.SCHEDULE_PRESETS
+import com.coinepro.hq.core.data.asciiDigits
 import com.coinepro.hq.core.data.capsRaised
+import com.coinepro.hq.core.data.capsToSave
 import com.coinepro.hq.core.data.gateFa
 import com.coinepro.hq.core.data.lineBody
 import com.coinepro.hq.core.data.platformFa
@@ -204,8 +206,9 @@ fun LineBody(l: Line, voices: List<TtsVoice>, open0: Set<String>? = null) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HqButton("ذخیره‌ی نسخه‌ی تازه", {
                 save.run {
-                    val raised = capsRaised(l.caps, caps)
-                    env.api.putLine(l.ref, lineBody(title.trim(), schedule.trim().ifBlank { null }, steps, caps), if (raised) sign else null)
+                    val kept = capsToSave(l.caps, caps)
+                    val raised = capsRaised(l.caps, kept)
+                    env.api.putLine(l.ref, lineBody(title.trim(), schedule.trim().ifBlank { null }, steps, kept), if (raised) sign else null)
                     env.cache.invalidate("lines")
                     toasts.ok("نسخه‌ی تازه ذخیره شد.")
                 }
@@ -270,7 +273,8 @@ private fun CapField(label: String, value: String, modifier: Modifier, onChange:
     var t by remember(value) { mutableStateOf(value) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = Divan.type.micro, color = Divan.colors.textMuted, maxLines = 1)
-        HqTextField(t, { v -> val d = v.filter { it.isDigit() }; t = d; onChange(d) }, "—", Modifier.fillMaxWidth(), figure = true, maxLength = 9)
+        // Persian and Arabic-Indic digits are read as the number they are (a Persian keyboard types them)
+        HqTextField(t, { v -> val d = asciiDigits(v).filter { it in '0'..'9' }; t = d; onChange(d) }, "—", Modifier.fillMaxWidth(), figure = true, maxLength = 9)
     }
 }
 

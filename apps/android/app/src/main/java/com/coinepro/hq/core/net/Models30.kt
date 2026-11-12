@@ -23,7 +23,8 @@ data class StepDef(
     val optional: Boolean = false,
     val enabled: Boolean = true,
     val maxAttempts: Int = 1,
-    val timeoutS: Int = 120,
+    /** ⟨2026-11-11⟩ audit: the hub's default (a step of 120 s was left out of a save as «the default» and came back as 300). */
+    val timeoutS: Int = 300,
 )
 
 /** §30.1 LineTemplate: the plan of steps, named for no company. */

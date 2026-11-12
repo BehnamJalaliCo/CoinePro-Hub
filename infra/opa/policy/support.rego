@@ -10,7 +10,8 @@
 #   kb.read        approved articles: every employee of the company;
 #                  proposed ones: the support people (as support.read)
 #   revenue.read   the radar: CEOs, FIN and SALES managers, the revenue
-#                  analyst (own company); the advisor and the overseer
+#                  analyst (own company); the advisor and the overseer;
+#                  ⟨2026-11-12⟩ the holding's secretary (any company, read-only)
 #   funnel.read    as revenue.read, plus the support people
 # No agent reads another company's support data: the holding's two readers
 # get statistics only.
@@ -104,6 +105,15 @@ grant if {
 grant if {
 	op in {"revenue.read", "funnel.read"}
 	holding_stats_reader
+}
+
+# ⟨2026-11-12⟩ the holding's secretary answers the owner about any company's figures
+grant if {
+	op in {"revenue.read", "funnel.read"}
+	agent
+	holding_reader
+	tv("charter") == "holding_secretary"
+	is_string(tv("company"))
 }
 
 grant if {

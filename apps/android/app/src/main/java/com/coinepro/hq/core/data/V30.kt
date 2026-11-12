@@ -237,17 +237,23 @@ fun StepDef.setting(key: String): String = settingText(settings[key])
 fun StepDef.withSetting(key: String, value: JsonElement): StepDef = copy(settings = JsonObject(settings + (key to value)))
 
 // ----------------------------------------------------------------- caps --
-/** Did any cap rise from [old] to [new]? (A rise is 🔏 `line.caps`; a null cap is no limit, so null over a number is a rise.) */
+/** Did any cap rise from [old] to [new]? (A rise is 🔏 `line.caps`.) ⟨2026-11-11⟩ audit: as the hub's `caps_rise`: a cap is a number,
+ *  one it does not have counts as 0 (the hub has no «no limit»). */
 fun capsRaised(old: LineCaps, new: LineCaps): Boolean {
-    fun up(a: Long?, b: Long?): Boolean = (a != null && b == null) || (a != null && b != null && b > a)
+    fun up(a: Long?, b: Long?): Boolean = (b ?: 0) > (a ?: 0)
     return up(old.runsPerDay?.toLong(), new.runsPerDay?.toLong()) || up(old.tokensPerRun, new.tokensPerRun) || up(old.opusPerDay?.toLong(), new.opusPerDay?.toLong())
 }
 
-/** The body of `PUT /lines/{ref}` for the parts the owner edited. */
+/** The caps the owner saves: a field he emptied keeps the line's own value (the hub has no «no limit»; left out, its default would win). */
+fun capsToSave(old: LineCaps, edited: LineCaps): LineCaps =
+    LineCaps(edited.runsPerDay ?: old.runsPerDay, edited.tokensPerRun ?: old.tokensPerRun, edited.opusPerDay ?: old.opusPerDay)
+
+/** The body of `PUT /lines/{ref}` for the parts the owner edited. ⟨2026-11-11⟩ audit: a removed schedule is `clear_schedule` (the hub
+ *  reads `schedule: null` as «unchanged»). */
 fun lineBody(titleFa: String, schedule: String?, steps: List<StepDef>, caps: LineCaps, library: List<String>? = null, noteFa: String? = null): JsonObject {
     val out = mutableMapOf<String, JsonElement>()
     out["title_fa"] = JsonPrimitive(titleFa)
-    out["schedule"] = schedule?.let { JsonPrimitive(it) } ?: JsonNull
+    if (schedule != null) out["schedule"] = JsonPrimitive(schedule) else out["clear_schedule"] = JsonPrimitive(true)
     out["steps"] = Api.json.encodeToJsonElement(ListSerializer(StepDef.serializer()), steps)
     out["caps"] = Api.json.encodeToJsonElement(LineCaps.serializer(), caps)
     if (library != null) out["library"] = JsonArray(library.map { JsonPrimitive(it) })
