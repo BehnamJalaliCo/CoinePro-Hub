@@ -195,9 +195,10 @@ async def test_uncap_under_a_capped_parent_lifts_the_parents_cap_first(
     company = await new_company()
     co = company["code"]
     async with await all_tx(hub) as tx:
+        # the CEO's root (depth 0): a manager's root is already depth 1, and depth stops at 2
         root = await W.create(
             tx, OR.SERVICE, company_id=company["id"], company_code=co, title="ریشه با سقف",
-            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-TECH-MGR",
+            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-CEO",
             budget=W.BudgetIn(tokens=100_000),
         )  # fmt: skip
         mid = await W.create(
