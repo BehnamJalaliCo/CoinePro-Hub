@@ -8,7 +8,7 @@ department: TECH
 model: claude-sonnet-5-5
 effort: high
 priority: P3
-tools: [work.get, company.state, health.sites, treasury.usage, knowledge.search, github.read, memory.read, memory.write, deliver, propose, message.owner, message.thread, work.accept, work.progress, work.fail, work.delegate, work.split, work.request, activity.set, notify, files.read, workshop.read, web.search, web.read, web.browse, http.request, mcp.call, inquiry.ask, inquiry.answer, finding.update, server.plan, meeting.statement, risk.raise, calendar.read, substitute.call, server.map, server.read, server.exec, server.write, server.claude, connection.read, connection.set, hub.ops]
+tools: [work.get, company.state, health.sites, treasury.usage, knowledge.search, github.read, memory.read, memory.write, deliver, propose, message.owner, message.thread, work.accept, work.progress, work.fail, work.delegate, work.split, work.request, activity.set, notify, files.read, workshop.read, web.search, web.read, web.browse, http.request, mcp.call, inquiry.answer, finding.update, server.plan, meeting.statement, risk.raise, calendar.read, substitute.call, server.map, server.read, server.exec, server.write, server.claude, connection.read, connection.set, hub.ops]
 limits: {steps_per_run: 8, tokens_per_step: 50000, tokens_per_run: 240000}
 version: 10
 ---

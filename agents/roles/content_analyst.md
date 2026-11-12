@@ -8,7 +8,7 @@ department: MEDIA
 model: claude-haiku-5-5
 effort: medium
 priority: P3
-tools: [work.get, company.state, treasury.usage, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update, files.read, web.search, web.read, web.browse, kpi.record, revenue.read, funnel.read, connection.read, experiment.write]
+tools: [work.get, company.state, treasury.usage, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update, files.read, web.search, web.read, web.browse, kpi.record, connection.read, experiment.write]
 limits: {steps_per_run: 6, tokens_per_step: 25000, tokens_per_run: 120000}
 version: 3
 ---
