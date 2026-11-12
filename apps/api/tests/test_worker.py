@@ -558,7 +558,9 @@ async def test_morning_report_once_a_day(hub: Hub, wk: dict[str, Any]) -> None:
     second = await client.execute_workflow(
         "MorningReport", id=f"mr-{uuid.uuid4()}", task_queue=wk["tq"]
     )
-    assert second == {"created": False, "reason": "already sent today"}
+    assert second["created"] is False and second["reason"] == "already sent today"
+    # Audit g29: a second run finishes only what the first missed; here nothing.
+    assert second["work"] and second["notified"] is False
     async with hub.db.tx(await _all(hub)) as tx:
         tz = await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1")
         today = datetime.now(ZoneInfo(tz)).date()
