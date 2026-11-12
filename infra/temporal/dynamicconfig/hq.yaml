@@ -4,35 +4,45 @@ limit.maxIDLength:
   - value: 255
     constraints: {}
 
-# ⟨1.10.1⟩ Bounded memory (report 19 §10: the server grew to its 768 MiB cap in
-# 13 days and its schedules stalled). Our load is tiny (a few dozen
-# schedules, at most a few runs a minute). Temporal 1.32 keeps one host-level
-# cache of workflow mutable state and one of history events; both are bounded
-# here in bytes (their defaults are sized for large clusters), entries expire
-# sooner, and compose sets small SQL connection pools (SQL_MAX_CONNS 10,
-# SQL_MAX_IDLE_CONNS 5). The persistence rate limits stay at their defaults:
-# capping them (300 QPS) starved the 512 shards' start-up on the test bench
-# ("System Persistence Max QPS Reached"), for no memory saved.
-# GOMEMLIMIT (profiles/*.env) stays: the Go heap is collected before the
-# container's cap. Every key was checked against the 1.32.1 binary; the
-# reasoning and the measured values: RUNBOOK (Temporal memory).
+# Bounded memory. History: the server reached its memory cap three times
+# (2026-10-31 after 13 days, 11-07, 11-12 after 4 days) and then spent
+# 300-680% CPU in garbage collection. Cause, measured on a bench and read in
+# the 1.32.1 source (RUNBOOK, "Temporal memory"):
+#   1. A cache entry past its TTL is only dropped when the SAME workflow is
+#      asked for again. Closed workflows are never asked for again, so every
+#      run of the last 72 h (the retention) stayed in memory. The background
+#      purge of expired entries exists but is off by default.
+#   2. The byte limits count far less than an entry really holds: about
+#      0.8 KB counted for about 17 KB of heap per cached workflow, and 17x for
+#      history events. "64 MiB + 32 MiB" was really more than 1 GiB.
+# So: the purge is on, the workflow cache is limited by COUNT (an entry is
+# about 17-25 KB of heap, so 4096 entries are about 100 MB at the very most),
+# and the events cache, which has no purge, gets a small byte limit (4 MiB
+# counted, about 70 MB of heap at the very most).
+# Compose sets small SQL pools (SQL_MAX_CONNS 10, SQL_MAX_IDLE_CONNS 5) and
+# GOMEMLIMIT (profiles/*.env). The persistence rate limits stay at their
+# defaults: capping them (300 QPS) starved the 512 shards' start-up.
+# The cache keys are read once, at start: a change needs a restart of temporal.
 history.cacheSizeBasedLimit:
-  - value: true
+  - value: false
     constraints: {}
 history.hostLevelCacheMaxSize:
-  - value: 4096            # entries (used while the limit is by count)
-    constraints: {}
-history.hostLevelCacheMaxSizeBytes:
-  - value: 67108864        # 64 MiB of mutable state: every open workflow, many times over
+  - value: 4096            # workflows; about 100 MB of heap when full
     constraints: {}
 history.cacheTTL:
   - value: 30m
+    constraints: {}
+history.cacheBackgroundEvict:
+  - value:
+      Enabled: true        # drop expired entries without waiting for a second read
+      LoopInterval: 1m
+      MaxEntryPerCall: 1024
     constraints: {}
 history.enableHostLevelEventsCache:
   - value: true
     constraints: {}
 history.eventsHostLevelCacheMaxSizeBytes:
-  - value: 33554432        # 32 MiB of history events, host-wide
+  - value: 4194304         # 4 MiB counted, host-wide (about 70 MB of heap at most)
     constraints: {}
 history.eventsCacheMaxSizeBytes:
   - value: 262144          # 256 KiB per shard (the fallback if the host-level cache is off)

@@ -692,14 +692,30 @@ tests:
               summary: "temporal uses more than 85% of its memory cap"
               description: "docker stats on the hub; for temporal see RUNBOOK (Temporal memory)"
 YAML
-temporal_keys="$(grep -cE '^history\.(cacheSizeBasedLimit|hostLevelCacheMaxSizeBytes|eventsHostLevelCacheMaxSizeBytes|enableHostLevelEventsCache):' \
-  "$REPO_DIR/infra/temporal/dynamicconfig/hq.yaml")"
+# Temporal's memory bound (RUNBOOK, Temporal memory; measured 2026-11-12):
+# expired cache entries are purged in the background, the workflow cache is
+# limited by COUNT (its byte limit counts about 20x too little, so it must stay
+# off), and the events cache, which has no purge, has a small byte limit.
+tcfg="$REPO_DIR/infra/temporal/dynamicconfig/hq.yaml"
+tval() { # the scalar on the "- value:" line of one top-level key
+  awk -v k="$1:" '$0 == k {f = 1; next} /^[^ #]/ {f = 0}
+    f && /^  - value:/ {sub(/^  - value: */, ""); sub(/ *#.*/, ""); print; exit}' "$tcfg"
+}
+temporal_bad=""
+awk '/^history\.cacheBackgroundEvict:/ {f = 1; next} /^[^ #]/ {f = 0}
+  f && /^ +Enabled: *true/ {ok = 1} END {exit !ok}' "$tcfg" || temporal_bad+=" cacheBackgroundEvict.Enabled"
+[[ "$(tval history.cacheSizeBasedLimit)" == false ]] || temporal_bad+=" cacheSizeBasedLimit"
+t_count="$(tval history.hostLevelCacheMaxSize)"
+[[ "$t_count" =~ ^[0-9]+$ ]] && ((t_count >= 256 && t_count <= 16384)) || temporal_bad+=" hostLevelCacheMaxSize"
+[[ "$(tval history.enableHostLevelEventsCache)" == true ]] || temporal_bad+=" enableHostLevelEventsCache"
+t_events="$(tval history.eventsHostLevelCacheMaxSizeBytes)"
+[[ "$t_events" =~ ^[0-9]+$ ]] && ((t_events >= 1048576 && t_events <= 16777216)) || temporal_bad+=" eventsHostLevelCacheMaxSizeBytes"
 if ! out="$(docker run --rm --network none --entrypoint promtool \
   -v "$REPO_DIR/infra/observability/prometheus/rules:/rules:ro" -v "$T/containers-test.yml:/t.yml:ro" \
   "$prom_image" test rules /t.yml 2>&1)"; then
   fail "memory: the near-cap alert: $(tail -n6 <<<"$out")"
-elif ((temporal_keys != 4)); then
-  fail "memory: Temporal's caches are not bounded in its dynamic config ($temporal_keys of 4 keys)"
+elif [[ -n "$temporal_bad" ]]; then
+  fail "memory: Temporal's caches are not bounded in its dynamic config:$temporal_bad"
 else
   pass "memory: a service at 85% of its cap for 15 minutes alerts (not a one-shot); Temporal's caches bounded"
 fi
