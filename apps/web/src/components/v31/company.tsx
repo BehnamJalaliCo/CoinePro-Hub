@@ -11,9 +11,9 @@ import { Card, ErrorState, Pill, SectionTitle, Skeleton, Switch } from '@/compon
 import { useToast } from '@/components/ui/toast';
 import {
   PLATFORM_AD_FA, useAdRules, useAds, useCompetitorDaily, useCompetitors, useCrud, useKeywords, useNewsletter, useNewsletterActions, useRanks, useResumeCampaign,
-  type AdRule, type Competitor, type Keyword,
+  type AdPlatform, type AdRule, type Competitor, type Keyword,
 } from '@/lib/api/v31';
-import { cx, jDateTime } from '@/lib/format';
+import { cx, jDateTime, numText, parseNum } from '@/lib/format';
 import { FaText, fig } from '@/components/v29/text';
 import { errText, field, notYet } from './kit';
 
@@ -24,31 +24,35 @@ const Txt = ({ label, value, set, ltr, w }: { label: string; value: string; set:
   <label className={cx('flex min-w-0 flex-col gap-1.5', w)}><span className="text-[12px] text-sec">{label}</span>
     <input value={value} onChange={(e) => set(e.target.value)} dir={ltr ? 'ltr' : 'auto'} aria-label={label} className={cx(field, 'h-10', ltr && 'text-left')} /></label>
 );
-const Num = ({ label, value, set, step }: { label: string; value: number; set: (v: number) => void; step?: number }) => (
-  <label className="flex min-w-0 flex-col gap-1.5"><span className="text-[12px] text-sec">{label}</span>
-    <input type="number" min={0} step={step ?? 1} value={value} dir="ltr" onChange={(e) => set(Number(e.target.value) || 0)} aria-label={label} className={cx(field, 'h-10 text-left')} /></label>
-);
+/** A number field that keeps the typed text (so "1." and Persian digits survive) and reports null when it is empty. */
+function Num({ label, value, set }: { label: string; value: number | null; set: (v: number | null) => void }) {
+  const [text, setText] = useState(value == null ? '' : String(value));
+  return (
+    <label className="flex min-w-0 flex-col gap-1.5"><span className="text-[12px] text-sec">{label}</span>
+      <input inputMode="decimal" value={text} dir="ltr" onChange={(e) => { const t = numText(e.target.value); setText(t); set(parseNum(t)); }} aria-label={label} className={cx(field, 'h-10 text-left')} /></label>
+  );
+}
 
 // ================================================================================================ newsletter ==
-const NL_STATE: Record<string, string> = { draft: 'پیش‌نویس', scheduled: 'زمان‌بندی شد', sending: 'در حال ارسال', sent: 'فرستاده شد' };
+const NL_STATE: Record<string, string> = { draft: 'پیش‌نویس', scheduled: 'زمان‌بندی شد', running: 'در حال ارسال', finished: 'فرستاده شد', paused: 'متوقف', cancelled: 'لغو شد' };
 export function CompanyNewsletter({ code }: { code: string }) {
   const q = useNewsletter(code);
   const act = useNewsletterActions(code);
   const toast = useToast();
-  const [form, setForm] = useState<{ list: string; subject: string; subject_b: string; body_md: string } | null>(null);
+  const [form, setForm] = useState<{ list: string; subject: string; body_md: string } | null>(null);
   const [at, setAt] = useState<Record<string, string>>({});
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return notYet('send', 'خبرنامه بعد از به‌روزرسانی ستاد میاید', 'لیست‌ها، مشترک‌ها و کمپین‌های ایمیلی این شرکت این‌جا میاید.');
   const { lists, campaigns } = q.data;
-  const open = () => setForm({ list: lists[0]?.id ?? '', subject: '', subject_b: '', body_md: '' });
+  const open = () => setForm({ list: lists[0]?.id ?? '', subject: '', body_md: '' });
   return (
     <div className="flex flex-col gap-4">
       <Card as="section" className="flex flex-col gap-3 p-5" aria-label="لیست‌ها">
         <SectionTitle title="لیست‌ها" note="رضایت مشترک‌ها و لغو عضویت با یک کلیک را خود خبرنامه نگه میدارد" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{lists.map((l) => (
           <div key={l.id} className="rounded-[12px] bg-tile p-3"><div className="text-[14px] font-semibold"><FaText text={l.name} /></div>
-            <div className="pt-1 text-[12px] text-sec"><span className="fig">{fig(l.subscribers)}</span> مشترک</div></div>
+            <div className="pt-1 text-[12px] text-sec">{l.subscribers != null ? <><span className="fig">{fig(l.subscribers)}</span> مشترک</> : 'تعداد مشترک هنوز خوانده نشده'}</div></div>
         ))}</div>
         {!lists.length ? <p className="text-[13px] text-muted">هنوز لیستی نیست.</p> : null}
       </Card>
@@ -60,11 +64,10 @@ export function CompanyNewsletter({ code }: { code: string }) {
               <button key={l.id} type="button" role="radio" aria-checked={form.list === l.id} onClick={() => setForm({ ...form, list: l.id })} className={cx('h-9 rounded-full px-3.5 text-[13px] font-semibold', form.list === l.id ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{l.name}</button>
             ))}</div>
             <Txt label="موضوع ایمیل" value={form.subject} set={(v) => setForm({ ...form, subject: v })} />
-            <Txt label="موضوع دوم (آزمایش A/B، اختیاری)" value={form.subject_b} set={(v) => setForm({ ...form, subject_b: v })} />
             <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">متن ایمیل</span>
               <textarea value={form.body_md} onChange={(e) => setForm({ ...form, body_md: e.target.value })} rows={6} dir="auto" aria-label="متن ایمیل" className={cx(field, 'py-2.5 leading-7')} /></label>
             <div className="flex gap-2">
-              <Button variant="primary" loading={act.create.isPending} disabled={!form.subject.trim() || !form.body_md.trim()} onClick={() => act.create.mutate({ list: form.list, subject: form.subject.trim(), subject_b: form.subject_b.trim() || undefined, body_md: form.body_md }, {
+              <Button variant="primary" loading={act.create.isPending} disabled={!form.subject.trim() || !form.body_md.trim()} onClick={() => act.create.mutate({ list_id: form.list || null, subject: form.subject.trim(), body_md: form.body_md }, {
                 onSuccess: () => { toast({ tone: 'ok', text: 'کمپین پیش‌نویس ساخته شد.' }); setForm(null); }, onError: (e) => toast({ tone: 'error', text: errText(e, 'ساخته نشد.') }),
               })}>ذخیره پیش‌نویس</Button>
               <Button onClick={() => setForm(null)}>بی‌خیال</Button>
@@ -75,8 +78,8 @@ export function CompanyNewsletter({ code }: { code: string }) {
           <ul className="flex flex-col">{campaigns.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-3 border-t border-div py-3 first:border-0" aria-label={`کمپین ${c.subject}`}>
               <span className="flex min-w-0 flex-[1_1_12rem] flex-col"><span className="text-[14px] font-semibold"><FaText text={c.subject} /></span>
-                <span className="text-[11px] text-muted">{c.scheduled_at ? jDateTime(c.scheduled_at) : 'بدون زمان'}{c.sent != null ? <> · <span className="fig">{fig(c.sent)}</span> ارسال · <span className="fig">{fig(c.opens)}</span> باز · <span className="fig">{fig(c.clicks)}</span> کلیک</> : null}</span></span>
-              <Pill tone={c.state === 'sent' ? 'pos' : c.state === 'draft' ? 'silver' : 'gold'} dot>{NL_STATE[c.state] ?? c.state}</Pill>
+                <span className="text-[11px] text-muted">{c.send_at ? jDateTime(c.send_at) : 'بدون زمان'}{c.sent != null ? <> · <span className="fig">{fig(c.sent)}</span> ارسال · <span className="fig">{fig(c.opens)}</span> باز · <span className="fig">{fig(c.clicks)}</span> کلیک</> : null}</span></span>
+              <Pill tone={c.state === 'finished' ? 'pos' : c.state === 'draft' || c.state === 'cancelled' ? 'silver' : 'gold'} dot>{NL_STATE[c.state] ?? c.state}</Pill>
               {c.state === 'draft' ? (
                 <span className="flex items-center gap-2">
                   <input type="datetime-local" value={at[c.id] ?? ''} onChange={(e) => setAt({ ...at, [c.id]: e.target.value })} dir="ltr" aria-label={`زمان ارسال ${c.subject}`} className={cx(field, 'h-9 w-auto text-[12px]')} />
@@ -137,7 +140,7 @@ export function CompanySeo({ code }: { code: string }) {
           <li key={w.id} className="flex flex-wrap items-center gap-3 border-t border-div py-2.5 first:border-0" aria-label={`کلیدواژه ${w.phrase}`}>
             <span className="min-w-0 flex-[1_1_10rem] text-[14px] font-semibold"><FaText text={w.phrase} /></span>
             <span dir="ltr" className="text-[12px] text-muted">{w.site}</span>
-            <Switch checked={w.state === 'on'} label={`فعال بودن ${w.phrase}`} onChange={(v) => kwAct.edit.mutate({ ...w, state: v ? 'on' : 'paused' }, { onError: fail('تغییر نکرد.') })} />
+            <Switch checked={w.state === 'on'} label={`فعال بودن ${w.phrase}`} onChange={(v) => kwAct.edit.mutate({ id: w.id, state: v ? 'on' : 'paused' }, { onError: fail('تغییر نکرد.') })} />
             <Button size="sm" aria-label={`حذف ${w.phrase}`} onClick={() => kwAct.remove.mutate(w.id, { onError: fail('حذف نشد.') })}>حذف</Button>
           </li>
         ))}</ul>
@@ -191,14 +194,16 @@ export function CompanySeo({ code }: { code: string }) {
 }
 
 // ===================================================================================================== ads ==
-const RULE0: Omit<AdRule, 'id' | 'company'> = { scope: 'account', daily_cap: 0, window_days: 3, min_roas: 1, min_spend_before_judging: 0, action: 'pause', state: 'on' };
+type RuleForm = Pick<AdRule, 'platform' | 'scope' | 'daily_cap' | 'window_days' | 'min_roas' | 'min_spend_before_judging' | 'action' | 'state'> & { id?: string };
+const RULE0 = (platform: AdPlatform): RuleForm => ({ platform, scope: 'account', daily_cap: null, window_days: 3, min_roas: 1, min_spend_before_judging: 0, action: 'pause', state: 'on' });
+const PLATFORMS: AdPlatform[] = ['google_ads', 'meta_ads'];
 export function CompanyAds({ code }: { code: string }) {
   const q = useAds(code);
   const rules = useAdRules(code);
   const act = useCrud<AdRule>(code, 'ad-rules');
   const resume = useResumeCampaign();
   const toast = useToast();
-  const [r, setR] = useState<(Omit<AdRule, 'id' | 'company'> & { id?: string }) | null>(null);
+  const [r, setR] = useState<RuleForm | null>(null);
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return notYet('budget', 'تبلیغات بعد از به‌روزرسانی ستاد میاید', 'حساب‌ها، خرج و بازده هر کمپین و قاعده‌های توقف خودکار این‌جا میاید.');
@@ -208,40 +213,44 @@ export function CompanyAds({ code }: { code: string }) {
     <div className="flex flex-col gap-4">
       <Card as="section" className="flex flex-col gap-3 p-5" aria-label="حساب‌های تبلیغاتی">
         <SectionTitle title="حساب‌ها" />
-        <div className="flex flex-wrap gap-2">{accounts.map((a) => <Pill key={a.account_id} tone={a.state === 'connected' || a.state === 'on' ? 'pos' : 'warn'} dot>{PLATFORM_AD_FA[a.platform] ?? a.platform} · <span dir="ltr">{a.account_id}</span></Pill>)}
+        <div className="flex flex-wrap gap-2">{accounts.map((a) => <Pill key={a.platform} tone={a.state === 'connected' ? 'pos' : 'warn'} dot>{PLATFORM_AD_FA[a.platform] ?? a.platform} · <FaText text={a.label_fa} /></Pill>)}
           {!accounts.length ? <p className="text-[13px] text-muted">حسابی وصل نیست؛ از «اتصال‌ها» وصل کن.</p> : null}</div>
       </Card>
       <Card as="section" className="flex flex-col gap-2 p-5" aria-label="کمپین‌های تبلیغاتی">
         <SectionTitle title="کمپین‌ها" note="خرج و بازده سی روز اخیر؛ ستاد هرگز بودجه را بالا نمیبرد" />
         {!campaigns.length ? <p className="text-[13px] text-muted">کمپینی نیست.</p> : (
           <ul className="flex flex-col">{campaigns.map((c) => (
-            <li key={`${c.platform}-${c.id}`} className="flex flex-wrap items-center gap-3 border-t border-div py-3 first:border-0" aria-label={`کمپین ${c.title_fa}`}>
-              <span className="flex min-w-0 flex-[1_1_12rem] flex-col"><span className="text-[14px] font-semibold"><FaText text={c.title_fa} /></span><span className="text-[11px] text-muted">{PLATFORM_AD_FA[c.platform] ?? c.platform}</span></span>
-              <span className="text-[12px] text-sec">خرج <span className="fig">{fig(c.spend)}</span></span>
-              <span className="text-[12px] text-sec">ROAS <span className="fig">{fig(c.roas, 2)}</span></span>
-              <Pill tone={c.state === 'active' ? 'pos' : 'warn'} dot>{c.state === 'active' ? 'فعال' : c.paused_by_rule ? 'متوقف توسط قاعده' : 'متوقف'}</Pill>
-              {c.state === 'paused' ? <Button size="sm" variant="primary" icon="resume" loading={resume.isPending && resume.variables?.id === c.id} aria-label={`ادامه‌ی ${c.title_fa}`}
-                onClick={() => resume.mutate({ platform: c.platform, id: c.id }, { onSuccess: () => toast({ tone: 'ok', text: 'کمپین ادامه یافت.' }), onError: fail('ادامه نیافت.') })}>ادامه</Button> : null}
+            <li key={`${c.platform}-${c.campaign_id}`} className="flex flex-wrap items-center gap-3 border-t border-div py-3 first:border-0" aria-label={`کمپین ${c.name}`}>
+              <span className="flex min-w-0 flex-[1_1_12rem] flex-col"><span className="text-[14px] font-semibold"><FaText text={c.name} /></span><span className="text-[11px] text-muted">{PLATFORM_AD_FA[c.platform] ?? c.platform}</span></span>
+              <span className="text-[12px] text-sec">خرج <span className="fig">{fig(c.totals.spend)}</span></span>
+              <span className="text-[12px] text-sec">ROAS <span className="fig">{c.totals.roas != null ? fig(c.totals.roas, 2) : '—'}</span></span>
+              <Pill tone={c.status === 'active' ? 'pos' : c.status === 'removed' ? 'silver' : 'warn'} dot>{c.status === 'active' ? 'فعال' : c.status === 'removed' ? 'حذف‌شده' : c.paused_by === 'rule' ? 'متوقف توسط قاعده' : 'متوقف'}</Pill>
+              {c.status === 'paused' ? <Button size="sm" variant="primary" icon="resume" loading={resume.isPending && resume.variables?.platform === c.platform && resume.variables?.id === c.campaign_id} aria-label={`ادامه‌ی ${c.name}`}
+                onClick={() => resume.mutate({ platform: c.platform, id: c.campaign_id }, { onSuccess: () => toast({ tone: 'ok', text: 'کمپین ادامه یافت.' }), onError: fail('ادامه نیافت.') })}>ادامه</Button> : null}
             </li>
           ))}</ul>
         )}
       </Card>
       <Card as="section" className="flex flex-col gap-3 p-5" aria-label="قاعده‌های تبلیغات">
         <SectionTitle title="قاعده‌های توقف" note="قاعده‌ای که بشکند، کمپین را متوقف میکند (برگشت‌پذیر) و به مدیر رشد خبر میدهد"
-          action={<Button size="sm" icon="add" onClick={() => setR({ ...RULE0 })}>قاعده‌ی تازه</Button>} />
+          action={<Button size="sm" icon="add" onClick={() => setR(RULE0(accounts[0]?.platform ?? 'google_ads'))}>قاعده‌ی تازه</Button>} />
         {r ? (
-          <div className="hq-rise grid gap-2 rounded-[12px] bg-tile p-4 sm:grid-cols-3" aria-label="مشخصات قاعده">
+          <div key={r.id ?? 'new'} className="hq-rise grid gap-2 rounded-[12px] bg-tile p-4 sm:grid-cols-3" aria-label="مشخصات قاعده">
+            <div className="flex flex-col gap-1.5 sm:col-span-3"><span className="text-[12px] text-sec">سکو</span>
+              <div className="flex gap-2" role="radiogroup" aria-label="سکوی قاعده">{PLATFORMS.map((p) => (
+                <button key={p} type="button" role="radio" aria-checked={r.platform === p} disabled={!!r.id && r.platform !== p} onClick={() => setR({ ...r, platform: p })} className={cx('h-10 rounded-full px-4 text-[13px] font-semibold disabled:opacity-40', r.platform === p ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{PLATFORM_AD_FA[p]}</button>
+              ))}</div></div>
             <Txt label="دامنه (account یا شناسه‌ی کمپین)" value={r.scope} set={(v) => setR({ ...r, scope: v })} ltr />
-            <Num label="سقف خرج روزانه" value={r.daily_cap} set={(v) => setR({ ...r, daily_cap: v })} />
-            <Num label="بازه (روز)" value={r.window_days} set={(v) => setR({ ...r, window_days: v })} />
-            <Num label="کمترین ROAS" value={r.min_roas} step={0.1} set={(v) => setR({ ...r, min_roas: v })} />
-            <Num label="حداقل خرج پیش از قضاوت" value={r.min_spend_before_judging} set={(v) => setR({ ...r, min_spend_before_judging: v })} />
+            <Num label="سقف خرج روزانه (خالی یعنی بی‌سقف)" value={r.daily_cap} set={(v) => setR({ ...r, daily_cap: v || null })} />
+            <Num label="بازه (روز)" value={r.window_days} set={(v) => setR({ ...r, window_days: v ?? 0 })} />
+            <Num label="کمترین ROAS" value={r.min_roas} set={(v) => setR({ ...r, min_roas: v })} />
+            <Num label="حداقل خرج پیش از قضاوت" value={r.min_spend_before_judging} set={(v) => setR({ ...r, min_spend_before_judging: v ?? 0 })} />
             <div className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">کار</span>
               <div className="flex gap-2" role="radiogroup" aria-label="کار قاعده">{(['pause', 'notify'] as const).map((a) => (
                 <button key={a} type="button" role="radio" aria-checked={r.action === a} onClick={() => setR({ ...r, action: a })} className={cx('h-10 rounded-full px-4 text-[13px] font-semibold', r.action === a ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{a === 'pause' ? 'متوقف کن' : 'خبر بده'}</button>
               ))}</div></div>
             <div className="flex gap-2 sm:col-span-3">
-              <Button variant="primary" loading={act.add.isPending || act.edit.isPending} disabled={!r.scope.trim()} onClick={() => {
+              <Button variant="primary" loading={act.add.isPending || act.edit.isPending} disabled={!r.scope.trim() || (r.daily_cap == null && r.min_roas == null) || r.window_days < 1} onClick={() => {
                 const done = { onSuccess: () => setR(null), onError: fail('ذخیره نشد.') };
                 if (r.id) act.edit.mutate({ ...r, id: r.id }, done); else act.add.mutate(r, done);
               }}>ذخیره</Button>
@@ -252,9 +261,9 @@ export function CompanyAds({ code }: { code: string }) {
         {(rules.data ?? []).length ? (
           <ul className="flex flex-col">{(rules.data ?? []).map((x) => (
             <li key={x.id} className="flex flex-wrap items-center gap-3 border-t border-div py-3 first:border-0" aria-label={`قاعده ${x.scope}`}>
-              <span className="min-w-0 flex-[1_1_14rem] text-[13px] leading-6"><span dir="ltr">{x.scope}</span>: ROAS زیر <span className="fig">{fig(x.min_roas, 2)}</span> در <span className="fig">{x.window_days}</span> روز، بعد از <span className="fig">{fig(x.min_spend_before_judging)}</span> خرج، {x.action === 'pause' ? 'متوقف کن' : 'خبر بده'}</span>
-              <Switch checked={x.state === 'on'} label={`روشن بودن قاعده‌ی ${x.scope}`} onChange={(v) => act.edit.mutate({ ...x, state: v ? 'on' : 'off' }, { onError: fail('تغییر نکرد.') })} />
-              <Button size="sm" onClick={() => setR({ ...x })}>ویرایش</Button>
+              <span className="min-w-0 flex-[1_1_14rem] text-[13px] leading-6"><span dir="ltr">{x.scope}</span>: {x.daily_cap != null ? <>سقف روزانه <span className="fig">{fig(x.daily_cap)}</span>{x.min_roas != null ? '، ' : ' '}</> : null}{x.min_roas != null ? <>ROAS زیر <span className="fig">{fig(x.min_roas, 2)}</span> </> : null}در <span className="fig">{x.window_days}</span> روز، بعد از <span className="fig">{fig(x.min_spend_before_judging)}</span> خرج، {x.action === 'pause' ? 'متوقف کن' : 'خبر بده'}</span>
+              <Switch checked={x.state === 'on'} label={`روشن بودن قاعده‌ی ${x.scope}`} onChange={(v) => act.edit.mutate({ id: x.id, state: v ? 'on' : 'off' }, { onError: fail('تغییر نکرد.') })} />
+              <Button size="sm" onClick={() => setR({ id: x.id, platform: x.platform, scope: x.scope, daily_cap: x.daily_cap, window_days: x.window_days, min_roas: x.min_roas, min_spend_before_judging: x.min_spend_before_judging, action: x.action, state: x.state })}>ویرایش</Button>
               <Button size="sm" aria-label={`حذف قاعده‌ی ${x.scope}`} onClick={() => act.remove.mutate(x.id, { onError: fail('حذف نشد.') })}>حذف</Button>
             </li>
           ))}</ul>

@@ -29,24 +29,28 @@ internal class V31Demo {
     private fun at(off: Long, h: Int, m: Int = 0): String = today.plusDays(off).atTime(h, m).atZone(tehran).toInstant().toString()
     private val last30 = (29 downTo 0L).map { day(-it) }
 
-    private val kits = listOf(
+    // (lazy: the names it reads are declared further down)
+    private val kits by lazy { listOf(
         kit("media_channel", "شرکت رسانه‌ی کانال‌محور", "یک شرکت تازه که هر روز برای کانال‌هایش (اینستاگرام، تلگرام و سایت) محتوا میسازد و منتشر میکند، با تیم محتوا و عددهای واقعی.",
             listOf("content"), listOf(kl("instagram_reel", "instagram_reel", "ریلز آموزشی"), kl("telegram_post", "telegram_post", "پست روزانه‌ی کانال"), kl("site_article", "site_article", "مقاله‌ی هفتگی")),
             listOf("reach", "followers", "published"), listOf("instagram", "telegram", "search_console")),
         kit("newsletter_brand", "برند خبرنامه‌ای", "شرکتی که مخاطبش را در فهرست ایمیل خودش نگه میدارد و هفته‌ای یک خبرنامه با مقاله‌ی سایت میفرستد.",
             listOf("content"), listOf(kl("site_article", "site_article", "مقاله‌ی هفتگی"), kl("newsletter", "newsletter", "خبرنامه‌ی هفتگی")),
             listOf("subscribers", "opens", "clicks"), listOf("search_console", "ga4")),
-    )
+    ) }
 
     private val newsletters = linkedMapOf(
         "TY" to jo(
-            "lists" to ja(listOf(jo("id" to 1, "name" to "مشترکان خبرنامه‌ی تریدیار", "subscribers" to 1840, "size_limit" to 2000), jo("id" to 2, "name" to "کاربران آزمایشی", "subscribers" to 5200, "size_limit" to 2000))),
+            // ⟨2026-11-11⟩ as the hub writes it (`NewsletterOut`): the size limit once for the company, each list by its id and its number
+            // in the mail service, each campaign by that number (`list_id`) and its `send_at`
+            "active" to true, "size_limit" to 2000,
+            "lists" to ja(listOf(jo("id" to "0193c0de-0001-7000-8000-000000000001", "listmonk_id" to 1, "name" to "مشترکان خبرنامه‌ی تریدیار", "subscribers" to 1840), jo("id" to "0193c0de-0001-7000-8000-000000000002", "listmonk_id" to 2, "name" to "کاربران آزمایشی", "subscribers" to 5200))),
             "campaigns" to ja(listOf(
-                jo("id" to 11, "list" to 1, "subject" to "خلاصه‌ی بازار طلا در هفته‌ای که گذشت", "subject_b" to "هفته‌ی طلا در ۵ دقیقه", "state" to "sent", "scheduled_at" to at(-3, 7), "sent" to 1790, "opens" to 742, "clicks" to 188, "body_md" to "خلاصه‌ی هفته."),
-                jo("id" to 12, "list" to 1, "subject" to "سه نکته برای معامله‌ی هفته‌ی بعد", "subject_b" to null, "state" to "scheduled", "scheduled_at" to at(2, 7), "sent" to null, "opens" to null, "clicks" to null, "body_md" to "سه نکته."),
+                jo("id" to 11, "list_id" to 1, "subject" to "خلاصه‌ی بازار طلا در هفته‌ای که گذشت", "state" to "finished", "send_at" to at(-3, 7), "sent" to 1790, "opens" to 742, "clicks" to 188, "body_md" to "خلاصه‌ی هفته."),
+                jo("id" to 12, "list_id" to 1, "subject" to "سه نکته برای معامله‌ی هفته‌ی بعد", "state" to "scheduled", "send_at" to at(2, 7), "sent" to null, "opens" to null, "clicks" to null, "body_md" to "سه نکته."),
             )),
         ),
-        "FX" to jo("lists" to ja(listOf(jo("id" to 3, "name" to "خبرنامه‌ی کوینه‌پرو FX", "subscribers" to 920, "size_limit" to 2000))), "campaigns" to ja(emptyList())),
+        "FX" to jo("active" to true, "size_limit" to 2000, "lists" to ja(listOf(jo("id" to "0193c0de-0001-7000-8000-000000000003", "listmonk_id" to 3, "name" to "خبرنامه‌ی کوینه‌پرو FX", "subscribers" to 920))), "campaigns" to ja(emptyList())),
         "PC" to jo("lists" to ja(emptyList()), "campaigns" to ja(emptyList())),
     )
     private var nlSeq = 20
@@ -70,12 +74,12 @@ internal class V31Demo {
     private var campSeq = 10
 
     private val adCampaigns = mutableListOf(
-        adCampaign("c-77", "جست‌وجوی سیگنال طلا", "on", null, 800_000.0, 2.6),
+        adCampaign("c-77", "جست‌وجوی سیگنال طلا", "active", null, 800_000.0, 2.6),
         adCampaign("c-81", "بازاریابی مجدد بازدیدکنندگان", "paused", "بازده کمتر از 1.2 بود و 7 روز ماند؛ قاعده‌ی «بازده پایین» متوقفش کرد.", 500_000.0, 0.9),
     )
     private val adRules = mutableListOf(
-        jo("id" to 1, "company" to "TY", "scope" to "account", "daily_cap" to 1_000_000, "window_days" to 7, "min_roas" to 1.2, "min_spend_before_judging" to 2_000_000, "action" to "pause", "state" to "on"),
-        jo("id" to 2, "company" to "TY", "scope" to "c-77", "daily_cap" to 1_200_000, "window_days" to 3, "min_roas" to 1.5, "min_spend_before_judging" to 1_000_000, "action" to "notify", "state" to "on"),
+        jo("id" to 1, "company" to "TY", "platform" to "google_ads", "scope" to "account", "daily_cap" to 1_000_000, "window_days" to 7, "min_roas" to 1.2, "min_spend_before_judging" to 2_000_000, "action" to "pause", "state" to "on"),
+        jo("id" to 2, "company" to "TY", "platform" to "google_ads", "scope" to "c-77", "daily_cap" to 1_200_000, "window_days" to 3, "min_roas" to 1.5, "min_spend_before_judging" to 1_000_000, "action" to "notify", "state" to "on"),
     )
     private var ruleSeq = 10
 
@@ -108,11 +112,12 @@ internal class V31Demo {
         if (path == "/kits" && method == "GET") return 200 to ja(kits)
         if (path == "/companies/from-kit/preview" && method == "POST") {
             val kit = kits.firstOrNull { it.str("key") == body?.str("kit") } ?: return 404 to problem(404, "not_found", "این بسته پیدا نشد.")
-            val name = body?.str("name_fa").orEmpty()
+            // ⟨2026-11-11⟩ as the hub answers (`KitPreview`): the kit, the names, and whether the code is free
+            val code = body?.str("code").orEmpty()
+            val taken = code in setOf("TY", "FX", "PC", "HQ")
             return 200 to jo(
-                "preview_fa" to "شرکت «$name» با تیم آماده‌ی رسانه، ${kit.arr("lines").size} خط تولید پیش‌نویس و ${kit.arr("kpis").size} شاخص ساخته میشود. هیچ خطی بدون مُهر تو منتشر نمیکند.",
-                "team_fa" to ja(listOf("مدیرعامل", "مدیر محتوا", "نویسنده", "طراح تصویر", "تحلیلگر عملکرد").map { JsonPrimitive(it) }),
-                "todo_fa" to ja(todo(kit)),
+                "kit" to kit, "code" to code, "name_fa" to body?.str("name_fa").orEmpty(), "name_en" to body?.str("name_en").orEmpty(),
+                "code_free" to !taken, "problems" to ja(if (taken) listOf(JsonPrimitive("این کد را شرکت دیگری دارد")) else emptyList()), "nothing_written" to true,
             )
         }
         if (path == "/companies/from-kit" && method == "POST") {
@@ -121,7 +126,7 @@ internal class V31Demo {
             if (!Regex("^[A-Z][A-Z0-9]{1,9}$").matches(code)) return 422 to problem(422, "validation_failed", "کد شرکت باید حرف انگلیسی بزرگ باشد.")
             return 201 to jo(
                 "company" to jo("code" to code, "name_fa" to body?.str("name_fa")),
-                "lines" to ja(kit.arr("lines").indices.map { JsonPrimitive("LN-%04d".format(40 + it)) }),
+                "lines" to ja(kit.arr("lines").mapIndexed { i, l -> JsonObject((l as JsonObject) + ("ref" to JsonPrimitive("LN-%04d".format(40 + i)))) }),
                 "todo_fa" to ja(todo(kit)),
             )
         }
@@ -129,7 +134,11 @@ internal class V31Demo {
             val n = newsletters[m.groupValues[1]] ?: return 404 to problem(404, "not_found", "این شرکت پیدا نشد.")
             if (m.groupValues[2].isEmpty() && method == "GET") return 200 to n
             if (m.groupValues[2].isNotEmpty() && method == "POST") {
-                val c = jo("id" to nlSeq++, "list" to body?.get("list"), "subject" to body?.str("subject"), "subject_b" to body?.str("subject_b"), "state" to "draft", "scheduled_at" to null, "sent" to null, "opens" to null, "clicks" to null, "body_md" to body?.str("body_md"))
+                // `NewsletterCampaignIn`: subject, body, list_id (the list's id); the campaign names the list by its number
+                val lists = (n["lists"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+                val listNo = lists.firstOrNull { it.str("id") == body?.str("list_id") }?.get("listmonk_id") ?: lists.firstOrNull()?.get("listmonk_id")
+                if (body?.str("body").isNullOrBlank()) return 422 to problem(422, "validation_failed", "متن خبرنامه خالی است.")
+                val c = jo("id" to nlSeq++, "list_id" to listNo, "subject" to body?.str("subject"), "state" to "draft", "send_at" to null, "sent" to null, "opens" to null, "clicks" to null)
                 newsletters[m.groupValues[1]] = n.with("campaigns" to ja(listOf<JsonElement>(c) + n.arr("campaigns")))
                 return 201 to c
             }
@@ -140,7 +149,7 @@ internal class V31Demo {
                 val c = camps.firstOrNull { (it["id"] as? JsonPrimitive)?.contentOrNull == m.groupValues[1] } ?: continue
                 if (m.groupValues[2].isEmpty() && method == "GET") return 200 to c
                 if (m.groupValues[2].isNotEmpty() && method == "POST") {
-                    val upd = c.with("state" to "scheduled", "scheduled_at" to body?.str("at"))
+                    val upd = c.with("state" to "scheduled", "send_at" to body?.str("at"))
                     newsletters[co] = n.with("campaigns" to ja(camps.map { if (it === c) upd else it }))
                     return 200 to upd
                 }
@@ -210,12 +219,20 @@ internal class V31Demo {
             val co = m.groupValues[1]
             val id = m.groupValues[3].toIntOrNull()
             if (m.groupValues[2] == "ads" && method == "GET") return 200 to (if (co != "TY") jo("accounts" to ja(emptyList()), "campaigns" to ja(emptyList())) else jo(
-                "accounts" to ja(listOf(jo("company" to "TY", "platform" to "google_ads", "account_id" to "123-456-7890", "state" to "connected"), jo("company" to "TY", "platform" to "meta_ads", "account_id" to "act_5521", "state" to "not_connected"))),
+                // ⟨2026-11-11⟩ as the hub writes an account (`AdAccount`): its name, connected or not, its key set or missing
+                "accounts" to ja(listOf(
+                    jo("platform" to "google_ads", "label_fa" to "گوگل ادز تریدیار", "state" to "connected", "secret" to "set", "missing_fa" to ja(emptyList()), "last_read_at" to at(0, 6), "last_error_fa" to null),
+                    jo("platform" to "meta_ads", "label_fa" to "تبلیغات متا", "state" to "not_connected", "secret" to "missing", "missing_fa" to ja(listOf(JsonPrimitive("شناسه‌ی حساب"))), "last_read_at" to null, "last_error_fa" to null),
+                )),
                 "campaigns" to ja(adCampaigns),
             ))
             if (m.groupValues[2] == "ad-rules") return when {
                 id == null && method == "GET" -> 200 to ja(adRules.filter { it.str("company") == co })
-                id == null && method == "POST" -> { val r = (body ?: jo()).with("id" to ruleSeq++, "company" to co); adRules += r; 201 to r }
+                id == null && method == "POST" -> {
+                    // `AdRuleIn` requires the platform
+                    if (body?.str("platform").isNullOrBlank()) return 422 to problem(422, "validation_failed", "تبلیغات کدام پلتفرم را بسنجد؟")
+                    val r = (body ?: jo()).with("id" to ruleSeq++, "company" to co); adRules += r; 201 to r
+                }
                 method == "PUT" -> { val i = adRules.indexOfFirst { it.int("id") == id }; if (i < 0) 404 to problem(404, "not_found", "پیدا نشد.") else { adRules[i] = adRules[i].with(*(body ?: jo()).entries.map { it.key to it.value }.toTypedArray()); 200 to adRules[i] } }
                 method == "DELETE" -> { adRules.removeAll { it.int("id") == id }; 200 to jo() }
                 else -> null
@@ -223,9 +240,9 @@ internal class V31Demo {
         }
         Regex("^/ads/campaigns/([^/]+)/([^/]+)/resume$").find(path)?.let { m ->
             if (method != "POST") return null
-            val i = adCampaigns.indexOfFirst { it.str("platform") == m.groupValues[1] && it.str("id") == m.groupValues[2] }
+            val i = adCampaigns.indexOfFirst { it.str("platform") == m.groupValues[1] && it.str("campaign_id") == m.groupValues[2] }
             if (i < 0) return 404 to problem(404, "not_found", "این کمپین پیدا نشد.")
-            adCampaigns[i] = adCampaigns[i].with("state" to "on", "paused_reason_fa" to null)
+            adCampaigns[i] = adCampaigns[i].with("status" to "active", "paused_by" to null, "paused_reason_fa" to null)
             return 200 to adCampaigns[i]
         }
         if (path == "/automations/compile" && method == "POST") {
@@ -259,23 +276,33 @@ internal class V31Demo {
 
     // ------------------------------------------------------------ the data --
     private fun kl(template: String, platform: String, title: String) = jo("template" to template, "platform" to platform, "title_fa" to title)
-    private fun kit(key: String, title: String, purpose: String, groups: List<String>, lines: List<JsonObject>, kpis: List<String>, connections: List<String>) = jo(
-        "key" to key, "title_fa" to title, "purpose_fa" to purpose, "team_template" to "media_company", "groups" to ja(groups.map { JsonPrimitive(it) }), "lines" to ja(lines),
-        "kpis" to ja(kpis.map { JsonPrimitive(it) }), "connections" to ja(connections.map { JsonPrimitive(it) }), "defaults" to jo(),
-    )
+    // ⟨2026-11-11⟩ as the hub writes a kit (`KitSummary`): its groups, KPIs and connections are objects with their Persian names
+    private val groupFa = mapOf("content" to "کارگروه محتوا")
+    private val kpiFa = mapOf("reach" to "دسترسی", "followers" to "دنبال‌کننده", "published" to "منتشرشده", "subscribers" to "مشترک", "opens" to "بازشدن", "clicks" to "کلیک")
+    private fun kit(key: String, title: String, purpose: String, groups: List<String>, lines: List<JsonObject>, kpis: List<String>, connections: List<String>): JsonObject {
+        val k = jo(
+            "key" to key, "title_fa" to title, "purpose_fa" to purpose, "team_template" to "media_company",
+            "team" to jo("departments" to ja(listOf(jo("code" to "CONTENT", "name_fa" to "محتوا"), jo("code" to "GROWTH", "name_fa" to "رشد"))), "positions" to 5),
+            "groups" to ja(groups.map { jo("key" to it, "title_fa" to (groupFa[it] ?: it)) }), "lines" to ja(lines),
+            "kpis" to ja(kpis.map { jo("key" to it, "name_fa" to (kpiFa[it] ?: it), "card" to "growth", "unit" to "", "manual" to false) }),
+            "connections" to ja(connections.map { jo("kind" to it, "label_fa" to (connectionFa[it] ?: it)) }),
+        )
+        return JsonObject(k + ("todo_fa" to ja(todo(k))))
+    }
     private val connectionFa = mapOf("instagram" to "اینستاگرام", "telegram" to "تلگرام", "search_console" to "کنسول جست‌وجو", "ga4" to "آمار سایت")
     private fun todo(kit: JsonObject): List<JsonElement> =
-        (kit["connections"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.map { JsonPrimitive("اتصال ${connectionFa[it] ?: it} را وصل کن تا عددهایش بیاید.") } + JsonPrimitive("یک سرور برای شرکت از بخش تأسیس درخواست کن.")
+        (kit["connections"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.str("label_fa") }.map { JsonPrimitive("اتصال $it را وصل کن تا عددهایش بیاید.") } + JsonPrimitive("یک سرور برای شرکت از بخش تأسیس درخواست کن.")
 
     private fun ci(off: Long, atIso: String?, co: String, kind: String, ref: String, title: String, platform: String?, state: String, conflict: String?) = jo(
         "day" to day(off), "at" to atIso, "company" to co, "kind" to kind, "ref" to ref, "title_fa" to title, "platform" to platform, "state" to state, "conflict_fa" to conflict,
     )
 
+    // ⟨2026-11-11⟩ as the hub writes a campaign (`AdCampaign`): campaign_id, name, status; a day's conversions are a float
     private fun adCampaign(id: String, title: String, state: String, reason: String?, spend: Double, roas: Double) = jo(
-        "platform" to "google_ads", "id" to id, "title_fa" to title, "state" to state, "paused_reason_fa" to reason,
+        "platform" to "google_ads", "campaign_id" to id, "name" to title, "status" to state, "paused_by" to (if (state == "paused") "rule" else null), "paused_reason_fa" to reason,
         "days" to ja(last30.mapIndexed { i, d ->
             val s = Math.round(spend + Math.sin(i.toDouble()) * spend * 0.2)
-            jo("platform" to "google_ads", "campaign_id" to id, "day" to d, "spend" to s, "clicks" to 40 + (i % 7) * 6, "conversions" to 2 + (i % 4), "revenue" to Math.round(s * roas), "roas" to Math.round((roas + Math.cos(i.toDouble()) * 0.3) * 100) / 100.0)
+            jo("platform" to "google_ads", "campaign_id" to id, "day" to d, "spend" to s, "clicks" to 40 + (i % 7) * 6, "conversions" to (2 + (i % 4)).toDouble(), "revenue" to Math.round(s * roas), "roas" to Math.round((roas + Math.cos(i.toDouble()) * 0.3) * 100) / 100.0)
         }),
     )
 

@@ -391,6 +391,12 @@ class ApiContractTest {
         assertEquals("/api/v1/ops/sites", s.url.encodedPath)
         assertEquals(Api.sha256(s.body!!.utf8()), target)
         assertEquals("su2", s.headers["X-Step-Up"])
+        // ⟨2026-11-11⟩ audit: every value written (the hub's own default interval is 300 s), no `expect` it has not got
+        assertEquals("""{"company":"TY","sites":[{"url":"https://tradeyar.trade-future.ir","kind":"web","method":"GET","interval_s":300,"enabled":true}]}""", s.body!!.utf8())
+        server.enqueue(json(200, "[]"))
+        val expect = kotlinx.serialization.json.buildJsonObject { put("status", kotlinx.serialization.json.JsonPrimitive(200)) }
+        api.putSites("TY", listOf(com.coinepro.hq.core.net.SiteIn("https://a.example", intervalS = 60, expect = expect))) { "su3" }
+        assertEquals("""{"company":"TY","sites":[{"url":"https://a.example","kind":"web","method":"GET","interval_s":60,"enabled":true,"expect":{"status":200}}]}""", server.takeRequest().body!!.utf8())
     }
 
     @Test
@@ -407,6 +413,36 @@ class ApiContractTest {
         val (a, t, req) = signed("""{"connection":"anthropic-api","stored":true}""") { api.connectionSecret("c2", "sk-test", it) }
         assertEquals("connection.secret" to "c2", a to t)
         assertEquals("/api/v1/connections/c2/secret", req.url.encodedPath)
+    }
+
+    /** ⟨2026-11-11⟩ audit: an ad campaign is resumed on `platform:id` (the hub's own target); a rule's delete always carries `ads.cap`. */
+    @Test
+    fun adsAreSignedAsTheHubConsumesThem() = runTest {
+        val (a, t, _) = signed("""{"platform":"google_ads","campaign_id":"c-1","name":"x","status":"active","days":[]}""") { api.resumeAd("google_ads", "c-1", it) }
+        assertEquals("ads.resume" to "google_ads:c-1", a to t)
+        server.enqueue(json(204, ""))
+        var signedOn: Pair<String, String>? = null
+        api.deleteAdRule("TY", "r-9") { x, y -> signedOn = x to y; "su-del" }
+        val del = server.takeRequest()
+        assertEquals("ads.cap" to "r-9", signedOn)
+        assertEquals("DELETE", del.method)
+        assertEquals("su-del", del.headers["X-Step-Up"])
+        // a rule's edit is a plain PUT of the changed fields; a new rule names its platform (the caller's body)
+        server.enqueue(json(200, """{"id":"r-9","company":"TY","platform":"google_ads","scope":"account","daily_cap":1.0,"window_days":7,"min_roas":1.2,"min_spend_before_judging":0,"action":"pause","state":"off","note_fa":null,"summary_fa":"x","created_at":"2026-11-11T00:00:00Z","updated_at":"2026-11-11T00:00:00Z"}"""))
+        api.saveAdRule("TY", "r-9", kotlinx.serialization.json.buildJsonObject { put("state", kotlinx.serialization.json.JsonPrimitive("off")) }) { x, y -> signedOn = x to y; "su-off" }
+        assertEquals("su-off", server.takeRequest().headers["X-Step-Up"])
+    }
+
+    /** ⟨2026-11-11⟩ audit: the hub binds `company.create` from a kit to the SHA-256 of the exact body, never to the code. */
+    @Test
+    fun aCompanyFromAKitIsSignedOnItsExactBody() = runTest {
+        val (a, t, req) = signed("""{"company":{"code":"NV","name_fa":"ن"},"kit":"k","team":{},"groups":[],"kpis":0,"connections":0,"lines":[],"todo_fa":[]}""") {
+            api.createFromKit("k", "NV", "نوین", "Novin", null, it)
+        }
+        val body = req.body!!.utf8()
+        assertEquals("company.create", a)
+        assertEquals(Api.sha256(body), t)
+        assertEquals("/api/v1/companies/from-kit", req.url.encodedPath)
     }
 
     @Test
@@ -903,7 +939,7 @@ class ApiContractTest {
         val create = server.takeRequest()
         assertEquals("k-series", create.headers["Idempotency-Key"])
         assertEquals(
-            """{"company":"PC","title_fa":"نکته","kind":"carousel","targets":[{"channel":"instagram","account":"instagram-pc","placement":"instagram_post"}],"schedule":"FREQ=WEEKLY;BYDAY=MO,WE;BYHOUR=12;BYMINUTE=0","topics":{"pool":["میانبرها"],"rule_fa":null},"format":{"aspect":"4:5","duration_s":null,"voice":null,"captions":false,"music":"none","overlay":{"cta_fa":null,"mark":true}},"checks":["brand","red_lines","risk_warning","facts","rights","platform","qc"],"auto_publish":false,"max_per_day":2}""",
+            """{"company":"PC","title_fa":"نکته","kind":"carousel","targets":[{"channel":"instagram","account":"instagram-pc","placement":"instagram_post","server":null,"command":null}],"schedule":"FREQ=WEEKLY;BYDAY=MO,WE;BYHOUR=12;BYMINUTE=0","topics":{"pool":["میانبرها"],"rule_fa":null},"format":{"aspect":"4:5","duration_s":null,"voice":null,"captions":false,"music":"none","overlay":{"cta_fa":null,"mark":true}},"checks":["brand","red_lines","risk_warning","facts","rights","platform","qc"],"auto_publish":false,"max_per_day":2}""",
             create.body!!.utf8(),
         )
         val s = Api.json.decodeFromString(com.coinepro.hq.core.net.Series.serializer(), series22)
@@ -1084,9 +1120,12 @@ class ApiContractTest {
         server.enqueue(json(200, record23))
         api.link("AR-000120", "supersedes", to)
         assertEquals("""{"kind":"supersedes","to":{"kind":"record","ref":"AR-000121"}}""", server.takeRequest().body!!.utf8())
+        // ⟨2026-11-11⟩ audit: the hub answers an unlink with 204 and no body; the record is read again
+        server.enqueue(MockResponse.Builder().code(204).build())
         server.enqueue(json(200, record23))
         api.unlink("AR-000120", "supersedes", to)
         val unlink = server.takeRequest()
+        assertEquals("GET", server.takeRequest().method)
         assertEquals(Triple("DELETE", "/api/v1/archive/records/AR-000120/links", "kind=supersedes&to_kind=record&to_ref=AR-000121"), Triple(unlink.method, unlink.url.encodedPath, unlink.url.encodedQuery))
         // A file of a level that asks for it: 🔏 archive.view on the ref; the bytes come back with their type.
         server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "application/pdf").body("%PDF-1.4").build())

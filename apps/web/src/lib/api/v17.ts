@@ -60,7 +60,11 @@ export type Whisper = { id: string; meeting: string; item: string; text_md: stri
 /** A page of turns; for the owner the page also carries the whispers (§20.1 "whispers are included for the owner only"). */
 export type TurnsPage = Page<Turn> & { whispers?: Whisper[] };
 export type MeetingFilter = { type?: MeetingTypeKey | null; company?: string | null; state?: MeetingState | null; from?: string | null; to?: string | null };
-export type MeetingIn = { type: MeetingTypeKey; company?: string; starts_at: string; items?: Array<{ title_fa: string; brief_md?: string; time_box_min?: number }> };
+/** MeetingCreateIn (extra keys forbidden): an ad-hoc meeting is board, company or strategy; an item is its title (and brief). */
+export type AdHocMeetingType = 'board' | 'company' | 'strategy';
+export type MeetingIn = { type: AdHocMeetingType; company?: string; starts_at: string; items?: Array<{ title_fa: string; brief_md?: string }> };
+/** MeetingTypeIn (extra keys forbidden): the type's key and version and only the fields that change. */
+export type MeetingTypeIn = { key: string; version: number } & Partial<Pick<MeetingType, 'title_fa' | 'schedule' | 'members' | 'max_rounds' | 'max_speakers' | 'budget_tokens' | 'turn_cap_tokens' | 'owner_presence' | 'enabled'>> & { model_summary?: boolean };
 /** PATCH before or during a meeting: the items in their new order (each may be skipped), a lower cap, the owner's presence. */
 export type MeetingPatch = { items?: Array<{ id: string; n: number; skip?: boolean }>; budget_cap?: number; owner_presence?: OwnerPresence };
 export type MeetingControl = { action: 'next_round' | 'skip_item' | 'end' | 'raise_budget'; tokens?: number };
@@ -94,8 +98,8 @@ export const useMeetingSettings = () =>
 export function useSaveMeetingSettings() {
   const qc = useQueryClient();
   return useMutation({
-    // The whole list, sealed on the SHA-256 of the exact body (§20.11 `meetings.settings`).
-    mutationFn: async (types: MeetingType[]) => {
+    // The changed types, sealed on the SHA-256 of the exact body (§20.11 `meetings.settings`).
+    mutationFn: async (types: MeetingTypeIn[]) => {
       const body = { types };
       return call<MeetingType[] | { types: MeetingType[] }>('PUT', '/meetings/settings', body, { 'X-Step-Up': await stepUp('meetings.settings', await bodyTarget(JSON.stringify(body))) });
     },
@@ -147,7 +151,7 @@ export type KnowledgeStatus = 'draft' | 'in_review' | 'approved' | 'expired' | '
 export type KnowledgeEntry = {
   id: string; ref: string; layer: Layer; company: string; department: string | null; kind: KnowledgeKind; title_fa: string; body_md: string;
   sources: Source[]; // at least one
-  valid_until: string; // a date
+  valid_until: string | null; // a date; null for the employee layer (a memory note has no expiry)
   status: KnowledgeStatus;
   review: { by: Actor; at: string; verdict: 'pass' | 'changes' | 'reject'; checks: { injection: boolean; secrets: boolean; conflicts: boolean; policy: boolean }; notes_md: string } | null;
   approved_by: Actor | null; version: number; created_by: Actor; created_at: string; updated_at: string;
@@ -160,7 +164,8 @@ export const VALID_DAYS: Record<Exclude<KnowledgeKind, 'support'>, number> = { f
 export const useKnowledge = (f: KnowledgeFilter) =>
   useInfiniteQuery({
     queryKey: ['knowledge', 'list', f.layer ?? '', f.company ?? '', f.department ?? '', f.kind ?? '', f.status ?? '', f.q ?? '', !!f.include_expired],
-    queryFn: ({ pageParam }) => call<Page<KnowledgeEntry>>('GET', `/knowledge${qs({ layer: f.layer, company: f.company, department: f.department, kind: f.kind, status: f.status, q: f.q?.trim(), include_expired: f.include_expired || null, limit: 50, cursor: pageParam })}`),
+    // The hub's `q` is at least two characters.
+    queryFn: ({ pageParam }) => call<Page<KnowledgeEntry>>('GET', `/knowledge${qs({ layer: f.layer, company: f.company, department: f.department, kind: f.kind, status: f.status, q: (f.q?.trim().length ?? 0) >= 2 ? f.q!.trim() : null, include_expired: f.include_expired || null, limit: 50, cursor: pageParam })}`),
     initialPageParam: null as string | null, getNextPageParam: (l) => l.next_cursor, placeholderData: keepPreviousData,
   });
 export const useKnowledgeEntry = (ref: string | null) => useQuery({ queryKey: ['knowledge', 'one', ref], queryFn: () => call<KnowledgeEntry>('GET', `/knowledge/${enc(ref!)}`), enabled: !!ref });
@@ -180,8 +185,10 @@ export function useKnowledgeAction() {
 // ------------------------------------------------------ the three cards, scorecard (§20.4) --
 export type CardKey = 'stability' | 'growth' | 'safety_cost';
 export const CARDS: CardKey[] = ['stability', 'growth', 'safety_cost'];
+/** 'range': on target between `target` and `target_max`. */
+export type KpiDirection = 'up' | 'down' | 'range';
 export type Kpi = {
-  id: string; company: string; key: string; card: CardKey; name_fa: string; unit: string; direction: 'up' | 'down';
+  id: string; company: string; key: string; card: CardKey; name_fa: string; unit: string; direction: KpiDirection; target_max?: number | null;
   source: { kind: 'query'; query: string } | { kind: 'manual' }; freshness_hours: number; target: number | null;
   scorecard: boolean; aggregate: 'sum' | 'avg' | 'min' | 'max'; status: 'active' | 'paused'; version: number;
 };
@@ -190,11 +197,11 @@ export type KpiState = 'ok' | 'stale' | 'no_source';
 export type CardKpi = {
   key: string; name_fa: string; unit: string; value: number | null; at: string | null; source_ref: Source | null; target: number | null;
   trend: Array<number | null>; // 30 values, oldest first; a day without a value is null, never zero
-  state: KpiState;
+  state: KpiState; target_max?: number | null;
 };
 export type Card = { company: string; card: CardKey; kpis: CardKpi[] };
 /** One row of the scorecard: the company's `scorecard` KPIs, each with its card (assumed shape, §20.4 "one row per company"). */
-export type ScorecardRow = { company: string; kpis: Array<CardKpi & { card?: CardKey; direction?: 'up' | 'down' }> };
+export type ScorecardRow = { company: string; kpis: Array<CardKpi & { card?: CardKey; direction?: KpiDirection }> };
 /** The definitions of one company; the set carries the version its PUT matches with If-Match (assumed). */
 export type KpiSet = { company: string; version: number; kpis: Kpi[] };
 export type KpiPatch = Pick<Kpi, 'key' | 'target' | 'scorecard' | 'status' | 'freshness_hours'>;

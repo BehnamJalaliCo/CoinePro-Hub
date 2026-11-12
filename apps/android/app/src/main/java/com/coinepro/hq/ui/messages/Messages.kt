@@ -285,6 +285,8 @@ private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, liv
         }
 
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+            // ⟨2026-11-11⟩ audit: only the current source speaks for the reply (an earlier one's late events are not this reply's)
+            if (live.source != null && live.source !== eventSource) return
             live.lastNews = android.os.SystemClock.elapsedRealtime()
             when (type) {
                 "reply.delta" -> {
@@ -301,6 +303,11 @@ private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, liv
         override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
             response?.close()
             opened?.complete(Unit)
+            // ⟨2026-11-11⟩ audit: a source the app closed itself (a failed reply, or the next message's watch) ends nothing: its «canceled»
+            // must not wipe the failed state or end the next reply's watch
+            if (live.source != null && live.source !== eventSource) return
+            if (t is java.io.IOException && t.message.equals("canceled", ignoreCase = true)) return
+            if (live.state == LiveState.FAILED) return
             if (got) return finish()
             live.state = LiveState.IDLE
             // No live endpoint: the thread is read a few times, slower and slower, until the reply is in (the page stops it then).

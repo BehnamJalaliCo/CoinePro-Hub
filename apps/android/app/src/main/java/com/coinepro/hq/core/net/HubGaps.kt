@@ -106,9 +106,10 @@ class HubGaps {
     fun mark(f: HubFeature) = flow.update { it + f }
 }
 
-/** A route this hub has not got: `405`, or a bare `404` (the framework's "Not Found", or no Problem at all). */
+/** A route this hub has not got: `405`, or a bare `404` (the framework's "Not Found", or no Problem at all). ⟨2026-11-11⟩ audit: the
+ *  hub's own `not_found` without a detail (a row that is not there) is an answer, never a missing route. */
 val ApiException.routeMissing: Boolean
-    get() = status == 405 || (status == 404 && (detail == null || detail.trim().equals("Not Found", ignoreCase = true)))
+    get() = status == 405 || (status == 404 && (detail?.trim()?.equals("Not Found", ignoreCase = true) == true || code != "not_found"))
 
 /** ⟨1.18⟩ A hub before §36.2 refuses a turn's `file_ids` as an unknown field: `422 validation_failed` with `fields.file_ids` saying
  *  "Extra inputs are not permitted". A hub of ⟨1.18⟩ refusing one file (not the owner's, unknown) says something else: that is its

@@ -360,7 +360,12 @@ export async function handle14(req: Request, p: string, u: URL): Promise<Respons
     const rec = /^\/academy\/records\/([A-Z0-9-]+)$/.exec(p);
     if (rec) return json(record(rec[1]!));
     if (p === '/academy/teach') return json(teachings);
-    if (p === '/egress/summary') return json({ period: 'day', requests: 1284, blocked: 3, needs_owner: 2, bytes_in: 412_000_000, by_company: [{ company: 'TY', requests: 512, blocked: 0 }, { company: 'FX', requests: 388, blocked: 0 }, { company: 'PC', requests: 141, blocked: 1 }, { company: 'HQ', requests: 243, blocked: 2 }], by_tool: { 'web.search': 412, 'web.read': 610, 'web.browse': 96, 'http.request': 141, 'mcp.call': 25 } });
+    // The hub's shape: a list of EgressDay, one row per owner day and company.
+    if (p === '/egress/summary') {
+      const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran' }).format(new Date());
+      return json([['TY', 512, 0, 180_000_000, 420, 41], ['FX', 388, 0, 120_000_000, 96, 28], ['PC', 141, 1, 42_000_000, 0, 12], ['HQ', 243, 2, 70_000_000, 30, 19]]
+        .map(([company, requests, blocked, bytes, browser_s, hosts]) => ({ day, company, requests, blocked, bytes, browser_s, hosts })));
+    }
     if (p === '/egress') return json(page(egress));
     if (p === '/tools/mcp') return json(mcp);
     if (p === '/tools/accounts') return json(accounts);

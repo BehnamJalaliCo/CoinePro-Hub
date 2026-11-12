@@ -19,6 +19,8 @@ export type Protocol = {
   sealed_at: string | null; last_run: { at: string; result: 'pass' | 'fail' | 'partial' | 'deferred'; findings: number } | null;
 };
 export type FindingStatus = 'open' | 'acknowledged' | 'fixing' | 'fixed' | 'verified' | 'disputed' | 'closed';
+/** What the owner may set (FindingStatusIn): the rest of the lifecycle is the answerable's. */
+export type FindingStatusIn = 'verified' | 'closed' | 'disputed';
 export type Finding = {
   id: string; ref: string; company: string; protocol: string | null; severity: Severity; title_fa: string; body_md: string;
   evidence: Evidence[]; status: FindingStatus; answerable: Actor; due_at: string; opened_at: string; closed_at: string | null;
@@ -58,7 +60,7 @@ export function useOversightAction() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ['oversight'] });
   return {
-    findingStatus: useMutation({ mutationFn: (v: { ref: string; status: FindingStatus; note: string }) => call<Finding>('POST', `/oversight/findings/${v.ref}/status`, { status: v.status, note: v.note }), onSuccess: done }),
+    findingStatus: useMutation({ mutationFn: (v: { ref: string; status: FindingStatusIn; note: string }) => call<Finding>('POST', `/oversight/findings/${v.ref}/status`, { status: v.status, note: v.note }), onSuccess: done }),
     newOrder: useMutation({ mutationFn: (v: { text_md: string; source: 'voice' | 'text'; file_id?: string | null; applies_to: 'overseer' | 'all' }) => call<StandingOrder>('POST', '/oversight/orders', v), onSuccess: done }),
     sealOrder: useMutation({ mutationFn: async (ref: string) => call<StandingOrder>('POST', `/oversight/orders/${ref}/seal`, {}, { 'X-Step-Up': await stepUp('oversight.order', ref) }), onSuccess: done }),
     retireOrder: useMutation({ mutationFn: (ref: string) => call<StandingOrder>('POST', `/oversight/orders/${ref}/retire`, {}), onSuccess: done }),
@@ -170,12 +172,26 @@ export function useTeachAction() {
 }
 
 // ------------------------------------------------------- egress and MCP --
-export type EgressSummary = { period: string; requests: number; blocked: number; needs_owner: number; bytes_in: number; by_company: Array<{ company: string; requests: number; blocked: number }>; by_tool: Record<string, number> };
+/** The hub's EgressDay: one row per owner day and company. */
+export type EgressDay = { day: string; company: string; requests: number; blocked: number; bytes: number; browser_s: number; hosts: number };
+export type EgressSummary = { requests: number; blocked: number; bytes: number; browser_s: number; by_company: Array<{ company: string; requests: number; blocked: number }> };
+/** GET /egress/summary answers per day and company; the tools page shows the day's totals, summed here. */
+export function sumEgress(rows: EgressDay[]): EgressSummary {
+  const by = new Map<string, { company: string; requests: number; blocked: number }>();
+  const out: EgressSummary = { requests: 0, blocked: 0, bytes: 0, browser_s: 0, by_company: [] };
+  for (const r of Array.isArray(rows) ? rows : []) {
+    out.requests += r.requests; out.blocked += r.blocked; out.bytes += r.bytes; out.browser_s += r.browser_s;
+    const c = by.get(r.company) ?? { company: r.company, requests: 0, blocked: 0 };
+    c.requests += r.requests; c.blocked += r.blocked; by.set(r.company, c);
+  }
+  out.by_company = [...by.values()].sort((a, b) => b.requests - a.requests);
+  return out;
+}
 export type EgressEntry = { id: string; at: string; company: string; actor: string; tool: string; method: string; host: string; status: number; ms: number; blocked_reason: string | null; class: string };
 export type McpServer = { id: string; key: string; title_fa: string; transport: 'http' | 'container'; url: string | null; tools: Array<{ name: string; class: string; enabled: boolean }>; companies: 'all' | string[]; status: 'pending' | 'enabled' | 'disabled'; has_secret: boolean; added_at: string };
 export type ServiceAccount = { id: string; key: string; site: string; title_fa: string; companies: 'all' | string[]; has_secret: boolean; last_used_at: string | null };
 export type ToolInfo = { name: string; class: string; roles: string[]; status: 'on' | 'off' | 'pending'; via: 'gateway' | 'egress' | 'mcp' };
-export const useEgressSummary = () => useQuery({ queryKey: ['tools', 'egress', 'summary'], queryFn: () => call<EgressSummary>('GET', '/egress/summary?period=day'), refetchInterval: 60_000 });
+export const useEgressSummary = () => useQuery({ queryKey: ['tools', 'egress', 'summary'], queryFn: async () => sumEgress(await call<EgressDay[]>('GET', '/egress/summary?period=day')), refetchInterval: 60_000 });
 export const useEgress = () => useQuery({ queryKey: ['tools', 'egress'], queryFn: () => call<{ items: EgressEntry[] }>('GET', '/egress?limit=40') });
 export const useMcp = () => useQuery({ queryKey: ['tools', 'mcp'], queryFn: () => call<McpServer[]>('GET', '/tools/mcp') });
 export const useAccounts = () => useQuery({ queryKey: ['tools', 'accounts'], queryFn: () => call<ServiceAccount[]>('GET', '/tools/accounts') });

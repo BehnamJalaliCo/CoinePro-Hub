@@ -197,6 +197,8 @@ export async function handle32(req: Request, p: string): Promise<Response | null
     if (m === 'POST') {
       const b = await body<any>();
       if (!PERSONAS.some((x) => x.key === b.persona)) return problem(422, 'validation_failed', 'این چهره را نمیشناسم.');
+      // As the hub's TalkConversationIn: a manager needs its role and company.
+      if (b.persona === 'manager' && (!b.role || !b.company)) return problem(422, 'validation_failed', 'برای مدیر، نقش و شرکت لازم است.');
       const mgr = b.persona === 'manager' && b.role && b.company ? `${b.role}@${b.company}` : null;
       const c = newConv(mgr ?? b.persona, mgr ? `گفتگو با ${b.role === 'ceo' ? 'مدیرعامل' : b.role} ${b.company}` : `گفتگوی تازه با ${PERSONAS.find((x) => x.key === b.persona)!.title_fa}`, { mode: b.mode ?? 'consult', started_at: NOW() });
       return json(c, 201);

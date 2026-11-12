@@ -292,6 +292,8 @@ fun AudioPlayer(fileId: String, label: String, compact: Boolean = false) {
         onDispose { player.removeListener(l) }
     }
     LaunchedEffect(playing) { while (playing) { pos = player.currentPosition / 1000.0; delay(150) } }
+    // ⟨2026-11-11⟩ audit: another file in the same place starts from nothing (never the first file's sound)
+    LaunchedEffect(fileId) { if (player.mediaItemCount > 0) { player.stop(); player.clearMediaItems(); pos = 0.0; dur = 0.0 } }
     fun load() { if (player.mediaItemCount == 0) { player.setMediaItem(MediaItem.fromUri(media.url(fileId))); player.prepare() } }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.tile).padding(if (compact) 8.dp else 12.dp).semantics { contentDescription = label },
@@ -333,13 +335,14 @@ fun AudioPlayer(fileId: String, label: String, compact: Boolean = false) {
 
 /** A write-only secret (a key, a sign-in code): masked, left to right, never kept beyond the screen. */
 @Composable
-fun SecretField(value: String, onChange: (String) -> Unit, placeholder: String, label: String, modifier: Modifier = Modifier) {
+fun SecretField(value: String, onChange: (String) -> Unit, placeholder: String, label: String, modifier: Modifier = Modifier, maxLength: Int = 500) {
     val c = Divan.colors
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        // ⟨2026-11-11⟩ audit: [maxLength] (a service account's whole JSON is about 2.3 KB; the hub takes up to 20,000) and pasted lines
         BasicTextField(
-            value, { if (it.length <= 500) onChange(it) },
+            value, { if (it.length <= maxLength) onChange(it) },
             modifier.fillMaxWidth().semantics { contentDescription = label },
-            singleLine = true,
+            singleLine = maxLength <= 500,
             textStyle = Divan.type.figure.copy(color = c.textPrimary),
             cursorBrush = SolidColor(c.goldInk),
             visualTransformation = PasswordVisualTransformation(),

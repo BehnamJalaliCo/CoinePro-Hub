@@ -1,7 +1,7 @@
 'use client';
 
 import { bidi } from '@/components/ui/bidi';
-import { safeHref } from '@/lib/format';
+import { latinNum, safeHref } from '@/lib/format';
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Button } from '@/components/ui/button';
@@ -116,8 +116,8 @@ function SeatsEditor({ s, onClose }: { s: Substitute; onClose: () => void }) {
               <select aria-label={`${r.seat}: مدل`} value={r.model} onChange={(e) => patch(i, { model: e.target.value })} className="fig h-8 rounded-[8px] border border-strong bg-card px-2 text-[12px] text-ink">
                 {s.models.map((m) => <option key={m.id} value={m.id} disabled={!m.available}>{m.label}{m.available ? '' : ' (نیست)'}</option>)}
               </select>
-              <label className="flex items-center gap-1.5 text-sec">در روز<input aria-label={`${r.seat}: سقف روزانه`} value={r.per_day} onChange={(e) => patch(i, { per_day: Number(e.target.value.replace(/\D/g, '') || 0) })} inputMode="numeric" className="fig h-8 w-14 rounded-[8px] border border-strong bg-card px-1 text-center text-ink" /></label>
-              {r.per_day_video != null ? <label className="flex items-center gap-1.5 text-sec">ویدیو<input aria-label={`${r.seat}: سقف ویدیو`} value={r.per_day_video} onChange={(e) => patch(i, { per_day_video: Number(e.target.value.replace(/\D/g, '') || 0) })} inputMode="numeric" className="fig h-8 w-12 rounded-[8px] border border-strong bg-card px-1 text-center text-ink" /></label> : null}
+              <label className="flex items-center gap-1.5 text-sec">در روز<input aria-label={`${r.seat}: سقف روزانه`} value={r.per_day} onChange={(e) => patch(i, { per_day: Number(latinNum(e.target.value).replace(/\D/g, '') || 0) })} inputMode="numeric" className="fig h-8 w-14 rounded-[8px] border border-strong bg-card px-1 text-center text-ink" /></label>
+              {r.per_day_video != null ? <label className="flex items-center gap-1.5 text-sec">ویدیو<input aria-label={`${r.seat}: سقف ویدیو`} value={r.per_day_video} onChange={(e) => patch(i, { per_day_video: Number(latinNum(e.target.value).replace(/\D/g, '') || 0) })} inputMode="numeric" className="fig h-8 w-12 rounded-[8px] border border-strong bg-card px-1 text-center text-ink" /></label> : null}
             </div>
           </li>
         ))}

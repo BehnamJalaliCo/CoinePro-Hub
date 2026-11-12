@@ -59,12 +59,12 @@ export function DepartmentRanks({ company }: { company: string }) {
 
 // ----------------------------------------------------------------- HR round (§21.5) --
 function EmployeeHr({ e }: { e: HrEmployee }) {
-  const drop = e.score_prev != null ? e.score - e.score_prev : null;
+  const drop = e.score != null && e.score_prev != null ? e.score - e.score_prev : null;
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-x-5 gap-y-1">
-        <div className="flex items-end gap-1.5"><span className="text-[28px] font-semibold leading-none">{faDecimal(e.score)}</span><span className="pb-0.5 text-[11px] text-muted">از ۱۰</span></div>
-        {drop != null ? <span className={cx('pb-0.5 text-[12px]', drop <= -1.5 ? 'text-warn' : drop >= 0 ? 'text-pos' : 'text-sec')}>{drop >= 0 ? '▲' : '▼'} {faDecimal(Math.abs(drop))} از ماه قبل ({faDecimal(e.score_prev!)})</span> : <span className="pb-0.5 text-[12px] text-muted">ماه اول</span>}
+        <div className="flex items-end gap-1.5"><span className="text-[28px] font-semibold leading-none">{e.score != null ? faDecimal(e.score) : '—'}</span><span className="pb-0.5 text-[11px] text-muted">از ۱۰</span></div>
+        {drop != null ? <span className={cx('pb-0.5 text-[12px]', drop <= -1.5 ? 'text-warn' : drop >= 0 ? 'text-pos' : 'text-sec')}>{drop >= 0 ? '▲' : '▼'} {faDecimal(Math.abs(drop))} از ماه قبل ({faDecimal(e.score_prev!)})</span> : <span className="pb-0.5 text-[12px] text-muted">{e.score == null ? 'هنوز امتیازی نیست' : 'ماه اول'}</span>}
       </div>
       <dl className="grid grid-cols-3 gap-1.5 text-[11px]">
         <div className="flex flex-col rounded-[8px] bg-tile p-2"><dt className="text-muted">ستاره</dt><dd className="text-[13px] font-semibold text-ink">{e.stars != null ? faDecimal(e.stars) : '—'}</dd></div>

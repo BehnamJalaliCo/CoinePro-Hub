@@ -302,10 +302,10 @@ const feedback: any[] = [
 
 // ---------------------------------------------------------------------- intake --
 const intake: any[] = [
-  { company: 'TY', kind: 'telegram', configured: true, last_event_at: iso(3), events_24h: 182, rejected_24h: 2 },
+  { company: 'TY', kind: 'telegram', channel: 'telegram_business', configured: true, last_event_at: iso(3), events_24h: 182, rejected_24h: 2 },
   { company: 'TY', kind: 'product', configured: false, last_event_at: null, events_24h: 0, rejected_24h: 0 },
   { company: 'TY', kind: 'chatwoot', configured: false, last_event_at: null, events_24h: 0, rejected_24h: 0 },
-  { company: 'FX', kind: 'telegram', configured: true, last_event_at: iso(60 * 2), events_24h: 41, rejected_24h: 0 },
+  { company: 'FX', kind: 'telegram', channel: 'telegram_bot', configured: true, last_event_at: iso(60 * 2), events_24h: 41, rejected_24h: 0 },
   { company: 'FX', kind: 'product', configured: false, last_event_at: null, events_24h: 0, rejected_24h: 0 },
   { company: 'PC', kind: 'telegram', configured: true, last_event_at: null, events_24h: 0, rejected_24h: 0 },
 ];
@@ -382,7 +382,8 @@ export async function handle16(req: Request, p: string, u: URL): Promise<Respons
       return json(await fill(kbArticles.filter((a) => (!q('company') || a.company === q('company')) && (!q('kind') || a.kind === q('kind')) && (!q('status') || a.status === q('status'))
         && (!text || `${a.ref} ${a.question_fa} ${a.answer_md} ${a.variants.join(' ')} ${a.key ?? ''}`.includes(text))), (a) => a.answer_md));
     }
-    if (p === '/support/shadow') return json(shadow);
+    // The hub's field is `pass_` (only the decision card's payload says `pass`).
+    if (p === '/support/shadow') return json(shadow.map(({ pass, ...r }) => ({ ...r, pass_: pass })));
     if (p === '/feedback') return json(page(feedback.filter((x) => (!q('company') || x.company === q('company')) && (!q('kind') || x.kind === q('kind')) && (!q('state') || x.state === q('state'))).sort((a, b) => b.count - a.count)));
     if (p === '/intake/sources') return json(intake);
     return null;
@@ -479,7 +480,11 @@ export async function handle16(req: Request, p: string, u: URL): Promise<Respons
     const b = await body<{ company: string; file_id: string }>();
     const r = shadow.find((x) => x.company === b.company);
     const v = r ? Number(r.suite.split('@')[1]) + 1 : 1;
-    return json({ suite: `support-shadow-${b.company}@${v}`, cases: 100 }, 201);
+    // As the hub: /files refuses JSON and CSV types, and an unreadable export is a 201 with state 'failed'.
+    const f = (await import('./mock')).fileRef(b.file_id) as { name?: string; mime?: string } | null;
+    if (f?.mime && f.mime !== 'text/plain') return problem(415, 'unsupported_media_type', 'این نوع فایل پذیرفته نمیشود.');
+    if (f?.name && /empty/i.test(f.name)) return json({ id: `hi-${v}`, company: b.company, state: 'failed', format: 'csv', pairs_found: 0, cases_kept: null, topics: {}, suite: null, error: 'no question and answer pairs' }, 201);
+    return json({ id: `hi-${v}`, company: b.company, state: 'done', format: f?.name?.endsWith('.csv') ? 'csv' : 'telegram_json', pairs_found: 140, cases_kept: 100, topics: {}, suite: `support-shadow-${b.company}@${v}`, error: null }, 201);
   }
   const sr = /^\/support\/shadow\/([A-Z0-9]+)\/run$/.exec(p);
   if (sr) {
@@ -527,9 +532,12 @@ export async function handle16(req: Request, p: string, u: URL): Promise<Respons
     return json(x);
   }
   if (p === '/intake/sources') {
-    const b = await body<{ company: string; kind: string; allowed_ips: string[]; kinds: string[] }>();
-    let s = intake.find((x) => x.company === b.company && x.kind === b.kind);
-    if (!s) { s = { company: b.company, kind: b.kind, configured: false, last_event_at: null, events_24h: 0, rejected_24h: 0 }; intake.push(s); }
+    const b = await body<{ company: string; kind: string; channel?: string; allowed_ips: string[]; kinds: string[] }>();
+    // As the hub: a Telegram source names its channel.
+    if (b.kind === 'telegram' && b.channel !== 'telegram_bot' && b.channel !== 'telegram_business') return problem(422, 'validation_failed', 'کانال تلگرام لازم است.');
+    const channel = b.kind === 'telegram' ? b.channel : b.kind === 'chatwoot' ? 'chatwoot' : null;
+    let s = intake.find((x) => x.company === b.company && x.kind === b.kind && (x.channel ?? null) === channel);
+    if (!s) { s = { company: b.company, kind: b.kind, channel, configured: false, last_event_at: null, events_24h: 0, rejected_24h: 0 }; intake.push(s); }
     return json(s, 201);
   }
   return null;

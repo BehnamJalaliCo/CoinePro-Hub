@@ -433,11 +433,14 @@ class Api(
             override fun contentType() = mime.toMediaType()
             override fun contentLength() = size
             override fun writeTo(sink: BufferedSink) {
-                open().use { input ->
+                // ⟨2026-11-11⟩ audit: anything the opener or the read throws reaches the call as an IOException (on OkHttp's thread any
+                // other exception would end the app)
+                val stream = try { open() } catch (e: IOException) { throw e } catch (e: Exception) { throw IOException("unreadable", e) }
+                stream.use { input ->
                     val buf = ByteArray(64 * 1024)
                     var sent = 0L
                     while (true) {
-                        val n = input.read(buf)
+                        val n = try { input.read(buf) } catch (e: IOException) { throw e } catch (e: Exception) { throw IOException("unreadable", e) }
                         if (n < 0) break
                         sink.write(buf, 0, n)
                         sent += n
@@ -674,7 +677,8 @@ class Api(
     suspend fun incidents(company: String? = null, open: Boolean? = null): List<Incident> = get("/ops/incidents", mapOf("company" to company, "open" to open, "limit" to 100))
     /** One company's list replaced as a whole (§16.6): left-out URLs are switched off, never deleted. Sealed on the body. */
     suspend fun putSites(company: String, sites: List<SiteIn>, stepUp: suspend (target: String) -> String): List<Site> {
-        val text = json.encodeToString(SitesBody.serializer(), SitesBody(company, sites))
+        // ⟨2026-11-11⟩ audit: every field written (a default left out was the hub's own default, 300 s, not the app's)
+        val text = jsonDefaults.encodeToString(SitesBody.serializer(), SitesBody(company, sites))
         return send("PUT", "/ops/sites", text, stepUp = stepUp(sha256(text)))
     }
     /** A new company (§3.1), sealed on its code. */
@@ -1256,8 +1260,11 @@ class Api(
     suspend fun link(ref: String, kind: String, to: LinkTarget): ArchiveRecord =
         post("/archive/records/${seg(ref)}/links", buildJsonObject { put("kind", kind); put("to", buildJsonObject { put("kind", to.kind); put("ref", to.ref) }) })
     /** Removes an unsealed link, named in the query. */
-    suspend fun unlink(ref: String, kind: String, to: LinkTarget): ArchiveRecord =
-        call(Request.Builder().url(url("/archive/records/${seg(ref)}/links", mapOf("kind" to kind, "to_kind" to to.kind, "to_ref" to to.ref))).delete().build(), serializer())
+    /** ⟨2026-11-11⟩ audit: the hub answers 204 with no body; the record is read again. */
+    suspend fun unlink(ref: String, kind: String, to: LinkTarget): ArchiveRecord {
+        execute(Request.Builder().url(url("/archive/records/${seg(ref)}/links", mapOf("kind" to kind, "to_kind" to to.kind, "to_ref" to to.ref))).delete().build()).use { check(it) }
+        return record(ref)
+    }
     /** Owner: one draft per file for the archivist to classify. */
     suspend fun importFiles(scope: String, fileIds: List<String>, cls: String? = null): List<ArchiveRecord> =
         decodeList(post<JsonElement>("/archive/import", buildJsonObject { put("scope", scope); put("file_ids", ids(fileIds)); if (cls != null) put("class", cls) }), ArchiveRecord.serializer(), path = "POST /archive/import")
@@ -1329,7 +1336,7 @@ class Api(
         val req = write("POST", "/infra/servers/${seg(id)}/map", JsonObject(emptyMap()), null)
         return execute(req).use { r ->
             check(r)
-            val text = r.body.string()
+            val text = bodyOf(r)
             if (r.code == 202 || text.isBlank()) null else ServerMaps.parse(runCatching { json.parseToJsonElement(text) }.getOrNull())
         }
     }
@@ -1427,7 +1434,7 @@ class Api(
             else -> url(url)
         }
         if (target.host != base.host) throw ApiException(422, "validation_failed", "این نشانی بیرون از هاب است؛ اپ آن را باز نمیکند.")
-        return execute(Request.Builder().url(target).get().header("Accept", "text/plain, application/json").build()).use { r -> check(r); r.body.string() }
+        return execute(Request.Builder().url(target).get().header("Accept", "text/plain, application/json").build()).use { r -> check(r); bodyOf(r) }
     }
 
     // ------------------------------------------------- ⟨1.11⟩ §29 the business --
@@ -1466,7 +1473,8 @@ class Api(
 
     /** §29.3 🔏 a new version of a rule (`rule.seal` on the ref). */
     suspend fun putRule(ref: String, text: String, stepUp: StepUp): OwnerRule {
-        val body = json.encodeToString(JsonElement.serializer(), buildJsonObject { put("text", text); put("text_md", text) })
+        // ⟨2026-11-11⟩ audit: `RuleEdit` takes `text_md` (and `applies_to`) only; any other key is refused
+        val body = json.encodeToString(JsonElement.serializer(), buildJsonObject { put("text_md", text) })
         return send("PUT", "/rules/${seg(ref)}", body, stepUp = stepUp("rule.seal", ref))
     }
 
@@ -1611,13 +1619,22 @@ class Api(
     suspend fun previewKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int? = null): KitPreview =
         post("/companies/from-kit/preview", kitBody(kit, code, nameFa, nameEn, colorIndex))
     /** 🔏 `company.create` on the new company's code. */
-    suspend fun createFromKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?, stepUp: StepUp): KitResult =
-        post("/companies/from-kit", kitBody(kit, code, nameFa, nameEn, colorIndex), stepUp("company.create", code))
+    /** 🔏 `company.create`, bound to the SHA-256 of the exact body (⟨2026-11-11⟩ audit: never to the code). */
+    suspend fun createFromKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?, stepUp: StepUp): KitResult {
+        val text = json.encodeToString(JsonElement.serializer(), kitBody(kit, code, nameFa, nameEn, colorIndex))
+        val token = stepUp("company.create", sha256(text))
+        return call(
+            Request.Builder().url(url("/companies/from-kit")).post(text.toRequestBody(JSON))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).header("X-Step-Up", token).build(),
+            serializer(),
+        )
+    }
 
     suspend fun newsletter(code: String): Newsletter = get("/companies/${seg(code)}/newsletter")
-    suspend fun newNewsletter(code: String, list: String, subject: String, subjectB: String?, bodyMd: String): NlCampaign =
+    /** ⟨2026-11-11⟩ audit: as `NewsletterCampaignIn` takes it: `subject`, `body` (markdown), `list_id` (the hub has no second subject). */
+    suspend fun newNewsletter(code: String, list: String, subject: String, bodyMd: String): NlCampaign =
         post("/companies/${seg(code)}/newsletter/campaigns", buildJsonObject {
-            put("list", list); put("subject", subject); if (!subjectB.isNullOrBlank()) put("subject_b", subjectB); put("body_md", bodyMd)
+            put("subject", subject); put("body", bodyMd); put("content_type", "markdown"); if (list.isNotBlank()) put("list_id", list)
         })
     /** A list over its size limit is 🔏 `newsletter.send` on the campaign (the caller passes [stepUp] when the list is over). */
     suspend fun scheduleNewsletter(id: String, at: String, stepUp: StepUp? = null): NlCampaign =
@@ -1659,10 +1676,14 @@ class Api(
         return if (id == null) post("/companies/${seg(code)}/ad-rules", body)
         else send("PUT", "/companies/${seg(code)}/ad-rules/${seg(id)}", jsonBody.encodeToString(JsonObject.serializer(), body), stepUp = token)
     }
-    suspend fun deleteAdRule(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/ad-rules/${seg(id)}")).delete().build()).use { check(it) } }
-    /** 🔏 `ads.resume` on `platform/id`. */
+    /** 🔏 `ads.cap` on the rule (⟨2026-11-11⟩ audit: the hub always asks for it on a delete). */
+    suspend fun deleteAdRule(code: String, id: String, stepUp: StepUp) {
+        val token = stepUp("ads.cap", id)
+        execute(Request.Builder().url(url("/companies/${seg(code)}/ad-rules/${seg(id)}")).delete().header("X-Step-Up", token).build()).use { check(it) }
+    }
+    /** 🔏 `ads.resume` on `platform:id` (⟨2026-11-11⟩ audit: the hub's own target). */
     suspend fun resumeAd(platform: String, id: String, stepUp: StepUp): AdCampaign =
-        post("/ads/campaigns/${seg(platform)}/${seg(id)}/resume", JsonObject(emptyMap()), stepUp("ads.resume", "$platform/$id"))
+        post("/ads/campaigns/${seg(platform)}/${seg(id)}/resume", JsonObject(emptyMap()), stepUp("ads.resume", "$platform:$id"))
 
     suspend fun automations(): List<GrowthAutomation> = items("/automations", GrowthAutomation.serializer())
     suspend fun automation(ref: String): GrowthAutomation = get("/automations/${seg(ref)}")
@@ -1689,7 +1710,7 @@ class Api(
     private suspend fun writeLoose(method: String, path: String, body: JsonElement, stepUp: String? = null, key: String? = null): JsonObject? =
         execute(write(method, path, body, stepUp, key)).use { r ->
             check(r)
-            val t = r.body.string()
+            val t = bodyOf(r)
             if (t.isBlank()) null else runCatching { json.parseToJsonElement(t) as? JsonObject }.getOrNull()
         }
 
@@ -2031,7 +2052,7 @@ class Api(
     private suspend fun request(method: String, path: String): JsonObject? =
         execute(Request.Builder().url(url(path)).method(method, null).build()).use { r ->
             check(r)
-            val t = r.body.string()
+            val t = bodyOf(r)
             if (t.isBlank()) null else runCatching { json.parseToJsonElement(t) as? JsonObject }.getOrNull()
         }
 
@@ -2049,9 +2070,20 @@ class Api(
             }
             .build()
 
+    /** ⟨2026-11-11⟩ audit: a body cut off while it is read is the app's own offline error (an ApiException the screens catch), never a raw
+     *  IOException that escapes their coroutines. */
+    private fun bodyOf(r: Response): String = try {
+        r.body.string()
+    } catch (e: IOException) {
+        hub?.transient()
+        throw ApiException.offline().also {
+            it.logged = failures?.record(ApiFailure("network", r.request.method, r.request.url.encodedPath, null, "network_error", e::class.simpleName, r.header("X-Request-Id") ?: r.request.header(REQUEST_ID), durationMs = elapsed(r)))
+        }
+    }
+
     private suspend fun <T> call(request: Request, s: KSerializer<T>, via: OkHttpClient = client): T = execute(request, via).use { r ->
         check(r)
-        val text = r.body.string()
+        val text = bodyOf(r)
         try {
             json.decodeFromString(s, text)
         } catch (e: IllegalArgumentException) {
@@ -2062,7 +2094,8 @@ class Api(
 
     private fun check(r: Response) {
         if (r.isSuccessful) return
-        if (r.code == 401) expire()
+        // ⟨2026-11-11⟩ audit: a passkey or step-up ceremony's own 401 (an expired challenge) is its answer, not the end of the session
+        if (r.code == 401 && !r.request.url.encodedPath.let { it.contains("/auth/passkey/") || it.contains("/auth/step-up/") }) expire()
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         val rid = p?.requestId ?: r.header("X-Request-Id") ?: r.request.header(REQUEST_ID)
         val logged = failures?.record(
@@ -2192,6 +2225,9 @@ class Api(
          *  a sampled red line's `patterns: null`, an enabled meeting type): the same wire format, every field written. */
         @OptIn(ExperimentalSerializationApi::class)
         val jsonBody = Json(json) { explicitNulls = true; encodeDefaults = true }
+
+        /** ⟨2026-11-11⟩ Every value written, a null left out (a site's `expect` it has not got takes the hub's default). */
+        val jsonDefaults = Json(json) { encodeDefaults = true }
     }
 }
 

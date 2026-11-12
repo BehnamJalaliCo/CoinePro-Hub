@@ -7,7 +7,8 @@ import { DecisionDetail } from '@/components/cartable/decision-detail';
 import { BatchSeal } from '@/components/v17/cartable';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Segmented, Skeleton } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/overlay';
-import { useDecision, useDecisions, type DecisionFilter } from '@/lib/api/hooks';
+import { useDecision, useDecisionPages, type DecisionFilter } from '@/lib/api/hooks';
+import { Button } from '@/components/ui/button';
 import { useScope } from '@/lib/scope';
 import { SealCards, useServerSeals } from '@/components/v26/bits';
 import { SERVER_DESTRUCTIVE } from '@/lib/api/v26';
@@ -40,10 +41,10 @@ function CartableInner() {
   // itself (`?sort=impact`: the largest impact per 30 days first, the cards without one last); the generated types predate the parameter.
   const [sort, setSort] = useState<'expiry' | 'oldest' | 'newest' | 'impact'>('expiry');
   const byImpact = sort === 'impact' && tab === 'pending';
-  const q = useDecisions({ status: tab, company: company ? [company] : undefined, risk: (risk ?? undefined) as never, ...(byImpact ? { sort: 'impact' } : {}) } as DecisionFilter);
+  const q = useDecisionPages({ status: tab, company: company ? [company] : undefined, risk: (risk ?? undefined) as never, ...(byImpact ? { sort: 'impact' } : {}) } as DecisionFilter);
   const items = useMemo(() => {
     // ⟨1.8⟩ §26.3: a server's destructive command stands above as its own card, with its command and its seal.
-    const xs = (q.data?.items ?? []).filter((d) => tab !== 'pending' || d.kind !== SERVER_DESTRUCTIVE);
+    const xs = (q.data?.pages.flatMap((p) => p.items) ?? []).filter((d) => tab !== 'pending' || d.kind !== SERVER_DESTRUCTIVE);
     const t = (s: string | null | undefined, empty: number) => (s ? new Date(s).getTime() : empty);
     if (byImpact) return xs; // the hub's order
     if (sort === 'expiry') xs.sort((a, b) => t(a.expires_at, Infinity) - t(b.expires_at, Infinity) || t(a.created_at, 0) - t(b.created_at, 0));
@@ -72,6 +73,8 @@ function CartableInner() {
         : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : !items.length ? <Empty icon="seal" title={tab === 'pending' ? 'چیزی منتظر مُهر تو نیست' : 'موردی نیست'} body={tab === 'pending' ? 'وقتی مدیرعامل‌ها یا مدیرها چیزی پیشنهاد کنند، این‌جا میاید.' : undefined} />
         : items.map((d) => <DecisionRow key={d.ref} d={d} selected={d.ref === selected} onSelect={() => select(d.ref)} />)}
+      {/* More than one page: the order above covers what is loaded; the rest comes with «بیشتر». */}
+      {q.hasNextPage ? <Button variant="text" size="sm" className="m-1 self-center" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>تصمیم‌های بیشتر</Button> : null}
     </Card>
   );
 
@@ -113,7 +116,7 @@ function CartableInner() {
         <>
           {list}
           <Sheet open={!!selected} onOpenChange={(v) => !v && select(null)} title={detail.data?.title ?? 'تصمیم'} width={560}>
-            {detail.data ? <DecisionDetail key={detail.data.ref} d={detail.data} onDone={() => select(null)} /> : <Skeleton className="h-64" />}
+            {detail.error ? <ErrorState error={detail.error} onRetry={() => detail.refetch()} /> : detail.data ? <DecisionDetail key={detail.data.ref} d={detail.data} onDone={() => select(null)} /> : <Skeleton className="h-64" />}
           </Sheet>
         </>
       )}

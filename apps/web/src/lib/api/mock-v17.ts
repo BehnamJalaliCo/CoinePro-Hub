@@ -374,8 +374,8 @@ const knowledge: any[] = [
   ke({ ref: 'K-0009', layer: 'department', company: 'FX', department: 'QUANT', kind: 'playbook', title_fa: 'بازآموزی مدل پس از تغییر رژیم نوسان', body_md: '1. افت دقت ۷ روزه بیش از 5 واحد: بررسی رژیم.\n2. وزن LSTM کم میشود.\n3. سیگنال‌ها تا بازآموزی بدون حد ضرر منتشر میشوند.', sources: [src('deliverable', 'O-000029')], valid_until: days(340), status: 'in_review', created_by: agent('FX-QUANT-02', 'پایشگر سیگنال'), created_at: iso(60 * 20), updated_at: iso(60 * 3),
     review: { by: overseer, at: iso(60 * 3), verdict: 'changes', checks: { injection: true, secrets: true, conflicts: false, policy: true }, notes_md: 'مرحله‌ی ۳ با پیش‌نویس الحاقیه‌ی FX («سیگنال بی‌حد ضرر منتشر نمیشود») تناقض دارد؛ اصلاحش کنید.' } }),
   ke({ ref: 'K-0010', layer: 'department', company: 'TY', department: 'SALES', kind: 'faq', title_fa: 'جواب پرسش کارمزد برداشت', body_md: 'کارمزد برداشت را صرافی تعیین میکند؛ فقط لینک صفحه‌ی کارمزد LBank داده میشود و عدد از ما گفته نمیشود.', sources: [src('charter', 'TY@2'), src('support_kb', 'KB-0005')], valid_until: days(150), status: 'approved', review: pass(overseer, 60 * 24 * 2), approved_by: ceo('TY'), created_by: agent('TY-SALES-MGR', 'مدیر فروش تریدیار') }),
-  ke({ ref: 'K-0011', layer: 'employee', company: 'TY', department: 'GROWTH', kind: 'fact', title_fa: 'canonical صفحه‌های بلاگ به نشانی خود صفحه', body_md: 'هفت قالب بلاگ و بازار canonical را به صفحه‌ی اصلی میدادند؛ اصلاح در S-0003.', sources: [src('deliverable', 'O-000031')], valid_until: days(80), status: 'approved', created_by: agent('TY-GROWTH-01', 'تحلیلگر سئوی فنی') }),
-  ke({ ref: 'K-0012', layer: 'employee', company: 'FX', department: 'QUANT', kind: 'fact', title_fa: 'افت دقت بعد از خبر اشتغال آمریکا', body_md: 'بعد از هر داده‌ی اشتغال آمریکا، دقت سیگنال‌های طلا برای 30 دقیقه افت میکند.', sources: [src('deliverable', 'O-000029')], valid_until: days(60), status: 'approved', created_by: agent('FX-QUANT-02', 'پایشگر سیگنال') }),
+  ke({ ref: 'K-0011', layer: 'employee', company: 'TY', department: 'GROWTH', kind: 'fact', title_fa: 'canonical صفحه‌های بلاگ به نشانی خود صفحه', body_md: 'هفت قالب بلاگ و بازار canonical را به صفحه‌ی اصلی میدادند؛ اصلاح در S-0003.', sources: [src('deliverable', 'O-000031')], valid_until: null, status: 'approved', created_by: agent('TY-GROWTH-01', 'تحلیلگر سئوی فنی') }),
+  ke({ ref: 'K-0012', layer: 'employee', company: 'FX', department: 'QUANT', kind: 'fact', title_fa: 'افت دقت بعد از خبر اشتغال آمریکا', body_md: 'بعد از هر داده‌ی اشتغال آمریکا، دقت سیگنال‌های طلا برای 30 دقیقه افت میکند.', sources: [src('deliverable', 'O-000029')], valid_until: null, status: 'approved', created_by: agent('FX-QUANT-02', 'پایشگر سیگنال') }),
 ];
 const kHistory = new Map<string, any[]>(); // older versions by ref
 const supportView = () => supportArticles().filter((a) => a.status === 'approved' || a.status === 'expired').map((a) => ({
@@ -753,14 +753,20 @@ export async function handle17(req: Request, p: string, u: URL, ctx: Ctx): Promi
     const deny = needsStepUp(req);
     if (deny) return deny;
     const b = await body<{ types: any[] }>();
+    // As the hub's MeetingTypeIn: extra keys (the GET's `calendar`) are refused; a field left out or null stays as it is.
+    const FIELDS = ['title_fa', 'schedule', 'members', 'max_rounds', 'max_speakers', 'budget_tokens', 'turn_cap_tokens', 'owner_presence', 'model_summary', 'enabled'];
+    for (const t of b.types ?? []) {
+      const extra = Object.keys(t).filter((k) => k !== 'key' && k !== 'version' && !FIELDS.includes(k));
+      if (extra.length) return problem(422, 'validation_failed', `فیلدهای اضافه پذیرفته نمیشود: ${extra.join(', ')}`);
+    }
     for (const t of b.types ?? []) {
       const x = typeOf(t.key);
       if (!x) continue;
-      if (t.max_rounds < 1 || t.max_rounds > 3 || t.max_speakers < 2 || t.max_speakers > 8) return problem(422, 'validation_failed', 'دور بین ۱ و ۳ و سخنگو بین ۲ و ۸ است.');
-      if (t.budget_tokens == null && t.key !== 'war_room') return problem(422, 'validation_failed', 'فقط اتاق جنگ بی‌سقف است.');
+      if ((t.max_rounds != null && (t.max_rounds < 1 || t.max_rounds > 3)) || (t.max_speakers != null && (t.max_speakers < 2 || t.max_speakers > 8))) return problem(422, 'validation_failed', 'دور بین ۱ و ۳ و سخنگو بین ۲ و ۸ است.');
       if (t.version !== x.version) return problem(409, 'version_conflict', 'تنظیمات همین حالا عوض شده؛ دوباره نگاه کن.');
-      const changed = ['max_rounds', 'max_speakers', 'budget_tokens', 'turn_cap_tokens', 'owner_presence', 'enabled'].some((k) => t[k] !== x[k]);
-      Object.assign(x, { max_rounds: t.max_rounds, max_speakers: t.max_speakers, budget_tokens: t.budget_tokens, turn_cap_tokens: t.turn_cap_tokens, owner_presence: t.owner_presence, enabled: t.enabled });
+      const given = FIELDS.filter((k) => t[k] != null);
+      const changed = given.some((k) => t[k] !== x[k]);
+      for (const k of given) x[k] = t[k];
       if (changed) x.version += 1;
     }
     return json(types);
@@ -771,7 +777,9 @@ export async function handle17(req: Request, p: string, u: URL, ctx: Ctx): Promi
     if (hit) return json(hit.body, hit.status);
     const b = await body<{ type: string; company?: string; starts_at: string; items?: Array<{ title_fa: string; brief_md?: string; time_box_min?: number }> }>();
     const t = typeOf(b.type);
-    if (!t || b.type === 'war_room' || b.type === 'standup') return problem(422, 'validation_failed', 'این نوع جلسه را کد باز میکند، نه دست.');
+    // As the hub's MeetingCreateIn: board, company or strategy, and an item's keys are title_fa, brief_md, sources, companies.
+    if (!t || !['board', 'company', 'strategy'].includes(b.type)) return problem(422, 'validation_failed', 'این نوع جلسه را کد باز میکند، نه دست.');
+    if ((b.items ?? []).some((x) => Object.keys(x).some((k) => !['title_fa', 'brief_md', 'sources', 'companies'].includes(k)))) return problem(422, 'validation_failed', 'فیلد اضافه در دستورها پذیرفته نمیشود.');
     const company = b.type === 'company' || b.type === 'postmortem' ? b.company : 'HQ';
     if (!company) return problem(422, 'validation_failed', 'شرکت را انتخاب کن.');
     const speakers = b.type === 'company' || b.type === 'postmortem' ? [ceo(company), tech(company), inspector] : [...OPERATING.map(ceo), inspector].slice(-t.max_speakers);

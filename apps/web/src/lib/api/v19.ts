@@ -64,7 +64,7 @@ export type RoleDraft = {
   review: { by: Actor; verdict: 'pass' | 'changes' | 'reject'; checks: RoleChecks; sha256: string } | null;
   eval_run: EvalRun | null; approver: Actor | null; decision_ref: string | null; version: number; created_at: string; activated_at: string | null;
   // assumed: who asked and what, what the manager compared, the rule-based originality check, hires on it, when it was retired
-  brief_md?: string | null; requested_by?: Actor | null; written_by?: Actor | null; compared?: string[];
+  brief_md?: string | null; requested_by?: Actor | null; /** The hub sends the writer's employee code. */ written_by?: string | Actor | null; compared?: string[];
   originality?: { ok: boolean; closest: string | null; note_fa: string | null } | null; hires?: number; retired_at?: string | null; state_note_fa?: string | null;
 };
 export const useRoleDrafts = (f: { company?: string | null; department?: string | null; state?: RoleDraftState | null } = {}) =>

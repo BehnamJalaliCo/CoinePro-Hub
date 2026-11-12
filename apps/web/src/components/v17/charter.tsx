@@ -155,11 +155,15 @@ export function CharterEditor({ scope, from, name, onClose }: { scope: string; f
   const act = useCharterAction();
   const toast = useToast();
   const [body, setBody] = useState(from?.body_md ?? '');
-  const [lines, setLines] = useState<RedLine[]>(from?.red_lines ?? []);
+  // `text`: the patterns box as typed (a trailing Enter, a blank line in progress); the patterns are read from it on save.
+  const [lines, setLines] = useState<Array<RedLine & { text?: string }>>(from?.red_lines ?? []);
   const max = charterMax(scope);
   const bad = !body.trim() || body.length > max || lines.some((r) => !r.key.trim() || !r.text_fa.trim());
-  const set = (i: number, p: Partial<RedLine>) => setLines((xs) => xs.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  const save = () => act.propose.mutateAsync({ scope, body_md: body, red_lines: lines.map((r) => ({ ...r, key: r.key.trim(), patterns: r.check === 'rule' && r.patterns?.length ? r.patterns : null })) })
+  const set = (i: number, p: Partial<RedLine & { text: string }>) => setLines((xs) => xs.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  const save = () => act.propose.mutateAsync({ scope, body_md: body, red_lines: lines.map(({ text, ...r }) => {
+    const patterns = (text ?? (r.patterns ?? []).join('\n')).split('\n').map((x) => x.trim()).filter(Boolean);
+    return { ...r, key: r.key.trim(), patterns: r.check === 'rule' && patterns.length ? patterns : null };
+  }) })
     .then((c) => { toast({ tone: 'ok', text: <>نسخه‌ی <span className="fig">{c.version}</span> پیشنهاد شد؛ تا مُهر تو هیچ ایجنتی آن را نمیخواند.</> }); onClose(); })
     .catch((e) => toast({ tone: 'error', text: faError(e) }));
   return (
@@ -184,7 +188,7 @@ export function CharterEditor({ scope, from, name, onClose }: { scope: string; f
               </div>
               <input value={r.text_fa} onChange={(e) => set(i, { text_fa: e.target.value })} placeholder="متن خط قرمز" aria-label="متن خط قرمز" className={cx(field, 'h-10')} />
               {r.check === 'rule' ? (
-                <textarea value={(r.patterns ?? []).join('\n')} onChange={(e) => set(i, { patterns: e.target.value.split('\n').filter((x, k, a) => x.trim() || k < a.length - 1) })} rows={2} dir="ltr" placeholder="الگوها، هر خط یکی" aria-label="الگوها" className={cx(field, 'fig py-2 text-[12px]')} />
+                <textarea value={r.text ?? (r.patterns ?? []).join('\n')} onChange={(e) => set(i, { text: e.target.value })} rows={2} dir="ltr" placeholder="الگوها، هر خط یکی" aria-label="الگوها" className={cx(field, 'fig py-2 text-[12px]')} />
               ) : null}
             </div>
           ))}

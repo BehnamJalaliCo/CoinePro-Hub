@@ -11,7 +11,7 @@ import { ActorAvatar, CoMark, RefChip, ScopeChips } from '@/components/v17/bits'
 import { fileUrl } from '@/lib/api/v13';
 import { faError, useCreative, useCreativeAction, useCreatives, useSettings18, type Creative, type CreativeIn, type CreativeState, type Placement } from '@/lib/api/v18';
 import { useCompanies } from '@/lib/api/hooks';
-import { ago, cx } from '@/lib/format';
+import { ago, cx, latinNum } from '@/lib/format';
 import { ACTOR_FA } from '@/lib/labels';
 import { CREATIVE, PLACEMENT, PlayerName } from './bits';
 
@@ -143,7 +143,7 @@ function NewCreative({ onClose, onMade }: { onClose: () => void; onMade: (ref: s
           <label className="flex items-center gap-2 text-[12px] text-sec"><Switch label="نشان شرکت" checked={mark} onChange={setMark} />نشان شرکت</label>
         </fieldset>
         {kind === 'video' ? (
-          <label className="flex items-center gap-2 font-semibold text-sec">مدت<input value={dur} onChange={(e) => setDur(Math.min(10, Number(e.target.value.replace(/\D/g, '') || 0)))} inputMode="numeric" aria-label="مدت به ثانیه" className="fig h-9 w-16 rounded-[8px] border border-strong bg-card px-2 text-center text-ink" />ثانیه</label>
+          <label className="flex items-center gap-2 font-semibold text-sec">مدت<input value={dur} onChange={(e) => setDur(Math.min(10, Number(latinNum(e.target.value).replace(/\D/g, '') || 0)))} inputMode="numeric" aria-label="مدت به ثانیه" className="fig h-9 w-16 rounded-[8px] border border-strong bg-card px-2 text-center text-ink" />ثانیه</label>
         ) : (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[12px] text-sec">بازیکن:</span>

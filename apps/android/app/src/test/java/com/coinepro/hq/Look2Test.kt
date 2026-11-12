@@ -183,14 +183,38 @@ class Look2Test {
         assertNull(stillOf(o, a.copy(waitingFa = "منتظر تأیید تو"), now))
         // someone works, an outside call among them
         assertNull(stillOf(o, a.copy(working = listOf(SessionWorker(whoFa = "ChatGPT", kind = "call", doingFa = "در صف ChatGPT: پیش‌نویس متن"))), now))
-        // the plan is done
-        assertNull(stillOf(o.copy(tasks = plan(18, 18)), a, now))
+        // every task ticked but the hub has not called it ready (its work never delivered): it still stands, and says so
+        assertNotNull(stillOf(o.copy(tasks = plan(18, 18)), a, now))
         // a stuck badge's reason is the card's sentence, the last work a quiet line under it
         val stuck = stillOf(o.copy(session = SessionState(badge = "stuck", reasonFa = " از 2 ساعت پیش قدمی برداشته نشده ")), a, now)!!
         assertEquals("از 2 ساعت پیش قدمی برداشته نشده", stillSentenceFa(stuck, now))
         assertEquals("آخرین کار: ${lastWords.trimEnd('.')} (دیشب 22:28)", stillLastFa(stuck, now))
         // the mood the page shows then is «ایستاده», a word of its own
         assertEquals("ایستاده", MOOD_FA["still"])
+    }
+
+    @Test
+    fun anOutsideCallPastItsDeadlineIsNoLongerAtWork() {
+        // asked 20 minutes ago with a 15-minute deadline: past it and the two minutes the hub may take to drop it
+        val late = SessionWorker(whoFa = "ChatGPT", kind = "call", capS = 900, startedAt = minAgo(20))
+        val inTime = late.copy(startedAt = minAgo(10))
+        val run = SessionWorker(whoFa = "مدیرعامل پرو-چارت", startedAt = minAgo(30))
+        assertTrue(com.coinepro.hq.core.data.callExpired(late, now))
+        assertFalse(com.coinepro.hq.core.data.callExpired(inTime, now))
+        assertFalse(com.coinepro.hq.core.data.callExpired(run, now))
+        assertFalse(com.coinepro.hq.core.data.callExpired(late.copy(capS = null), now))
+        assertEquals(listOf(inTime, run), com.coinepro.hq.core.data.liveWorkers(listOf(late, inTime, run), now))
+        // with only the expired call left the page reads nobody at work, so the still card can come once the twenty minutes pass
+        val a = quietActivity.copy(working = com.coinepro.hq.core.data.liveWorkers(listOf(late), now))
+        assertNotNull(stillOf(quietOrder, a, now))
+    }
+
+    @Test
+    fun aFailedReadOfTheLiveWorkFallsBackToTheReportAndStillSaysWhenItStands() {
+        // the page reads the activity from the report when the hub's own answer failed: a quiet session still stands
+        val fromReport = com.coinepro.hq.core.data.activityFromReport(quietOrder)
+        assertTrue(fromReport.working.isEmpty())
+        assertNotNull(stillOf(quietOrder, fromReport, now))
     }
 
     @Test

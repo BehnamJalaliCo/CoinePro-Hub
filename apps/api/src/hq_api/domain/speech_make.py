@@ -48,6 +48,7 @@ ROLES: tuple[str, ...] = (
     "video_director",
     "motion_designer",
     "scriptwriter",
+    "ceo",  # ⟨2026-11-12⟩ a media order without a media director is the CEO's (policy media.rego)
 )
 STATE_DAYS = 30  # an answer older than this says nothing about the sign-in
 SIGNED_OUT_HOLD = timedelta(minutes=10)  # a signed-out answer holds new jobs back this long

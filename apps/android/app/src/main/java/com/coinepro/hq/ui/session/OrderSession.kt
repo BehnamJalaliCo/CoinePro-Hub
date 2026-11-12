@@ -66,7 +66,9 @@ import com.coinepro.hq.core.data.briefOf
 import com.coinepro.hq.core.data.chatRows
 import com.coinepro.hq.core.data.isPlayer
 import com.coinepro.hq.core.data.keyPatterns
+import com.coinepro.hq.core.data.isCall
 import com.coinepro.hq.core.data.knotWhy
+import com.coinepro.hq.core.data.liveWorkers
 import com.coinepro.hq.core.data.leadFile
 import com.coinepro.hq.core.data.liveWorkRef
 import com.coinepro.hq.core.data.mergeFetched
@@ -261,9 +263,16 @@ fun OrderSessionScreen(ref: String) {
     // Without the stream (the phone between networks, a hub restarting) the page asks again on its own: often while someone works.
     val streamState by env.stream.state.collectAsStateWithLifecycle()
     val workingNow = live?.working?.isNotEmpty() == true
+    // ⟨2026-11-11⟩ audit: the report and the talk too (a turn or a question that came while the stream was down), and on a hub without
+    // the live work as well
     LaunchedEffect(ref, liveOn, streamState, workingNow) {
-        if (!liveOn || streamState == StreamState.LIVE) return@LaunchedEffect
-        while (true) { delay(if (workingNow) 10_000 else 30_000); aq.refresh() }
+        if (streamState == StreamState.LIVE) return@LaunchedEffect
+        while (true) {
+            delay(if (workingNow) 10_000 else 30_000)
+            if (liveOn) aq.refresh()
+            q.refresh()
+            if (!talk.busy) talk.reload()
+        }
     }
 
     val closed = o?.let(::sessionClosed) == true
@@ -337,6 +346,8 @@ fun OrderSessionScreen(ref: String) {
     val stopOn = served(HubFeature.WORK_STOP)
     val workRef = o?.let(::liveWorkRef)
     var stopped by remember(ref) { mutableStateOf(false) }
+    // ⟨2026-11-11⟩ audit: the hold ends whenever the work is seen at work again (a nudge from anywhere, his word, the hub's own wake)
+    LaunchedEffect(workingNow) { if (workingNow) stopped = false }
     val hold = rememberAction()
     fun holdNow() {
         val w = workRef ?: return
@@ -405,18 +416,26 @@ fun OrderSessionScreen(ref: String) {
     val speaking = talk.phase != Phase.IDLE || talk.liveText.isNotBlank() || talk.liveFailed != null
 
     // ⟨1.23⟩ §41 what is shown of the work: the hub's activity, else (a hub before it) the report read as one.
-    val shown = when {
+    // (⟨2026-11-11⟩ a failed read of the live work falls back to the report, so the page still knows when the session stands still)
+    val read = when {
         o == null || closed -> null
-        liveOn -> live
+        liveOn -> live ?: aq.error?.let { activityFromReport(o) }
         else -> activityFromReport(o)
     }
+    // An outside call past its deadline is no longer at work (the hub may drop it without a word on the stream): looked at every minute
+    val callTick = rememberTicker(60_000, on = read?.working?.any(::isCall) == true)
+    val shown = read?.let { r -> liveWorkers(r.working, callTick).let { w -> if (w.size == r.working.size) r else r.copy(working = w) } }
     val working = shown?.working.orEmpty()
     val now = rememberTicker(1_000, on = working.isNotEmpty())
     val badge = o?.let(::sessionBadge) ?: "moving"
     // ⟨2026-11-11⟩ An open session nobody works on, that the hub has not explained, is «ایستاده» with its own card (looked at again
     // every minute); never «آرام» for hours with nothing to press.
     val minute = rememberTicker(60_000, on = o != null && !closed && working.isEmpty())
-    val still = if (o == null || closed || stopped) null else remember(o, shown, minute) { stillOf(o, shown, minute) }
+    // The report standing in for the live work (a failed read, or a hub before it) cannot see a long quiet turn: while the hub's own
+    // badge says someone is at work, the page does not say nobody is.
+    val reportBusy = read != null && read !== live && badge == "moving" &&
+        o?.session?.reasonFa?.trim()?.startsWith("در حال کار") == true
+    val still = if (o == null || closed || stopped || reportBusy) null else remember(o, shown, minute) { stillOf(o, shown, minute) }
     val mood = if (still != null) "still" else moodOf(shown, closed, badge, asked)
     val pace = paceAsked ?: o?.pace ?: "auto"
 
@@ -429,13 +448,16 @@ fun OrderSessionScreen(ref: String) {
     val waitsOn: Pair<String, FileRef>? = if (ready) outs.firstNotNullOfOrNull { so -> leadFile(so.panel, so.files)?.let { so.ref to it } } else null
     var closeState by remember(ref) { mutableStateOf(DecisionState.IDLE) }
     val bar = (ready && !asked) || closeState != DecisionState.IDLE
-    val closeKey = remember(ref) { UUID.randomUUID().toString() }
+    // One key per press, kept across a retry of the same press; ⟨2026-11-11⟩ audit: a fresh one after a close went through (a session
+    // reopened and closed again is a new close, never the old one replayed).
+    var closeKey by remember(ref) { mutableStateOf(UUID.randomUUID().toString()) }
     fun closeNow() {
         if (closeState != DecisionState.IDLE) return
         closeState = DecisionState.WORKING
         scope.launch {
             try {
                 val out = env.api.closeSession(ref, "ok", null, closeKey)
+                closeKey = UUID.randomUUID().toString()
                 haptics.seal()
                 closeState = DecisionState.DONE
                 q.set(out)

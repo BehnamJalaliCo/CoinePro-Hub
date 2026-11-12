@@ -185,7 +185,7 @@ class LongVoice(
         engine = "hub"
         recording = true
         if (ticker == null) tick()
-        scope.launch {
+        starting = scope.launch {
             if (session == null && !legacy) {
                 session = try {
                     env.api.gated(HubFeature.STT_SESSIONS) { sttStart(purpose) }?.id
@@ -200,6 +200,9 @@ class LongVoice(
             }
         }
     }
+
+    /** ⟨2026-11-11⟩ audit: the hub session on its way; «تمام» or a cancel in that moment stops it (no recorder opens after). */
+    private var starting: kotlinx.coroutines.Job? = null
 
     private fun startChunk(): Boolean {
         val r = VoiceRecorder(env.media.context, dir)
@@ -249,6 +252,13 @@ class LongVoice(
             return
         }
         if (engine != "hub") return
+        // «تمام» while the hub's session is still starting: nothing was recorded on the hub; what the phone heard is the text
+        if (starting?.isActive == true && session == null && !legacy) {
+            starting?.cancel(); starting = null
+            stopTicker(); recording = false; engine = null
+            if (committed.isNotBlank()) done() else { toasts.info("صدایی ضبط نشد؛ دوباره بگو."); reset() }
+            return
+        }
         stopTicker()
         recording = false
         transcribing = true
@@ -264,7 +274,7 @@ class LongVoice(
                 } else {
                     uploads?.join()
                     failedUpload?.let { throw it }
-                    withContext(Dispatchers.IO) { env.api.sttFinish(id!!) }.text
+                    if (id == null) "" else withContext(Dispatchers.IO) { env.api.sttFinish(id) }.text
                 }
                 env.media.hubSpeech = true
                 val text = LongVoiceRules.join(committed, words)
@@ -287,6 +297,7 @@ class LongVoice(
     }
 
     fun cancel() {
+        starting?.cancel(); starting = null
         stopTicker()
         speech.cancel()
         rec?.cancel(); rec = null

@@ -248,13 +248,13 @@ private fun SeriesCard(s: Series, focus: Boolean, onChanged: () -> Unit, onEdit:
             Fact("جای انتشار (فقط API رسمی)") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (t in s.targets) {
-                        val ok = hasKey(t.account)
+                        val ok = t.account?.let { hasKey(it) }
                         Row(
                             Modifier.clip(CircleShape).background(if (ok == false) c.softWarning else c.tile).padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Text(PLACEMENT_FA[t.placement] ?: t.placement, style = Divan.type.caption, color = if (ok == false) c.warning else c.textPrimary)
-                            Fig(t.account, style = Divan.type.figureSmall, color = c.textMuted)
+                            Fig(t.account ?: t.server.orEmpty(), style = Divan.type.figureSmall, color = c.textMuted)
                             if (ok == false) Text("· بی‌کلید", style = Divan.type.micro, color = c.warning)
                             else if (t.placement == "telegram_story") Text("· کارت با فایل", style = Divan.type.micro, color = c.textMuted)
                         }
@@ -354,7 +354,8 @@ private fun ChannelWeek(series: List<Series>) {
             val r = parseRrule(s.schedule) ?: continue
             val days = if (r.freq == "DAILY") DAY_ORDER else r.days
             for (t in s.targets) {
-                val row = m.getOrPut(t.account) { Row7(t.account, s.company, t.channel, mutableListOf()) }
+                val key = t.account ?: t.server.orEmpty()
+                val row = m.getOrPut(key) { Row7(key, s.company, t.channel, mutableListOf()) }
                 for (d in days) row.slots += Slot(d, hhmm(r.hour, r.minute), s)
             }
         }
@@ -463,7 +464,9 @@ fun SeriesEditor(s: Series?, onSaved: (String) -> Unit) {
     val voiceId = if (voice == "active") active?.id else voice
     val timed = kind == "reel" || kind == "story"
     val topics = Topics(pool.lines().map { it.trim() }.filter { it.isNotEmpty() }, topicRule.trim().ifEmpty { null })
-    val ok = company != null && title.trim().length >= 3 && targets.isNotEmpty() && (topics.pool.isNotEmpty() || topics.ruleFa != null) && (rule.freq == "DAILY" || rule.days.isNotEmpty())
+    // ⟨2026-11-11⟩ audit: «صدای فعال هاب» with no active voice (or the voices not read yet) never saves a silent series unseen
+    val noVoice = voice == "active" && active == null
+    val ok = company != null && title.trim().length >= 3 && targets.isNotEmpty() && (topics.pool.isNotEmpty() || topics.ruleFa != null) && (rule.freq == "DAILY" || rule.days.isNotEmpty()) && !noVoice
     val sealedNow = s?.status == "sealed" || s?.status == "paused"
     fun pickKind(k: String) {
         val a = KIND_ASPECTS.getValue(k).first()
@@ -506,7 +509,7 @@ fun SeriesEditor(s: Series?, onSaved: (String) -> Unit) {
                         DIcon(if (on) DivanIcon.SEAL else DivanIcon.ADD, size = 16.dp, tint = if (on) c.textPrimary else c.textSecondary)
                         Column(Modifier.weight(1f)) {
                             Text(fa, style = Divan.type.small, color = c.textPrimary)
-                            Fig(t.account, style = Divan.type.figureSmall, color = c.textMuted)
+                            Fig(t.account ?: t.server.orEmpty(), style = Divan.type.figureSmall, color = c.textMuted)
                         }
                         if (why != null) Text(why, style = Divan.type.micro, color = c.textMuted)
                         else if (p == "telegram_story") Text("Bot API ندارد: همیشه کارت با فایل".let(::prose), Modifier.width(120.dp), style = Divan.type.micro, color = c.textMuted)
@@ -551,6 +554,7 @@ fun SeriesEditor(s: Series?, onSaved: (String) -> Unit) {
                     for (v in voices.data.orEmpty().filter { it.heard.isNotEmpty() }) Chip(voice == v.id, { voice = v.id }) { ink -> Text(prose(v.nameFa), style = Divan.type.small, color = ink, maxLines = 1) }
                 }
                 voices.data?.firstOrNull { it.id == voiceId }?.let { LicenceBadge(it.licenceCommercial, it.licence) }
+                if (noVoice) Text(if (voices.data == null) "صداهای هاب هنوز خوانده نشده؛ یک لحظه صبر کن." else "هاب الان صدای فعالی ندارد؛ یک صدا انتخاب کن یا بی‌صدا بساز.", style = Divan.type.caption, color = c.warning)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HqSwitch(captions, { captions = it }, "زیرنویس فارسی سوخته")
                     Text("زیرنویس فارسی سوخته", style = Divan.type.small, color = c.textSecondary)

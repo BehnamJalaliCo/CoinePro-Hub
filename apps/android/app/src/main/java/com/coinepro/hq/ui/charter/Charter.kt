@@ -332,7 +332,7 @@ private fun CharterEditor(scope: String, from: Charter?, onClose: () -> Unit) {
                     }
                     HqTextField(r.textFa, { lines[i] = r.copy(textFa = it) }, "متن خط قرمز", Modifier.fillMaxWidth(), maxLength = 300)
                     if (r.check == "rule") CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        HqTextField(r.patterns.orEmpty().joinToString("\n"), { v -> lines[i] = r.copy(patterns = v.split('\n').let { xs -> xs.filterIndexed { k, x -> x.isNotBlank() || k < xs.size - 1 } }) }, "الگوها، هر خط یکی", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, figure = true)
+                        HqTextField(r.patterns.orEmpty().joinToString("\n"), { v -> lines[i] = r.copy(patterns = v.split('\n').let { xs -> xs.filterIndexed { k, x -> x.isNotBlank() || k == xs.size - 1 } }) }, "الگوها، هر خط یکی", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, figure = true)
                     }
                 }
             }

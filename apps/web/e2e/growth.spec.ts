@@ -42,6 +42,9 @@ test('a company is made from a kit: preview, seal, and what is left to connect',
     await page.getByRole('button', { name: 'پیش‌نمایش' }).click();
     const prev = page.getByLabel('پیش‌نمایش', { exact: true });
     await expect(prev.getByText('ریلز آموزشی')).toBeVisible();
+    await expect(prev.getByText(/کارگروه: تولید و انتشار/)).toBeVisible();
+    await expect(prev.getByText(/اینستاگرام، تلگرام/)).toBeVisible();
+    await expect(prev).not.toContainText('[object Object]');
     await prev.getByRole('button', { name: 'بساز و مُهر کن' }).click();
     const res = page.getByLabel('شرکت ساخته شد');
     await expect(res.getByText('شرکت «نوآ» ساخته شد')).toBeVisible();
@@ -73,6 +76,8 @@ test('SEO keeps keywords and competitors, with a rank chart', async ({ page }) =
     await page.getByLabel('سایت', { exact: true }).first().fill('tradeyar.ir');
     await page.getByRole('button', { name: 'اضافه کن' }).click();
     await expect(page.getByLabel('کلیدواژه ریسک مدیریت')).toBeVisible();
+    await page.getByRole('switch', { name: 'فعال بودن ریسک مدیریت' }).click();
+    await expect(page.getByRole('switch', { name: 'فعال بودن ریسک مدیریت' })).not.toBeChecked();
     await page.getByRole('button', { name: 'حذف ریسک مدیریت' }).click();
     await expect(page.getByLabel('کلیدواژه ریسک مدیریت')).toHaveCount(0);
     const t = page.getByRole('table', { name: 'رقبا و عددهایشان' });
@@ -114,9 +119,13 @@ test('a campaign paused by a rule is resumed behind the passkey; rules can be ad
     await expect(c.getByText('فعال', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'قاعده‌ی تازه' }).click();
     const f = page.getByLabel('مشخصات قاعده');
+    await f.getByRole('radio', { name: 'متا ادز' }).click();
     await f.getByLabel('دامنه (account یا شناسه‌ی کمپین)').fill('M1');
+    await f.getByLabel('کمترین ROAS').fill('۱٫۵');
     await f.getByRole('button', { name: 'ذخیره' }).click();
-    await expect(page.getByLabel('قاعده M1')).toBeVisible();
+    await expect(page.getByLabel('قاعده M1')).toContainText('1.5');
+    await page.getByRole('switch', { name: 'روشن بودن قاعده‌ی M1' }).click();
+    await expect(page.getByRole('switch', { name: 'روشن بودن قاعده‌ی M1' })).not.toBeChecked();
   });
 });
 
@@ -134,7 +143,9 @@ test('one sentence becomes an automation: preview, seal, then on and off', async
     await row.getByRole('switch').click();
     await expect(row.getByText('خاموش', { exact: true })).toBeVisible();
     await page.getByLabel('اتوماسیون AT-0001').getByRole('button').first().click();
-    await expect(page.getByLabel('اجراها').getByText('خبر برای مالک فرستاده شد.')).toBeVisible();
+    const runs = page.getByLabel('اجراها');
+    await expect(runs.getByText('انجام شد', { exact: true })).toBeVisible();
+    await expect(runs.getByText('بازدید دیروز خوانده نشد.')).toBeVisible();
   });
 });
 

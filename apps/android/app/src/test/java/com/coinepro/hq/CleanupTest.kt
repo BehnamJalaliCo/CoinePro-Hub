@@ -289,7 +289,10 @@ class CleanupTest {
         val e = runCatching { api.gated(HubFeature.CATALOGUE) { catalogue("TY") } }.exceptionOrNull() as ApiException
         assertFalse(e.routeMissing)
         assertTrue(api.gaps.has(HubFeature.CATALOGUE))
-        assertTrue(ApiException(404, "not_found", "پیدا نشد.").routeMissing)
+        // ⟨2026-11-11⟩ audit: the hub's own `not_found` has no detail at all (a row that is not there): not a missing route either
+        assertFalse(ApiException(404, "not_found", "پیدا نشد.").routeMissing)
+        assertTrue(ApiException(404, "not_found", "پیدا نشد.", detail = "Not Found").routeMissing)
+        assertTrue(ApiException.unexpected(404).routeMissing)
         assertFalse(ApiException(409, "conflict", "x").routeMissing)
     }
 

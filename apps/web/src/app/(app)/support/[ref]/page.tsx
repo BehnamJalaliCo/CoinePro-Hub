@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useState } from 'react';
+import { use, useRef, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
   return <span className={cx('inline-flex items-center gap-1', ok ? 'text-pos' : 'text-neg')}><Icon name={ok ? 'seal' : 'urgent'} size={12} />{label}</span>;
 }
 
-function Bubble({ m, onEdit, onTeach, onSend }: { m: SupportMessage; onEdit: (m: SupportMessage) => void; onTeach: (m: SupportMessage) => void; onSend: (m: SupportMessage) => void }) {
+function Bubble({ m, onEdit, onTeach, onSend, sending }: { m: SupportMessage; onEdit: (m: SupportMessage) => void; onTeach: (m: SupportMessage) => void; onSend: (m: SupportMessage) => void; sending: boolean }) {
   const inbound = m.direction === 'in';
   const st = MSG_STATUS[m.status] ?? { fa: m.status, tone: 'neutral' as const };
   const pending = !inbound && (m.status === 'draft' || m.status === 'blocked');
@@ -41,7 +41,7 @@ function Bubble({ m, onEdit, onTeach, onSend }: { m: SupportMessage; onEdit: (m:
         {m.status === 'blocked' ? <GuardReasons reasons={m.blocked_reasons} className="w-full" /> : null}
         {pending ? (
           <div className="flex flex-wrap gap-2">
-            {m.status === 'draft' ? <Button size="sm" variant="secondary" icon="send" onClick={() => onSend(m)}>همین را بفرست</Button> : null}
+            {m.status === 'draft' ? <Button size="sm" variant="secondary" icon="send" loading={sending} disabled={sending} onClick={() => onSend(m)}>همین را بفرست</Button> : null}
             <Button size="sm" variant="secondary" icon="edit" onClick={() => onEdit(m)}>اصلاح و فرستادن</Button>
             <Button size="sm" variant="text" icon="learning" onClick={() => onTeach(m)}>آموزش با این</Button>
           </div>
@@ -68,6 +68,9 @@ export default function ConversationPage({ params }: { params: Promise<{ ref: st
   const [from, setFrom] = useState<SupportMessage | null>(null);
   const [general, setGeneral] = useState(true);
   const [teachReasons, setTeachReasons] = useState<string[]>([]);
+  // One Idempotency-Key per draft: sending the same draft again is a replay at the hub, never a second message to the customer.
+  const draftKeys = useRef(new Map<string, string>());
+  const draftKey = (id: string) => { let k = draftKeys.current.get(id); if (!k) { k = crypto.randomUUID(); draftKeys.current.set(id, k); } return k; };
   const setReplyText = (text: string) => setReply({ text, key: crypto.randomUUID() });
   const setTeachText = (text: string) => setTeach({ text, key: crypto.randomUUID() });
 
@@ -81,7 +84,8 @@ export default function ConversationPage({ params }: { params: Promise<{ ref: st
     setReasons([]); setReplyErr(null);
     try {
       await act.reply.mutateAsync({ ref, body: text.trim(), key });
-      setReply({ text: '', key: '' });
+      // Only the owner's own typed reply is cleared; sending a draft leaves what he is typing alone.
+      if (key === reply.key) setReply({ text: '', key: '' });
       toast({ tone: 'ok', text: 'از نگهبان گذشت و فرستاده شد.' });
     } catch (e) {
       const r = blockedReasons(e);
@@ -129,7 +133,7 @@ export default function ConversationPage({ params }: { params: Promise<{ ref: st
             {c.messages.map((m) => (
               <Bubble key={m.id} m={m}
                 onEdit={(x) => setReplyText(x.body)}
-                onSend={(x) => void send(x.body, crypto.randomUUID())}
+                onSend={(x) => void send(x.body, draftKey(x.id))} sending={act.reply.isPending}
                 onTeach={(x) => { setFrom(x); setTeachText(x.body); }} />
             ))}
           </div>

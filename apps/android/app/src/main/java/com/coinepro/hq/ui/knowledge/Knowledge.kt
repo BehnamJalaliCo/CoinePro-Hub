@@ -109,12 +109,14 @@ fun KnowledgeScreen(open0: String? = null) {
     var open by rememberSaveable { mutableStateOf(open0) }
     var edit by remember { mutableStateOf<KnowledgeEntry?>(null) }
     var create by remember { mutableStateOf(false) }
-    val q = rememberQuery("knowledge:list:${layer.orEmpty()}:${company.orEmpty()}:${kind.orEmpty()}:${status.orEmpty()}:${text.trim()}:$expired:$pages", "knowledge") {
+    // ⟨2026-11-11⟩ audit: the search starts at two letters (the hub refuses one)
+    val qText = text.trim().takeIf { it.length >= 2 }
+    val q = rememberQuery("knowledge:list:${layer.orEmpty()}:${company.orEmpty()}:${kind.orEmpty()}:${status.orEmpty()}:${qText.orEmpty()}:$expired:$pages", "knowledge") {
         // Pages one after another, as many as the owner asked for (each holds 50).
         var cursor: String? = null
         val all = mutableListOf<KnowledgeEntry>()
         repeat(pages) {
-            val p = knowledge(layer, company, null, kind, status, text, expired, cursor)
+            val p = knowledge(layer, company, null, kind, status, qText, expired, cursor)
             all += p.items; cursor = p.nextCursor
             if (cursor == null) return@rememberQuery Page(all, null)
         }
@@ -146,7 +148,8 @@ fun KnowledgeScreen(open0: String? = null) {
                 FilterRow("همه‌ی وضعیت‌ها", status, KNOWLEDGE_STATUS.mapValues { it.value.fa }) { status = it }
             }
         }
-        val items = q.data?.items
+        // ⟨2026-11-11⟩ audit: the hub lists one row per version of an entry; the list shows each entry once, at its newest version
+        val items = q.data?.items?.let(::latestVersions)
         val expiring = items.orEmpty().filter { e -> e.status == "approved" && e.kind != "support" && (daysFrom(dayEnd(e.validUntil)) ?: 99) in 0..14 }
         if (expiring.isNotEmpty()) item { ExpiringCard(expiring) { open = it } }
         when {
@@ -154,7 +157,7 @@ fun KnowledgeScreen(open0: String? = null) {
             items == null -> item { Skeleton(Modifier.fillMaxWidth().height(260.dp), radius = 16.dp) }
             items.isEmpty() -> item { Empty("ورودی‌ای پیدا نشد", icon = DivanIcon.KNOWLEDGE) }
             else -> {
-                for (e in items) item(key = e.ref) { EntryCard(e) { open = e.ref } }
+                for (e in items) item(key = "${e.ref}@${e.version}") { EntryCard(e) { open = e.ref } }
                 if (q.data?.nextCursor != null) item { HqButton("بیشتر", { pages++ }, size = BtnSize.SM, loading = q.state.refreshing) }
             }
         }
@@ -399,4 +402,10 @@ private fun EntryEditor(from: KnowledgeEntry?, onClose: () -> Unit) {
             }
         }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.KNOWLEDGE, enabled = valid, loading = action.busy)
     }
+}
+
+/** Each entry once, at its newest version, where the hub listed it first (it lists one row per version). */
+internal fun latestVersions(list: List<KnowledgeEntry>): List<KnowledgeEntry> {
+    val newest = list.groupBy { it.ref }.mapValues { (_, vs) -> vs.maxBy { it.version } }
+    return list.map { it.ref }.distinct().map { newest.getValue(it) }
 }

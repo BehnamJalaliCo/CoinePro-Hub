@@ -108,6 +108,8 @@ class SessionFeed {
     val events = mutableStateListOf<SessionEvent>()
     var live by mutableStateOf(false)
     var error by mutableStateOf<ApiException?>(null)
+    /** ⟨2026-11-11⟩ audit: «دوباره» on the error opens the feed again. */
+    var retry by mutableStateOf(0)
     val last: Long get() = events.lastOrNull()?.seq ?: 0
 }
 
@@ -116,7 +118,7 @@ private fun rememberSessionFeed(env: Env, ref: String): SessionFeed {
     val feed = remember(env, ref) { SessionFeed() }
     // Off screen nothing is kept open or polled; back on screen the live answer is opened again from the last event seen.
     val onScreen = com.coinepro.hq.ui.rememberOnScreen()
-    DisposableEffect(feed, onScreen) {
+    DisposableEffect(feed, onScreen, feed.retry) {
         if (!onScreen) return@DisposableEffect onDispose { }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         var source: EventSource? = null
@@ -130,15 +132,17 @@ private fun rememberSessionFeed(env: Env, ref: String): SessionFeed {
             feed.live = env.demo
             while (currentCoroutineContext().isActive) {
                 delay(every)
-                runCatching { env.api.sessionEvents(ref, feed.last).items }.getOrNull()?.forEach(::add)
+                runCatching { env.api.sessionEvents(ref, feed.last).items }.getOrNull()?.also { feed.error = null }?.forEach(::add)
             }
         }
         scope.launch {
+            // ⟨2026-11-11⟩ audit: a failed first read is said once, then the feed goes on by polling (never stuck on the error)
             try {
                 env.api.sessionEvents(ref, feed.last.takeIf { it > 0 }).items.forEach(::add)
+                feed.error = null
             } catch (e: ApiException) {
                 feed.error = e
-                return@launch
+                return@launch poll(4_000)
             }
             if (env.demo) return@launch poll(2_200)
             val req = Request.Builder().url(env.api.url("/workshop/sessions/${java.net.URLEncoder.encode(ref, "UTF-8")}/live"))
@@ -336,7 +340,7 @@ fun SessionScreen(ref: String) {
                 }
             }
             when {
-                feed.error != null -> item { ErrorBlock(feed.error, null) }
+                feed.error != null -> item { ErrorBlock(feed.error, { feed.error = null; feed.retry++ }) }
                 feed.events.isEmpty() -> item { Skeleton(Modifier.fillMaxWidth().height(160.dp), radius = 14.dp) }
                 else -> items(feed.events, key = { it.seq }) { e ->
                     if (e.type == "approval_request") {

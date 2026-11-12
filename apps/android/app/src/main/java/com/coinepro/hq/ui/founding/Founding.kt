@@ -217,7 +217,10 @@ private fun FoundingDetail(ref: String) {
     val c = Divan.colors
     val q = rememberQuery("founding:$ref", "founding", maxAgeMs = 5_000) { founding(ref) }
     val f = q.data
-    val plan = f?.plan?.let { p -> rememberQuery("founding:plan:$p", "founding") { f.planDetail?.takeIf { it.ref == p } ?: plan(p) } }
+    // ⟨2026-11-11⟩ audit: the plan is fetched by its ref (a fetch that read the first founding's copy stayed on it for good); each new
+    // founding answer seeds it
+    val plan = f?.plan?.let { p -> rememberQuery("founding:plan:$p", "founding") { plan(p) } }
+    LaunchedEffect(f) { f?.planDetail?.takeIf { it.ref == f.plan }?.let { d -> plan?.set(d) } }
     val runId = plan?.data?.run
     val run = runId?.let { id -> rememberQuery("founding:run:$id", "founding", maxAgeMs = 2_000) { run(id) } }
     val action = rememberAction()
@@ -518,10 +521,13 @@ private fun PlanScreen(ref: String) {
     val pl = q.data
     val runId = pl?.run
     val run = runId?.let { id -> rememberQuery("founding:run:$id", "founding", maxAgeMs = 2_000) { run(id) } }
-    LaunchedEffect(pl?.founding) { pl?.founding?.let { nav.go("founding/$it") } }
+    // ⟨2026-11-11⟩ audit: the plan's page gives way to its founding (replaced, never pushed: «بازگشت» does not bounce forward again)
+    LaunchedEffect(pl?.founding) { pl?.founding?.let { nav.back(); nav.go("founding/$it") } }
     val building = run?.data?.state in setOf("queued", "running")
-    LaunchedEffect(run?.data?.state) {
-        while (building) {
+    // ⟨2026-11-11⟩ audit: never polled while the app is in the background
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(run?.data?.state, onScreen) {
+        while (building && onScreen) {
             delay(2_000)
             run?.refresh()
             q.refresh()

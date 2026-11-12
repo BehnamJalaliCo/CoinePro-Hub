@@ -59,7 +59,10 @@ export function Talk() {
 
   const open = (r: string | null, persona?: string) => {
     setSlot((n) => n + 1);
-    setRef(r); if (persona) setFace(persona.includes('@') ? 'manager' : persona);
+    setRef(r);
+    const f = persona ? (persona.includes('@') || persona === 'manager' ? 'manager' : persona) : null;
+    // A talk with a manager is made by the «+» (company and role); a new talk from a manager's face starts with the secretary.
+    if (f) setFace(r == null && f === 'manager' ? 'secretary' : f);
   };
   // ⟨1.17⟩ A talk bound to an order is that order's session: it opens there.
   const choose = (x: Conversation) => { if (x.order_ref) router.push(`/s/${encodeURIComponent(x.order_ref)}`); else open(x.ref, x.persona); };

@@ -124,7 +124,7 @@ private fun Terminal(s: HubServer, run0: String?) {
     val term = remember(s.id) { TermUi.of(s.id) }
     val history = remember(s.id) { TermHistory.of(s.id) }
     val locked = rememberLocked(s.company)
-    val mine = rememberQuery("server:activity:${s.id}:owner:", "servers", maxAgeMs = 30_000) { serverActivity(s.id, actor = "owner", limit = 20) }
+    val mine = rememberQuery("server:activity:${s.id}:owner:20", "servers", maxAgeMs = 30_000) { serverActivity(s.id, actor = "owner", limit = 20) }
     var cmd by rememberSaveable { mutableStateOf("") }
     var sudo by rememberSaveable { mutableStateOf(false) }
     val vertical = rememberScrollState()
@@ -239,7 +239,8 @@ private fun Terminal(s: HubServer, run0: String?) {
                     textStyle = Mono.copy(color = c.textPrimary),
                     cursorBrush = SolidColor(c.goldInk),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { run(cmd) }),
+                    // ⟨2026-11-11⟩ audit: the keyboard's Send obeys the same guard as the button (never to a server that is off)
+                    keyboardActions = KeyboardActions(onSend = { if (cmd.isNotBlank() && !locked && s.online) run(cmd) }),
                     decorationBox = { inner ->
                         Box {
                             if (cmd.isEmpty()) Text(if (locked) "locked" else "command", style = Mono, color = c.textMuted)

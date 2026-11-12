@@ -13,13 +13,15 @@ import { useToast } from '@/components/ui/toast';
 import { useCompanies } from '@/lib/api/hooks';
 import { LINE_STATE_FA, PLATFORM_FA, RUN_STATE_FA, platformFa, type LineState, type RunState } from '@/lib/api/v30';
 import { CAMPAIGN_KIND_FA, useCampaignActions, useCampaignCalendar, useCampaigns, type Campaign, type CampaignItem, type CampaignKind } from '@/lib/api/v31';
-import { cx, jDate, jTime, jWeekday } from '@/lib/format';
+import { OWNER_TZ, cx, jDate, jTime, jWeekday } from '@/lib/format';
 import { FaPara, FaText, fig } from '@/components/v29/text';
 import { errText, field } from './kit';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: string, n: number) => iso(new Date(Date.parse(`${d}T12:00:00Z`) + n * 86_400_000));
 const noon = (d: string) => `${d}T12:00:00Z`;
+/** Today as the owner's (Tehran) calendar day, not the UTC one. */
+const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: OWNER_TZ }).format(new Date());
 const HREF: Record<CampaignKind, (ref: string) => string | null> = { line: (r) => `/lines/${r}`, newsletter: () => null, ad: () => null, campaign: () => null, manual: () => null };
 
 function StateOf({ it }: { it: CampaignItem }) {
@@ -30,7 +32,7 @@ function StateOf({ it }: { it: CampaignItem }) {
 }
 
 export function CampaignCalendar() {
-  const [from, setFrom] = useState(() => iso(new Date()));
+  const [from, setFrom] = useState(() => today());
   const [company, setCompany] = useState<string | null>(null);
   const [kind, setKind] = useState<CampaignKind | null>(null);
   const to = addDays(from, 6);
@@ -49,7 +51,7 @@ export function CampaignCalendar() {
         <Button size="sm" icon="next" aria-label="هفته‌ی قبل" className="[&_svg]:rotate-180" onClick={() => setFrom(addDays(from, -7))} />
         <span className="min-w-0 flex-1 text-center text-[14px] font-semibold">{jDate(noon(from), true)} تا {jDate(noon(to), true)}</span>
         <Button size="sm" icon="back" aria-label="هفته‌ی بعد" className="[&_svg]:rotate-180" onClick={() => setFrom(addDays(from, 7))} />
-        <Button size="sm" onClick={() => setFrom(iso(new Date()))}>امروز</Button>
+        <Button size="sm" onClick={() => setFrom(today())}>امروز</Button>
       </div>
       <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1" role="group" aria-label="شرکت">
         <FilterChip selected={company === null} onClick={() => setCompany(null)}>همه‌ی شرکت‌ها</FilterChip>
@@ -95,7 +97,7 @@ export function CampaignCalendar() {
   );
 }
 
-const EMPTY: Omit<Campaign, 'id'> = { company: '', title_fa: '', goal_fa: '', starts: iso(new Date()), ends: addDays(iso(new Date()), 14), channels: [], budget: null, state: 'planned' };
+const EMPTY: Omit<Campaign, 'id'> = { company: '', title_fa: '', goal_fa: '', starts: today(), ends: addDays(today(), 14), channels: [], budget: null, state: 'planned' };
 
 function Campaigns() {
   const q = useCampaigns();
@@ -115,7 +117,7 @@ function Campaigns() {
       {f ? (
         <div className="hq-rise flex flex-col gap-3 rounded-[12px] bg-tile p-4" aria-label="مشخصات کمپین">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="شرکت کمپین">{(cs.data ?? []).filter((c) => c.code !== 'HQ').map((c) => (
-            <button key={c.code} type="button" role="radio" aria-checked={f.company === c.code} onClick={() => setF({ ...f, company: c.code })} className={cx('h-9 rounded-full px-3.5 text-[13px] font-semibold', f.company === c.code ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{c.name_fa ?? c.code}</button>
+            <button key={c.code} type="button" role="radio" aria-checked={f.company === c.code} disabled={!!f.id && f.company !== c.code} onClick={() => setF({ ...f, company: c.code })} className={cx('h-9 rounded-full px-3.5 text-[13px] font-semibold disabled:opacity-40', f.company === c.code ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{c.name_fa ?? c.code}</button>
           ))}</div>
           <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">نام کمپین</span><input value={f.title_fa} onChange={(e) => setF({ ...f, title_fa: e.target.value })} aria-label="نام کمپین" className={cx(field, 'h-10')} /></label>
           <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">هدف</span><input value={f.goal_fa} onChange={(e) => setF({ ...f, goal_fa: e.target.value })} aria-label="هدف کمپین" className={cx(field, 'h-10')} /></label>

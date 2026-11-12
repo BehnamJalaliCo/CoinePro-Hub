@@ -462,7 +462,12 @@ class ServersTest {
     fun everyKindOfExecEventIsRead() {
         fun m(e: String?, d: String) = com.coinepro.hq.core.net.SseMessage(e, d, null)
         assertEquals(TermEvent.Out("hi\n"), termEventOf(m("stdout", "{\"text\":\"hi\\n\"}")))
-        assertEquals(TermEvent.Out("raw"), termEventOf(m("stdout", "raw")))
+        assertEquals(TermEvent.Out("raw\n"), termEventOf(m("stdout", "raw")))
+        // ⟨2026-11-11⟩ audit: each event is one line (the runner sends it without its newline); a blank line is a line, not `{"text":""}`;
+        // the hub's error says `message`
+        assertEquals(TermEvent.Out("total 8\n"), termEventOf(m("stdout", "{\"text\":\"total 8\"}")))
+        assertEquals(TermEvent.Out("\n"), termEventOf(m("stdout", "{\"text\":\"\"}")))
+        assertEquals(TermEvent.Failed("runner_down", "runner unreachable"), termEventOf(m("error", "{\"code\":\"runner_down\",\"message\":\"runner unreachable\"}")))
         assertEquals(TermEvent.Out("bad\n", err = true), termEventOf(m("stderr", "{\"text\":\"bad\\n\"}")))
         assertEquals(TermEvent.Exit(0, 1200), termEventOf(m("exit", "{\"exit_code\":0,\"duration_ms\":1200}")))
         assertEquals(TermEvent.Failed("company_locked", "قفل"), termEventOf(m("error", "{\"code\":\"company_locked\",\"message_fa\":\"قفل\"}")))

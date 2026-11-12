@@ -3,6 +3,26 @@
 
 export const OWNER_TZ = 'Asia/Tehran';
 
+/** What a number field reads before parsing: Persian (۰-۹) and Arabic-Indic (٠-٩) digits as ASCII, the Persian decimal sign (٫) as '.',
+ *  thousands separators (٬ ,) dropped. JS `\d` is ASCII-only, so a field that filters first would silently lose every Persian digit. */
+export function latinNum(s: string): string {
+  return s.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/٫/g, '.').replace(/[٬,]/g, '');
+}
+/** A typed number, or null when the text is empty or not a number (never a silent 0). `signed` allows a leading minus. */
+export function parseNum(s: string, signed = false): number | null {
+  const t = latinNum(s).trim();
+  if (!(signed ? /^-?\d+(\.\d+)?$/ : /^\d+(\.\d+)?$/).test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+/** The text a number field keeps while it is being typed: ASCII digits and one '.' (and a leading '-' when signed), so "2." survives. */
+export function numText(s: string, signed = false): string {
+  let t = latinNum(s).replace(signed ? /[^\d.-]/g : /[^\d.]/g, '');
+  if (signed) t = (t.startsWith('-') ? '-' : '') + t.replace(/-/g, '');
+  const dot = t.indexOf('.');
+  return dot < 0 ? t : t.slice(0, dot + 1) + t.slice(dot + 1).replace(/\./g, '');
+}
+
 /** Persian decimal separator for prose numbers ("7٫9"); the text face draws Persian digits. */
 export function faDecimal(n: number, digits = 1): string {
   return n.toFixed(digits).replace('.', '٫');

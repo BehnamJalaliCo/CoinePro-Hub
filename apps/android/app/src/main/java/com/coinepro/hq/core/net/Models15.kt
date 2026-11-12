@@ -2,6 +2,7 @@ package com.coinepro.hq.core.net
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 // ------------------------------------------------------------------ v1.4.4 --
 // The owner's tools on APIs the hub already serves (docs/GAP_ANALYSIS_v2.md §5A): resolutions, notification settings,
@@ -64,8 +65,13 @@ data class EvidenceIn(val kind: String, val ref: String, val note: String? = nul
 @Serializable
 data class WorkPatch(val title: String? = null, val brief: String? = null, val priority: String? = null, val dueAt: String? = null, val player: String? = null, val mode: String? = null)
 
+/** ⟨2026-11-11⟩ audit: the hub's `DismissResult` says `moved_work` and `knowledge_transfer_work`; the older names read too. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
-data class DismissOut(val workReturned: Int = 0, val transferWork: String? = null)
+data class DismissOut(
+    @kotlinx.serialization.json.JsonNames("moved_work") val workReturned: Int = 0,
+    @kotlinx.serialization.json.JsonNames("knowledge_transfer_work") val transferWork: String? = null,
+)
 
 // ------------------------------------------------------------------ runs --
 @Serializable
@@ -177,8 +183,10 @@ data class Site(
     val url: String,
     val kind: String = "web",
     val method: String = "GET",
-    val intervalS: Int = 60,
+    val intervalS: Int = 300,
     val enabled: Boolean = true,
+    /** ⟨2026-11-11⟩ audit: what a check expects (status, a word in the body…); carried through a save, never reset. */
+    val expect: JsonObject? = null,
     val canary: Boolean = false,
     val consecutiveFailures: Int = 0,
     val last: SiteCheck? = null,
@@ -187,7 +195,7 @@ data class Site(
 )
 
 @Serializable
-data class SiteIn(val url: String, val kind: String = "web", val method: String = "GET", val intervalS: Int = 60, val enabled: Boolean = true)
+data class SiteIn(val url: String, val kind: String = "web", val method: String = "GET", val intervalS: Int = 300, val enabled: Boolean = true, val expect: JsonObject? = null)
 
 @Serializable
 data class SitesBody(val company: String, val sites: List<SiteIn>)

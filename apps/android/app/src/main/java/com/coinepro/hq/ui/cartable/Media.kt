@@ -164,7 +164,7 @@ private fun SeriesBlock(d: Decision) {
         if (p.targets.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (t in p.targets) Row(Modifier.clip(CircleShape).background(c.tile).padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(PLACEMENT_FA[t.placement] ?: t.placement, style = Divan.type.caption, color = c.textPrimary)
-                Fig(t.account, style = Divan.type.figureSmall, color = c.textMuted)
+                Fig(t.account ?: t.server.orEmpty(), style = Divan.type.figureSmall, color = c.textMuted)
             }
         }
         if (p.digest.isNotBlank()) Text(buildAnnotatedString {

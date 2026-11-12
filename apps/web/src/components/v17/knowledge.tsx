@@ -7,7 +7,7 @@ import { CompanyMark } from '@/components/brand/marks';
 import { Button } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
 import { Dialog, Sheet } from '@/components/ui/overlay';
-import { Card, FilterChip, Pill, Skeleton } from '@/components/ui/primitives';
+import { Card, ErrorState, FilterChip, Pill, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { useCompanies, useDepartments } from '@/lib/api/hooks';
 import {
@@ -25,6 +25,7 @@ const validIso = (d: string) => `${d}T20:29:00Z`; // the end of that day in Tehr
 /** «۱۲ روز مانده», «منقضی»: the expiry in words; under 14 days it warns (a review work item is already out). */
 export function Expiry({ e }: { e: Pick<KnowledgeEntry, 'valid_until' | 'status'> }) {
   const now = useNow();
+  if (!e.valid_until) return <span className="text-[11px] text-muted">بی‌انقضا</span>;
   if (!now) return <span className="text-[11px] text-muted">تا {jDate(validIso(e.valid_until))}</span>;
   const d = daysFrom(validIso(e.valid_until), now);
   if (e.status === 'expired' || d < 0) return <span className="flex items-center gap-1 text-[11px] text-warn"><Icon name="time" size={12} />منقضی از {jDate(validIso(e.valid_until))}</span>;
@@ -70,7 +71,7 @@ export function EntrySheet({ refId, onClose, onEdit }: { refId: string; onClose:
       footer={e && !readOnly && e.status !== 'retired' ? (
         <div className="flex gap-2"><Button variant="primary" icon="edit" className="flex-1" onClick={() => onEdit(e)}>نسخه‌ی تازه</Button><Button variant="danger" onClick={() => setRetire(true)}>بازنشسته</Button></div>
       ) : undefined}>
-      {!e ? <Skeleton className="h-64" /> : (
+      {q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !e ? <Skeleton className="h-64" /> : (
         <div className="flex flex-col gap-4 text-[13px]">
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone={KNOWLEDGE_STATUS[e.status]?.tone ?? 'neutral'} dot>{KNOWLEDGE_STATUS[e.status]?.fa ?? e.status}</Pill>

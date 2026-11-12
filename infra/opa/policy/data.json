@@ -148,7 +148,6 @@
         "overseer": [
           "star.audit",
           "skill.review",
-          "work.delegate",
           "work.accept",
           "work.progress",
           "work.fail",

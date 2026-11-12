@@ -285,7 +285,7 @@ private fun RiskSheet(r: Risk?, onClose: () -> Unit) {
     var review by rememberSaveable { mutableStateOf(r?.reviewAt?.take(10).orEmpty()) }
     val score = l * i
     val max = HqClock.today().plusDays(reviewDays(score).toLong())
-    val reviewDate = runCatching { LocalDate.parse(review.trim()) }.getOrNull()
+    val reviewDate = runCatching { LocalDate.parse(com.coinepro.hq.core.data.asciiDigits(review.trim())) }.getOrNull()
     val reviewBad = review.isNotBlank() && (reviewDate == null || reviewDate > max)
     val valid = company != null && title.trim().length > 3 && !reviewBad
     val (bg, fg) = toneColors(scoreTone(score))
@@ -317,7 +317,9 @@ private fun RiskSheet(r: Risk?, onClose: () -> Unit) {
             val reviewAt = reviewDate?.let { "${it}T08:30:00Z" }
             action.gov(toasts) {
                 val out = if (r != null) env.api.patchRisk(r, buildJsonObject {
-                    put("likelihood", l); put("impact", i); put("status", status)
+                    // ⟨2026-11-11⟩ audit: the status only when he changed it (an «accepted» risk keeps its own; the PATCH takes only open,
+                    // mitigating, closed)
+                    put("likelihood", l); put("impact", i); if (status != r.status) put("status", status)
                     put("mitigation_md", mit.trim().ifEmpty { null }?.let(::JsonPrimitive) ?: JsonNull)
                     if (reviewAt != null) put("review_at", reviewAt)
                     put("title_fa", title.trim()); put("body_md", body.trim()); put("category", category)

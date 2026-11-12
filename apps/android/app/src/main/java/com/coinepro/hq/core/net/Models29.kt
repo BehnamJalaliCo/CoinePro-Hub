@@ -49,8 +49,11 @@ data class OrderRoute29(
     val previewFa: String = "",
     val confidence: Double? = null,
     val whyFa: String = "",
-    /** How the hub carries it out (work · code · meeting · question · server): sent back as it came, so the route is followed exactly. */
+    /** How the hub carries it out (work · code · meeting · question · server · kit): sent back as it came, so the route is followed exactly. */
     val kind: String = "work",
+    /** ⟨2026-11-11⟩ audit: a «new company» route's kit and the company's name (sent back with it, or the hub refuses the route). */
+    val kit: String? = null,
+    val kitNameFa: String? = null,
 )
 
 /** One step of an order, in plain Persian (§29.7), oldest first. */
@@ -242,8 +245,10 @@ data class OwnerRule(
     val counts: RuleCounts? = null,
 )
 
+/** ⟨2026-11-11⟩ audit: the hub counts a rule's `runs`; the older `applied` reads too. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
-data class RuleCounts(val applied: Long = 0, val violations: Long = 0, val fixed: Long = 0)
+data class RuleCounts(@kotlinx.serialization.json.JsonNames("runs") val applied: Long = 0, val violations: Long = 0, val fixed: Long = 0)
 
 // ----------------------------------------------------------- §29.5 voice --
 /** `POST /transcribe/sessions` → the session the chunks go to. */

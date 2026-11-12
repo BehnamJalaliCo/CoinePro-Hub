@@ -45,7 +45,8 @@ function SiteRow({ s }: { s: Site }) {
 function EditSites({ company, sites, onClose }: { company: string; sites: Site[]; onClose: () => void }) {
   const put = usePutSites();
   const toast = useToast();
-  const [rows, setRows] = useState<SiteIn[]>(sites.filter((s) => !s.canary).map((s) => ({ url: s.url, kind: s.kind as SiteIn['kind'], method: s.method as SiteIn['method'], interval_s: s.interval_s, enabled: s.enabled })));
+  // `expect` travels back: the PUT replaces each listed site, and a left-out expect would reset to the default.
+  const [rows, setRows] = useState<SiteIn[]>(sites.filter((s) => !s.canary).map((s) => ({ url: s.url, kind: s.kind as SiteIn['kind'], method: s.method as SiteIn['method'], interval_s: s.interval_s, enabled: s.enabled, expect: s.expect })));
   const patch = (i: number, p: Partial<SiteIn>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const valid = rows.every((r) => /^https:\/\/[^\s/]+\.[^\s]+$/.test(r.url.trim())) && new Set(rows.map((r) => r.url.trim())).size === rows.length;
   const save = async () => {
@@ -73,7 +74,8 @@ function EditSites({ company, sites, onClose }: { company: string; sites: Site[]
               <span className="flex-1" />
               <label className="flex items-center gap-2 text-[12px] text-sec">هر
                 <select value={r.interval_s} onChange={(e) => patch(i, { interval_s: Number(e.target.value) })} className="h-8 rounded-[8px] border border-strong bg-card px-2 text-[12px] text-ink">
-                  {[30, 60, 300, 900].map((n) => <option key={n} value={n}>{n < 60 ? `${n} ثانیه` : `${n / 60} دقیقه`}</option>)}
+                  {/* The hub's minimum is 60 seconds; a stored interval outside the list stays offered. */}
+                  {[...new Set([60, 300, 900, 3600, r.interval_s ?? 60])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n % 60 ? `${n} ثانیه` : `${n / 60} دقیقه`}</option>)}
                 </select>
               </label>
               <Switch label="روشن" checked={r.enabled} onChange={(v) => patch(i, { enabled: v })} />

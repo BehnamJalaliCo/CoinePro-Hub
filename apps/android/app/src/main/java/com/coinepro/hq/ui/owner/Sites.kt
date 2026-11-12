@@ -165,7 +165,7 @@ private fun EditSitesSheet(company: String, current: List<Site>, onDismiss: () -
     val act = activity()
     val action = rememberAction()
     val c = Divan.colors
-    val rows = remember { mutableStateListOf(*current.map { SiteIn(it.url, it.kind, it.method, it.intervalS, it.enabled) }.toTypedArray()) }
+    val rows = remember { mutableStateListOf(*current.map { SiteIn(it.url, it.kind, it.method, it.intervalS, it.enabled, it.expect) }.toTypedArray()) }
     val valid = rows.all { Regex("^https://[^\\s/]+\\.\\S+$").matches(it.url.trim()) } && rows.map { it.url.trim() }.toSet().size == rows.size
     HqSheet(onDismiss, "سایت‌های ${companyOf(rememberCompanies(), company).nameFa}", sub = "نشانی‌ای که برداری خاموش میشود و تاریخچه‌اش میماند. نشانی داخلی یا خصوصی پذیرفته نمیشود.") {
         rows.forEachIndexed { i, s ->
@@ -181,7 +181,7 @@ private fun EditSitesSheet(company: String, current: List<Site>, onDismiss: () -
                     listOf("GET", "HEAD").forEach { m -> FilterChip(m, s.method == m, { rows[i] = s.copy(method = m) }) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(30 to "۳۰ ثانیه", 60 to "یک دقیقه", 300 to "پنج دقیقه").forEach { (n, l) -> FilterChip(l, s.intervalS == n, { rows[i] = s.copy(intervalS = n) }) }
+                    listOf(60 to "یک دقیقه", 300 to "پنج دقیقه", 900 to "پانزده دقیقه").forEach { (n, l) -> FilterChip(l, s.intervalS == n, { rows[i] = s.copy(intervalS = n) }) }
                     Box(Modifier.weight(1f))
                     HqSwitch(s.enabled, { rows[i] = s.copy(enabled = it) }, "روشن")
                 }

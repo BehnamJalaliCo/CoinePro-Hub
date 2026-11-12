@@ -29,12 +29,15 @@ class V30Test {
     @Test
     fun aTemplateAndALineDecodeWithTheirSteps() {
         val t = Api.json.decodeFromString(LineTemplate.serializer(), """
-            {"key":"instagram_reel","title_fa":"ریل","platform":"instagram_reel","version":2,"outputs_fa":"x",
+            {"key":"instagram_reel","title_fa":"ریل","platform":"instagram_reel","version":2,"outputs_fa":["ویدیوی ۳۰ ثانیه‌ای","کپشن"],
              "steps":[{"key":"script","kind":"gpt_text","title_fa":"فیلمنامه","prompt_fa":"بنویس","settings":{},"inputs":[],"gate":"auto","optional":false,"enabled":true,"max_attempts":2,"timeout_s":90},
                       {"key":"voice","kind":"tts","title_fa":"صدا","prompt_fa":null,"settings":{"speaker":"Kore"},"inputs":["script"],"gate":"owner","optional":true,"enabled":false,"max_attempts":1,"timeout_s":60}],
              "defaults":{"auto_after":7},"new_field":1}
         """.trimIndent())
         assertEquals(2, t.steps.size)
+        // ⟨2026-11-11⟩ audit: the hub's `outputs_fa` is a list; an older single string reads as one item
+        assertEquals(listOf("ویدیوی ۳۰ ثانیه‌ای", "کپشن"), t.outputsFa)
+        assertEquals(listOf("x"), Api.json.decodeFromString(LineTemplate.serializer(), """{"key":"k","outputs_fa":"x"}""").outputsFa)
         assertEquals("owner", t.steps[1].gate)
         assertNull(t.steps[1].promptFa)
         assertFalse(t.steps[1].enabled)
@@ -88,7 +91,20 @@ class V30Test {
         assertEquals("متن {{a}}", withVariable("متن", "a"))
         assertTrue(capsRaised(LineCaps(3, 100, 2), LineCaps(4, 100, 2)))
         assertFalse(capsRaised(LineCaps(3, 100, 2), LineCaps(2, 50, 2)))
-        assertTrue(capsRaised(LineCaps(3, 100, 2), LineCaps(3, 100, null)))
+        // ⟨2026-11-11⟩ audit: as the hub's `caps_rise` (a missing cap counts as 0); an emptied field keeps the line's own cap
+        assertFalse(capsRaised(LineCaps(3, 100, 2), LineCaps(3, 100, null)))
+        assertTrue(capsRaised(LineCaps(3, 100, null), LineCaps(3, 100, 1)))
+        assertEquals(LineCaps(3, 100, 2), com.coinepro.hq.core.data.capsToSave(LineCaps(3, 100, 2), LineCaps(3, null, null)))
+        // a removed schedule is `clear_schedule` (`schedule: null` is «unchanged» on the hub); a set one is sent as it is
+        val cleared = com.coinepro.hq.core.data.lineBody("خط", null, steps, LineCaps(1, 1, 1))
+        assertEquals(JsonPrimitive(true), cleared["clear_schedule"])
+        assertFalse("schedule" in cleared)
+        val set = com.coinepro.hq.core.data.lineBody("خط", "FREQ=DAILY;BYHOUR=9", steps, LineCaps(1, 1, 1))
+        assertEquals(JsonPrimitive("FREQ=DAILY;BYHOUR=9"), set["schedule"])
+        assertFalse("clear_schedule" in set)
+        // a step of 120 s is written, not dropped as the default (the hub's default is 300)
+        val withTimeout = com.coinepro.hq.core.data.lineBody("خط", null, listOf(StepDef("a", "gpt_text", timeoutS = 120)), LineCaps(1, 1, 1))
+        assertTrue(withTimeout["steps"].toString().contains("\"timeout_s\":120"))
         assertEquals(5L, (settingFrom("5", JsonPrimitive(1)) as JsonPrimitive).content.toLong())
     }
 

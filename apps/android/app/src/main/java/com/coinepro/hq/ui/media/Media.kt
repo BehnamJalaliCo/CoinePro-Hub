@@ -205,7 +205,13 @@ private fun ImageViewer(images: List<FileRef>, start: Int, media: MediaKit, onCl
 @Composable
 fun rememberPlayer(media: MediaKit): ExoPlayer {
     val context = LocalContext.current
-    val player = remember { ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(media.dataSource)).build() }
+    // ⟨2026-11-11⟩ audit: it takes the audio focus (a call or another app's sound pauses it), stops when headphones come out, and
+    // pauses when the app goes to the background
+    val player = remember {
+        ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(media.dataSource))
+            .setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, true).setHandleAudioBecomingNoisy(true).build()
+    }
+    androidx.lifecycle.compose.LifecycleStartEffect(player) { onStopOrDispose { player.pause() } }
     DisposableEffect(player) { onDispose { player.release() } }
     return player
 }

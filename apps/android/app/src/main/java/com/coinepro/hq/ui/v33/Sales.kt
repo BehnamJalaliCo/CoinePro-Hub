@@ -36,6 +36,7 @@ import com.coinepro.hq.core.data.leadTitle
 import com.coinepro.hq.core.data.moneyFigure
 import com.coinepro.hq.core.data.nextAtIso
 import com.coinepro.hq.core.data.rateText
+import com.coinepro.hq.core.data.leadContactOk
 import com.coinepro.hq.core.data.usdtInput
 import com.coinepro.hq.core.data.usdtText
 import com.coinepro.hq.core.format.Tone
@@ -204,15 +205,17 @@ fun NewLeadForm(code: String, onDone: (String?) -> Unit) {
         Label("نام نمایشی")
         HqTextField(name, { name = it }, "مثلاً مشتری کانال تلگرام", Modifier.fillMaxWidth(), maxLength = 200)
         Label("نام مستعار (اختیاری)")
-        HqTextField(contact, { contact = it.trim() }, "tg-user-41", Modifier.fillMaxWidth(), figure = true, maxLength = 80)
+        HqTextField(contact, { contact = it.trim() }, "tg-user-41", Modifier.fillMaxWidth(), figure = true, maxLength = 128)
+        // ⟨2026-11-11⟩ audit: the hub takes a pseudonym of 8 to 128 Latin letters, digits and «_ : . -»
+        if (!leadContactOk(contact)) Text("نام مستعار ۸ تا ۱۲۸ حرف لاتین، عدد یا «_ : . -» است.", style = Divan.type.caption, color = c.warning)
         Label("ارزش تقریبی (USDT)")
         HqTextField(value, { value = it }, "120", Modifier.fillMaxWidth(), figure = true, maxLength = 14)
-        if (!valueOk) Text("فقط عدد بنویس.", style = Divan.type.caption, color = c.warning)
+        if (!valueOk) Text("فقط عدد بنویس، با حداکثر چهار رقم اعشار.", style = Divan.type.caption, color = c.warning)
         Label("قدم بعدی")
         HqTextField(next, { next = it }, "مثلاً پیام معرفی دوره‌ی آزمایشی", Modifier.fillMaxWidth(), maxLength = 300)
         NextWhen(nextIn) { nextIn = it }
         Label("یادداشت (اختیاری)")
-        HqTextField(note, { note = it }, "", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 1000)
+        HqTextField(note, { note = it }, "", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 500)
         HqButton("ثبت سرنخ", {
             save.run {
                 val l = env.api.createLead(code, LeadIn(
@@ -223,7 +226,7 @@ fun NewLeadForm(code: String, onDone: (String?) -> Unit) {
                 toasts.ok("سرنخ ثبت شد.")
                 onDone(l.ref)
             }
-        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD, enabled = valueOk && (name.isNotBlank() || contact.isNotBlank()), loading = save.busy)
+        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD, enabled = valueOk && leadContactOk(contact) && (name.isNotBlank() || contact.isNotBlank()), loading = save.busy)
     }
 }
 
@@ -391,7 +394,7 @@ private fun LeadEditForm(l: SalesLead, busy: Boolean, onSave: (kotlinx.serializa
         HqTextField(name, { name = it }, "", Modifier.fillMaxWidth(), maxLength = 200)
         Label("ارزش تقریبی (USDT)")
         HqTextField(value, { value = it }, "120", Modifier.fillMaxWidth(), figure = true, maxLength = 14)
-        if (!valueOk) Text("فقط عدد بنویس.", style = Divan.type.caption, color = c.warning)
+        if (!valueOk) Text("فقط عدد بنویس، با حداکثر چهار رقم اعشار.", style = Divan.type.caption, color = c.warning)
         Label("قدم بعدی")
         HqTextField(next, { next = it }, "", Modifier.fillMaxWidth(), maxLength = 300)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -400,7 +403,7 @@ private fun LeadEditForm(l: SalesLead, busy: Boolean, onSave: (kotlinx.serializa
             FilterChip("بدون یادآوری", nextIn == null, { nextIn = null })
         }
         Label("یادداشت تازه (اختیاری)")
-        HqTextField(note, { note = it }, "", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 1000)
+        HqTextField(note, { note = it }, "", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 500)
         HqButton("ذخیره", {
             onSave(buildJsonObject {
                 if (name.trim() != l.nameFa.orEmpty() && name.isNotBlank()) put("name_fa", JsonPrimitive(name.trim()))

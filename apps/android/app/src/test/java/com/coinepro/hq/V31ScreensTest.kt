@@ -60,9 +60,11 @@ class V31ScreensTest(private val name: String, private val night: Boolean) {
         )
         private val KIT = Kit(
             key = "media_channel", titleFa = "شرکت رسانه‌ی کانال‌محور", purposeFa = "یک شرکت تازه که هر روز برای کانال‌هایش محتوا میسازد و منتشر میکند.",
-            teamTemplate = "media_company", groups = listOf("content"),
+            // ⟨2026-11-11⟩ as the hub writes a kit: its groups, KPIs and connections are objects with their Persian names
+            teamTemplate = "media_company", groups = listOf(com.coinepro.hq.core.net.KitGroup("content", "کارگروه محتوا")),
             lines = listOf(KitLine("instagram_reel", "instagram_reel", "ریلز آموزشی"), KitLine("telegram_post", "telegram_post", "پست روزانه‌ی کانال")),
-            kpis = listOf("reach", "followers"), connections = listOf("instagram", "telegram"),
+            kpis = listOf(com.coinepro.hq.core.net.KitKpi("reach", "دسترسی"), com.coinepro.hq.core.net.KitKpi("followers", "دنبال‌کننده")),
+            connections = listOf(com.coinepro.hq.core.net.KitConnection("instagram", "اینستاگرام"), com.coinepro.hq.core.net.KitConnection("telegram", "تلگرام")),
         )
         private val COMPILED = Compiled(
             rule = JsonObject(emptyMap()),

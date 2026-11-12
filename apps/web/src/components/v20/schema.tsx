@@ -11,7 +11,7 @@ import { ApiError, type Schemas } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import { faError, useSchemaAction, type Impact, type SchemaPart, type SchemaResult } from '@/lib/api/v20';
 import { ROLE_FA } from '@/lib/labels';
-import { cx } from '@/lib/format';
+import { cx, parseNum } from '@/lib/format';
 import { ACTION_FA, CHANNEL_FA, ErrorLine, EVENT_FA, NOTIFY_LEVEL_FA, OP_FA, REF_KIND_FA, THEN_FA, bad, levelTone, reminderToFa, useArchive, type ArchiveMaps, field, fieldArea } from './bits';
 
 export type Row = Record<string, unknown>;
@@ -446,7 +446,7 @@ function DoEditor({ value, onChange, errors }: { value: Row[]; onChange: (v: Row
                 {spec.map((x) => (
                   <label key={x.key} className={cx('flex min-w-0 flex-col gap-1 text-[11px] text-muted', x.kind === 'text' && 'sm:col-span-2')}>{x.fa}
                     {x.kind === 'select' ? <Sel label={`اقدام ${i + 1}: ${x.fa}`} value={a[x.key]} onChange={(v) => setArg(i, x.key, v)} opts={argOptions(x.source, m)} err={e[x.key]} className="h-9 text-[13px]" />
-                      : x.kind === 'lead_days' ? <input aria-label={`اقدام ${i + 1}: ${x.fa}`} dir="ltr" defaultValue={((a[x.key] as number[]) ?? []).join(', ')} onChange={(ev) => setArg(i, x.key, toInts(ev.target.value))} placeholder="30, 7" className={field('fig h-9 text-left text-[13px]')} />
+                      : x.kind === 'lead_days' ? <input key={`lead-${value.length}`} aria-label={`اقدام ${i + 1}: ${x.fa}`} dir="ltr" defaultValue={((a[x.key] as number[]) ?? []).join(', ')} onChange={(ev) => setArg(i, x.key, toInts(ev.target.value))} placeholder="30, 7" className={field('fig h-9 text-left text-[13px]')} />
                         : x.kind === 'target' ? (
                           <span className="flex gap-1.5">
                             <Sel label={`اقدام ${i + 1}: مقصد از چه نوع`} value={(a.to as Row | undefined)?.kind ?? 'record'} onChange={(v) => setArg(i, 'to', { kind: v ?? 'record', ref: (a.to as Row | undefined)?.ref ?? '' })} opts={options('ref_kinds', m, {}, undefined)} className="h-9 w-auto text-[13px]" />
@@ -536,8 +536,8 @@ function AttrInput({ a, row, set, errors, saved }: { a: Attr; row: Row; set: (p:
           <Segmented<'term' | 'permanent'> label={a.fa} value={perm ? 'permanent' : 'term'} onChange={(x) => set({ [a.key]: x === 'permanent' ? 'permanent' : { years: 5 } })} options={[{ value: 'term', label: 'مدت‌دار' }, { value: 'permanent', label: 'دائمی' }]} />
           {!perm ? (
             <>
-              <input aria-label="سال" dir="ltr" inputMode="numeric" value={k.years ?? ''} onChange={(e) => set({ [a.key]: { ...k, years: e.target.value ? Number(e.target.value) : undefined } })} className={fieldCls(err, 'fig w-20 text-left')} /><span className="text-[12px] text-muted">سال</span>
-              <input aria-label="ماه" dir="ltr" inputMode="numeric" value={k.months ?? ''} onChange={(e) => set({ [a.key]: { ...k, months: e.target.value ? Number(e.target.value) : undefined } })} className={fieldCls(err, 'fig w-20 text-left')} /><span className="text-[12px] text-muted">ماه</span>
+              <input aria-label="سال" dir="ltr" inputMode="numeric" value={k.years ?? ''} onChange={(e) => set({ [a.key]: { ...k, years: parseNum(e.target.value) ?? undefined } })} className={fieldCls(err, 'fig w-20 text-left')} /><span className="text-[12px] text-muted">سال</span>
+              <input aria-label="ماه" dir="ltr" inputMode="numeric" value={k.months ?? ''} onChange={(e) => set({ [a.key]: { ...k, months: parseNum(e.target.value) ?? undefined } })} className={fieldCls(err, 'fig w-20 text-left')} /><span className="text-[12px] text-muted">ماه</span>
             </>
           ) : null}
         </span>
@@ -636,7 +636,7 @@ export function RowEditor({ part, ui, row: row0, onClose }: { part: string; ui: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<{ body: string; out: SchemaResult } | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
-  const [retiring, setRetiring] = useState<SchemaResult | null>(null);
+  const [retiring, setRetiring] = useState(false);
   const key = saved ? rowKey(part, ui, row0!) : ui.by === 'ref' ? 'new' : ui.by === 'subject' ? rowKey(part, ui, row) : String(row.key ?? '').trim();
   const version = saved ? Number(row0!.version ?? 0) || null : null;
   const body = bodyOf(ui, row);
@@ -659,14 +659,19 @@ export function RowEditor({ part, ui, row: row0, onClose }: { part: string; ui: 
       onClose();
     } catch (e) { setChecked(null); fail(e); }
   };
-  const askRetire = async () => {
+  const askRetire = () => {
     if (!saved || !version) return;
     setFailure(null);
-    try { setRetiring(await act.retirePreview.mutateAsync({ part: part as SchemaPart, key, version })); } catch (e) { fail(e); }
+    setRetiring(true);
   };
   const retire = async () => {
     if (!version) return;
-    try { await act.retire.mutateAsync({ part: part as SchemaPart, key, version }); toast({ tone: 'info', text: 'بازنشسته شد؛ هیچ سندی که از آن استفاده میکند پاک نشد.' }); onClose(); } catch (e) { setRetiring(null); fail(e); }
+    try {
+      const out = await act.retire.mutateAsync({ part: part as SchemaPart, key, version });
+      const n = out.impact?.records ?? 0;
+      toast({ tone: 'info', text: n ? `بازنشسته شد؛ ${n} سند که از آن استفاده میکند همان‌طور ماند.` : 'بازنشسته شد؛ هیچ سندی از آن استفاده نمیکرد.' });
+      onClose();
+    } catch (e) { setRetiring(false); fail(e); }
   };
   const loose = Object.entries(errors).filter(([k]) => !ui.attrs.some((a) => k === a.key || k.startsWith(`${a.key}.`)) && k !== 'key');
   const isRetired = row0?.status === 'retired';
@@ -685,7 +690,7 @@ export function RowEditor({ part, ui, row: row0, onClose }: { part: string; ui: 
             )}
             <Button variant="ghost" onClick={onClose}>انصراف</Button>
             <span className="flex-1" />
-            {saved && ui.retire && !isRetired ? <Button variant="danger" size="sm" icon="pause" loading={act.retirePreview.isPending} onClick={askRetire}>بازنشسته کن</Button> : null}
+            {saved && ui.retire && !isRetired ? <Button variant="danger" size="sm" icon="pause" onClick={askRetire}>بازنشسته کن</Button> : null}
           </div>
         </div>
       }>
@@ -703,12 +708,11 @@ export function RowEditor({ part, ui, row: row0, onClose }: { part: string; ui: 
         {loose.length ? <ul className="flex flex-col gap-1 rounded-[12px] bg-neg-soft p-3 text-[12px] text-neg">{loose.map(([k, v]) => <li key={k}><span className="fig ml-1.5 text-muted">{k}</span>{v}</li>)}</ul> : null}
         <ErrorLine error={failure} />
       </div>
-      <Dialog open={!!retiring} onOpenChange={(v) => !v && setRetiring(null)} title="بازنشسته کردن" actions={<>
+      <Dialog open={retiring} onOpenChange={setRetiring} title="بازنشسته کردن" actions={<>
         <Button variant="danger" icon="lock" loading={act.retire.isPending} onClick={retire}>با passkey بازنشسته کن</Button>
-        <Button variant="secondary" onClick={() => setRetiring(null)}>نه</Button>
+        <Button variant="secondary" onClick={() => setRetiring(false)}>نه</Button>
       </>}>
         <div className="flex flex-col gap-2">
-          {retiring ? <ImpactLine impact={retiring.impact} part={part} /> : null}
           <p>هیچ چیزی پاک نمیشود؛ سندهایی که از آن استفاده میکنند همان‌طور میمانند و در جستجو هستند. فقط برای سند تازه پیشنهاد نمیشود.</p>
         </div>
       </Dialog>

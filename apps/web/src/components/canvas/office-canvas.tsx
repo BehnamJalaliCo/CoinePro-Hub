@@ -36,7 +36,9 @@ export function OfficeCanvas({ canvas, sessions }: { canvas: Canvas; sessions: S
   const toast = useToast();
   const act = useCanvasActions();
   const box = useRef<HTMLDivElement | null>(null);
-  const [drag, setDrag] = useState<{ code: string; px: number; py: number; moved: boolean } | null>(null);
+  // [sx, sy]: where the pointer went down; [ox, oy]: the grab offset from the node's centre. A drag is a move once the pointer has gone
+  // past the threshold from where it started (not from its last move), and the node follows the pointer less that offset.
+  const [drag, setDrag] = useState<{ code: string; px: number; py: number; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const [connect, setConnect] = useState<{ from: string | null } | null>(null);
   const [sheet, setSheet] = useState<Sheet_>(null);
   const placed = useMemo(() => layoutNodes(canvas.nodes), [canvas.nodes]);
@@ -67,12 +69,13 @@ export function OfficeCanvas({ canvas, sessions }: { canvas: Canvas; sessions: S
     if (connect) return;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     const p = at(n.code);
-    setDrag({ code: n.code, ...p, moved: false });
+    const s = point(e);
+    setDrag({ code: n.code, ...p, sx: s.px, sy: s.py, ox: s.px - p.px, oy: s.py - p.py, moved: false });
   };
   const onNodeMove = (n: CanvasNode, e: React.PointerEvent) => {
     if (!drag || drag.code !== n.code) return;
     const p = point(e);
-    setDrag((d) => d && { ...d, ...p, moved: d.moved || Math.hypot(p.px - d.px, p.py - d.py) > 0.012 });
+    setDrag((d) => d && { ...d, px: clamp(p.px - d.ox), py: clamp(p.py - d.oy), moved: d.moved || Math.hypot(p.px - d.sx, p.py - d.sy) > 0.012 });
   };
   const onNodeUp = (n: CanvasNode) => {
     const d = drag;

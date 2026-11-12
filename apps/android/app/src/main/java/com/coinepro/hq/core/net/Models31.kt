@@ -1,5 +1,6 @@
 package com.coinepro.hq.core.net
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -32,53 +33,77 @@ data class Insights(
 
 // ---------------------------------------------------------------- §31.2 --
 @Serializable
-data class KitLine(val template: String = "", val platform: String = "", val titleFa: String = "")
+data class KitLine(val template: String = "", val platform: String = "", val titleFa: String = "", val ref: String? = null, val whyFa: String? = null)
 
+/** ⟨2026-11-11⟩ audit: the hub's kit parts are objects (`KitGroup`, `KitKpi`, `KitConnection`, `KitTeam`), never bare strings. */
+@Serializable
+data class KitGroup(val key: String = "", val titleFa: String = "")
+
+@Serializable
+data class KitKpi(val key: String = "", val nameFa: String = "", val card: String = "", val unit: String = "", val manual: Boolean = false)
+
+@Serializable
+data class KitConnection(val kind: String = "", val labelFa: String = "")
+
+@Serializable
+data class KitDepartment(val code: String = "", val nameFa: String = "")
+
+@Serializable
+data class KitTeam(val departments: List<KitDepartment> = emptyList(), val positions: Int = 0)
+
+/** `GET /kits` (`KitSummary`): what a kit makes. */
 @Serializable
 data class Kit(
     val key: String,
     val titleFa: String = "",
     val purposeFa: String = "",
     val teamTemplate: String = "",
-    val groups: List<String> = emptyList(),
+    val team: KitTeam? = null,
+    val groups: List<KitGroup> = emptyList(),
     val lines: List<KitLine> = emptyList(),
-    val kpis: List<String> = emptyList(),
-    val connections: List<String> = emptyList(),
+    val kpis: List<KitKpi> = emptyList(),
+    val connections: List<KitConnection> = emptyList(),
+    val todoFa: List<String> = emptyList(),
     val defaults: JsonObject = JsonObject(emptyMap()),
 )
 
-/** `POST /companies/from-kit/preview`: what the call will make, in the owner's words (nothing is created). Every part may be absent. */
+/** `POST /companies/from-kit/preview`: the kit as it would be made for this company, and whether its code is free (nothing is created). */
 @Serializable
 data class KitPreview(
-    val previewFa: String = "",
-    val teamFa: List<String> = emptyList(),
-    val groups: List<String> = emptyList(),
-    val lines: List<KitLine> = emptyList(),
-    val kpis: List<String> = emptyList(),
-    val connections: List<String> = emptyList(),
-    val todoFa: List<String> = emptyList(),
+    val kit: Kit? = null,
+    val code: String = "",
+    val nameFa: String = "",
+    val nameEn: String = "",
+    val codeFree: Boolean = true,
+    val problems: List<String> = emptyList(),
 )
 
 @Serializable
 data class KitCompany(val code: String = "", val nameFa: String? = null)
 
-/** `POST /companies/from-kit`: the company made, and what the owner still has to connect ([todoFa]). */
+/** `POST /companies/from-kit` (`KitCreated`): the company made, its lines as drafts, and what the owner still has to connect ([todoFa]). */
 @Serializable
-data class KitResult(val company: KitCompany = KitCompany(), val lines: List<String> = emptyList(), val todoFa: List<String> = emptyList())
+data class KitResult(
+    val company: KitCompany = KitCompany(),
+    val lines: List<KitLine> = emptyList(),
+    val linesPending: List<KitLine> = emptyList(),
+    val todoFa: List<String> = emptyList(),
+)
 
 // ---------------------------------------------------------------- §31.3 --
 @Serializable
-data class NlList(val id: JsonPrimitive = JsonPrimitive(""), val name: String = "", val subscribers: Long = 0, val sizeLimit: Long? = null)
+data class NlList(val id: JsonPrimitive = JsonPrimitive(""), val listmonkId: Long? = null, val name: String = "", val subscribers: Long = 0, val sizeLimit: Long? = null)
 
+/** ⟨2026-11-11⟩ audit: as `CampaignOut` writes it: `list_id` (the list's number in the mail service) and `send_at`. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
 data class NlCampaign(
     val id: JsonPrimitive = JsonPrimitive(""),
-    val list: JsonPrimitive? = null,
+    @kotlinx.serialization.json.JsonNames("list_id") val list: JsonPrimitive? = null,
     val subject: String = "",
-    val subjectB: String? = null,
-    /** draft · scheduled · sending · sent · cancelled */
+    /** draft · scheduled · running · finished · paused · cancelled (an older answer: sending · sent) */
     val state: String = "draft",
-    val scheduledAt: String? = null,
+    @kotlinx.serialization.json.JsonNames("send_at") val scheduledAt: String? = null,
     val sent: Long? = null,
     val opens: Long? = null,
     val clicks: Long? = null,
@@ -86,7 +111,7 @@ data class NlCampaign(
 )
 
 @Serializable
-data class Newsletter(val lists: List<NlList> = emptyList(), val campaigns: List<NlCampaign> = emptyList())
+data class Newsletter(val lists: List<NlList> = emptyList(), val campaigns: List<NlCampaign> = emptyList(), val sizeLimit: Long? = null, val noteFa: String? = null)
 
 // ---------------------------------------------------------------- §31.4 --
 @Serializable
@@ -146,22 +171,30 @@ data class Campaign(
 )
 
 // ---------------------------------------------------------------- §31.6 --
+/** ⟨2026-11-11⟩ audit: as `domain/ads.py` writes an account: its name, whether it is connected, whether its key is set. */
 @Serializable
-data class AdAccount(val company: String = "", val platform: String = "", val accountId: String = "", val state: String = "")
+data class AdAccount(
+    val platform: String = "", val labelFa: String = "", val state: String = "", val secret: String = "", val missingFa: List<String> = emptyList(),
+    val lastReadAt: String? = null, val lastErrorFa: String? = null,
+)
 
+/** A campaign's day; conversions may be fractional (the platforms count a share of a purchase). */
 @Serializable
 data class AdDaily(
     val platform: String = "", val campaignId: String = "", val day: String = "", val spend: Double = 0.0, val clicks: Long = 0,
-    val conversions: Long = 0, val revenue: Double = 0.0, val roas: Double? = null,
+    val conversions: Double = 0.0, val revenue: Double = 0.0, val roas: Double? = null,
 )
 
+/** ⟨2026-11-11⟩ audit: as the hub writes a campaign: `campaign_id`, `name`, `status` (active · paused · removed). */
 @Serializable
 data class AdCampaign(
     val platform: String = "",
-    val id: String = "",
-    val titleFa: String? = null,
-    /** on · paused */
-    val state: String = "on",
+    @SerialName("campaign_id") val id: String = "",
+    @SerialName("name") val titleFa: String? = null,
+    /** active · paused · removed */
+    @SerialName("status") val state: String = "active",
+    /** rule · owner · platform */
+    val pausedBy: String? = null,
     val pausedReasonFa: String? = null,
     val days: List<AdDaily> = emptyList(),
 )
@@ -173,6 +206,8 @@ data class Ads(val accounts: List<AdAccount> = emptyList(), val campaigns: List<
 data class AdRule(
     val id: JsonPrimitive = JsonPrimitive(""),
     val company: String = "",
+    /** meta · google (the rule's platform; set when it is made, never changed) */
+    val platform: String = "",
     val scope: String = "account",
     val dailyCap: Double = 0.0,
     val windowDays: Int = 7,

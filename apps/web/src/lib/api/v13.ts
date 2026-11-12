@@ -44,7 +44,7 @@ export type CodeSession = {
 };
 export type SessionEventType = 'message' | 'progress' | 'command' | 'file_change' | 'approval_request' | 'approval_result' | 'state' | 'error';
 export type SessionEvent = { seq: number; at: string; type: SessionEventType; actor: Actor; summary_fa: string; data: Record<string, unknown> };
-export type OrderRoute = { company: string; to: string; kind: 'work' | 'code' | 'meeting' | 'question'; work_ref?: string; session_ref?: string; decision_ref?: string };
+export type OrderRoute = { company: string; to: string; kind: 'work' | 'code' | 'meeting' | 'question' | 'kit'; work_ref?: string; session_ref?: string; decision_ref?: string };
 export type OrderOut = {
   ref: string; summary_fa: string;
   routes: OrderRoute[];
@@ -206,7 +206,13 @@ export function useSessionEvents(ref: string): { events: SessionEvent[]; live: b
         es.onopen = () => setLive(true);
         es.onerror = () => setLive(false);
         for (const t of ['message', 'progress', 'command', 'file_change', 'approval_request', 'approval_result', 'state', 'error'] as const) {
-          es.addEventListener(t, (m) => { try { add(JSON.parse((m as MessageEvent).data) as SessionEvent); } catch { /* ignore malformed */ } });
+          es.addEventListener(t, (m) => {
+            let ev: SessionEvent;
+            try { ev = JSON.parse((m as MessageEvent).data) as SessionEvent; } catch { return; /* ignore malformed */ }
+            add(ev);
+            // A finished session's stream ends at the hub; left open, the browser would reconnect to it forever.
+            if (t === 'state' && ['done', 'failed', 'stopped'].includes(String(ev.data?.state))) { es?.close(); setLive(false); }
+          });
         }
       })
       .catch((e: unknown) => { if (!closed) setError(e); });

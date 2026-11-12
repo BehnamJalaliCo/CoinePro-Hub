@@ -274,6 +274,8 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
             try {
                 (if (env.demo) demoEvents(id) else events(id, events)).collect { e ->
                     got = true
+                    // ⟨2026-11-11⟩ audit: ninety seconds of no news, counted from the last news (never from the start of a long answer)
+                    armWatchdog(ref)
                     apply(e)
                 }
             } catch (_: kotlinx.coroutines.CancellationException) {
@@ -288,7 +290,12 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
             }
             finishStream(ref)
         }
-        // Ninety seconds of no news ends the wait quietly; the stored answer still arrives.
+        armWatchdog(ref)
+    }
+
+    /** Ninety seconds of no news ends the wait quietly; the stored answer still arrives. Armed again by each event. */
+    private fun armWatchdog(ref: String?) {
+        watchdog?.cancel()
         watchdog = scope.launch {
             delay(NO_NEWS_MS)
             if (phase != Phase.IDLE && !speaking) { streamJob?.cancel(); finishStream(ref) }

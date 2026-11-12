@@ -7,7 +7,7 @@
 // exactly as written). Where §23 leaves a shape open, the reading here is marked "assumed" and listed for §23.12.
 
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { ApiError, isMock, type Problem } from './client';
 import { call, type Actor } from './v13';
@@ -176,8 +176,8 @@ export function useSchemaAction() {
       },
       onSuccess: done,
     }),
-    retirePreview: useMutation({ mutationFn: (v: { part: SchemaPart; key: string; version: number }) => call<SchemaResult>('POST', `/archive/schema/${v.part}/${enc(v.key)}/retire?dry_run=1`, { part: v.part, key: v.key, version: v.version }) }),
-    /** Nothing that uses it is deleted; the same target as a save, on the body {part, key, version} (assumed). */
+    /** Nothing that uses it is deleted; the same target as a save, on the body {part, key, version}. The hub's retire has no dry run (every
+     *  call consumes the passkey), so there is no preview: the answer carries the impact. */
     retire: useMutation({
       mutationFn: async (v: { part: SchemaPart; key: string; version: number }) => {
         const body = { part: v.part, key: v.key, version: v.version };
@@ -272,8 +272,16 @@ export async function fetchRecordFile(ref: string, fileId: string, token?: strin
 }
 /** The file as an object URL. A level with `step_up_to_view` waits for `open()`: one passkey (single use), then one call. The key lives
  *  outside ['archive'] so a refresh of the archive never re-reads the file (each read is an access-log row). */
+const revoking = new WeakSet<object>();
 export function useRecordFile(ref: string, file: RecordFile | null, needsStepUp: boolean) {
   const qc = useQueryClient();
+  // An object URL holds the file's bytes until it is revoked: once the cached copy is dropped, so is its URL.
+  useEffect(() => {
+    const cache = qc.getQueryCache();
+    if (revoking.has(cache)) return;
+    revoking.add(cache);
+    cache.subscribe((ev) => { if (ev.type === 'removed' && ev.query.queryKey[0] === 'archive-file' && typeof ev.query.state.data === 'string') URL.revokeObjectURL(ev.query.state.data); });
+  }, [qc]);
   const [token, setToken] = useState<{ for: string; t: string } | null>(null);
   const [asking, setAsking] = useState<unknown>(null);
   const fid = file?.file_id ?? '';

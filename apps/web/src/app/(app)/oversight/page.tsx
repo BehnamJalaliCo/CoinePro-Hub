@@ -13,7 +13,7 @@ import { Card, Empty, ErrorState, FilterChip, Pill, SectionTitle, Segmented, Ske
 import { useToast } from '@/components/ui/toast';
 import { AREA_FA, METHOD_FA, Score, SeverityPill, Spark, rruleFa } from '@/components/v14/bits';
 import { ApiError } from '@/lib/api/client';
-import { useChallenges, useFindings, useHolds, useOrders, useOversight, useOversightAction, useProtocols, type Finding, type FindingStatus, type Protocol } from '@/lib/api/v14';
+import { useChallenges, useFindings, useHolds, useOrders, useOversight, useOversightAction, useProtocols, type Finding, type FindingStatus, type FindingStatusIn, type Protocol } from '@/lib/api/v14';
 import { ACTOR_FA } from '@/lib/labels';
 import { ago, cx, jDateTime, until } from '@/lib/format';
 
@@ -114,13 +114,14 @@ function FindingSheet({ f, onClose }: { f: Finding | null; onClose: () => void }
   const err = useErr();
   const [note, setNote] = useState('');
   if (!f) return null;
-  const set = (status: FindingStatus) => act.findingStatus.mutateAsync({ ref: f.ref, status, note: note.trim() }).then(onClose).catch(err);
+  const set = (status: FindingStatusIn) => act.findingStatus.mutateAsync({ ref: f.ref, status, note: note.trim() }).then(onClose).catch(err);
   return (
     <Sheet open onOpenChange={(v) => !v && onClose()} title={<span className="flex items-center gap-2"><span className="fig text-[13px] text-muted">{f.ref}</span><span><MdInline text={f.title_fa} /></span></span>} width={560}
       footer={f.status === 'fixed' || f.status === 'disputed' ? (
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" icon="seal" loading={act.findingStatus.isPending} onClick={() => set('verified')}>رفع را تأیید کن</Button>
-          <Button variant="secondary" onClick={() => set('open')}>دوباره باز کن</Button>
+          {/* The hub takes verified, closed or disputed; «not fixed» is a dispute that sends it back to the answerable. */}
+          {f.status !== 'disputed' ? <Button variant="secondary" onClick={() => set('disputed')}>رفع نشده؛ برگردان</Button> : null}
           <Button variant="ghost" onClick={() => set('closed')}>ببند</Button>
         </div>
       ) : f.status !== 'closed' && f.status !== 'verified' ? <Button variant="ghost" onClick={() => set('closed')}>ببند (بی‌اثر یا تکراری)</Button> : undefined}>
@@ -188,7 +189,7 @@ function Findings() {
           ))}
         </ul>
       )}
-      <FindingSheet f={open} onClose={() => setOpen(null)} />
+      <FindingSheet key={open?.ref ?? 'none'} f={open} onClose={() => setOpen(null)} />
     </Card>
   );
 }

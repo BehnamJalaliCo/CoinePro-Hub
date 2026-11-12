@@ -10,6 +10,15 @@ import { useMeta } from '@/lib/api/hooks';
 import { passkeysSupported, signIn } from '@/lib/auth';
 import { useIsClient } from '@/lib/store';
 
+/** Only a path on this origin: `/\evil.com` or a tab in `?next=` resolves to another host under the URL parser, so the check is on the result. */
+function sameOrigin(next: string | null): string {
+  if (!next || !next.startsWith('/') || /[\\\u0000-\u001f]/.test(next)) return '/';
+  try {
+    const u = new URL(next, window.location.origin);
+    return u.origin === window.location.origin ? `${u.pathname}${u.search}${u.hash}` : '/';
+  } catch { return '/'; }
+}
+
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -20,14 +29,13 @@ function LoginInner() {
   const supported = !client || passkeysSupported();
 
   const next = params.get('next');
-  const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
 
   const go = async () => {
     setBusy(true);
     setErr(null);
     try {
       await signIn();
-      router.replace(target);
+      router.replace(sameOrigin(next));
     } catch (e) {
       setErr(e instanceof ApiError ? e.messageFa : 'ورود انجام نشد.');
       setBusy(false);

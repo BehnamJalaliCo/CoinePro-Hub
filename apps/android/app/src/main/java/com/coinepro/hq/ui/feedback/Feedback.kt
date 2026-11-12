@@ -217,7 +217,7 @@ private fun Item(x: FeedbackItem) {
                     linked, Modifier.clip(CircleShape).background(c.softGold).clickable(role = Role.Button) { nav.go("work/$linked") }.padding(horizontal = 10.dp, vertical = 4.dp),
                     style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk,
                 )
-                HqButton("جدا کن", { save(workRef = null, setWork = true, ok = "از کار جدا شد.") }, variant = BtnVariant.GHOST, size = BtnSize.SM)
+                // ⟨2026-11-11⟩ audit: no «جدا کن» until the hub can unlink (its PATCH keeps the old work for a null and refuses one alone)
             } else {
                 HqTextField(work, { work = it.uppercase().trim() }, "W-000123", Modifier.weight(1f), maxLength = 12, figure = true)
                 HqButton("وصل به کار", {

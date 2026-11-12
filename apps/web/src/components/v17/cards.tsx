@@ -9,19 +9,19 @@ import { Sheet } from '@/components/ui/overlay';
 import { Card, Empty, ErrorState, Pill, SectionTitle, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { useCompanies } from '@/lib/api/hooks';
-import { faError, useKpiAction, useKpiValues, useKpis, useScorecards, type Card as KpiCard, type CardKpi, type Kpi, type KpiPatch } from '@/lib/api/v17';
+import { faError, useKpiAction, useKpiValues, useKpis, useScorecards, type Card as KpiCard, type CardKpi, type Kpi, type KpiDirection, type KpiPatch } from '@/lib/api/v17';
 import { useNow } from '@/lib/store';
-import { ago, cx } from '@/lib/format';
+import { ago, cx, latinNum, numText, parseNum } from '@/lib/format';
 import { CARD_FA, KPI_STATE, RefChip, Trend, kpiFig, onTarget } from './bits';
 
 const field = 'h-9 rounded-[10px] border border-strong bg-tile px-2 text-[13px] text-ink outline-none focus:border-gold-ink';
 const dayLabel = new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn', { day: 'numeric', month: 'short', timeZone: 'Asia/Tehran' });
 
 /** One KPI: its value with unit, the target, the trend, and how fresh it is. A KPI without a source shows a dash, never zero. */
-function KpiRow({ k, direction, onOpen }: { k: CardKpi; direction?: 'up' | 'down'; onOpen?: () => void }) {
+function KpiRow({ k, direction, onOpen }: { k: CardKpi; direction?: KpiDirection; onOpen?: () => void }) {
   const now = useNow();
   // §20.4's Card carries no direction: without the definition the row does not judge the target.
-  const hit = direction ? onTarget(k.value, k.target, direction) : null;
+  const hit = direction ? onTarget(k.value, k.target, direction, k.target_max) : null;
   const st = KPI_STATE[k.state] ?? { fa: k.state, tone: 'neutral' as const };
   const inner = (
     <>
@@ -39,7 +39,7 @@ function KpiRow({ k, direction, onOpen }: { k: CardKpi; direction?: 'up' | 'down
   return onOpen ? <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-[10px] px-2 py-2.5 text-right transition-colors hover:bg-hover">{inner}</button> : <div className="flex items-center gap-3 px-2 py-2.5">{inner}</div>;
 }
 
-export function CardPanel({ c, onOpen, dirs }: { c: KpiCard; onOpen?: (key: string) => void; dirs?: Record<string, 'up' | 'down'> }) {
+export function CardPanel({ c, onOpen, dirs }: { c: KpiCard; onOpen?: (key: string) => void; dirs?: Record<string, KpiDirection> }) {
   const meta = CARD_FA[c.card] ?? { fa: c.card, icon: 'chart' as const, note: '' };
   const stale = c.kpis.filter((k) => k.state === 'stale').length;
   return (
@@ -70,7 +70,7 @@ export function KpiSheet({ company, k, def, onClose }: { company: string; k: Car
         )}
         {def ? (
           <dl className="grid grid-cols-2 gap-2">
-            {([['جهت', def.direction === 'up' ? 'بیشتر بهتر' : 'کمتر بهتر'], ['تازگی', `${def.freshness_hours} ساعت`], ['تجمیع در هلدینگ', def.aggregate], ['کارت امتیاز', def.scorecard ? 'بله' : 'نه']] as const).map(([a, b]) => (
+            {([['جهت', def.direction === 'up' ? 'بیشتر بهتر' : def.direction === 'range' ? 'در بازه' : 'کمتر بهتر'], ['تازگی', `${def.freshness_hours} ساعت`], ['تجمیع در هلدینگ', def.aggregate], ['کارت امتیاز', def.scorecard ? 'بله' : 'نه']] as const).map(([a, b]) => (
               <div key={a} className="flex flex-col gap-0.5 rounded-[12px] bg-tile p-3"><dt className="text-[11px] text-muted">{a}</dt><dd className="text-[13px] font-semibold text-ink">{b}</dd></div>
             ))}
           </dl>
@@ -87,6 +87,8 @@ export function TargetsSheet({ company, onClose }: { company: string; onClose: (
   const save = useKpiAction();
   const toast = useToast();
   const [edit, setEdit] = useState<Record<string, Partial<KpiPatch>>>({});
+  // The target as typed ("1.", "-", Persian digits); parsed to a number, NaN while it is not one (and then Save waits).
+  const [texts, setTexts] = useState<Record<string, string>>({});
   const rows = (q.data?.kpis ?? []).map((k) => ({ ...k, ...edit[k.key] }));
   const set = (key: string, p: Partial<KpiPatch>) => setEdit((e) => ({ ...e, [key]: { ...e[key], ...p } }));
   const run = () => q.data && save.mutateAsync({ set: q.data, kpis: rows.filter((r) => edit[r.key]).map((r) => ({ key: r.key, target: r.target, scorecard: r.scorecard, status: r.status, freshness_hours: r.freshness_hours })) })
@@ -94,18 +96,19 @@ export function TargetsSheet({ company, onClose }: { company: string; onClose: (
     .catch((e) => toast({ tone: 'error', text: faError(e) }));
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title="هدف‌ها و کارت امتیاز" description="تحقق KPI در امتیاز شرکت (۳۵٪) از همین هدف‌هاست، وقتی OKR فعالی نیست." width={640}
-      footer={<Button variant="primary" className="w-full" disabled={!Object.keys(edit).length} loading={save.isPending} onClick={() => void run()}>ذخیره</Button>}>
+      footer={<Button variant="primary" className="w-full" disabled={!Object.keys(edit).length || Object.values(edit).some((p) => Number.isNaN(p.target))} loading={save.isPending} onClick={() => void run()}>ذخیره</Button>}>
       {!q.data ? <Skeleton className="h-64" /> : (
         <ul className="flex flex-col">
           {rows.map((k) => (
             <li key={k.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-div py-3 last:border-0">
               <span className="flex min-w-0 flex-[1_1_12rem] flex-col"><span className="text-[13px] font-semibold">{k.name_fa}</span><span className="fig text-[11px] text-muted">{k.source.kind === 'query' ? k.source.query : 'manual'} · {CARD_FA[k.card]?.fa}</span></span>
               <label className="flex items-center gap-1.5 text-[12px] text-sec">هدف
-                <input inputMode="decimal" dir="ltr" value={k.target ?? ''} onChange={(e) => set(k.key, { target: e.target.value.trim() === '' ? null : Number(e.target.value.replace(/[^\d.]/g, '')) })} aria-label={`هدف ${k.name_fa}`} className={cx(field, 'fig w-24')} />
+                <input inputMode="decimal" dir="ltr" value={texts[k.key] ?? (k.target ?? '').toString()} aria-label={`هدف ${k.name_fa}`} aria-invalid={Number.isNaN(k.target)} className={cx(field, 'fig w-24', Number.isNaN(k.target) && 'border-[var(--hq-neg-line)]')}
+                  onChange={(e) => { const t = numText(e.target.value, true); setTexts((x) => ({ ...x, [k.key]: t })); set(k.key, { target: t === '' ? null : parseNum(t, true) ?? Number.NaN }); }} />
                 <span className="fig text-[11px] text-muted">{k.unit}</span>
               </label>
               <label className="flex items-center gap-1.5 text-[12px] text-sec">تازگی
-                <input inputMode="numeric" dir="ltr" value={k.freshness_hours} onChange={(e) => set(k.key, { freshness_hours: Number(e.target.value.replace(/\D/g, '') || 1) })} aria-label={`تازگی ${k.name_fa}`} className={cx(field, 'fig w-14')} />h
+                <input inputMode="numeric" dir="ltr" value={k.freshness_hours} onChange={(e) => set(k.key, { freshness_hours: Number(latinNum(e.target.value).replace(/\D/g, '') || 1) })} aria-label={`تازگی ${k.name_fa}`} className={cx(field, 'fig w-14')} />h
               </label>
               <label className="flex items-center gap-1.5 text-[12px] text-sec"><Switch checked={k.scorecard} onChange={(v) => set(k.key, { scorecard: v })} label={`کارت امتیاز: ${k.name_fa}`} />امتیاز</label>
               <label className="flex items-center gap-1.5 text-[12px] text-sec"><Switch checked={k.status === 'active'} onChange={(v) => set(k.key, { status: v ? 'active' : 'paused' })} label={`فعال: ${k.name_fa}`} />فعال</label>
@@ -144,7 +147,7 @@ export function Scorecard() {
                     {cols.map((c) => {
                       const k = r.kpis.find((x) => x.key === c.key);
                       if (!k) return <td key={c.key} className="px-2 py-3 text-muted">—</td>;
-                      const hit = k.direction ? onTarget(k.value, k.target, k.direction) : null;
+                      const hit = k.direction ? onTarget(k.value, k.target, k.direction, k.target_max) : null;
                       return (
                         <td key={c.key} className="px-2 py-3">
                           <span className="flex flex-col gap-1">

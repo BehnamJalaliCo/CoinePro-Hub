@@ -630,7 +630,9 @@ private fun ShadowCard(company: String, name: String, r: ShadowReport?) {
     var sending by remember { mutableStateOf(false) }
     fun send(uri: Uri) {
         sending = true
+        // ⟨2026-11-11⟩ audit: the button leaves «بارگذاری…» however the upload ends (an error not the hub's included)
         upload.go(toasts, onError = { sending = false; false }) {
+          try {
             val f = withContext(Dispatchers.IO) { ctx.contentResolver.describe(uri) }
             val ref = try {
                 withContext(Dispatchers.IO) { env.api.upload(f.name, f.mime, f.size, { ctx.contentResolver.openInputStream(uri) ?: throw IOException("unreadable") }) }
@@ -640,7 +642,9 @@ private fun ShadowCard(company: String, name: String, r: ShadowReport?) {
             val out = env.api.supportHistory(company, ref.id)
             sending = false
             env.cache.invalidate("support")
-            toasts.ok("مجموعه‌ی آزمون ${out.suite ?: ""} ساخته شد" + (out.cases?.let { "، $it سؤال ماسک‌شده" } ?: "") + ". حالا اجرا کن.")
+            if (out.state == "failed") toasts.error(out.error?.ifBlank { null } ?: "این تاریخچه خوانده نشد؛ فایل دیگری بده.")
+            else toasts.ok("مجموعه‌ی آزمون ${out.suite ?: ""} ساخته شد" + (out.casesKept?.let { "، $it سؤال ماسک‌شده" } ?: "") + ". حالا اجرا کن.")
+          } finally { sending = false }
         }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri) }
@@ -704,7 +708,7 @@ private fun ShadowCard(company: String, name: String, r: ShadowReport?) {
                         env.cache.invalidate("support")
                         toasts.ok("اجرا شروع شد؛ هزینه‌اش از سقف آکادمی است.")
                     }
-                }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, enabled = r != null, loading = run.busy)
+                }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = run.busy)
             }
         }
     }

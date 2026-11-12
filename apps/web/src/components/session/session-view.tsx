@@ -53,7 +53,7 @@ import { useFillHeight } from '@/components/look/fill';
 import { faceOf, usageOf } from '@/components/look/output';
 import { PublishFor, PublishUnder, leadFile } from '@/components/look/publish';
 import { DrawnTick } from '@/components/look/ring';
-import { AnswerSent, EndLeaf, IdleNudge, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, StillCard, WaitingCard, moodOf, stillOf, taskFa, taskOf } from '@/components/look/session';
+import { AnswerSent, EndLeaf, IdleNudge, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, StillCard, WaitingCard, activityOfReport, isCall, liveActivity, moodOf, stillOf, taskFa, taskOf } from '@/components/look/session';
 import { useTick } from '@/components/live/motion';
 import { SpringSheet } from '@/components/look/spring-sheet';
 import { Facts, Ltr } from '@/components/look/text';
@@ -173,7 +173,14 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const [said, setSaid] = useState<string | null>(null);
   const saidTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (saidTimer.current) clearTimeout(saidTimer.current); }, []);
-  const activity = useSessionActivity(refId, !closed).data;
+  const act41 = useSessionActivity(refId, !closed);
+  // ⟨2026-11-12⟩ The activity's GET failed with nothing before it: the report stands in, so the still watch runs (a hub before §41 still
+  // answers null: no activity, no nudge). A call the hub dropped without a word stops counting once past its deadline, looked at every
+  // minute while one is listed, so the minute's watch below can reach `stillOf`.
+  const fallback = useMemo(() => (act41.isError && act41.data === undefined ? activityOfReport() : undefined), [act41.isError, act41.data]);
+  const raw = act41.data === undefined ? fallback : act41.data;
+  const callTick = useTick(60_000, !closed && !!raw?.working.some(isCall));
+  const activity = useMemo(() => liveActivity(raw, callTick), [raw, callTick]);
   const badge = useLiveBadge(refId, r.session.badge, r.updated_at);
   // ⟨1.24⟩ SS-1 the stall watch: when the last step was, and the ring toward the hub's idle sweep. While someone works the «الان» bar
   // says it; once no one does, the header's facts carry it.
@@ -196,7 +203,9 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   // The hub takes «ادامه بده» where it serves the session's activity (§41: a hub before it answers the activity with nothing).
   const nudgeOn = activity != null;
   // The minute is looked at only while a still card can come: open, not held, nothing asked or waiting, nobody at work.
-  const stillCan = !closed && !held && !asked && badge !== 'ready' && badge !== 'your_turn' && !r.blockers.length && !(r.cards ?? []).length
+  // The report standing in for a failed read cannot see a long quiet turn: while the hub's own badge says someone is at work, no card.
+  const reportBusy = raw !== undefined && raw === fallback && badge === 'moving' && (r.session?.reason_fa ?? '').trim().startsWith('در حال کار');
+  const stillCan = !closed && !held && !asked && !reportBusy && badge !== 'ready' && badge !== 'your_turn' && !r.blockers.length && !(r.cards ?? []).length
     && !!activity && !activity.working.length && !activity.waiting_fa && !activity.stuck_fa;
   const minute = useTick(60_000, stillCan);
   const still = stillCan ? stillOf(r, activity, badge, minute) : null;

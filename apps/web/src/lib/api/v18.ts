@@ -161,7 +161,7 @@ export type DepartmentRank = {
 };
 export type HrFlag = 'promote_candidate' | 'coach' | 'demote_candidate' | 'dismiss_candidate' | 'probation_end';
 export type HrEmployee = {
-  code: string; title_fa: string; score: number; score_prev: number | null; stars: number | null; efficiency: number | null; owner_avg: number | null;
+  code: string; title_fa: string; score: number | null /* null: no score yet (a hire in its first month) */; score_prev: number | null; stars: number | null; efficiency: number | null; owner_avg: number | null;
   failed_share: number; findings_open: number; refuted_claims: number; probation_until: string | null; flags: HrFlag[];
 };
 export type HrRound = {
@@ -438,7 +438,7 @@ export const useSubstituteLogin = (connectionId: string | null, loginId: string 
   useQuery({
     queryKey: ['substitutes', 'login', connectionId, loginId],
     queryFn: () => call<SubstituteLogin>('GET', `/connections/${enc(connectionId!)}/login/${enc(loginId!)}`),
-    enabled: !!connectionId && !!loginId, refetchInterval: (q) => (!q.state.data || q.state.data.state === 'waiting' ? 2_000 : false),
+    enabled: !!connectionId && !!loginId, refetchInterval: (q) => (q.state.status === 'error' ? false : !q.state.data || q.state.data.state === 'waiting' ? 2_000 : false),
   });
 const CREATIVE_LIVE: CreativeState[] = ['queued', 'generating'];
 export const useCreatives = (f: { company?: string | null; state?: CreativeState | null; kind?: 'image' | 'video' | null }) =>

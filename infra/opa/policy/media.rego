@@ -20,7 +20,9 @@ media_writers := {"scriptwriter", "video_director", "motion_designer", "visual_d
 
 media_render_roles := {"motion_designer", "ui_designer"}
 
-speech_roles := {"media_director", "voice_producer", "video_director", "motion_designer", "scriptwriter"}
+# ⟨2026-11-12⟩ the CEO too: a media order goes to the CEO when the company has no media director, and
+# the holder of an owner's session does the work itself (a narrated reel is never made silent)
+speech_roles := {"media_director", "voice_producer", "video_director", "motion_designer", "scriptwriter", "ceo"}
 
 grant if {
 	op == "media.item"
