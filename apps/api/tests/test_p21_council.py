@@ -56,6 +56,28 @@ def test_a_web_players_page_residue_is_cut() -> None:
     )
     assert S.cut_residue("چرا کم شد؟ چون قیمت بالا رفت.") == "چرا کم شد؟ چون قیمت بالا رفت."
     assert S.cut_residue("مایلید ادامه بدهم؟") == "مایلید ادامه بدهم؟"  # nothing but residue: kept
+    assert S.cut_residue("Shall I draft it?\nCopy\nYes") == "Shall I draft it?\nCopy\nYes"
+    assert S.cut_residue("متن.\n\nآیا می‌خواهید جدول بسازم؟\n\nبله\n\nخیر\nکپی") == "متن."
+
+
+def test_a_one_word_verdict_and_an_own_closing_question_are_not_residue() -> None:
+    # a reply chip's word on its own is the answer's verdict, not the page's
+    for text in (
+        "آیا این طرح قانونی است؟ بررسی کردم.\n\nپاسخ کوتاه:\n\nخیر.",
+        "Is the deal profitable?\n\nShort answer:\nNo.",
+        "نتیجه‌گیری:\nبله",
+    ):
+        assert S.cut_residue(text) == text
+    assert S.cut_residue("نتیجه‌گیری:\nبله\nCopy") == "نتیجه‌گیری:\nبله"
+    # an offer starts a line or a sentence; a bare «می‌خواهید» is not an offer
+    for text in (
+        "سؤال کلیدی برای هیئت این است: مشتری واقعاً چه می‌خواهید؟",
+        "The real question for the board: do you want growth or margin?",
+        "پیشنهاد نهایی: کدام گزینه بهتر است اگر بخواهید سریع رشد کنید؟",
+        "The open question: should I hire now or wait?",
+    ):
+        assert S.cut_residue(text) == text
+    assert S.cut_residue("Answer here. Do you want me to expand?") == "Answer here."
     assert humanize.is_persian_answer("پاسخ فارسی با نام Gemini و https://example.com/a")
     assert not humanize.is_persian_answer("这是答案，价格两百万。")
 
@@ -223,3 +245,37 @@ async def test_council_roles_are_the_owners_setting(
         json={"council_roles": {"claude": "king"}},
     )
     assert bad.status_code == 422
+
+
+async def test_the_fact_pack_lists_each_subject_of_a_connection_figure(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """growth.metrics_daily holds one row per subject (a channel, an account): the fact pack
+    shows each subject of the latest day, never one arbitrary subject as the company's figure."""
+    from datetime import date, timedelta
+
+    from hq_api.domain import council as K
+
+    co = await new_company()
+    today = date.today()
+    for day, subject, value in (
+        (today - timedelta(days=1), "big", 11000),
+        (today, "big", 12000),
+        (today, "small", 300),
+        (today, "", 5),
+    ):
+        await su.execute(
+            """INSERT INTO growth.metrics_daily (company_id, kind, day, key, subject, value, source)
+               VALUES ($1, 'telegram', $2, 'followers', $3, $4, 'test')""",
+            co["id"], day, subject, value,
+        )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        pack = await K.fact_pack(tx, co["id"], co["code"])
+    got = {f["key"]: f["value"] for f in pack["figures"] if f["key"].startswith("telegram.")}
+    assert got == {
+        "telegram.followers": 5,
+        "telegram.followers[big]": 12000,
+        "telegram.followers[small]": 300,
+    }
+    small = next(f for f in pack["figures"] if f["key"] == "telegram.followers[small]")
+    assert "small" in small["title_fa"]

@@ -300,7 +300,14 @@ async def archive_create_record(
     else a draft. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
     idempotency.read_key(request, required=True)
+    async with ctx.tx() as tx:  # a retry: the first call took the uploads over
+        if replay := await idempotency.peek(tx, request, ctx.who):
+            return replay
     async with txf() as tx:
+        # a retry after the first answer was lost: its upload is the archive's now
+        done = await idempotency.replayed(tx, request, ctx.who)
+        if done is not None:
+            return done
         scope = await tx.first(
             "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
         )
@@ -487,7 +494,13 @@ async def archive_add_version(
     is superseded and the record goes back to `filed`. Requires `Idempotency-Key`."""
     txf = _txf(ctx)
     idempotency.read_key(request, required=True)
+    async with ctx.tx() as tx:  # a retry: the first call took the uploads over
+        if replay := await idempotency.peek(tx, request, ctx.who):
+            return replay
     async with txf() as tx:
+        done = await idempotency.replayed(tx, request, ctx.who)
+        if done is not None:
+            return done
         r = await R.load(tx, ref)
         R.require_live(r)
         lv = await SC.level(tx, r["level"])

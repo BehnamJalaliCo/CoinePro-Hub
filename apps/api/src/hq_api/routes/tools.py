@@ -8,7 +8,9 @@ Owner:    GET /tools/mcp · POST /tools/mcp 🔏 (`mcp.add`, the body's SHA-256)
 Gateway:  POST /internal/v1/tools/mcp/resolve (one mcp.call: may this agent
           call that tool, at which class; an A3 tool becomes the owner's
           `a3_action` decision instead, and the approved card runs its one
-          call once) · POST /internal/v1/tools/mcp/{key}/listing (what the
+          call once) · POST /internal/v1/tools/mcp/consume (a deferred
+          resolve's approved card, used up only when its call is about to
+          run) · POST /internal/v1/tools/mcp/{key}/listing (what the
           server lists: pinned once after an enable; a change switches the
           server off and raises a `tool_enable` card for the owner's seal).
 """
@@ -213,6 +215,11 @@ class ResolveIn(Model):
     # The arguments with their secrets masked (the gateway's mask_secrets):
     # what an A3 card shows the owner (recipients, amounts).
     args: dict[str, Any] | None = None
+    # An approved A3 card is named but not used up: the gateway's own checks
+    # (policy, egress reserve, the server's listing) may still refuse the
+    # call, so it uses the card up with /tools/mcp/consume right before the
+    # call runs. Without it (older gateways) resolve uses the card up at once.
+    defer: bool = False
 
     @field_validator("args")
     @classmethod
@@ -290,9 +297,12 @@ async def resolve_mcp(body: ResolveIn, ctx: Ctx = Depends(internal_ctx)) -> Reso
     server is not for, a server not enabled, the caps (429, Retry-After). An
     A3 tool runs only as the one call of an approved card (same company,
     server, tool, arguments and registration; sealed in the last 24 hours;
-    consumed atomically, so it runs once); otherwise an `a3_action` card for
-    the owner is made (once: the same pending card is answered again), and a
-    card the owner rejected answers 403 without a new one."""
+    consumed atomically, so it runs once; with `defer` the card is only named
+    here and consumed by /tools/mcp/consume right before the call runs, so a
+    call the gateway still refuses leaves it approved); otherwise an
+    `a3_action` card for the owner is made (once: the same pending card is
+    answered again), and a card the owner rejected answers 403 without a new
+    one."""
     _agent(ctx)
     assert ctx.who.company is not None
     assert ctx.who.company_id is not None
@@ -300,18 +310,7 @@ async def resolve_mcp(body: ResolveIn, ctx: Ctx = Depends(internal_ctx)) -> Reso
     made: str | None = None
     server: ResolvedServer | None = None
     async with ctx.tx() as tx:
-        row = await M.load(tx, body.server)
-        if row is None:
-            raise ApiError(403, "policy_denied", "mcp_server_unknown")
-        if not M.for_company(row, ctx.who.company):
-            raise ApiError(403, "policy_denied", "mcp_server_not_for_this_company")
-        tool = M.sealed_tool(row, body.tool)
-        if tool is None:
-            raise ApiError(403, "policy_denied", "mcp_tool_not_sealed")
-        if row["status"] != "enabled":
-            raise ApiError(503, "channel_not_configured", f"mcp server {row['status']}")
-        if (why := M.runnable(row, ctx.hub.settings.mcp_containers)) is not None:
-            raise ApiError(503, "channel_not_configured", why)
+        row, tool = await _callable(ctx, tx, body.server, body.tool)
         await _caps(ctx, tx)
         cls = str(tool["class"])
         approved: str | None = None
@@ -338,6 +337,89 @@ async def resolve_mcp(body: ResolveIn, ctx: Ctx = Depends(internal_ctx)) -> Reso
         await workflows_client.decision_created(ctx.hub, made)
         return _card(body.tool, made, pending=False)
     return Resolved(cls=cls, tool=body.tool, server=server, decision=approved)
+
+
+async def _callable(
+    ctx: Ctx, tx: Any, server: str, tool_name: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """(server row, sealed tool) of one call, or the refusal: an unknown
+    server, a company it is not for, a tool outside its seal, a server not
+    enabled or not runnable."""
+    assert ctx.who.company is not None
+    row = await M.load(tx, server)
+    if row is None:
+        raise ApiError(403, "policy_denied", "mcp_server_unknown")
+    if not M.for_company(row, ctx.who.company):
+        raise ApiError(403, "policy_denied", "mcp_server_not_for_this_company")
+    tool = M.sealed_tool(row, tool_name)
+    if tool is None:
+        raise ApiError(403, "policy_denied", "mcp_tool_not_sealed")
+    if row["status"] != "enabled":
+        raise ApiError(503, "channel_not_configured", f"mcp server {row['status']}")
+    if (why := M.runnable(row, ctx.hub.settings.mcp_containers)) is not None:
+        raise ApiError(503, "channel_not_configured", why)
+    return row, tool
+
+
+class ConsumeIn(Model):
+    server: str = Field(pattern=M.SERVER_KEY)
+    tool: str = Field(pattern=M.TOOL_NAME)
+    args_sha256: str = Field(pattern=M.SHA256)
+    decision: str = Field(min_length=1, max_length=40)
+
+
+class Consumed(BaseModel):
+    decision: str
+
+
+@internal_router.post("/tools/mcp/consume", response_model=Consumed, responses=EI)
+async def consume_mcp(body: ConsumeIn, ctx: Ctx = Depends(internal_ctx)) -> Consumed:
+    """The gateway uses up the approved A3 card a deferred resolve named, right
+    before its one call runs (after the policy, the egress reserve and the
+    server's listing), so a call refused before it runs leaves the card
+    approved for the next try. The same checks as resolve (server, company,
+    seal, status, caps, a locked company); 403 policy_denied when the card is
+    no longer an approved, unused, fresh card of exactly this call (another
+    call used it first)."""
+    _agent(ctx)
+    assert ctx.who.company is not None
+    assert ctx.who.company_id is not None
+    await allow(ctx, "mcp.call", {"company": ctx.who.company})
+    async with ctx.tx() as tx:
+        row, tool = await _callable(ctx, tx, body.server, body.tool)
+        if str(tool["class"]) != "A3":
+            raise ApiError(422, "validation_failed", "mcp_tool_not_a3")
+        await _caps(ctx, tx)
+        cards = await tx.all(
+            CARDS_SQL,
+            co=ctx.who.company_id,
+            sha=body.args_sha256,
+            srv=body.server,
+            tool=body.tool,
+            reg=row["registration_sha256"],
+        )
+        card = next(
+            (c for c in cards if c["ref"] == body.decision and c["fresh"] and not c["used"]), None
+        )
+        if card is not None:
+            await ctx.ensure_unlocked(tx, ctx.who.company_id)
+        if card is None or not await _record(
+            tx, ctx, _as_resolve(body), "A3", "approved", card["id"]
+        ):
+            raise ApiError(
+                403,
+                "policy_denied",
+                f"a3_card_not_available {body.decision}"[:200],
+                message_fa=(
+                    f"تصمیم {body.decision} دیگر برای این فراخوانی آزاد نیست (فراخوانی دیگری "
+                    "آن را به کار برد یا کهنه شد)؛ این فراخوانی اجرا نشد."
+                ),
+            )
+    return Consumed(decision=body.decision)
+
+
+def _as_resolve(body: ConsumeIn) -> ResolveIn:
+    return ResolveIn(server=body.server, tool=body.tool, args_sha256=body.args_sha256)
 
 
 def _card(tool: str, ref: str, *, pending: bool) -> Resolved:
@@ -400,7 +482,8 @@ CARDS_SQL = f"""
 async def _a3(ctx: Ctx, tx: Any, body: ResolveIn, row: dict[str, Any]) -> tuple[str, str]:
     """("approved" | "pending" | "made", ref) for one A3 call (contract §18.13):
     an approved, unused card of the same company, server, tool, arguments and
-    registration from the last 24 hours is consumed (from any run, once);
+    registration from the last 24 hours is consumed (from any run, once; with
+    `defer` only named, and consumed later by /tools/mcp/consume);
     the latest card still pending is the answer again; a rejected or returned
     one answers 403 policy_denied (no new card); otherwise a new card."""
     assert ctx.who.company is not None
@@ -418,6 +501,8 @@ async def _a3(ctx: Ctx, tx: Any, body: ResolveIn, row: dict[str, Any]) -> tuple[
     )
     for card in unused:  # the oldest first
         await ctx.ensure_unlocked(tx, ctx.who.company_id)
+        if body.defer:  # used up by /tools/mcp/consume once the call is about to run
+            return "approved", str(card["ref"])
         if await _record(tx, ctx, body, "A3", "approved", card["id"]):
             return "approved", str(card["ref"])
     latest = cards[0] if cards else None
@@ -483,6 +568,7 @@ async def _a3_card(ctx: Ctx, tx: Any, body: ResolveIn, row: dict[str, Any]) -> s
         else None,
         charters=ctx.hub.charters,
         company_kind=(await ctx.hub.companies.by_id(ctx.who.company_id)).kind,
+        system=True,  # the api's own card (a plain propose of an mcp_call card is refused)
     )
     await ctx.audit(
         tx,

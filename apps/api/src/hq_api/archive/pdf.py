@@ -219,7 +219,12 @@ def _grid(pg: _Pages, cols: list[str], rows: list[list[str]]) -> None:
             right -= w
         pg.y += h
 
+    # a header repeats on every page, so it never takes more than a quarter
+    # of one: past that it is cut (a page with no room left for a row would
+    # start page after page without end)
+    most = max(1, int(((A4[1] - 2 * MARGIN) / 4 - 2 * PAD) // line_h))
     header = [_cell_lines(c, w) for c, w in zip(cols, widths, strict=True)]
+    header = [c if len(c) <= most else [*c[: most - 1], c[most - 1] + " …"] for c in header]
     head_h = max(len(c) for c in header) * line_h + 2 * PAD
     if pg.room() < head_h + line_h + 2 * PAD:
         pg.new()

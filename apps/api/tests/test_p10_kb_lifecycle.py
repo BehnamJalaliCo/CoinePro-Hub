@@ -70,6 +70,16 @@ async def test_an_article_is_approved_only_with_step_up(
     assert {(a["version"], a["status"]) for a in listed if a["ref"] == ref} == {
         (version, "approved"), (version + 1, "proposed"),
     }  # fmt: skip
+    # the status filter is applied in SQL, before the list's cap
+    for st, want in (("proposed", version + 1), ("approved", version)):
+        got = await client.get("/api/v1/support/kb", params={"company": co["code"], "status": st},
+                               headers=h)  # fmt: skip
+        assert got.status_code == 200, got.text
+        assert [a["version"] for a in got.json() if a["ref"] == ref] == [want]
+        assert {a["status"] for a in got.json()} == {st}
+    got = await client.get("/api/v1/support/kb", params={"company": co["code"], "status": "retired"},
+                           headers=h)  # fmt: skip
+    assert got.json() == []
 
 
 async def test_an_expired_article_no_longer_answers_by_itself(
@@ -271,6 +281,11 @@ async def test_go_live_cards_only_on_a_clean_pass_and_the_seal_makes_the_channel
     assert card["kind"] == "support_go_live" and payload["channel"] == "telegram_bot"
     assert payload["shadow_report"]["pass"] is True and payload["verbatim_threshold"] == 0.95
     h = owner_session["headers"]
+    # the support page reads `pass`, as the card does
+    r = await client.get(f"/api/v1/support/shadow?company={co['code']}", headers=h)
+    assert r.status_code == 200, r.text
+    [listed] = r.json()
+    assert listed["pass"] is True and "pass_" not in listed, listed
     ref = ok.decisions[0]
     r = await client.post(f"/api/v1/decisions/{ref}/approve", headers={**h, **idem()}, json={})
     assert r.status_code == 403  # sealed with step-up only
@@ -359,6 +374,73 @@ async def test_the_shadow_run_waits_while_the_holding_is_locked(
         "SELECT state, skipped_reason FROM support.shadow_runs WHERE id = $1", run["id"]
     )
     assert (row["state"], row["skipped_reason"]) == ("skipped", "holding_locked")
+
+
+async def test_a_shadow_run_that_fails_midway_is_failed_and_a_dead_one_resumes(
+    hub: Hub, new_company: Callable[..., Any], su: Any, wk: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    """Audit 2026-11-11: a run that raised after `running` stayed `running` for good and
+    the retry skipped it; now it is failed (with its eval run), and a retry of a run an
+    attempt left `running` (the worker died) runs it again."""
+    from hq_api.worker.activities import _ScopedTx
+    from hq_api.worker.desk_activities import DeskActivities
+
+    co = await new_company()
+    fid = await _owner_file(hub, su, _export(3), "result.json")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await shadow.import_history(
+            tx, hub, company_id=co["id"], company=co["code"], file_id=fid, by="owner"
+        )
+        run = await shadow.queue_run(
+            tx, hub, company_id=co["id"], company=co["code"], by_kind="owner", by_code="owner"
+        )
+    whub = wk["hub"]  # the worker's role writes the eval run
+    acts = DeskActivities(whub, None, lambda: _ScopedTx(whub))
+    calls = 0
+
+    async def case(*_a: Any) -> tuple[dict[str, Any], int]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("boom")
+        verdict = "wrong" if calls > 2 else "correct"  # no pass: no go-live card
+        return {"case": f"S{calls}", "verdict": verdict, "path": "verbatim", "score": 0.99}, 7
+
+    monkeypatch.setattr(acts, "_case", case)
+    async with holding_switch(su, "released"):
+        with pytest.raises(RuntimeError):
+            await acts.shadow_run(str(run["id"]))
+        row = await su.fetchrow(
+            """SELECT state, error, tokens, finished_at, eval_run_id FROM support.shadow_runs
+               WHERE id = $1""",
+            run["id"],
+        )
+        assert row["state"] == "failed" and "boom" in row["error"] and row["tokens"] == 7
+        assert row["finished_at"] is not None
+        if row["eval_run_id"] is not None:
+            assert (
+                await su.fetchval(
+                    "SELECT status FROM academy.eval_runs WHERE id = $1", row["eval_run_id"]
+                )
+                == "failed"
+            )
+        assert (await acts.shadow_run(str(run["id"])))["skipped"] == "failed"
+        # an attempt that died mid-run left it `running`: the retry runs it to the end
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            again = await shadow.queue_run(
+                tx, hub, company_id=co["id"], company=co["code"], by_kind="owner", by_code="owner"
+            )
+        await su.execute(
+            "UPDATE support.shadow_runs SET state = 'running' WHERE id = $1", again["id"]
+        )
+        calls = 10
+        out = await acts.shadow_run(str(again["id"]))
+        assert out["total"] >= 1 and "skipped" not in out
+        assert (
+            await su.fetchval("SELECT state FROM support.shadow_runs WHERE id = $1", again["id"])
+            == "done"
+        )
 
 
 def test_the_history_parsers_and_the_thresholds() -> None:
@@ -562,6 +644,92 @@ async def test_quiet_hours_the_daily_cap_and_opt_out(
     assert (later["status"], later["reason"]) == ("skipped", "opted_out")
 
 
+async def test_a_send_held_yesterday_counts_against_todays_cap_when_it_goes_out(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    await _sealed_rule(hub, co["id"], "csat", limits={"daily_cap": 1, "per_customer_days": 1})
+    a = await inbound(hub, co["id"], "سلام", user="8121")
+    b = await inbound(hub, co["id"], "سلام", user="8122")
+    morning = datetime.combine(
+        datetime.now(TEHRAN).date(), datetime.min.time(), TEHRAN
+    ) + timedelta(hours=10)
+    # Held yesterday: its row's `at` (kept as made) is before today's start.
+    await su.execute(
+        """INSERT INTO growth.sends (company_id, rule_id, template, subject, channel, dedupe_key,
+               status, reason, at)
+           SELECT r.company_id, r.id, r.template_ref || '@' || r.template_version, k.subject,
+                  r.channel, 'csat:held-a', 'queued', 'daily_cap', now() - interval '1 day'
+           FROM growth.rules r, support.conversations c JOIN support.customers k ON k.id = c.customer_id
+           WHERE r.company_id = $1 AND r.kind = 'csat' AND r.status = 'active' AND c.id = $2""",
+        co["id"],
+        a["conversation"]["id"],
+    )
+    async with holding_switch(su, "released"), fake_telegram(), hub.db.tx([co["id"]]) as tx:
+        assert await lifecycle.retry_queued(tx, hub, now=morning) == 1
+        capped = await lifecycle.send_template(
+            tx, hub, company_id=co["id"], purpose="csat", dedupe_key="csat:b",
+            conversation_id=b["conversation"]["id"], now=morning,
+        )  # fmt: skip
+    assert (capped["status"], capped["reason"]) == ("queued", "daily_cap")
+
+
+async def test_a_held_send_of_a_rule_no_longer_active_leaves_the_retry_queue(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    rule = await _sealed_rule(hub, co["id"], "csat")
+    a = await inbound(hub, co["id"], "سلام", user="8125")
+    morning = datetime.combine(
+        datetime.now(TEHRAN).date(), datetime.min.time(), TEHRAN
+    ) + timedelta(hours=10)
+    async with holding_switch(su, "released"), fake_telegram(), hub.db.tx([co["id"]]) as tx:
+        held = await lifecycle.send_template(
+            tx, hub, company_id=co["id"], purpose="csat", dedupe_key="csat:held",
+            conversation_id=a["conversation"]["id"], now=morning - timedelta(hours=11),
+        )  # fmt: skip
+        assert held["reason"] == "quiet_hours"
+        await lifecycle.pause_rule(tx, rule["ref"], "test")
+        assert await lifecycle.retry_queued(tx, hub, now=morning) == 0
+    assert (
+        await su.fetchval(
+            "SELECT status FROM growth.sends WHERE company_id = $1 AND dedupe_key = 'csat:held'",
+            co["id"],
+        )
+        == "skipped"
+    )
+
+
+async def test_a_csat_question_held_overnight_still_takes_the_score(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    await _sealed_rule(hub, co["id"], "csat")  # the default quiet hours, 22:00-09:00
+    msg = await inbound(hub, co["id"], "سلام", user="8131")
+    ref = msg["conversation"]["ref"]
+    morning = datetime.combine(
+        datetime.now(TEHRAN).date(), datetime.min.time(), TEHRAN
+    ) + timedelta(hours=10)
+    async with holding_switch(su, "released"), fake_telegram():
+        async with hub.db.tx([co["id"]]) as tx:
+            held = await lifecycle.send_template(
+                tx, hub, company_id=co["id"], purpose="csat", dedupe_key=f"csat:{ref}",
+                conversation_id=msg["conversation"]["id"], now=morning - timedelta(hours=11),
+            )  # fmt: skip
+            assert (held["reason"], held["message_id"]) == ("quiet_hours", None)
+        asked = "SELECT csat_asked_at FROM support.conversations WHERE ref = $1"
+        assert await su.fetchval(asked, ref) is None
+        async with hub.db.tx([co["id"]]) as tx:
+            assert await lifecycle.retry_queued(tx, hub, now=morning) == 1
+    assert await su.fetchval(asked, ref) is not None
+
+
 async def test_a_new_template_version_pauses_its_rules(
     hub: Hub, new_company: Callable[..., Any]
 ) -> None:
@@ -646,6 +814,74 @@ async def test_the_nps_score_and_a_wave(hub: Hub, new_company: Callable[..., Any
         "SELECT source_ref, quote FROM feedback.signals WHERE company_id = $1", co["id"]
     )
     assert {q["source_ref"] for q in quotes} == {ref} and len(quotes) == 2
+
+
+def test_a_rules_trigger_is_typed_as_the_owners_route_types_it() -> None:
+    # An agent's lifecycle_rule card reaches create_rule untyped: a sealed
+    # nps rule with a bad `sample` would break every support sweep.
+    for bad in ({"sample": "all"}, {"sample": -5}, {"sample": 0}, {"after_hours": "soon"}):
+        with pytest.raises(ApiError) as info:
+            lifecycle.validate_trigger("nps", bad)
+        assert info.value.code == "validation_failed"
+    t = lifecycle.validate_trigger("nps", {"sample": "20"})
+    assert t["sample"] == 20 and t["rrule"] == lifecycle.NPS_RRULE
+
+
+async def test_a_locked_companys_nps_wave_waits_for_its_release(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    await _sealed_rule(hub, co["id"], "nps")
+    await inbound(hub, co["id"], "سلام", user="8660")
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=TEHRAN)
+    ref = f"NP-2026Q4-{co['code']}"
+    switch = "UPDATE control.kill_switches SET state = $2 WHERE company_id = $1"
+    async with holding_switch(su, "released"), fake_telegram():
+        await su.execute(switch, co["id"], "engaged")
+        try:
+            async with hub.db.tx([co["id"]]) as tx:
+                assert ref not in await lifecycle.nps_due(tx, hub, now=now)
+        finally:
+            await su.execute(switch, co["id"], "released")
+        assert not await su.fetchval("SELECT 1 FROM growth.nps_waves WHERE ref = $1", ref)
+        async with hub.db.tx([co["id"]]) as tx:
+            assert ref in await lifecycle.nps_due(tx, hub, now=now + timedelta(days=1))
+
+
+async def test_an_nps_question_never_made_takes_no_answer(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    await _sealed_rule(hub, co["id"], "nps", limits={"daily_cap": 1})
+    first = {u: await inbound(hub, co["id"], "سلام", user=u) for u in ("8670", "8671")}
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=TEHRAN)
+    async with holding_switch(su, "released"), fake_telegram(), hub.db.tx([co["id"]]) as tx:
+        assert f"NP-2026Q4-{co['code']}" in await lifecycle.nps_due(tx, hub, now=now)
+    asked = {
+        u: await su.fetchval(
+            "SELECT count(*) FROM support.messages WHERE conversation_id = $1 AND direction = 'out'",
+            m["conversation"]["id"],
+        )
+        for u, m in first.items()
+    }
+    (held,) = [u for u, n in asked.items() if n == 0]  # the daily cap held one question
+    m = await inbound(hub, co["id"], "2 روز است واریزم نیامده", user=held, message_id="nps-held")
+    async with hub.db.tx([co["id"]]) as tx:
+        conv = await tx.one(
+            "SELECT * FROM support.conversations WHERE id = :id", id=m["conversation"]["id"]
+        )
+        customer = await tx.one(
+            "SELECT * FROM support.customers WHERE id = :id", id=conv["customer_id"]
+        )
+        msg = await tx.one("SELECT * FROM support.messages WHERE id = :id", id=m["message"]["id"])
+        assert await lifecycle.take_answer(tx, hub, conv, customer, msg) is None
+    assert not await su.fetchval(
+        "SELECT 1 FROM growth.nps_responses WHERE company_id = $1", co["id"]
+    )
 
 
 async def test_an_agents_template_card_is_sealed_by_the_owner(

@@ -3,7 +3,10 @@
     POST /v1/ocr?max_pages=N   raw body (<= 30 MB), Content-Type image/png,
                                image/jpeg, image/webp, image/tiff or
                                application/pdf (its first max_pages pages,
-                               default 50) -> 200 {pages: [{n, text,
+                               default 50; a TIFF of more pages, or an
+                               image over OCR_MAX_PIXELS, is 413; one
+                               whose headers give no size is 422)
+                               -> 200 {pages: [{n, text,
                                confidence, words}], confidence, seconds,
                                engine: {name, version, langs, traineddata}}
     GET  /healthz              {ok, version, langs}
@@ -68,8 +71,14 @@ class Service:
     def ocr(self, content_type: str | None, data: bytes, max_pages: int) -> dict[str, Any]:
         kind = engine.detect(content_type, data[: engine.HEAD_BYTES])
         if kind != "pdf":
-            pixels = engine.image_pixels(kind, data[: engine.HEAD_BYTES])
-            if pixels is not None and pixels > self.settings.max_pixels:
+            # The whole body: a frame header may sit past any APPn padding,
+            # and a TIFF's page directories anywhere in the file. An image
+            # whose size the headers do not give never reaches Tesseract.
+            pixels = engine.image_pixels(kind, data)
+            pages = engine.image_pages(kind, data)
+            if pixels is None or pages is None:
+                raise engine.OcrError(422, "unreadable")
+            if pixels > self.settings.max_pixels or pages > max_pages:
                 raise engine.OcrError(413, "too_large")
         got = engine.run(
             engine.Job(

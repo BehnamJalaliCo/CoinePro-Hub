@@ -166,12 +166,14 @@ async def canvas(tx: Tx) -> Canvas:
             open=list(OPEN),
         )
     }
+    # An open session as live.SESSIONS_SQL counts it: not closed by the owner
+    # (closed_at is the only end of an order since 0052) and not hidden.
     sessions = {
         r["company_id"]: int(r["n"])
         for r in await tx.all(
             """SELECT w.company_id, count(DISTINCT o.id) AS n
                FROM owner.order_reports o JOIN work.work w ON w.ref = ANY(o.work_refs)
-               WHERE o.ended_at IS NULL GROUP BY w.company_id"""
+               WHERE o.closed_at IS NULL AND o.hidden_at IS NULL GROUP BY w.company_id"""
         )
     }
     nodes = [

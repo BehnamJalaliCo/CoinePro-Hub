@@ -165,10 +165,10 @@ async def _output(tx: Tx, ref: str) -> dict[str, Any]:
 
 async def _output_keeps(tx: Tx, dl: dict[str, Any]) -> list[str]:
     out = ["کاری که این خروجی از آن آمد میماند؛ در گزارش فرمانش «خروجی پاک شد» نوشته میشود"]
+    # an output is filed with source_ref 'deliverable:<ref>' (archive/deliverables.py)
     filed = await tx.scalar(
-        """SELECT count(*) FROM archive.records WHERE source_kind = 'deliverable' AND source_ref = :r
-             AND state <> 'disposed'""",
-        r=dl["ref"],
+        """SELECT count(*) FROM archive.records WHERE source_ref = :r AND state <> 'disposed'""",
+        r=f"deliverable:{dl['ref']}",
     )
     if int(filed or 0):
         out.append("سندی که از این خروجی در بایگانی ثبت شده است؛ از بایگانی جدا پاک میشود")

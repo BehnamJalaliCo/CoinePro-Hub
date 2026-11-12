@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import random
 from collections.abc import AsyncIterator, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -221,6 +221,59 @@ async def test_the_same_mode_and_version_is_the_same_memo(
     assert (await client.get(f"/api/v1/decisions/{ref}/memo?mode=devil", headers=owner)).json()[
         "ref"
     ] == devil.json()["ref"]
+    # A memo whose run ended without memo.write is written again when asked
+    # (the same row, a new work item), not answered as it stands.
+    old_work = await su.fetchval(
+        """UPDATE advisor.memos SET state = 'failed', state_reason = 'the advisor run ended without memo.write'
+           WHERE ref = $1 RETURNING work_id""",
+        a.json()["ref"],
+    )  # fmt: skip
+    async with holding_switch(su, "released"):
+        retry = await client.post(
+            f"/api/v1/decisions/{ref}/memo", headers=owner, json={"mode": "standard"}
+        )
+    assert retry.status_code == 202, retry.text
+    assert retry.json()["ref"] == a.json()["ref"] and retry.json()["state"] == "writing"
+    row = await su.fetchrow(
+        "SELECT work_id, state_reason FROM advisor.memos WHERE ref = $1", a.json()["ref"]
+    )
+    assert row["work_id"] is not None and row["work_id"] != old_work and row["state_reason"] is None
+
+
+async def test_an_unseated_advisor_never_aborts_the_sweep(
+    client: httpx.AsyncClient, hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    co = (await new_company())["code"]
+    await _clean_slate(su)
+    await _cap(su, 3)
+    async with holding_switch(su, "released"):
+        await _card(client, co)  # a qualifying card of today
+        await su.execute("UPDATE core.employees SET status = 'paused' WHERE code = 'HQ-ADV'")
+        try:
+            out = await A.sweep(hub)  # used to raise 409 not_ready and roll everything back
+        finally:
+            await su.execute("UPDATE core.employees SET status = 'active' WHERE code = 'HQ-ADV'")
+    assert out["auto_memos"] == {"made": 0, "skipped": "not_seated"}
+
+
+async def test_a_revenue_drop_wakes_the_advisor_once_across_the_owners_midnight(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    co = await new_company()
+    alert_day = date(2030, 1, 7)
+    await su.execute(
+        """INSERT INTO revenue.alerts (company_id, kind, day, incident_key, note_fa)
+           VALUES ($1, 'drop', $2, $3, 'افت کمیسیون')""",
+        co["id"], alert_day, f"drop:test:{alert_day.isoformat()}",
+    )  # fmt: skip
+    keys = []
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        for today in (alert_day + timedelta(days=1), alert_day + timedelta(days=2)):
+            keys.append(
+                {t["key"] for t in await A.detect(tx, today) if t["key"].startswith("revenue:")
+                 and t["company_id"] == co["id"]}
+            )  # fmt: skip
+    assert keys[0] == keys[1] == {f"revenue:{co['code']}:{alert_day.isoformat()}"}
 
 
 class _RolledBack(Exception):

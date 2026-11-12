@@ -74,18 +74,16 @@ class Snapshot:
         return next((c for c in self.connections.values() if c.key == key), None)
 
     def fallbacks(self) -> list[Connection]:
-        """Alternative connections (§1.6), in fallback order. ⟨2026-11-10⟩ A subscription out
+        """Alternative connections (§1.6), in fallback order. ⟨2026-11-10⟩ A connection out
         of quota stays a candidate: its breaker decides (closed until its window resets, then one
-        probe). Left out, the second account never came back after its first refusal, because
-        only a call through it could mark it `enabled` again."""
+        probe). Left out, it never came back after its first refusal, because only a call through
+        it could mark it `enabled` again. ⟨2026-11-11⟩ The same holds for an api key: a per-minute
+        429 that says "quota" sent a fallback-only key out for good."""
         alts = [
             c
             for c in self.connections.values()
             if c.fallback_priority is not None
-            and (
-                c.status in ("enabled", "ready")
-                or (c.status == "quota_exhausted" and c.kind == "claude_subscription")
-            )
+            and c.status in ("enabled", "ready", "quota_exhausted")
         ]
         return sorted(alts, key=lambda c: (c.fallback_priority or 0, c.key))
 

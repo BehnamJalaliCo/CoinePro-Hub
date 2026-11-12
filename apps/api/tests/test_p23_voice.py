@@ -1158,6 +1158,21 @@ async def test_opus_is_made_on_the_hub_and_wav_is_the_documented_fallback() -> N
         await audio.pcm_to_opus(b"")
 
 
+async def test_tempo_reencode_timeout_or_spawn_failure_is_encode_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The TTS done route falls back to the untempo'd speech only on EncodeFailed."""
+    for err in (TimeoutError(), OSError("no ffmpeg")):
+
+        async def boom(*_a: Any, _err: BaseException = err, **_k: Any) -> Any:
+            raise _err
+
+        monkeypatch.setattr(audio.media, "run_tool", boom)
+        with pytest.raises(audio.EncodeFailed):
+            await audio.ogg_with_tempo(b"OggS-not-real", 1.2)
+    assert await audio.ogg_with_tempo(b"same", 1.0) == b"same"
+
+
 # ----------------------------------------------------------- Piper's queue --
 async def tts_service(
     client: httpx.AsyncClient, *, jobs_to_do: int = 1, fail: bool = False

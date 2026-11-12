@@ -929,17 +929,23 @@ async def on_job(tx: Tx, hub: Any, job_id: UUID) -> bool:
                 first = await SV.load_job(tx, UUID(e["retry_of"]))
                 sections.append(await _answer_section(tx, hub, e, first))
                 continue
-            if e["kind"] == "claude":  # the section says it was not read, and why
-                sections.append(_unread_section(e))
             if e["kind"] == "claude" and not any(
                 x["server"] == e["server"] and x["kind"] == "map" for x in jobs
             ):
                 srv = await SV.load_server(tx, UUID(e["server"]))
-                m = await SV.create_job(
-                    tx, server=srv, kind="map", args={}, actor_kind="service",
-                    actor_code="catalogue", summary="کاتالوگ: نقشه‌ی سرور به جای Claude Code",
-                )  # fmt: skip
-                jobs.append(_job_entry(m, srv, "*"))
+                try:
+                    m = await SV.create_job(
+                        tx, server=srv, kind="map", args={}, actor_kind="service",
+                        actor_code="catalogue", summary="کاتالوگ: نقشه‌ی سرور به جای Claude Code",
+                    )  # fmt: skip
+                except ApiError:
+                    # the company locked or the server detached: no map in its
+                    # place, and the entry still ends so the run can finish
+                    e["reason_fa"] = _job_reason(j, mapped=False)
+                else:
+                    jobs.append(_job_entry(m, srv, "*"))
+            if e["kind"] == "claude":  # the section says it was not read, and why
+                sections.append(_unread_section(e))
     await tx.exec(
         """UPDATE infra.catalogues SET jobs = CAST(:jobs AS jsonb), sections = CAST(:s AS jsonb),
                updated_at = now() WHERE id = :id""",
@@ -954,14 +960,19 @@ async def on_job(tx: Tx, hub: Any, job_id: UUID) -> bool:
     return False
 
 
-def _job_reason(j: dict[str, Any]) -> str:
+def _job_reason(j: dict[str, Any], *, mapped: bool = True) -> str:
+    instead = (
+        "نقشه‌ی runner به جایش آمد."
+        if mapped
+        else "نقشه‌ی سرور هم گرفته نشد (شرکت قفل است یا سرور جدا شده)."
+    )
     if j["state"] == "cancelled":
         return "کار لغو شد (کلید توقف یا مالک)."
     if j.get("exit_code") == 127:
-        return "Claude Code روی این سرور نصب نیست؛ نقشه‌ی runner به جایش آمد."
+        return f"Claude Code روی این سرور نصب نیست؛ {instead}"
     if j.get("error_code") == "timeout":
         return "کار به سقف زمانش رسید."
-    return "کار روی سرور تمام نشد؛ نقشه‌ی runner به جایش آمد."
+    return f"کار روی سرور تمام نشد؛ {instead}"
 
 
 # ------------------------------------------------------------------ the end --
@@ -1252,15 +1263,21 @@ async def sweep(tx: Tx, hub: Any, now: datetime | None = None) -> int:
     for c in await tx.all(
         CAT_SQL + " WHERE k.state = 'running' AND k.created_at < :t", t=now - STALE
     ):
-        for e in c["jobs"]:
-            if e["state"] in SV.FINAL:
-                continue
-            j = await SV.load_job(tx, UUID(e["job"]), lock=True)
-            if j["state"] in SV.OPEN:
-                await SV.cancel(
-                    tx, j, "catalogue_timeout", "کاتالوگ بیش از ۶ ساعت منتظر این سرور ماند"
-                )
-            await on_job(tx, hub, UUID(e["job"]))
+        try:
+            # one catalogue that cannot end never fails the caller's whole sweep
+            async with tx.conn.begin_nested():
+                for e in c["jobs"]:
+                    if e["state"] in SV.FINAL:
+                        continue
+                    j = await SV.load_job(tx, UUID(e["job"]), lock=True)
+                    if j["state"] in SV.OPEN:
+                        await SV.cancel(
+                            tx, j, "catalogue_timeout", "کاتالوگ بیش از ۶ ساعت منتظر این سرور ماند"
+                        )
+                    await on_job(tx, hub, UUID(e["job"]))
+        except Exception:
+            log.exception("catalogue: a stale run was not ended", extra={"catalogue": str(c["id"])})
+            continue
         n += 1
     return n
 

@@ -841,9 +841,15 @@ class RouterService:
         subs = {c.id: c.key for c in snap.connections.values() if c.kind == "claude_subscription"}
         return len(await self.quota.scan(subs, set(snap.companies_by_id)))
 
-    async def complete(self, plan: Plan, result: BackendResult) -> RunResponse:
-        await self._verdict(plan, result)
-        await self._observe_quota(plan.connection, result)
+    async def complete(
+        self, plan: Plan, result: BackendResult, *, judge: bool = True
+    ) -> RunResponse:
+        """Finish the call. `judge=False` (the client went away) records the ledger row but
+        gives the breaker no verdict: nothing failed at the provider, so a disconnect must not
+        count toward opening it, and an unjudged probe is released in `release()`."""
+        if judge:
+            await self._verdict(plan, result)
+            await self._observe_quota(plan.connection, result)
         now = self.now()
         latency_ms = int((time.monotonic() - plan.started_mono) * 1000)
         conn = plan.connection
@@ -1120,7 +1126,11 @@ class RouterService:
             except (asyncio.CancelledError, GeneratorExit):
                 if not released and not cur.finished:
                     await asyncio.shield(
-                        self.complete(cur, BackendResult(ERROR, error_class="client_disconnected"))
+                        self.complete(
+                            cur,
+                            BackendResult(ERROR, error_class="client_disconnected"),
+                            judge=False,
+                        )
                     )
                 raise
             finally:

@@ -642,12 +642,14 @@ class DoneIn(BaseModel):
     refused: str | None = Field(default=None, pattern=r"^[a-z_]{1,40}$")
 
 
-def result_fa(j: dict[str, Any], state: str) -> str:
+def result_fa(j: dict[str, Any], state: str, refused: str | None = None) -> str:
     if j["op"] == "profile":
         a = j["args"] or {}
         if state == "done":
             return "روشن شد" if a.get("on") else "خاموش شد"
-        if state == "refused":
+        if state == "refused" and not refused:
+            # Only hq.sh's own over-budget answer (exit 3) means no memory room;
+            # the dispatcher's refusal falls through to the generic text.
             return "جا نیست؛ این‌ها جا را گرفته‌اند"
     if state == "done":
         return "انجام شد"
@@ -686,7 +688,7 @@ async def finish(tx: Tx, ref: str, body: DoneIn) -> dict[str, Any]:
         st=state,
         out=output,
         ec=body.exit_code,
-        r=result_fa(j, state),
+        r=result_fa(j, state, body.refused),
         b=json.dumps(blocking, ensure_ascii=False),
         e=body.refused or ("over_budget" if state == "refused" else None),
     )

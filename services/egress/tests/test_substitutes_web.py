@@ -247,6 +247,28 @@ async def test_expired_failed_and_off_come_back_as_they_are(web: Any) -> None:
     assert bad.status_code == 422
 
 
+async def test_files_never_go_to_a_task_that_cannot_attach_them(web: Any) -> None:
+    c, fake, _ = web
+    body = {"account": "chatgpt-web", "task": "image", "prompt": "Animate the attached image",
+            "files": [{"name": "a.png", "b64": base64.b64encode(PNG).decode()}]}  # fmt: skip
+    r = (await c.post("/v1/substitutes/web", json=body)).json()
+    assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
+    assert fake.sent == []  # the job never ran without its files
+
+
+async def test_a_long_question_is_taken_up_to_the_hubs_own_cap(web: Any) -> None:
+    from hq_egress import substitutes_web as SW
+
+    c, fake, _ = web
+    long = "س" * 60_000
+    r = (await c.post("/v1/substitutes/web", json={"account": "chatgpt-web", "task": "text",
+                                                   "prompt": long})).json()  # fmt: skip
+    assert r["ok"] is True and len(fake.sent[-1]["prompt"]) == 60_000
+    too_long = await c.post("/v1/substitutes/web", json={"account": "chatgpt-web", "task": "text",
+                                                         "prompt": "x" * (SW.PROMPT_CHARS + 1)})  # fmt: skip
+    assert too_long.status_code == 422
+
+
 async def test_one_job_per_account_at_a_time(web: Any) -> None:
     c, fake, _ = web
     fake.hold = asyncio.Event()
@@ -435,6 +457,27 @@ def test_a_recipe_failure_carries_one_screenshot_and_nothing_else_does() -> None
     }
     assert "screenshot" not in _json.loads(SW._job_answer(fake, "3", 1000).body)
     assert SW.WebIn(account="gemini-web", task="text", prompt="x", reload=True).reload is True
+
+
+def test_every_gemini_label_selector_takes_both_languages() -> None:
+    """Audit 2026-11-11: the gemini-web profile is fa-IR, yet the video task
+    waited for the English-only «Download video» label, so every video job
+    failed at its wait step after the quota was spent. Each aria-label
+    selector in every Gemini task names the English and the Persian label."""
+    tasks = RC.load(recipes_dir())["gemini-web"].tasks
+    labelled = 0
+    for name, task in tasks.items():
+        for s in task.steps:
+            sel = str(s.selector or "")
+            if "aria-label" not in sel:
+                continue
+            labelled += 1
+            labels = [p for p in sel.split(",") if "aria-label" in p]
+            assert any(any("؀" <= ch <= "ۿ" for ch in p) for p in labels), (name, sel)
+            assert any(p.isascii() for p in labels), (name, sel)
+    video = [s for s in tasks["video"].steps if s.do in ("wait", "download")]
+    assert any("دانلود" in str(s.selector) for s in video if s.do == "download")
+    assert labelled >= 4
 
 
 def test_chatgpts_text_task_stands_on_the_pages_structure_not_on_one_language() -> None:

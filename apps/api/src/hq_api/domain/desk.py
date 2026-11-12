@@ -358,14 +358,37 @@ def _norm(text: str) -> str:
     return " ".join(kb.fa_normalize(G.normalise(text)).split())
 
 
+_PUNCT = re.compile(r"[.!؟?،,;:؛«»\"'()\-]+")
+_OPT_OUT_PHRASES = sorted({_norm(w) for w in OPT_OUT}, key=len, reverse=True)
+# Words that may stand beside an opt-out phrase without making the message something else.
+_OPT_OUT_FILLER = frozenset(
+    _norm(w)
+    for w in (
+        "لطفا", "لطفاً", "پلیز", "اشتراک", "اشتراکم", "پیام", "پیامها", "پیام‌ها", "دیگه",
+        "دیگر", "من", "منو", "مرا", "رو", "را", "همه", "please", "pls", "me", "my", "now",
+        "all", "messages", "emails", "subscription", "from", "this", "list", "the",
+    )
+)  # fmt: skip
+
+
 def _has(text: str, words_: Iterable[str]) -> bool:
     t = f" {_norm(text)} "
     return any(f" {_norm(w)} " in t or (len(w) > 4 and _norm(w) in t) for w in words_)
 
 
 def is_opt_out(text: str) -> bool:
-    t = _norm(text).strip(" .!؟?،,")
-    return t in {_norm(w) for w in OPT_OUT} or (len(t) < 40 and _has(t, OPT_OUT[:4]))
+    """The whole message asks for no more messages: an opt-out phrase, alone or with a
+    few polite or filler words («لطفا لغو اشتراک», "stop please", "unsubscribe me").
+    A question that only contains «لغو» or "stop" («سفارشم لغو نشد», "app won't stop
+    crashing") is a support message, never an opt-out."""
+    t = _norm(_PUNCT.sub(" ", text or ""))
+    if not t or len(t) >= 40:
+        return False
+    rest, hit = f" {t} ", False
+    for phrase in _OPT_OUT_PHRASES:
+        while f" {phrase} " in rest:
+            rest, hit = rest.replace(f" {phrase} ", " "), True
+    return hit and all(w in _OPT_OUT_FILLER for w in rest.split())
 
 
 def classify(text: str) -> str | None:
@@ -455,7 +478,9 @@ async def insert_out(
         c=conv["id"],
         a=author,
         ac=author_code[:64],
-        b=customer_mask.mask(body[:8000]).text,
+        # The hub's own answer: secrets masked, the contact details it gives kept (the
+        # outbound guard has passed them; masked they would reach the customer as [email]).
+        b=customer_mask.mask(body[:8000], personal=False).text,
         st=status,
         f=failure,
         vb=verbatim,
@@ -589,15 +614,18 @@ async def auto_message(
     template: str | None = None,
     grounded_ok: bool | None = None,
     run_id: Any = None,
+    with_safety: bool | None = None,
 ) -> dict[str, Any] | None:
     """An automatic message the policy already allowed: the guard, the
     caps, then `queued` for the worker on a live channel (or the mystery
     one); on any other channel nothing leaves (recorded as a draft only when
-    it is an agent's or a verbatim answer, for the owner to see)."""
+    it is an agent's or a verbatim answer, for the owner to see). The safety
+    line is added on the conversation's first answer unless with_safety says
+    otherwise (False: the body is the safety line itself)."""
     ch = await effective_channel(tx, conv)
     if not conv["mystery"] and ch["state"] != "live":
         return None
-    first = conv["safety_sent_at"] is None
+    first = conv["safety_sent_at"] is None if with_safety is None else with_safety
     composed = await compose(tx, conv, body, with_safety=first)
     if not composed.verdict.ok:
         return await insert_out(
@@ -749,8 +777,9 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
         safety, sref = await safety_line(tx, conv["company_id"])
         if safety:
             row = await auto_message(
-                tx, hub, conv, safety, author="rule", author_code=sref or "safety", template=sref
-            )
+                tx, hub, conv, safety, author="rule", author_code=sref or "safety", template=sref,
+                with_safety=False,  # the body is the safety line: never twice in one message
+            )  # fmt: skip
             if row is not None and row["status"] == "queued":
                 await tx.exec(
                     "UPDATE support.conversations SET safety_sent_at = now() WHERE id = :id",
@@ -784,7 +813,7 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
             if row is not None:
                 out = await handoff(tx, hub, conv, "blocked", note=row["failure"] or "guard")
                 return Outcome("handoff", conv["ref"], row["id"], "blocked", queued=_ids(out))
-        # Not live (shadow, paused, off): the would-be answer is recorded, nothing leaves.
+        # Not live (shadow, paused) or auto_send off: the would-be answer is recorded only.
         composed = await compose(
             tx, conv, top["answer_md"], with_safety=conv["safety_sent_at"] is None
         )
@@ -793,6 +822,12 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
             status="draft" if composed.verdict.ok else "blocked", verdict=composed.verdict,
             grounded_ok=True, kb_refs=[ref], confidence=score, verbatim=True,
         )  # fmt: skip
+        if ch["state"] == "live":
+            # A live channel whose auto_send is off: everything waits for the owner (the
+            # teaching queue) and the customer gets the holding reply, as a draft() does.
+            reason = "low_confidence" if composed.verdict.ok else "blocked"
+            out = await handoff(tx, hub, conv, reason, note="auto_send_off")
+            return Outcome("handoff", conv["ref"], row["id"], "auto_send_off", queued=_ids(out))
         return Outcome("shadow", conv["ref"], row["id"], ch["state"])
     # 5. the support agent drafts, unless there is none or its tokens of the day are spent
     agent = await support_agent(tx, conv["company_id"])

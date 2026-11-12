@@ -7,9 +7,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import secrets
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -292,6 +293,37 @@ async def test_a_company_without_a_server_and_who_may_start_one(
     )
 
 
+async def test_a_stale_run_on_a_detached_server_ends_and_never_fails_the_sweep(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    su: Any,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    # the server was detached mid-run: its Claude jobs are cancelled and no map
+    # can be asked of it, yet the stale run must end (and the sweep go on)
+    co = await new_company()
+    await pair(client, hub, owner_session, co, "gone-1")
+    r = await client.post(
+        f"/api/v1/companies/{co['code']}/catalogue", headers=owner_session["headers"]
+    )
+    assert r.status_code == 202 and r.json()["state"] == "running", r.text
+    await su.execute(
+        "UPDATE infra.server_jobs SET state = 'cancelled' WHERE company_id = $1 AND state = 'queued'",
+        co["id"],
+    )
+    await su.execute("UPDATE infra.servers SET state = 'revoked' WHERE company_id = $1", co["id"])
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await CAT.sweep(tx, hub, datetime.now(UTC) + CAT.STALE + timedelta(hours=1)) >= 1
+    row = await su.fetchrow(
+        "SELECT state, jobs FROM infra.catalogues WHERE company_id = $1 ORDER BY created_at DESC",
+        co["id"],
+    )
+    assert row["state"] != "running"
+    jobs = row["jobs"] if isinstance(row["jobs"], list) else json.loads(row["jobs"])
+    assert jobs and all(j["kind"] == "claude" for j in jobs)  # no map was queued
+
+
 # ----------------------------------------------------- §28.3 the apps' errors --
 async def test_the_apps_report_their_errors_masked_once_and_the_overseer_reads_them(
     client: httpx.AsyncClient, hub: Hub, owner: dict[str, str]
@@ -415,6 +447,48 @@ async def test_the_watch_runs_each_duty_once_per_period(
         """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
            FROM work.work w WHERE w.id = r.work_id AND r.state = 'queued' AND w.title LIKE 'یادداشت رشد%'"""
     )
+
+
+async def test_a_months_holding_proposal_not_made_is_tried_again_the_next_day(
+    hub: Hub, su: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The month is claimed when its proposal is made: an unreadable reply (or a spent zone, a
+    failed call) leaves it to the next day's tick, one try a day, never lost for the month."""
+    from hq_api.domain import advisor
+
+    async def not_spent(tx: Any, hub: Any) -> bool:
+        return False
+
+    async def no_catalogues(tx: Any, hub: Any, now: Any) -> int:
+        return 0
+
+    monkeypatch.setattr(advisor, "zone_spent", not_spent)
+    monkeypatch.setattr(WATCH.CAT, "sweep", no_catalogues)
+    before = await su.fetchval("SELECT digital_ceo::text FROM owner.settings WHERE id = 1")
+    await su.execute(
+        """UPDATE owner.settings SET digital_ceo = COALESCE(digital_ceo, '{}'::jsonb)
+               || '{"enabled": true, "model_predictions": true}'::jsonb WHERE id = 1"""
+    )
+    # a month of its own (ops.watch_runs is append-only and the test database persists)
+    day1 = datetime(2100 + secrets.randbelow(7000), 1 + secrets.randbelow(12), 10, 9, tzinfo=UTC)
+    try:
+        bad = FakeRouter("no proposal here")
+        first = await WATCH.sweep(hub, bad, day1)
+        assert first["proposal"] == {"proposed": 0, "reason": "unreadable"}
+        again = await WATCH.sweep(hub, bad, day1 + timedelta(hours=1))
+        assert again["proposal"] is None and len(bad.calls) == 1  # one try a day
+        good = FakeRouter(json.dumps({"title_fa": "پیشنهاد هلدینگ", "body_md": "۱. فروش متقابل"},
+                                     ensure_ascii=False))  # fmt: skip
+        made = await WATCH.sweep(hub, good, day1 + timedelta(days=1))
+        assert made["proposal"]["proposed"] == 1, made
+        later = await WATCH.sweep(hub, good, day1 + timedelta(days=2))
+        assert later["proposal"] is None and len(good.calls) == 1
+    finally:
+        await su.execute("UPDATE owner.settings SET digital_ceo = $1::jsonb WHERE id = 1", before)
+        await su.execute(
+            """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
+               FROM work.work w WHERE w.id = r.work_id AND r.state = 'queued' AND w.title LIKE 'یادداشت رشد%'"""
+        )
 
 
 # --------------------------------------------------- §28.4 council robustness --

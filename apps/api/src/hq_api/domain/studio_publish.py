@@ -53,6 +53,8 @@ TG_CAPTION = 1024
 IG_CAPTION = 2200
 AI_LABEL = "ساخته‌شده با کمک هوش مصنوعی"
 BY_CARD = "by_card"
+# ⟨1.8⟩ how long an item waits for its runners' answers before the jobs still open are settled
+RUNNER_WAIT_S = 2 * 3600
 
 
 # --------------------------------------------------------- signed URLs --
@@ -177,6 +179,16 @@ async def placements(tx: Tx, hub: Any, item: dict[str, Any]) -> list[dict[str, A
     return out
 
 
+def _sent(item: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    """The placements an earlier pass already published the item on (an entry
+    of `item.publish` with its `at`): a retry or a card never sends them again."""
+    return {
+        (str(e.get("channel")), str(e.get("placement"))): e
+        for e in item.get("publish") or []
+        if e.get("at") and e.get("error") != "removed"
+    }
+
+
 async def after_review(tx: Tx, hub: Any, item: dict[str, Any]) -> None:
     rows = await placements(tx, hub, item)
     failed = [c["key"] for c in item.get("checks") or [] if c.get("result") == "fail"]
@@ -263,6 +275,7 @@ async def card(
         body=din,
         thread_code=thread,
     )
+    sent = _sent(item)
     await tx.exec(
         """UPDATE media.items SET state = 'waiting_owner', decision_id = :d, publish_at = NULL,
                publish = CAST(:p AS jsonb), state_note_fa = :n WHERE id = :id""",
@@ -270,7 +283,8 @@ async def card(
         d=d["id"],
         p=S.canonical(
             [
-                {
+                sent.get((r["channel"], r["placement"]))
+                or {
                     "channel": r["channel"],
                     "placement": r["placement"],
                     "at": None,
@@ -322,6 +336,28 @@ async def used_24h(tx: Tx, account: str) -> int:
     return int(n or 0)
 
 
+def utf16_len(text: str) -> int:
+    """Telegram measures a caption in UTF-16 code units: an emoji outside the BMP counts two."""
+    return len(text.encode("utf-16-le")) // 2
+
+
+def clip(text: str, limit: int, *, utf16: bool = False) -> str:
+    """`text` within `limit` (characters, or UTF-16 units with `utf16`), cut at the last space or
+    line break so no word, hashtag or emoji sequence is split; a hard cut only for one endless word.
+    """
+    size = utf16_len if utf16 else len
+    if size(text) <= limit:
+        return text
+    cut = text[:limit]
+    while cut and size(cut) > limit:
+        cut = cut[:-1]
+    if not text[len(cut)].isspace():
+        space = max((i for i, ch in enumerate(cut) if ch.isspace()), default=0)
+        if space > 0:
+            cut = cut[:space]
+    return cut.rstrip()
+
+
 def caption_of(item: dict[str, Any], channel: str) -> str:
     from hq_api.domain import studio_checks as K
 
@@ -329,8 +365,9 @@ def caption_of(item: dict[str, Any], channel: str) -> str:
     cap = K.parts(script).get("کپشن") or "\n".join(script.strip().splitlines()[:3])
     cap = re.sub(r"[*_`#>\[\]]", "", cap).strip()
     if channel == "telegram":
-        return (cap[: TG_CAPTION - len(AI_LABEL) - 2] + "\n\n" + AI_LABEL).strip()
-    return cap[:IG_CAPTION]
+        room = TG_CAPTION - utf16_len(AI_LABEL) - 2
+        return (clip(cap, room, utf16=True) + "\n\n" + AI_LABEL).strip()
+    return clip(cap, IG_CAPTION)
 
 
 def telegram_chat(site: str | None) -> str | None:
@@ -384,6 +421,11 @@ async def publish_due(hub: Any, only: str | None = None, limit: int = 5) -> dict
             if (lock := await gate.automation_lock(tx, item["company_id"])) is not None:
                 waiting[item["ref"]] = gate.REASONS.get(lock, lock)
                 continue
+            if _runner_pending(item):
+                # ⟨1.8⟩ its runners' wait ran out: settled, never sent again
+                if await _settle_runners(tx, item):
+                    waiting[item["ref"]] = "runner"
+                continue
             by_card = (item.get("render_meta") or {}).get(BY_CARD)
             if not by_card:
                 sealed = (
@@ -426,6 +468,71 @@ async def publish_due(hub: Any, only: str | None = None, limit: int = 5) -> dict
     return {"published": done, "waiting": waiting}
 
 
+def _runner_pending(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """The item's runner placements still waiting for their job's answer."""
+    return [
+        e
+        for e in item.get("publish") or []
+        if e.get("job") and not e.get("at") and not e.get("error")
+    ]
+
+
+async def _settle_runners(tx: Tx, item: dict[str, Any]) -> bool:
+    """⟨1.8⟩ The runners' wait ran out. A job that ended without its answer reaching the
+    item (the sweep timed it out, it was cancelled) or that never started (its server is
+    offline) is settled as failed; runner_published then ends the item (published, or
+    its card). Nothing already sent goes out again. True while a job still runs (the
+    sweep ends it after its timeout): the wait is extended."""
+    from hq_api.domain import servers as SV
+
+    running = False
+    for e in _runner_pending(item):
+        jid = str(e["job"])
+        row = await tx.first(
+            """SELECT state FROM infra.server_jobs WHERE id = CAST(:id AS uuid)
+               FOR UPDATE SKIP LOCKED""",
+            id=jid,
+        )
+        if row is None and await tx.scalar(
+            "SELECT 1 FROM infra.server_jobs WHERE id = CAST(:id AS uuid)", id=jid
+        ):
+            running = True  # its runner is answering right now
+            continue
+        if row is None:
+            j: dict[str, Any] = {"id": jid, "args": {"item": item["ref"]}, "error_code": None}
+        elif row["state"] == "running":
+            running = True
+            continue
+        else:
+            j = await SV.load_job(tx, UUID(jid))
+            if j["state"] not in SV.FINAL:
+                j = await SV.cancel(tx, j, "timed_out", "انتشار در زمانش شروع نشد؛ لغو شد")
+        await runner_published(tx, j, False, None, None, j.get("error_code") or "timed_out")
+    if running:
+        await tx.exec(
+            "UPDATE media.items SET publish_at = now() + interval '30 minutes' WHERE id = :id",
+            id=item["id"],
+        )
+    return running
+
+
+async def after_job(hub: Any, job_id: UUID) -> None:
+    """⟨1.8⟩ A studio `publish` job the sweep failed (past its timeout) ends like a failed
+    answer: its row of the item, and the item once no runner is pending."""
+    from hq_api.domain import servers as SV
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        j = await SV.load_job(tx, job_id)
+        if (
+            j["kind"] != "publish"
+            or not (j.get("args") or {}).get("item")
+            or j["state"] not in SV.FINAL
+            or j["state"] == "done"
+        ):
+            return
+        await runner_published(tx, j, False, None, None, j.get("error_code") or j["state"])
+
+
 async def _held(tx: Tx, item: dict[str, Any]) -> bool:
     for s in item.get("steps") or []:
         if s.get("work") and await oversight.held(tx, "work", s["work"]):
@@ -466,8 +573,25 @@ async def schedule_at(tx: Tx, item: dict[str, Any]) -> datetime:
 
 async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     by_card = (item.get("render_meta") or {}).get(BY_CARD)
+    sent = _sent(item)
     results = []
     for r in rows:
+        if (prev := sent.get((r["channel"], r["placement"]))) is not None:
+            # Already out (an earlier pass, before a platform_limit retry, a card or a
+            # runner's answer): kept as it is, never sent twice.
+            results.append(
+                {
+                    **r,
+                    "outcome": "ok",
+                    "external_id": prev.get("external_id"),
+                    "url": prev.get("url"),
+                    "error": None,
+                    "sent_at": prev["at"],
+                    **({"job": prev["job"]} if prev.get("job") else {}),
+                    **({"message_ids": prev["message_ids"]} if prev.get("message_ids") else {}),
+                }
+            )
+            continue
         if r["via"] == "manual":
             # The owner posts it from the card (the card's approval says so).
             results.append(
@@ -502,6 +626,8 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
         decision = cur.get("decision_id")
         now = datetime.now(UTC)
         for x in results:
+            if x.get("sent_at"):
+                continue  # logged when it went out
             if x["outcome"] == "queued":
                 x["job"] = await _queue_runner(tx, item, x)
                 if x["job"] is not None:
@@ -530,11 +656,12 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
             {
                 "channel": x["channel"],
                 "placement": x["placement"],
-                "at": now if x["outcome"] == "ok" else None,
+                "at": x.get("sent_at") or (now if x["outcome"] == "ok" else None),
                 "external_id": x.get("external_id"),
                 "url": x.get("url"),
                 "error": x.get("error"),
                 **({"job": x["job"]} if x.get("job") else {}),
+                **({"message_ids": x["message_ids"]} if x.get("message_ids") else {}),
             }
             for x in results
         ]
@@ -543,9 +670,10 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
             # the lease keeps the publisher from taking it again meanwhile.
             await tx.exec(
                 """UPDATE media.items SET publish = CAST(:p AS jsonb),
-                       publish_at = now() + interval '7 days' WHERE id = :id""",
+                       publish_at = now() + make_interval(secs => :w) WHERE id = :id""",
                 id=item["id"],
                 p=S.canonical(publish),
+                w=RUNNER_WAIT_S,
             )
             await events.emit(
                 tx,
@@ -824,13 +952,16 @@ async def _send(hub: Any, item: dict[str, Any], r: dict[str, Any]) -> dict[str, 
                 "retry_after": (out.get("data") or {}).get("retry_after"),
             }
         data = out.get("data") or {}
-        mid = data.get("message_id") or (data.get("message_ids") or [None])[0]
+        ids = [str(m) for m in data.get("message_ids") or [] if m is not None]
+        mid = data.get("message_id") or (ids[0] if ids else None)
         name = chat[1:] if chat.startswith("@") else None
         return {
             "outcome": "ok",
             "external_id": str(mid) if mid is not None else None,
             "url": f"https://t.me/{name}/{mid}" if name and mid is not None else None,
             "error": None,
+            # an album is one message per file: unpublishing deletes every one
+            **({"message_ids": ids} if len(ids) > 1 else {}),
         }
     # Instagram: the account itself, a container per file from its signed URL, then publish.
     me = await pub.call(
@@ -1016,17 +1147,22 @@ async def unpublish_due(hub: Any) -> dict[str, Any]:
                 acct, token = await _account(hub, S.account_key("telegram", item["company"]))
                 chat = telegram_chat(channel_of(acct)) if acct else None
                 if token and chat:
-                    out = await publisher().call(
-                        hub,
-                        {
-                            "channel": "telegram",
-                            "method": "deleteMessage",
-                            "token": token,
-                            "payload": {"chat_id": chat, "message_id": int(p["external_id"])},
-                        },
-                        [],
-                    )
-                    err = "removed" if out.get("outcome") == "ok" else "remove_by_hand"
+                    # an album: every message of it, and removed only when all went
+                    ids = [str(m) for m in p.get("message_ids") or []] or [str(p["external_id"])]
+                    gone = 0
+                    for m in ids:
+                        out = await publisher().call(
+                            hub,
+                            {
+                                "channel": "telegram",
+                                "method": "deleteMessage",
+                                "token": token,
+                                "payload": {"chat_id": chat, "message_id": int(m)},
+                            },
+                            [],
+                        )
+                        gone += out.get("outcome") == "ok"
+                    err = "removed" if gone == len(ids) else "remove_by_hand"
             results.append({**p, "error": err})
         async with hub.db.tx([item["company_id"]]) as tx:
             cur = await S.load_item(tx, item["ref"], lock=True)

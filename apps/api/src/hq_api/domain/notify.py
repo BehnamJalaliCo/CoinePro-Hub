@@ -677,14 +677,16 @@ async def away_summary(tx: Tx, since: datetime) -> dict[str, Any]:
     companies = await tx.all(
         """SELECT c.code AS company,
                   (SELECT count(*) FROM cartable.decisions d
-                    WHERE d.company_id = c.id AND d.created_at >= :s) AS decisions_new,
+                    WHERE d.company_id = c.id AND d.created_at >= :s AND d.owner_visible)
+                    AS decisions_new,
                   (SELECT count(*) FROM cartable.deliverables d
                     WHERE d.company_id = c.id AND d.created_at >= :s) AS deliverables_new,
                   (SELECT count(*) FROM msg.messages m
                     WHERE m.company_id = c.id AND m.created_at >= :s AND m.author_kind <> 'owner')
                     AS messages_new,
                   (SELECT count(*) FROM notify.notifications n
-                    WHERE n.company_id = c.id AND n.created_at >= :s AND n.state <> 'suppressed')
+                    WHERE n.company_id = c.id AND n.created_at >= :s AND n.state <> 'suppressed'
+                      AND n.owner_visible)
                     AS notifications_new
            FROM core.companies c
            WHERE c.id = ANY(core.allowed_company_ids())

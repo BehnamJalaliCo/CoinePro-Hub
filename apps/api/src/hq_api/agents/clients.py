@@ -16,6 +16,9 @@ from typing import Any
 
 import httpx
 
+ROUTER_MARGIN_S = 30  # a model call's HTTP timeout is its step timeout plus this
+GATEWAY_TIMEOUT_S = 40.0  # one Tool Gateway call at most
+
 
 @dataclass
 class ModelCall:
@@ -109,7 +112,7 @@ class Router:
     async def run(self, body: dict[str, Any], timeout_s: int) -> ModelCall:
         try:
             resp = await self._http.post(
-                "/v1/run", json=body, headers=self._headers(), timeout=timeout_s + 30
+                "/v1/run", json=body, headers=self._headers(), timeout=timeout_s + ROUTER_MARGIN_S
             )
         except httpx.TimeoutException:
             return ModelCall(False, "timeout", "router_timeout", None, None, None, None, None, None)
@@ -133,7 +136,7 @@ class Router:
                 "/v1/run/stream",
                 json=body,
                 headers=self._headers(),
-                timeout=timeout_s + 30,
+                timeout=timeout_s + ROUTER_MARGIN_S,
             ) as resp:
                 if resp.status_code != 200:
                     try:
@@ -169,7 +172,7 @@ class Gateway:
         self,
         base_url: str,
         token: Callable[[], str],
-        timeout_s: float = 40.0,
+        timeout_s: float = GATEWAY_TIMEOUT_S,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._token = token

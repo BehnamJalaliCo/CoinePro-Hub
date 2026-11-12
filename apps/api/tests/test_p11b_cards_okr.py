@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from hq_api.domain import gov_common as G
 from hq_api.domain import gov_kpis as K
 from hq_api.domain import gov_okr as OKR
 from hq_api.domain import oversight_checks as OC
@@ -154,6 +155,14 @@ async def test_a_query_outside_the_registry_is_422(
         r.status_code == 422
         and "not a query of the registry" in r.json()["fields"]["kpis.0.source"]
     )
+    # A holding-wide figure is never an operating company's KPI.
+    q = "treasury.agents_cost_month_usd"
+    holding_only = {"kpis": [{"key": q, "source": {"kind": "query", "query": q},
+                              "card": "safety_cost", "name_fa": "x"}]}  # fmt: skip
+    r = await client.put(
+        f"/api/v1/kpis/{co['code']}", headers={**owner, "If-Match": str(version)}, json=holding_only
+    )
+    assert r.status_code == 422 and "holding-only" in r.json()["fields"]["kpis.0.source"]
     # A target change needs the current version (If-Match) and is versioned.
     ok = {"kpis": [{"key": "health.uptime_24h", "target": 99.9}]}
     r = await client.put(f"/api/v1/kpis/{co['code']}", headers=owner, json=ok)
@@ -205,6 +214,35 @@ async def test_revenue_without_a_source_is_no_source_never_zero(
     k = await card_of(client, owner, co["code"], "revenue.commission_7d_usdt")
     assert (k["state"], k["value"], k["at"], k["source_ref"]) == ("no_source", None, None, None)
     assert all(v is None for v in k["trend"])
+
+
+async def test_a_number_in_free_text_reads_thousands_separators() -> None:
+    """A founding KPI target in free text: ',' and '٬' group thousands; '.'
+    and '٫' (or a lone comma) are the decimal mark."""  # noqa: RUF002
+    assert G.number("10,000 کاربر فعال") == 10000.0
+    assert G.number("۱۰٬۰۰۰ کاربر") == 10000.0
+    assert G.number("1,250,000") == 1250000.0
+    assert G.number("1,250,000.5 دلار") == 1250000.5
+    assert G.number("۱٫۵") == 1.5 and G.number("1,5") == 1.5
+    assert G.number("-2,000") == -2000.0 and G.number("80%") == 80.0
+    assert G.number("هیچ") is None and G.number(None) is None
+
+
+async def test_a_value_beyond_six_decimals_is_appended_once(
+    client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    key = await manual_kpi(client, owner, co)
+    now = datetime.now(UTC)
+    for at in (now - timedelta(minutes=10), now):
+        assert (await record(client, co, key, 123.45678912, at)).status_code == 200
+    n = await su.fetchval(
+        """SELECT count(*) FROM governance.kpi_values v JOIN governance.kpis k ON k.id = v.kpi_id
+           WHERE k.company_id = $1 AND k.key = $2""",
+        co["id"],
+        key,
+    )
+    assert n == 1  # stored as numeric(20,6): the same reading is no change
 
 
 async def test_the_scorecard_is_paged_and_searchable(
@@ -286,11 +324,13 @@ async def test_an_okr_is_active_only_with_the_owners_seal(
     r = await client.post(
         f"/api/v1/decisions/{ref}/approve",
         headers={**owner, **idem()},
-        json={"amendments": {"key_result_changes": [{"ref": kr_metric["ref"], "target": 20}]}},
-    )
+        json={"amendments": {"key_result_changes": [{"ref": kr_metric["ref"], "target": 20}],
+                             "objective_changes": [{"ref": ob}]}},  # no title_fa: no rename
+    )  # fmt: skip
     assert r.status_code == 200, r.text
     o = (await client.get(f"/api/v1/okr/{ob}", headers=owner)).json()
     assert o["status"] == "active" and o["decision"] == ref
+    assert o["title_fa"] == "رشد کاربران فعال"
     assert next(k for k in o["key_results"] if k["metric_fa"])["target"] == 20
     events = await su.fetchval(
         "SELECT count(*) FROM core.outbox WHERE subject = $1 AND payload->'data'->>'status' = 'active'",
@@ -419,3 +459,20 @@ def test_the_governance_schedules() -> None:
     daily = fixed[schedules.GOVERNANCE_DAILY]
     assert daily.workflow == "GovernanceDaily" and daily.spec.time_zone_name == "Asia/Tehran"
     assert not kpi.paused and not daily.paused  # they gate themselves
+
+
+def test_the_okr_reminder_waits_for_the_quarters_last_jalali_month() -> None:
+    """Audit 2026-11-11: a 31-day distance fired a day or two early before Azar and Esfand."""
+    from datetime import date
+
+    from hq_api.domain import gov_common as G
+
+    for jy in (1404, 1405, 1406, 1407):
+        for q in (1, 2, 3, 4):
+            start, end = G.quarter_bounds(f"{jy}-Q{q}")
+            last = G.from_jalali(jy, 3 * q, 1)
+            assert not G.in_last_quarter_month(last - timedelta(days=1))
+            assert G.in_last_quarter_month(last)
+            assert G.in_last_quarter_month(end - timedelta(days=1))
+            assert not G.in_last_quarter_month(start)
+    assert not G.in_last_quarter_month(date(2026, 11, 21))  # 30 Aban 1405

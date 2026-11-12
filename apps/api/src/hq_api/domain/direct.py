@@ -406,13 +406,41 @@ async def close_run(tx: Tx, j: dict[str, Any]) -> None:
         return
     ok = j["state"] == "done"
     i, o, cr, cw = _usage(j)
-    await tx.scalar(
+    closed = await tx.scalar(
         "SELECT agents.close_direct_run(CAST(:r AS uuid), :st, :code, :i, :o, :cr, :cw, :note)",
         r=str(rid), st="done" if ok else "failed",
         code=None if ok else (re.sub(r"[^a-z0-9_]", "_", str(j.get("error_code") or "failed"))[:40]
                               or "failed"),
         i=i, o=o, cr=cr, cw=cw, note=f"direct turn, job {j['id']}",
     )  # fmt: skip
+    if closed:
+        await _rest(tx, str(rid))
+
+
+async def _rest(tx: Tx, rid: str) -> None:
+    """⟨audit 2026-11-11⟩ The holder worked while the turn was open (the runner's finish of the
+    handed-over run counts the turn as busy and leaves him `working`); once it ends and nothing
+    else of his runs, he is shown at rest again."""
+    emp = await tx.first(
+        """SELECT e.id, e.code, c.code AS company FROM agents.runs r
+           JOIN core.employees e ON e.id = r.employee_id
+           JOIN core.companies c ON c.id = e.company_id
+           WHERE r.id = CAST(:r AS uuid)""",
+        r=rid,
+    )
+    if emp is None or await tx.scalar(
+        """SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'
+             AND trigger <> 'talk'""",
+        e=emp["id"],
+    ):
+        return
+    if await tx.exec(
+        """UPDATE core.employees SET activity = 'sleeping', activity_note = NULL,
+               activity_at = now() WHERE id = :id AND activity = 'working'""",
+        id=emp["id"],
+    ):
+        await events.emit(tx, str(emp["company"]), "activity.changed", emp["code"],
+                          {"activity": "sleeping"})  # fmt: skip
 
 
 async def pending_word(tx: Tx, ref: str, j: dict[str, Any]) -> bool:

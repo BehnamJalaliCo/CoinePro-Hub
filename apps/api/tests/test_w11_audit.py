@@ -162,7 +162,8 @@ async def test_the_talk_loop_counts_only_runs_that_produced_nothing_and_a_null_w
     for i in range(13):
         await done_run(su, w["id"], f"progress:{i}", progress)
     # 13 wakes of the hub's own: never counted either
-    for why in ("session_idle", "owner_reply", "child_delivered", "joined", "nudge"):
+    wakes = ("session_idle", "owner_reply", "child_delivered", "child_cancelled", "joined", "nudge")
+    for why in wakes:
         for _ in range(3):
             await done_run(su, w["id"], f"{why}:{ref}")
     async with await all_tx(wk["hub"]) as tx:

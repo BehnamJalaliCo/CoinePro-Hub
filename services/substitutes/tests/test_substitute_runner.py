@@ -300,6 +300,22 @@ def test_codex_device_login_reports_the_url_and_code(s: R.Settings) -> None:
     assert oct(auth.stat().st_mode & 0o777) == "0o600"  # umask 077
 
 
+def test_an_old_sign_in_file_is_not_a_new_sign_in(s: R.Settings) -> None:
+    """A re-sign-in after the token was revoked: the old auth.json is still on
+    disk, but only a file the CLI writes now (or its exit 0) is a sign-in."""
+    auth = s.auth_dir / "codex" / "auth.json"
+    assert auth.is_file()  # the stale sign-in left by an earlier login
+    j = job(kind="login", input_md=None, model=None, login={"id": LOGIN, "method": "device_code"})
+    mode(s, "signed_out")  # the CLI fails the sign-in and writes nothing
+    events = list(R.run(j, s, []))
+    assert events[0]["event"] == "login_started"
+    assert events[-1]["ok"] is False
+    mode(s, "ok")  # the owner signs in: the CLI rewrites the file
+    events = list(R.run(j, s, []))
+    assert events[-1]["ok"] is True
+    assert json.loads(auth.read_text()) == {"tokens": {"access_token": "fake"}}
+
+
 def test_gemini_auth_code_login_takes_the_owners_code_once(s: R.Settings) -> None:
     signed_out(s)
     j = job(kind="login", runner="gemini_cli", player="gemini", input_md=None, model=None,

@@ -465,12 +465,23 @@ async def test_a_sealed_record_is_409_except_its_level_and_a_new_version_superse
         # A new version supersedes the sealed one; the record is filed again,
         # and the old manifest no longer seals anything.
         fid2 = await upload(client, h, pdf("security policy v2"), "application/pdf", "v2.pdf")
+        key = idem()
         nv = await client.post(
             f"{A}/records/{ref}/versions",
             json={"file_ids": [fid2], "note_fa": "اصلاح"},
-            headers={**h, **idem()},
+            headers={**h, **key},
         )
         assert nv.status_code == 201, nv.text
+        # A lost answer retried with the same key replays it, though the upload's
+        # bytes are the archive's now (gone from the owner's upload).
+        again = await client.post(
+            f"{A}/records/{ref}/versions",
+            json={"file_ids": [fid2], "note_fa": "اصلاح"},
+            headers={**h, **key},
+        )
+        assert again.status_code == 201, again.text
+        assert again.headers.get("Idempotent-Replay") == "true"
+        assert again.json()["ref"] == ref and again.json()["current_version"] == 2
         assert nv.json()["state"] == "filed" and nv.json()["current_version"] == 2
         assert [x["state"] for x in nv.json()["versions"]] == ["superseded", "current"]
         assert nv.json()["versions"][0]["sealed"] is True
@@ -480,6 +491,24 @@ async def test_a_sealed_record_is_409_except_its_level_and_a_new_version_superse
             headers={**h, **await step_up(hub, sid, "archive.seal", manifest)},
         )
         assert stale.status_code == 409 and stale.json()["code"] == "seal_mismatch"
+
+
+async def test_a_retried_record_with_the_same_key_replays_after_the_upload_was_taken_over(
+    client: httpx.AsyncClient, owner_session: dict[str, Any], new_company: Callable[..., Any]
+) -> None:
+    co = await new_company()
+    h = owner_session["headers"]
+    async with fakes(ocr=False):
+        fid = await upload(client, h, pdf("a retried record"), "application/pdf", "r.pdf")
+        body = {"scope": co["code"], "class": "other", "title_fa": "سند تکراری",
+                "metadata": {"subject": "سند تکراری"}, "file_ids": [fid], "file": True}  # fmt: skip
+        key = idem()
+        first = await client.post(f"{A}/records", json=body, headers={**h, **key})
+        assert first.status_code == 201, first.text
+        again = await client.post(f"{A}/records", json=body, headers={**h, **key})
+        assert again.status_code == 201, again.text
+        assert again.headers.get("Idempotent-Replay") == "true"
+        assert again.json()["ref"] == first.json()["ref"]
 
 
 # ---------------------------------------------------- no secret, ever --
@@ -535,6 +564,28 @@ async def test_a_pdf_and_an_image_with_a_secret_are_refused_and_kept_nowhere(
             file_ids=[clean],
         )
         assert r.status_code == 422 and r.json()["code"] == "secret_in_document"
+
+
+def test_a_secret_past_the_kept_text_of_a_pdf_is_still_found(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The text kept is the first pages only; the scan reads every page."""
+    import io
+
+    from pypdf import PdfReader, PdfWriter
+
+    from hq_api.archive import jobs
+
+    w = PdfWriter()
+    for text in ("an ordinary first page", f"wallet backup: {SEED_WORDS}"):
+        w.add_page(PdfReader(io.BytesIO(pdf(text))).pages[0])
+    path = tmp_path / "long.pdf"
+    with path.open("wb") as fh:
+        w.write(fh)
+    monkeypatch.setattr(jobs, "MAX_PDF_PAGES", 1)
+    out = jobs.doc_text_job(str(path))
+    assert out["pages"] == 2 and SEED_WORDS.split()[3] not in (out["text"] or "")
+    assert "seed_phrase" in out["secrets"]
 
 
 # ------------------------------------------------- clearance everywhere --
@@ -670,6 +721,33 @@ async def test_a_secret_file_is_encrypted_needs_a_passkey_and_is_served_watermar
         log = await client.get(f"{A}/records/{ref}/access", headers=h)
         rows = [x for x in log.json() if x["action"] in ("view", "download")]
         assert rows and rows[0]["step_up"] and rows[0]["watermarked"]
+
+
+async def test_a_retry_of_a_taken_over_upload_replays_and_a_second_filing_is_409(
+    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any]
+) -> None:
+    """The first record took the owner's upload over (its bytes are gone): the
+    same Idempotency-Key gets the first answer back, another record a 409."""
+    co = await new_company()
+    async with fakes(ocr=False):
+        fid = await upload(client, owner, pdf("a letter filed once"), "application/pdf")
+        body = {
+            "scope": co["code"],
+            "class": "other",
+            "title_fa": "نامه",
+            "metadata": {"subject": "نامه"},
+            "file_ids": [fid],
+            "file": True,
+        }
+        key = idem()
+        first = await client.post(f"{A}/records", json=body, headers={**owner, **key})
+        assert first.status_code == 201, first.text
+        again = await client.post(f"{A}/records", json=body, headers={**owner, **key})
+        assert again.status_code == 201, again.text
+        assert again.headers.get("idempotent-replay") == "true"
+        assert again.json()["ref"] == first.json()["ref"]
+        other = await client.post(f"{A}/records", json=body, headers={**owner, **idem()})
+        assert other.status_code == 409 and other.json()["code"] == "not_ready", other.text
 
 
 # --------------------------------------------------------- OCR, search --

@@ -56,7 +56,8 @@ DEFAULT_VERBATIM = 0.9  # before a go-live card sets the company's own (shadow, 
 DEFAULT_MARGIN = 0.15
 CANDIDATES = 25
 
-# What core.fa_normalize does, in Python (the search side of the same text).
+# What core.fa_normalize (v2, migration 0007) does, in Python: the search side
+# of the same text, so the tsquery terms meet the stored tsvector lexemes.
 _FA = str.maketrans(
     {
         "\u064a": "\u06cc",
@@ -64,11 +65,17 @@ _FA = str.maketrans(
         "\u0643": "\u06a9",
         "\u06c0": "\u0647",
         "\u0629": "\u0647",
+        "\u0623": "\u0627",
+        "\u0625": "\u0627",
+        "\u0622": "\u0627",
+        "\u0671": "\u0627",
+        "\u0624": "\u0648",
+        "\u200c": " ",
         **{chr(0x06F0 + i): str(i) for i in range(10)},
         **{chr(0x0660 + i): str(i) for i in range(10)},
     }
 )
-_DROP = re.compile("[\u200c\u200d\u0640\u064b-\u065f\u0670]")
+_DROP = re.compile("[\u200d\u0640\u064b-\u065f\u0670]")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 STOP = frozenset(
     [
@@ -177,9 +184,9 @@ class KbArticle(BaseModel):
 
 
 def fa_normalize(text: str) -> str:
-    """core.fa_normalize in Python: Arabic yeh/kaf and heh-yeh to Persian,
-    Persian and Arabic digits to Latin, ZWNJ/ZWJ/tatweel/diacritics removed,
-    lower case, one space."""
+    """core.fa_normalize (v2) in Python: Arabic yeh/kaf and heh-yeh to Persian,
+    alef forms to alef, waw-hamza to waw, ZWNJ to a space, Persian and Arabic
+    digits to Latin, ZWJ/tatweel/diacritics removed, lower case, one space."""
     text = unicodedata.normalize("NFKC", text).translate(_FA)
     return " ".join(_DROP.sub("", text).lower().split())
 

@@ -40,6 +40,8 @@ class Server:
         self.mails: list[tuple[str, list[str], bytes]] = []
         self.starttls = True
         self.inbox: dict[int, bytes] = {}
+        self.sizes: dict[int, int] = {}  # RFC822.SIZE the server claims (else the real one)
+        self.bodies: list[int] = []  # the UIDs whose body was downloaded
         self.validity = 9
         self.flags_touched = False
 
@@ -95,8 +97,12 @@ class FakeIMAP:
             lo = int(args[1].split()[1].split(":")[0])
             found = [u for u in sorted(SERVER.inbox) if u >= lo] or sorted(SERVER.inbox)[-1:]
             return "OK", [b" ".join(str(u).encode() for u in found)]
-        assert "PEEK" in args[1]  # never marks a message \\Seen
         uid = int(args[0])
+        if args[1] == "(RFC822.SIZE)":
+            size = SERVER.sizes.get(uid, len(SERVER.inbox[uid]))
+            return "OK", [f"{uid} (UID {uid} RFC822.SIZE {size})".encode()]
+        assert "PEEK" in args[1]  # never marks a message \\Seen
+        SERVER.bodies.append(uid)
         return "OK", [(f"{uid} (UID {uid} BODY[] {{n}}".encode(), SERVER.inbox[uid]), b")"]
 
     def logout(self) -> None: ...
@@ -200,6 +206,7 @@ async def test_new_messages_come_in_read_only_after_the_cursor(egress: httpx.Asy
     assert out["outcome"] == "ok" and out["data"]["uidvalidity"] == 9, out
     got = {m["uid"]: base64.b64decode(m["raw_b64"]) for m in out["data"]["messages"]}
     assert set(got) == {7} and got[7].endswith(b"new")  # 8 held the secret: dropped
+    assert out["data"]["skipped"] == [{"uid": 8, "reason": "held_secret"}]  # named, not lost
     assert SERVER.connects == [("93.184.216.35", "imap.example.org", 993)]
     assert SECRET not in r.text
     # Past the last one, IMAP answers the last message again: it is not new.
@@ -211,3 +218,20 @@ async def test_new_messages_come_in_read_only_after_the_cursor(egress: httpx.Asy
     assert {m["uid"] for m in r.json()["data"]["messages"]} == {4, 7}
     bad = await egress.post("/v1/mail/fetch", json={**body, "port": 143})
     assert bad.json()["code"] == "port_not_allowed"
+
+
+async def test_an_oversized_message_is_named_and_never_downloaded(
+    egress: httpx.AsyncClient,
+) -> None:
+    """A message over RAW_MAX is skipped on its RFC822.SIZE (its body is not
+    fetched) and named in `skipped`, so the poller's cursor never passes it
+    without a trace."""
+    SERVER.inbox = {41: b"Message-ID: <big@x>\r\n\r\nscan", 42: b"Message-ID: <n@x>\r\n\r\nok"}
+    SERVER.sizes = {41: MO.RAW_MAX + 1}
+    body = {"account": account(), "host": "imap.example.org", "port": 993, "since_uid": 40,
+            "uidvalidity": 9, "max": 10}  # fmt: skip
+    out = (await egress.post("/v1/mail/fetch", json=body)).json()
+    assert out["outcome"] == "ok", out
+    assert [m["uid"] for m in out["data"]["messages"]] == [42]
+    assert out["data"]["skipped"] == [{"uid": 41, "reason": "too_large"}]
+    assert SERVER.bodies == [42]

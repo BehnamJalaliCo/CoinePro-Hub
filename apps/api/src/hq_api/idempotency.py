@@ -41,6 +41,19 @@ class Idem:
             k=self.key,
         )
 
+    async def release(self, tx: Tx) -> None:
+        """Give the key back when the request failed after its claim was committed
+        (a route whose work runs between two transactions): a retry with the same
+        key then runs again instead of a 409 «still running» for 24 h. The claim is
+        aged past the 24 h window (the app roles may not DELETE): `claim` takes it
+        over and the worker's purge removes it."""
+        await tx.exec(
+            """UPDATE core.idempotency_keys SET created_at = now() - make_interval(hours => 25)
+               WHERE principal = :p AND key = :k AND status_code IS NULL""",
+            p=self.principal,
+            k=self.key,
+        )
+
 
 def read_key(request: Request, *, required: bool) -> UUID | None:
     raw = request.headers.get("idempotency-key")
@@ -54,6 +67,32 @@ def read_key(request: Request, *, required: bool) -> UUID | None:
         raise ApiError(
             422, "validation_failed", fields={"Idempotency-Key": "must be a UUID"}
         ) from exc
+
+
+async def replayed(tx: Tx, request: Request, who: Principal) -> JSONResponse | None:
+    """The stored answer of an earlier request with this key and this body,
+    read without claiming anything: for a route whose work before its own
+    transaction cannot run twice (the archive takes an upload over). Anything
+    else (no key, another body, still running) is claim()'s to answer."""
+    key = read_key(request, required=False)
+    if key is None:
+        return None
+    prev = await tx.first(
+        """SELECT method, path, body_sha256, status_code, response FROM core.idempotency_keys
+           WHERE principal = :p AND key = :k AND status_code IS NOT NULL
+             AND created_at >= now() - make_interval(hours => 24)""",
+        p=f"{who.kind}:{who.code}",
+        k=key,
+    )
+    if prev is None or (prev["method"], prev["path"], prev["body_sha256"]) != (
+        request.method,
+        request.url.path,
+        hashlib.sha256(await request.body()).hexdigest(),
+    ):
+        return None
+    return JSONResponse(
+        prev["response"], status_code=prev["status_code"], headers={"Idempotent-Replay": "true"}
+    )
 
 
 async def claim(
@@ -115,3 +154,36 @@ async def claim(
         prev["response"], status_code=prev["status_code"], headers={"Idempotent-Replay": "true"}
     )
     return idem
+
+
+async def peek(tx: Tx, request: Request, who: Principal) -> JSONResponse | None:
+    """The stored replay of a completed request with this key, without claiming
+    it: for a route that does work no retry can redo (e.g. reads an upload the
+    first request consumed) before its claim. A key in use for another body or
+    still running answers 409 as `claim` would; an unknown key is None."""
+    key = read_key(request, required=False)
+    if key is None:
+        return None
+    prev = await tx.first(
+        """SELECT method, path, body_sha256, status_code, response FROM core.idempotency_keys
+           WHERE principal = :p AND key = :k
+             AND created_at >= now() - make_interval(hours => 24)""",
+        p=f"{who.kind}:{who.code}",
+        k=key,
+    )
+    if prev is None:
+        return None
+    body_sha256 = hashlib.sha256(await request.body()).hexdigest()
+    if (prev["method"], prev["path"], prev["body_sha256"]) != (
+        request.method,
+        request.url.path,
+        body_sha256,
+    ):
+        raise ApiError(409, "idempotency_conflict")
+    if prev["status_code"] is None:
+        raise ApiError(
+            409, "idempotency_conflict", "the first request with this key is still running"
+        )
+    return JSONResponse(
+        prev["response"], status_code=prev["status_code"], headers={"Idempotent-Replay": "true"}
+    )

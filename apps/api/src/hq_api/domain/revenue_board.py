@@ -218,6 +218,7 @@ async def build(
     current = month_start(now)
     first_allowed = add_months(current, -(int(c["months"]) - 1))
     first = max(first_allowed, min((month_start(p.start) for p in pays), default=current))
+    first = min(first, current)  # every period ahead (prepaid): still this month's board
     months_d = []
     m = first
     while m <= current:

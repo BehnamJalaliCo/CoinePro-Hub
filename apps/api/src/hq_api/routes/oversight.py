@@ -18,7 +18,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
@@ -171,7 +171,14 @@ async def _seal_protocol(
         )
         holding = await ctx.hub.companies.holding()
         p = await O.new_version(
-            tx, ctx.who, holding.id, body.model_dump(), ref=ref, source="owner", step_up_id=su
+            tx,
+            ctx.who,
+            holding.id,
+            # only what was sent: a calendar left out keeps the protocol's current one
+            body.model_dump(exclude_unset=True),
+            ref=ref,
+            source="owner",
+            step_up_id=su,
         )
         await ctx.audit(
             tx,
@@ -617,7 +624,7 @@ class ChallengeIn(Model):
     title_fa: str = Field(min_length=1, max_length=300)
     brief_md: str = Field(default="", max_length=20000)
     criteria: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
-    due_at: datetime
+    due_at: AwareDatetime  # a naive time is a 422, not a TypeError against an aware now
     judge: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$")
 
 
@@ -648,7 +655,7 @@ class EngageIn(Model):
 
 class FreezeIn(Model):
     company: str = Field(pattern=CO)
-    until: datetime
+    until: AwareDatetime  # a naive time is a 422, not a TypeError against an aware now
     reason: str = Field(min_length=1, max_length=1000)
 
 

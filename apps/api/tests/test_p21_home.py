@@ -7,6 +7,7 @@ every string the owner reads passes humanize.check."""
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -136,6 +137,59 @@ async def test_three_cards_and_a_no_is_remembered_and_never_shown_again(
     assert ref in {o["ref"] for o in home["orders"]}
     for text in strings(home):
         assert H.check(text) == [], text
+
+
+async def test_a_run_retried_with_its_key_links_the_order_it_made(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    quiet: Any,
+) -> None:
+    """The order is made but the suggestion is not linked (its last transaction
+    failed): the retry with the same key replays the order and links it."""
+    co = await new_company()
+    s = await suggest(hub, co, "یک نظرسنجی هفتگی در استوری بگذارید", 2, 1)
+    assert s
+    key = idem()
+    r = await client.post(f"/api/v1/home/suggestions/{s['id']}", headers={**owner, **key},
+                          json={"action": "run"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    ref = r.json()["order_ref"]
+    await su.execute(
+        "UPDATE owner.suggestions SET state = 'new', order_ref = NULL WHERE id = $1", s["id"]
+    )
+    again = await client.post(f"/api/v1/home/suggestions/{s['id']}", headers={**owner, **key},
+                              json={"action": "run"})  # fmt: skip
+    assert again.status_code == 200, again.text
+    assert (again.json()["state"], again.json()["order_ref"]) == ("run", ref)
+
+
+async def test_two_runs_at_once_make_one_order(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    quiet: Any,
+) -> None:
+    """A double tap (or the web and the phone) with two keys: one order."""
+    co = await new_company()
+    s = await suggest(hub, co, "پست‌های آموزشی را صبح‌ها منتشر کنید", 2, 1)
+    assert s
+    url = f"/api/v1/home/suggestions/{s['id']}"
+    one, two = await asyncio.gather(
+        client.post(url, headers={**owner, **idem()}, json={"action": "run"}),
+        client.post(url, headers={**owner, **idem()}, json={"action": "run"}),
+    )
+    assert one.status_code == two.status_code == 200, (one.text, two.text)
+    ref = one.json()["order_ref"]
+    assert ref and two.json()["order_ref"] == ref
+    made = await su.fetchval(
+        "SELECT count(*) FROM owner.orders WHERE company_hint = $1", co["code"]
+    )
+    assert made == 1
 
 
 async def test_a_text_that_cannot_be_plain_is_never_shown(

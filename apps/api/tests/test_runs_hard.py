@@ -272,6 +272,27 @@ async def test_a_failed_calls_tokens_are_booked(
     assert (r["input_tokens"], r["output_tokens"]) == (1234, 7)
 
 
+def test_the_last_step_ends_while_the_token_and_the_activity_still_live() -> None:
+    """⟨audit 2026-11-11⟩ A step may start just before the deadline and still make its model
+    call, its actions and a partial deliverable: all of that fits inside the token and the
+    run_execute activity's limit, which the runner keeps equal to the workflow's."""
+    from hq_api.config import Settings
+    from hq_api.security import agent_tokens
+    from hq_api.worker.workflows import RUN_LIMIT
+
+    assert int(RUN_LIMIT.total_seconds()) == R.RUN_LIMIT_S
+    s = Settings()
+    reserve = R.step_reserve_s(s.agent_step_timeout_s, s.agent_actions_per_step)
+    assert reserve >= s.agent_step_timeout_s + 30 + (s.agent_actions_per_step + 1) * 40
+    ttl = min(agent_tokens.MAX_TTL_S, s.agent_max_run_s + reserve + 120)  # as claim mints it
+    window = R.run_window_s(s.agent_max_run_s, reserve, ttl)
+    assert 0 < window <= s.agent_max_run_s
+    assert window + reserve <= ttl and window + reserve <= R.RUN_LIMIT_S
+    # a token with little life left: no new step at all (the partial deliverable still fits)
+    assert R.run_window_s(3000, reserve, reserve - 5) == 0.0
+    assert R.run_window_s(600, reserve, 3600) == 600.0  # a short cap stays the cap
+
+
 class _Orig(Exception):
     def __init__(self, state: str) -> None:
         super().__init__(state)

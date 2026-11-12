@@ -286,6 +286,7 @@ class TurnRun:
                 bad += 1
                 if bad >= 2:
                     return await self._finish("failed", BAD_FA, BAD_FA, cards=[], reason=BAD_FA)
+                self._void_attempt()
                 messages += [
                     {"role": "assistant", "content": (call.text or "{}")[:4000]},
                     {
@@ -399,6 +400,21 @@ class TurnRun:
                 or now - self._last_flush >= FLUSH_S
             ):
                 await self._flush()
+
+    def _void_attempt(self) -> None:
+        """An attempt that was not a valid answer (audit 2026-11-11): the retry streams from its
+        own start. Its say_fa is spoken from the first sentence (the queued sentences of the void
+        attempt not spoken yet are dropped), and its text continues what the owner already sees
+        where it repeats it (the stream only appends; `done` carries the whole answer). The void
+        attempt's text not sent yet is never sent."""
+        if self._pending_md:
+            self.sent_md = self.sent_md[: len(self.sent_md) - len(self._pending_md)]
+            self._pending_md = ""
+        self.said_chars = 0
+        while not self.queue.empty():
+            if self.queue.get_nowait() is None:  # the end of speech stays the end
+                self.queue.put_nowait(None)
+                break
 
     async def _flush(self) -> None:
         if self._pending_md:

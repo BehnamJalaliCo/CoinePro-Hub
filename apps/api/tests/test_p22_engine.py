@@ -26,6 +26,7 @@ from typing import Any
 import httpx
 import pytest
 
+from hq_api.errors import ApiError
 from hq_api.hub import Hub
 from hq_api.lines import adapters, engine, learning, signing, store
 from hq_api.lines import templates as T
@@ -299,6 +300,15 @@ def test_shingles_see_a_rewrite() -> None:
     assert core.similarity(a, a) == 1.0
     assert core.similarity(a, a.replace("ي", "ی")) == 1.0
     assert core.similarity(a, persian_text(60)) < 0.3
+
+
+def test_the_publish_hour_is_the_scheduled_time_not_the_step_time() -> None:
+    """Regression: a post scheduled an hour ahead (in_min: 60) was recorded at the step's hour."""
+    at = "2026-11-10T14:40:00+00:00"  # 18:10 in Tehran
+    assert learning.publish_hour([{"at": at}], "Asia/Tehran") == 18
+    assert learning.publish_hour([{"at": None}, {"at": "2026-11-10T14:40:00Z"}], "UTC") == 14
+    now = datetime.now(UTC).hour
+    assert learning.publish_hour(None, "UTC") in (now, (now + 1) % 24)  # nothing given: now
 
 
 async def test_quality_applies_the_platforms_rules() -> None:
@@ -768,6 +778,31 @@ async def test_n8n_callback_is_signed_and_a_ceo_gate_is_the_ceos(
     assert steps_of(late)["flow"]["state"] == "failed" and "نرسید" in late["note_fa"]
 
 
+async def test_an_n8n_answer_that_beats_the_steps_parking_looks_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: n8n answered before the engine marked the step `waiting`; the callback got 409,
+    the answer was lost and the step timed out."""
+    answers = iter([None, None, {"run": "RN-000001", "step": "flow", "state": "running"}])
+
+    async def once(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
+        return next(answers)
+
+    monkeypatch.setattr(engine, "_on_callback", once)
+    monkeypatch.setattr(engine, "CALLBACK_PAUSE_S", 0)
+    got = await engine.on_callback(None, {"run": "RN-000001", "step": "flow"})
+    assert got["state"] == "running"
+
+    async def never(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
+        return None
+
+    monkeypatch.setattr(engine, "_on_callback", never)
+    monkeypatch.setattr(engine, "CALLBACK_TRIES", 3)
+    with pytest.raises(ApiError) as e:
+        await engine.on_callback(None, {"run": "RN-000001", "step": "flow"})
+    assert e.value.status == 409
+
+
 async def test_the_routes_are_the_owners(
     client: httpx.AsyncClient, owner_session: dict[str, Any], new_company: Any,
 ) -> None:  # fmt: skip
@@ -915,3 +950,32 @@ async def test_the_learning_loop_ranks_published_runs(
 
 async def _unused(_: AsyncIterator[None]) -> None:  # keeps the AsyncIterator import honest
     return None
+
+
+async def test_a_cancelled_line_advance_stops_its_step(
+    hub: Hub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11-11: a cancelled line_advance (heartbeat timeout, backstop) left
+    engine.advance running beside the retry's attempt of the same step."""
+    import asyncio
+
+    from hq_api.worker import lines_activities as LA
+
+    started, stopped = asyncio.Event(), asyncio.Event()
+
+    async def advance(_hub: Any, _ref: str) -> dict[str, Any]:
+        started.set()
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            stopped.set()
+        return {}
+
+    monkeypatch.setattr(LA.engine, "advance", advance)
+    acts = LA.LinesActivities(hub, lambda: hub.db.tx([]))
+    outer = asyncio.create_task(acts.line_advance("LR-000001"))
+    await asyncio.wait_for(started.wait(), 5)
+    outer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await outer
+    assert stopped.is_set()

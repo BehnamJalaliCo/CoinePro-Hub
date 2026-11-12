@@ -80,6 +80,9 @@ def test_sitemaps_urlset_index_and_fresh_pages() -> None:
     assert len(kids) == SEO.MAX_CHILD_SITEMAPS and pages == 0 and fresh == []
     assert SEO.new_pages(120, 100.0, 3) == 20 and SEO.new_pages(120, None, 3) == 3
     assert SEO.new_pages(90, 100.0, 0) == 0  # a shrinking sitemap is not news
+    # audit 2026-11-11: a sitemap that stamps every URL with today's date is not 3000 new pages
+    assert SEO.new_pages(3000, 3000.0, 3000) == 0 and SEO.new_pages(3000, None, 2950) == 0
+    assert SEO.new_pages(3000, 2990.0, 3000) == 10
 
 
 def test_jump_rules_follow_the_thresholds() -> None:
@@ -589,7 +592,8 @@ async def test_seo_crud_daily_read_ranks_and_a_competitor_jump(
     latest = max(d["day"] for d in daily)  # today in the owner's zone
     got = {(d["key"], d["source"]): d["value"] for d in daily if d["day"] == latest}
     assert got[("serp_best", "searxng")] == 2.0 and got[("serp_visible", "searxng")] == 1.0
-    assert got[("new_pages", "sitemap")] == 12.0 and got[("subscribers", "youtube")] == 2000.0
+    # 12 pages, all stamped today: only the growth from yesterday's 3 counts
+    assert got[("new_pages", "sitemap")] == 9.0 and got[("subscribers", "youtube")] == 2000.0
     assert got[("members", "telegram")] == 1500.0
     # the jump became work for the growth department, never a card for the owner; once only
     jumps = await su.fetch(
@@ -803,6 +807,15 @@ async def test_the_campaign_calendar_merges_every_source_and_marks_conflicts(
     assert [i["kind"] for i in wide.json()["items"]] == ["campaign"] and wide.json()["items"][0][
         "day"
     ] == "2027-03-19"
+    # `to` is the last day shown: a campaign starting the day after is not in it
+    before = await client.get(
+        "/api/v1/campaign-calendar",
+        headers=h,
+        params={"from": "2027-03-10", "to": "2027-03-18", "company": c},
+    )
+    assert before.status_code == 200
+    assert all(i["day"] <= "2027-03-18" for i in before.json()["items"])
+    assert "campaign" not in {i["kind"] for i in before.json()["items"]}
     too_long = await client.get(
         "/api/v1/campaign-calendar", headers=h, params={"from": "2027-01-01", "to": "2027-12-31"}
     )

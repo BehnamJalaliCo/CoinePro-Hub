@@ -143,36 +143,70 @@ async def ask_seat(
         raise StepFailed(skip_fa(call.get("state_reason"), who), code="seat_skipped")
     deadline = timeout_s if timeout_s is not None else timeout_of(ctx)
     waited = 0.0
+    settled = False  # the call reached an end of its own; nothing to take back
     gave_up = False
-    while True:
+    try:
+        while True:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                row = await tx.first(
+                    "SELECT * FROM substitutes.calls WHERE id = :id", id=call["id"]
+                )
+                if row is not None and row["state"] == "done":
+                    settled = True
+                    answer = await S.full_text(tx, hub, row.get("result"))
+                    tokens = int(row.get("input_tokens") or 0) + int(row.get("output_tokens") or 0)
+                    return {
+                        "text": answer,
+                        "tokens": tokens,
+                        "usd_equiv": row.get("equiv_usd") or 0,
+                        "model": row.get("model"),
+                        "player": player,
+                    }
+            if row is not None and row["state"] in ("failed", "skipped", "cancelled"):
+                settled = True
+                raise StepFailed(
+                    skip_fa(row.get("state_reason"), who), code="seat_failed", retry=True
+                )
+            if waited >= deadline:
+                # ⟨2026-11-11⟩ the step stops waiting: its call ends too (`abandoned`, queued or
+                # running), so it neither waits in the player's queue nor counts against the daily
+                # cap; one that ended just now is read once more above
+                ended = True
+                if not gave_up:
+                    gave_up = True
+                    async with hub.db.tx(await hub.companies.ids()) as tx:
+                        ended = await S.abandon(tx, hub, call["id"])
+                if ended or row is None:
+                    raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
+                continue
+            await sleep(POLL_S)
+            waited += POLL_S
+    finally:
+        if not settled:  # timed out, cancelled by the engine's limit or broken off
+            await abandon_call(hub, call["id"])
+
+
+async def abandon_call(hub: Any, call_id: Any) -> None:
+    """A seat call nobody waits for any more leaves the queue (the net under S.abandon, and the
+    only way out when the step was cancelled mid-wait).
+
+    Without this the web pass would still run it later, spend the owner's seat (its daily cap and
+    ledger) on an answer nobody reads, and hold a step's retry behind it. A call already running
+    is left to finish (or to S.abandon at the step's deadline); only a still-queued one is skipped.
+    """
+    try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
-            row = await tx.first("SELECT * FROM substitutes.calls WHERE id = :id", id=call["id"])
-            if row is not None and row["state"] == "done":
-                answer = await S.full_text(tx, hub, row.get("result"))
-                tokens = int(row.get("input_tokens") or 0) + int(row.get("output_tokens") or 0)
-                return {
-                    "text": answer,
-                    "tokens": tokens,
-                    "usd_equiv": row.get("equiv_usd") or 0,
-                    "model": row.get("model"),
-                    "player": player,
-                }
-        if row is not None and row["state"] in ("failed", "skipped", "cancelled"):
-            raise StepFailed(skip_fa(row.get("state_reason"), who), code="seat_failed", retry=True)
-        if waited >= deadline:
-            # ⟨2026-11-11⟩ the step stops waiting: its call ends too (`abandoned`), so it neither
-            # waits in the player's queue nor counts against the daily cap; one that ended just
-            # now is read once more above
-            ended = True
-            if not gave_up:
-                gave_up = True
-                async with hub.db.tx(await hub.companies.ids()) as tx:
-                    ended = await S.abandon(tx, hub, call["id"])
-            if ended or row is None:
-                raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
-            continue
-        await sleep(POLL_S)
-        waited += POLL_S
+            await tx.exec(
+                """UPDATE substitutes.calls
+                   SET state = 'skipped', state_reason = 'abandoned', finished_at = now(),
+                       input_md = NULL
+                   WHERE id = :id AND state = 'queued'""",
+                id=call_id,
+            )
+    except Exception as exc:  # noqa: BLE001 - the step's own failure is the one to report
+        log.warning(
+            "seat call not taken back", extra={"call": str(call_id), "error": type(exc).__name__}
+        )
 
 
 # ------------------------------------------------- the profile browser jobs --
@@ -267,12 +301,25 @@ async def bao_dict(hub: Any, path: str) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------- files --
-async def file_bytes(hub: Any, company_id: UUID, file_id: str) -> tuple[bytes, dict[str, Any]]:
-    async with hub.db.tx([company_id]) as tx:
+async def file_bytes(
+    hub: Any, company_id: UUID, file_id: str, *, with_holding: bool = False
+) -> tuple[bytes, dict[str, Any]]:
+    """A file of the company (a step's output), or with `with_holding` of the holding too.
+
+    A library asset's files are the owner's uploads, which POST /files keeps as the holding's, and a
+    line may use the holding's assets (store.check_library): they are read with `with_holding`.
+    """
+    cos = [company_id]
+    if with_holding:
+        holding = (await hub.companies.holding()).id
+        if holding not in cos:
+            cos.append(holding)
+    async with hub.db.tx(cos) as tx:
         row = await tx.first(
-            "SELECT id, name, mime, storage_key, kind FROM files.files WHERE id = :id AND company_id = :co",
+            """SELECT id, name, mime, storage_key, kind FROM files.files
+               WHERE id = :id AND company_id = ANY(CAST(:cos AS uuid[]))""",
             id=UUID(str(file_id)),
-            co=company_id,
+            cos=[str(c) for c in cos],
         )
     if row is None:
         raise StepFailed("فایل این مرحله پیدا نشد.", code="file_missing")

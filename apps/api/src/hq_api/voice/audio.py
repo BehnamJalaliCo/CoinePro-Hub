@@ -93,13 +93,16 @@ async def ogg_with_tempo(ogg: bytes, rate: float) -> bytes:
     with tempfile.TemporaryDirectory(prefix="voice-") as tmp:
         src, out = Path(tmp) / "in.ogg", Path(tmp) / "out.ogg"
         await asyncio.to_thread(src.write_bytes, ogg)
-        code, _, _ = await media.run_tool(
-            "ffmpeg", "-hide_banner", "-nostdin", "-y", "-threads", media.FF_THREADS,
-            *media.ff_input(src), *tempo_filter(rate),
-            "-c:a", "libopus", "-b:a", f"{OPUS_KBPS}k", "-application", "voip",
-            "-f", "ogg", str(out),
-            limit_s=ENCODE_LIMIT_S,
-        )  # fmt: skip
+        try:
+            code, _, _ = await media.run_tool(
+                "ffmpeg", "-hide_banner", "-nostdin", "-y", "-threads", media.FF_THREADS,
+                *media.ff_input(src), *tempo_filter(rate),
+                "-c:a", "libopus", "-b:a", f"{OPUS_KBPS}k", "-application", "voip",
+                "-f", "ogg", str(out),
+                limit_s=ENCODE_LIMIT_S,
+            )  # fmt: skip
+        except (OSError, TimeoutError) as exc:
+            raise EncodeFailed(type(exc).__name__) from exc
         if code != 0 or not out.is_file():
             raise EncodeFailed("ffmpeg")
         return await asyncio.to_thread(out.read_bytes)

@@ -281,6 +281,10 @@ async def list_risks(
 ) -> Page[RK.Risk]:
     """Highest score first."""
     after = pagination.decode(cursor, 2)
+    try:
+        a_s = int(after[0]) if after else None
+    except (ValueError, TypeError) as exc:
+        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
     co = (await ctx.hub.companies.by_code(company)).id if company else None
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -295,7 +299,7 @@ async def list_risks(
             st=status,
             cat=category,
             ms=min_score,
-            a_s=int(after[0]) if after else None,
+            a_s=a_s,
             a_r=str(after[1]) if after else None,
             n=limit + 1,
         )

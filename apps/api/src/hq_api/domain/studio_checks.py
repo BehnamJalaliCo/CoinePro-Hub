@@ -35,15 +35,21 @@ from hq_common import composition as C
 TRADING = re.compile(
     r"(?i)ترید|معامله|اهرم|لوریج|leverage|سیگنال|signal|بیت[‌ ]?کوین|bitcoin|\bBTC\b|"
     r"اتریوم|ethereum|\bETH\b|کریپتو|crypto|رمزارز|ارز\s*دیجیتال|فارکس|forex|\bfx\b|فیوچرز|futures|"
-    r"مارجین|margin|پوزیشن|position|لانگ|شورت|\bRSI\b|اندیکاتور|indicator|حمایت|مقاومت|"
-    r"حد\s*ضرر|stop\s*loss|طلا|xau|سهام|بورس|نمودار|چارت|قیمت"
-)
+    r"مارجین|margin|پوزیشن|position|لانگ|(?<![\u0600-\u06FF])شورت|\bRSI\b|اندیکاتور|indicator|"
+    r"حمایت|مقاومت|حد\s*ضرر|stop\s*loss|(?<![\u0600-\u06FF])طلا(?!ق)|xau|سهام|بورس|نمودار|چارت|قیمت"
+)  # «طلا» and «شورت» start a word: «اطلاعات» and «مشورت» are not trading
 WARNING = re.compile(
     r"هشدار\s*ریسک|(?:ریسک|خطر)[^.\n؟!]{0,80}(?:سرمایه|زیان|ضرر|از\s*دست)|"
     r"(?:سرمایه|پول)[^.\n؟!]{0,60}(?:از\s*دست|زیان|ضرر)|(?i:risk\s+warning|capital\s+(?:is\s+)?at\s+risk)"
 )
 ILLUSTRATIVE = re.compile(r"فرض\s*کنید|مثلاً|مثلا|برای\s*مثال|فرضی|به\s*عنوان\s*مثال")
-PART = re.compile(r"«?\s*(قلاب|بدنه|جمع[‌ ]?بندی(?:\s*و\s*دعوت)?|هشدار\s*ریسک|کپشن)\s*»?\s*[:：]?")
+# A part's heading starts its line (after a list mark or `**`) and ends with a colon or the line;
+# «لینک در کپشن است» in the middle of a sentence is not a heading.
+PART = re.compile(
+    r"(?m)^[ \t]*(?:[-*•#]+|[0-9۰-۹]+[.)])?[ \t]*(?:\*\*)?[ \t]*«?[ \t]*"
+    r"(قلاب|بدنه|جمع[‌ ]?بندی(?:[ \t]*و[ \t]*دعوت)?|هشدار[ \t‌]*ریسک|کپشن)"
+    r"[ \t]*»?[ \t]*(?:\*\*)?[ \t]*(?:[:：][ \t]*(?:\*\*)?|$)"
+)
 _TAGS = re.compile(r"<script\b.*?</script>|<style\b.*?</style>|<[^>]+>", re.S | re.I)
 OWN_SERVICES = ("substitutes", "media", "tts", "brand")
 
@@ -316,6 +322,15 @@ async def rights(tx: Tx, item: dict[str, Any], fmt: dict[str, Any]) -> dict[str,
     )
 
 
+def _frames(outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each frame once: the same name and file under one placement is one frame."""
+    got: dict[Any, dict[str, Any]] = {}
+    for i, o in enumerate(outs):
+        key = (o.get("name"), o.get("file_id"))
+        got.setdefault(key if key != (None, None) else i, o)
+    return list(got.values())
+
+
 def platform(item: dict[str, Any]) -> dict[str, Any]:
     outputs = item.get("outputs") or []
     targets = S.targets_of(item)
@@ -323,10 +338,11 @@ def platform(item: dict[str, Any]) -> dict[str, Any]:
         return _result("platform", None, "جای انتشاری ندارد.")
     problems: list[str] = []
     seen: list[str] = []
-    for tg in targets:
-        p = tg["placement"]
+    # two targets may share a placement (the IG account and a runner's target): the render
+    # emits each frame once per target, so a placement is checked once, on its distinct frames
+    for p in dict.fromkeys(tg["placement"] for tg in targets):
         lim = S.LIMITS[p]
-        outs = [o for o in outputs if o.get("placement") == p]
+        outs = _frames([o for o in outputs if o.get("placement") == p])
         if not outs:
             problems.append(f"{p}: خروجی ندارد")
             continue

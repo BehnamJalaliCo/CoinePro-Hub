@@ -47,6 +47,7 @@ log = logging.getLogger("hq_api.order_turns")
 
 OWNER_FA = "مدیر کل"
 DIALOGUE_STEPS = 12
+MAX_ASKS = 10  # the asks one open owner's turn keeps (each asker is woken by the reply)
 # ⟨1.23⟩ §41.2 what the holder's brief says about the plan (its run brief and «The order you hold»)
 PLAN_INSTRUCTION = (
     "Work the plan task by task, in order: do the next open task now; tick each one you finish "
@@ -223,6 +224,22 @@ async def to_talk_owner(tx: Tx, rep: dict[str, Any], text: str) -> bool:
 
 
 # -------------------------------------------------------------------- ask --
+def keep_asks(asks: list[dict[str, Any]], cap: int = MAX_ASKS) -> list[dict[str, Any]]:
+    """At most `cap` asks: the first (the turn's asker) and the newest always stay. An asker's
+    repeated ask goes before anyone's only one, so the reply still wakes every asker it can."""
+    out = list(asks)
+
+    def code(a: dict[str, Any]) -> Any:
+        by = a.get("by")
+        return by.get("code") if isinstance(by, dict) else None
+
+    while len(out) > max(cap, 2):
+        codes = [code(a) for a in out]
+        repeated = [i for i in range(1, len(out) - 1) if codes.count(codes[i]) > 1]
+        out.pop(repeated[0] if repeated else 1)
+    return out
+
+
 async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, Any]:
     """`order.ask`: the owner's turn on the order; ⟨1.17⟩ §35.4 a second ask while the turn is
     open joins it (both questions; the reply wakes both askers)."""
@@ -246,11 +263,14 @@ async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, A
         [{k: open_turn[k] for k in ("question_fa", "at", "by", "who_fa")}] if open_turn else []
     )
     asks.append(one)
+    n_asks = len(asks)  # the line's key, as before the cap
+    # The newest ask is kept (asks[:10] dropped it): its asker is woken by the reply too.
+    asks = keep_asks(asks)
     first = asks[0]
     turn = {
         **first,
         "question_fa": "\n".join(str(a["question_fa"]) for a in asks)[:4000],
-        "asks": asks[:10],
+        "asks": asks,
     }
     await tx.exec(
         """UPDATE owner.order_reports SET turn = CAST(:t AS jsonb), last_step_at = now(),
@@ -264,7 +284,7 @@ async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, A
     from hq_api.domain import session_activity as SA
 
     await SA.emit_safe(tx, ref, SA.make_line(
-        f"ask:{ref}:{len(asks)}", who_name, "سؤال از تو: " + question, kind="ask",
+        f"ask:{ref}:{n_asks}", who_name, "سؤال از تو: " + question, kind="ask",
         state="running", company=who.company,
     ))  # fmt: skip  # ⟨1.24⟩ §42.2
     talked = await to_talk(tx, rep, who.code, question, ask=True)
@@ -457,7 +477,9 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     # ⟨2026-11-09⟩ «با من»: what waited for this answer (a colleague's part) goes on too
     await OR.resume_held(tx, ref)
     await OR._append_steps(tx, rep["id"], steps)
-    await plan_from_owner(tx, ref, words)  # ⟨1.23⟩ §41.2 a numbered list is the plan
+    # ⟨1.23⟩ §41.2 a numbered list is the plan: read from his own lines (a list item per line,
+    # «۱.متن» or «1– …»), not the one-line step text, else the line-based parser never runs
+    await plan_from_owner(tx, ref, text[: 2 * OWNER_WORD_MAX])
     return {
         "work_ref": targets[0]["ref"],
         "run_id": runs[0] if runs else None,
@@ -605,12 +627,12 @@ async def owner_word(tx: Tx, ref: str, text: str, *, work_mode: bool) -> dict[st
     if work_mode and not is_question(words):
         try:
             async with tx.conn.begin_nested():
-                got = await reply(tx, ref, words[:OWNER_WORD_MAX])
+                got = await reply(tx, ref, text)  # its own lines: the plan is read from them
             out.update(replied=True, woken=got["woken"])
             return out  # reply() read the plan already
         except ApiError:
             pass  # ended, or nothing open: the talk alone carries it
-    out["tasks"] = await plan_from_owner(tx, ref, words)
+    out["tasks"] = await plan_from_owner(tx, ref, text[: 2 * OWNER_WORD_MAX])
     return out
 
 

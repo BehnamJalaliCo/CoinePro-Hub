@@ -252,6 +252,31 @@ async def test_pending_decision_expires(
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
+async def test_pending_decision_restarts_a_closed_lifecycle(
+    hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
+) -> None:
+    """A ref whose DecisionLifecycle already closed (a ref reused after an
+    owner wipe, or a run that failed) is started again for a pending card,
+    so the card still expires (audit g31)."""
+    co = await new_company()
+    ref = await propose_hire(hub, co, expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    await workflows_client.decision_created(wk["hub"], ref)
+    assert (await result_of(wk["client"], f"decision-{ref}"))["result"] == "expired"
+    # The same ref is pending again, as a new card after the ref sequence restarts.
+    async with hub.db.tx(await _all(hub)) as tx:
+        await tx.exec(
+            """UPDATE cartable.decisions SET status = 'pending', decided_at = NULL,
+                 expires_at = now() + interval '2 seconds' WHERE ref = :r""",
+            r=ref,
+        )
+    await workflows_client.decision_created(wk["hub"], ref)  # as reconcile_decisions does
+    out = await result_of(wk["client"], f"decision-{ref}")
+    assert out == {"ref": ref, "result": "expired"}
+    async with hub.db.tx(await _all(hub)) as tx:
+        assert (await D.load(tx, ref))["status"] == "expired"
+
+
+@pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_effect_waits_while_the_holding_is_locked(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
@@ -930,3 +955,47 @@ async def test_worker_main_starts_and_stops(
     stop.set()
     await asyncio.wait_for(task, 30)
     assert (await entry.load_secrets(None)).web_push_ready is False
+
+
+async def test_secrets_refresh_keeps_or_closes_channels(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Audit 2026-11-11: a refresh kept dropping the push channels (and their http client)
+    every 5 minutes; now they are rebuilt only when the push credentials change, and the
+    old ones are closed."""
+    from types import SimpleNamespace
+
+    from hq_api.secrets import Secrets
+    from hq_api.worker import __main__ as entry
+
+    class FakeChannels:
+        closed = False
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    loads = [Secrets(telegram_bot_token="a"), Secrets(telegram_bot_token="b")]
+
+    async def load(*_a: Any, **_k: Any) -> Secrets:
+        return loads.pop(0) if loads else Secrets(telegram_bot_token="b")
+
+    monkeypatch.setattr(entry, "SECRETS_REFRESH_S", 0.01)
+    monkeypatch.setattr(entry.secret_store, "load", load)
+    first = FakeChannels()
+    hub: Any = SimpleNamespace(secrets=Secrets(telegram_bot_token="a"), channels=first)
+    task = asyncio.create_task(entry.refresh_secrets(hub, object()))  # type: ignore[arg-type]
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # Same credentials first: kept; then a change: swapped out and closed.
+    assert hub.channels is None
+    assert first.closed is True
+    assert hub.secrets.telegram_bot_token == "b"
+
+    same = FakeChannels()
+    hub = SimpleNamespace(secrets=Secrets(telegram_bot_token="b"), channels=same)
+    task = asyncio.create_task(entry.refresh_secrets(hub, object()))  # type: ignore[arg-type]
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert hub.channels is same and same.closed is False

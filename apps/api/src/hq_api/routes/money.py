@@ -188,19 +188,30 @@ async def read_payment_source(id: UUID, request: Request, ctx: Ctx = Depends(own
     if src["kind"] == "ledger":
         await MJ.reconcile_company(ctx.hub, src["company_id"])
         return result
-    got = await MJ.read_now(ctx.hub, id)
-    if got.get("error"):
-        raise ApiError(
-            502, "connector_failed", str(got["error"]), message_fa=str(got.get("reason_fa") or "")
-        )
-    async with ctx.tx() as tx:
-        result = P.PayReadResult(
-            source=P.render_source(await P.load_source(tx, id)),
-            transfers=int(got.get("transfers") or 0),
-            pages=int(got.get("pages") or 0),
-        )
+    # The claim is committed above and answered only below: a failure in between gives the
+    # key back, so the app's retry with the same key reads again (not 409 «still running»).
+    try:
+        got = await MJ.read_now(ctx.hub, id)
+        if got.get("error"):
+            raise ApiError(
+                502,
+                "connector_failed",
+                str(got["error"]),
+                message_fa=str(got.get("reason_fa") or ""),
+            )
+        async with ctx.tx() as tx:
+            result = P.PayReadResult(
+                source=P.render_source(await P.load_source(tx, id)),
+                transfers=int(got.get("transfers") or 0),
+                pages=int(got.get("pages") or 0),
+            )
+            if idem:
+                await idem.store(tx, 200, result.model_dump(mode="json"))
+    except Exception:
         if idem:
-            await idem.store(tx, 200, result.model_dump(mode="json"))
+            async with ctx.tx() as tx:
+                await idem.release(tx)
+        raise
     return result
 
 

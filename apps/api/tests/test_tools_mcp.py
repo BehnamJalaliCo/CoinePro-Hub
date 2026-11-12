@@ -130,7 +130,13 @@ def sha_of(args: Any) -> str:
 
 
 async def resolve(
-    client: httpx.AsyncClient, code: str, server: str, tool: str, args: Any = None
+    client: httpx.AsyncClient,
+    code: str,
+    server: str,
+    tool: str,
+    args: Any = None,
+    *,
+    defer: bool = False,
 ) -> httpx.Response:
     return await client.post(
         "/internal/v1/tools/mcp/resolve",
@@ -141,7 +147,18 @@ async def resolve(
             "args_sha256": sha_of(args),
             "preview": json.dumps(args or {}, ensure_ascii=False),
             "args": args or {},
+            **({"defer": True} if defer else {}),
         },
+    )
+
+
+async def consume(
+    client: httpx.AsyncClient, code: str, server: str, tool: str, args: Any, decision: str
+) -> httpx.Response:
+    return await client.post(
+        "/internal/v1/tools/mcp/consume",
+        headers=await agent_headers(code),
+        json={"server": server, "tool": tool, "args_sha256": sha_of(args), "decision": decision},
     )
 
 
@@ -675,6 +692,16 @@ async def test_resolve_gives_the_sealed_class_and_makes_a3_a_decision(
     assert payload["args"] == args and "someone@example.com" in payload["preview"]
     other_args = (await resolve(client, me, k, "send_email", {"to": "b@example.com"})).json()
     assert other_args["decision"] != first["decision"]
+    # An agent cannot write such a card itself: harmless args shown, the real call's hash sealed.
+    r = await client.post(
+        "/internal/v1/decisions",
+        headers={**await agent_headers(me), **idem()},
+        json={"kind": "a3_action", "title": "MCP", "payload": {
+            "action": "mcp_call", "target": f"{k}/send_email", "server": k, "tool": "send_email",
+            "args": {"to": "b@example.com"}, "args_sha256": payload["args_sha256"],
+            "registration_sha256": payload["registration_sha256"]}},
+    )  # fmt: skip
+    assert r.status_code == 422 and "payload.action" in r.json()["fields"], r.text
     await _finish_runs(su, [me, f"{other}-TECH-MGR"])
 
 
@@ -744,6 +771,53 @@ async def test_an_approved_a3_card_runs_its_call_exactly_once(
     r = await resolve(client, me, k, "send_email", args)
     assert (r.status_code, r.json()["code"]) == (403, "policy_denied")
     assert nxt["decision"] in r.json()["message_fa"] and await su.fetchval(cards, k) == before
+    await _finish_runs(su, [me])
+
+
+async def test_a_deferred_a3_card_is_used_up_only_when_its_call_runs(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    bao: FakeBao,
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """With `defer` (the gateway), resolve names the approved card without
+    using it up: a call the gateway refuses afterwards (policy, egress
+    reserve, listing) leaves it approved, and the same call again finds the
+    same card, not a new one. /consume uses it up once; a second consume of
+    it, or of another call's arguments, is refused."""
+    co = (await new_company())["code"]
+    me = f"{co}-TECH-MGR"
+    k = key()
+    bao.data[f"hq-api/tools/mcp/{k}"] = {"token": SECRET}
+    await add(client, hub, owner_session, server_body(k))
+    await enable(client, hub, owner_session, k)
+    args = {"to": "sara@example.com", "amount": 1500}
+    card = (await resolve(client, me, k, "send_email", args)).json()["decision"]
+    assert (await decide(client, hub, owner_session, card, "approve")).status_code == 200
+    await _finish_runs(su, [me])
+    used = """SELECT c.outcome FROM tools.mcp_calls c JOIN cartable.decisions d ON d.id = c.decision_id
+              WHERE d.ref = $1 ORDER BY c.at"""
+    for _ in range(2):  # the gateway refused the call after resolve: the card stays
+        r = await resolve(client, me, k, "send_email", args, defer=True)
+        assert r.status_code == 200, r.text
+        assert (r.json()["decision"], r.json()["server"]["secret"]) == (card, SECRET)
+        assert [u["outcome"] for u in await su.fetch(used, card)] == ["decision"]
+    # Another call's arguments cannot use this card up.
+    r = await consume(client, me, k, "send_email", {**args, "amount": 15000}, card)
+    assert (r.status_code, r.json()["code"]) == (403, "policy_denied")
+    r = await consume(client, me, k, "send_email", args, card)
+    assert r.status_code == 200 and r.json() == {"decision": card}
+    assert [u["outcome"] for u in await su.fetch(used, card)] == ["decision", "approved"]
+    # Once: a second consume is refused, and the next resolve makes a new card.
+    r = await consume(client, me, k, "send_email", args, card)
+    assert (r.status_code, r.json()["code"]) == (403, "policy_denied")
+    nxt = (await resolve(client, me, k, "send_email", args, defer=True)).json()
+    assert nxt["server"] is None and nxt["decision"] not in (None, card)
+    # Only an A3 tool has a card to use up.
+    r = await consume(client, me, k, "lookup", None, card)
+    assert r.status_code == 422
     await _finish_runs(su, [me])
 
 

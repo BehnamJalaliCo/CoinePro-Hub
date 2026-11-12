@@ -77,7 +77,7 @@ async def okr_reminders(tx: Any, now: datetime) -> list[str]:
     tz = await G.owner_tz(tx)
     today = G.today(tz, now)
     quarter = G.quarter_of(today)
-    if G.quarter_bounds(quarter)[1].toordinal() - today.toordinal() > 31:
+    if not G.in_last_quarter_month(today):  # never by day count: Azar and Esfand are shorter
         return []
     nxt = G.next_quarter(quarter)
     made = []

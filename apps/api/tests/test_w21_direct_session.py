@@ -254,6 +254,9 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
             ).status_code == 204  # nothing new started  # fmt: skip
 
     # 5. the turn ends: what it says is the holder's word in the session, its files an output
+    # (the claim showed the holder working; the handed-over run's finish leaves it while the
+    # turn is open, and the turn's end sets him at rest)
+    await su.execute("UPDATE core.employees SET activity = 'working' WHERE code = $1", holder)
     r = await send_file(client, rn, job["id"], "reel.mp4", "video/mp4", mp4(2))
     assert r.status_code == 201, r.text
     fid = r.json()["id"]
@@ -261,8 +264,16 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
         client, rn, job["id"], "ریلز ATR آماده است؛ نگاهش کنید و اگر خوب بود «تأیید و انتشار» را بزنید.",
         files=[fid], usage={"input_tokens": 1200, "output_tokens": 800, "model": "claude-opus-5-5"},
     )  # fmt: skip
+    # the runner's retry of the same result (its read timed out) is a replay: said once, booked once
+    await result(
+        client, rn, job["id"], "ریلز ATR آماده است؛ نگاهش کنید و اگر خوب بود «تأیید و انتشار» را بزنید.",
+        files=[fid], usage={"input_tokens": 1200, "output_tokens": 800, "model": "claude-opus-5-5"},
+    )  # fmt: skip
     d = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1::uuid", a["run"])
     assert (d["state"], d["input_tokens"], d["output_tokens"]) == ("done", 1200, 800)
+    assert await su.fetchval("SELECT activity FROM core.employees WHERE code = $1", holder) == (
+        "sleeping"
+    )
     rep = (await client.get(f"/api/v1/orders/{ref}/report", headers=owner)).json()
     last = [s for s in rep["steps"] if s["what_fa"].startswith("ریلز ATR آماده است")]
     assert len(last) == 1 and last[0]["who_fa"].startswith(o["emp"]["title_fa"])

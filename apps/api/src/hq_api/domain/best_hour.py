@@ -268,13 +268,12 @@ async def read_one(
     )
     if last is not None and last > now - READ_EVERY:
         return "fresh"
-    hubs = CN.ig_hub()
-    srv_cfg = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
+    # ⟨audit 2026-11-11⟩ only IG-Hub's server or one of the company's own, never another company's
+    where = CN.ig_server(cfg, conn.get("company"))
+    if where is None:
+        return "skipped"
     try:
-        srv = await SV.load_server(
-            tx, str((srv_cfg or {}).get("name") or hubs["server"]),
-            company=str((srv_cfg or {}).get("company") or hubs["company"]),
-        )  # fmt: skip
+        srv = await SV.load_server(tx, where[1], company=where[0])
     except Exception:  # noqa: BLE001 - no such server yet: the technical team's work, not a fault here
         return "skipped"
     if SV.state_of(srv) != "online":
@@ -301,7 +300,7 @@ async def read_due(hub: Any, now: datetime | None = None) -> dict[str, int]:
     out = {"asked": 0, "read": 0, "waiting": 0, "failed": 0}
     async with hub.db.tx(await hub.companies.ids()) as tx:
         conns = await tx.all(
-            """SELECT c.company_id, c.config FROM growth.connections c
+            """SELECT c.company_id, co.code AS company, c.config FROM growth.connections c
                JOIN core.companies co ON co.id = c.company_id
                WHERE c.kind = 'instagram' AND co.status = 'active' ORDER BY co.code"""
         )

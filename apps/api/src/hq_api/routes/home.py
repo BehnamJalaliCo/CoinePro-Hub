@@ -11,11 +11,13 @@ POST /home/suggestions/{id}         {action: run|later|no, reason_fa?}: run make
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi.responses import JSONResponse
 from pydantic import Field
 
 from hq_api import idempotency
@@ -55,6 +57,9 @@ async def _make_order(
 
     body = OR.OrderIn(text=HM.order_text(s), source="text", company=s["company"])
     out = await OR.create_order(body=body, request=request, background=background, ctx=ctx)
+    if isinstance(out, JSONResponse):  # a retry with the same key: the stored answer
+        stored = json.loads(bytes(out.body)) if 200 <= out.status_code < 300 else None
+        out = stored if isinstance(stored, dict) else None
     ref = out.get("ref") if isinstance(out, dict) else getattr(out, "ref", None)
     if not isinstance(ref, str):
         raise ApiError(409, "validation_failed", "the order was not made")
@@ -95,6 +100,20 @@ async def act_on_suggestion(
     as it is (its order made once)."""
     if body.action == "run":
         idempotency.read_key(request, required=True)
+    # Two acts on one suggestion at once (a double tap, the web and the phone,
+    # each with its own key) wait for each other until the first has linked its
+    # order: the second then sees it, and no second order is made. The lock is
+    # held on its own connection; the order and the link use their own.
+    async with ctx.hub.db.raw() as lock:
+        await lock.exec(
+            "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k=f"hq:suggestion:{id}"
+        )
+        return await _act(ctx, id, body, request, background)
+
+
+async def _act(
+    ctx: Ctx, id: UUID, body: ActIn, request: Request, background: BackgroundTasks
+) -> HM.Suggestion:
     async with ctx.tx() as tx:
         s = await tx.one(HM.SUGGESTION_SQL + " WHERE s.id = :id", id=id)
     if s["state"] == "run" and s["order_ref"]:

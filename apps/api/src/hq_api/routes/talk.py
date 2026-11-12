@@ -153,7 +153,7 @@ async def talk_list_conversations(
     part in; `q` searches every turn's words (Persian-normalised full text, as
     §5.3: ی/ي, ک/ك and ZWNJ alike)."""
     await _policy(ctx, "conversation.read")
-    after = pagination.decode(cursor, 2)
+    at, cid = pagination.time_id(cursor)  # typed: asyncpg binds by type
     async with ctx.tx() as tx:
         rows = await tx.all(
             """SELECT c.*, COALESCE(c.last_turn_at, c.started_at) AS sort_at FROM talk.conversations c
@@ -170,8 +170,8 @@ async def talk_list_conversations(
                ORDER BY sort_at DESC, c.id DESC LIMIT :l""",
             p=persona,
             q=q,
-            at=after[0] if after else None,
-            id=after[1] if after else None,
+            at=at,
+            id=cid,
             l=limit + 1,
         )
         items, nxt = pagination.page([dict(r) for r in rows], limit, ("sort_at", "id"))

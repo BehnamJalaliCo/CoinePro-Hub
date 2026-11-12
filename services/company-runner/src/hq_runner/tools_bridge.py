@@ -6,9 +6,13 @@ name today's topic, ...) goes through the hub's own Tool Gateway, as for any age
 is the path between the two, in two halves:
 
     `hq-runner mcp-tools`   a small MCP server (stdio, JSON-RPC 2.0, one JSON a line) that
-                            Claude Code starts from `--mcp-config`. It holds no secret: every
+                            Claude Code starts from `--mcp-config`. It holds no token: every
                             `tools/list` and `tools/call` is one JSON line to the job's own
-                            unix socket (HQ_RUNNER_TOOLS_SOCK).
+                            unix socket (HQ_RUNNER_TOOLS_SOCK), with this turn's key
+                            (HQ_RUNNER_TOOLS_KEY): every turn runs as the same user and Landlock
+                            does not guard a socket's connect(), so the key, which only this
+                            turn's mcp.json holds (in a folder closed to the other turns), is
+                            what keeps another company's turn from calling as this one.
     serve()                 that socket, in the runner: `{op: "list"}` and `{op: "call", name,
                             args}` are carried to the hub with the runner's own token
                             (`GET /runners/jobs/{id}/tools`, `POST …/tools/call`). The token
@@ -22,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 import json
 import os
 import socket
@@ -36,6 +41,7 @@ from hq_runner.sandbox import _short
 SERVER = "hq"  # the MCP server's name: its tools are mcp__hq__<name>
 ALLOW = f"mcp__{SERVER}"  # the permission that lets the session call them without asking
 SOCK_ENV = "HQ_RUNNER_TOOLS_SOCK"
+KEY_ENV = "HQ_RUNNER_TOOLS_KEY"
 LINE = 4 * 1024 * 1024
 CALL_TIMEOUT_S = 175.0
 PROTOCOL = "2025-06-18"
@@ -45,7 +51,14 @@ Lister = Callable[[], Awaitable[dict[str, Any]]]
 Caller = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
-def mcp_config(sock: Path) -> dict[str, Any]:
+def key_ok(given: Any, key: str) -> bool:
+    """A request carries this turn's own key (compared in constant time)."""
+    return (
+        isinstance(given, str) and bool(key) and hmac.compare_digest(given.encode(), key.encode())
+    )
+
+
+def mcp_config(sock: Path, key: str) -> dict[str, Any]:
     """What `--mcp-config` reads: this same installation of the runner as the one MCP server."""
     root = str(Path(hq_runner.__file__).resolve().parent.parent)
     return {
@@ -54,24 +67,27 @@ def mcp_config(sock: Path) -> dict[str, Any]:
                 "type": "stdio",
                 "command": sys.executable,
                 "args": ["-m", "hq_runner", "mcp-tools"],
-                "env": {"PYTHONPATH": root, SOCK_ENV: str(sock)},
+                "env": {"PYTHONPATH": root, SOCK_ENV: str(sock), KEY_ENV: key},
             }
         }
     }
 
 
 # ------------------------------------------------------------- the runner's side --
-async def serve(path: Path, lister: Lister, caller: Caller) -> asyncio.AbstractServer:
-    """The job's tools socket: one JSON line in, one JSON line out, for this turn only."""
+async def serve(path: Path, lister: Lister, caller: Caller, key: str) -> asyncio.AbstractServer:
+    """The job's tools socket: one JSON line in, one JSON line out, for this turn only (a line
+    without this turn's `key` is refused)."""
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         answer: dict[str, Any] = dict(UNREACHABLE, code="bad_request")
         try:
             line = await asyncio.wait_for(reader.readline(), 30)
             obj = json.loads(line or b"{}")
-            if isinstance(obj, dict) and obj.get("op") == "list":
+            if not isinstance(obj, dict) or not key_ok(obj.get("key"), key):
+                answer = dict(UNREACHABLE, code="forbidden")
+            elif obj.get("op") == "list":
                 answer = await lister()
-            elif isinstance(obj, dict) and obj.get("op") == "call":
+            elif obj.get("op") == "call":
                 args = obj.get("args")
                 answer = await caller(
                     str(obj.get("name") or ""), args if isinstance(args, dict) else {}
@@ -101,12 +117,14 @@ async def serve(path: Path, lister: Lister, caller: Caller) -> asyncio.AbstractS
 
 # ----------------------------------------------------------- the session's side --
 def ask(sock_path: str, obj: dict[str, Any], timeout: float = CALL_TIMEOUT_S) -> dict[str, Any]:
-    """One question to the runner over the job's socket; an error object when it cannot be asked."""
+    """One question to the runner over the job's socket (with this turn's key); an error object
+    when it cannot be asked."""
+    sent = {**obj, "key": os.environ.get(KEY_ENV, "")}
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s, _short(sock_path) as short:
             s.settimeout(timeout)
             s.connect(short)
-            s.sendall(json.dumps(obj, ensure_ascii=False).encode() + b"\n")
+            s.sendall(json.dumps(sent, ensure_ascii=False).encode() + b"\n")
             data = b""
             while not data.endswith(b"\n"):
                 chunk = s.recv(1 << 16)

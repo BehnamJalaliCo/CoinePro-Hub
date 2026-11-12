@@ -1,7 +1,8 @@
 """⟨1.15⟩ Prompt 24 (contract §33.2): the reconcile, by code, and its alerts.
 
 A ledger row with a transaction hash that is on chain, to one of the company's addresses, with
-enough confirmations and an amount at least the ledger's amount is `matched`; a ledger row the
+enough confirmations and an amount at least the ledger's amount is `matched` (a hash pays once:
+two ledger rows naming it share its amount, the earliest first); a ledger row the
 scan has passed without finding is `ledger_only` (an approved payment without money: an alert); a
 transfer to our address with no ledger row is `chain_only` (money without a customer: shown for the
 company to claim); a lower amount is `amount_mismatch`; a transfer that is not deep enough yet, or
@@ -122,22 +123,52 @@ async def reconcile(tx: Tx, company_id: UUID, at: datetime | None = None) -> dic
     }
     counts = dict.fromkeys(P.STATUSES, 0)
     unchanged: list[UUID] = []
-    for p in await tx.all(
-        """SELECT id, customer, amount_usdt, network, tx_hash, paid_at, status, chain_amount, note_fa
+    ledger = await tx.all(
+        """SELECT id, ext_id, customer, amount_usdt, network, tx_hash, paid_at, status,
+                  chain_amount, note_fa
            FROM money.payments
-           WHERE company_id = :co AND origin = 'ledger' AND kind = 'crypto' AND paid_at >= :since""",
+           WHERE company_id = :co AND origin = 'ledger' AND kind = 'crypto' AND paid_at >= :since
+           ORDER BY paid_at, ext_id, id""",
         co=company_id,
         since=since,
-    ):
+    )
+    # One transfer pays one ledger row: a hash is a pool the rows use up in order (the earliest
+    # first), so a hash named by two approved payments never counts its money twice. Rows of the
+    # same hash older than the window have used their share already.
+    pool = {
+        (r["network"], r["tx_hash"]): Decimal(r["amount"])
+        for r in await tx.all(
+            """SELECT network, tx_hash, sum(amount_usdt) AS amount FROM money.payments
+               WHERE company_id = :co AND origin = 'ledger' AND kind = 'crypto'
+                 AND paid_at < :since AND tx_hash = ANY(:hashes) GROUP BY network, tx_hash""",
+            co=company_id,
+            since=since,
+            hashes=sorted({p["tx_hash"] for p in ledger if p["tx_hash"]}),
+        )
+    }
+    for p in ledger:
         net = p["network"]
+        key = (net, p["tx_hash"])
+        amount = Decimal(p["amount_usdt"])
+        seen = chain.get(key)
+        claimed = pool.get(key, Decimal(0))
+        if seen is not None:
+            pool[key] = claimed + amount
+            if claimed > 0:
+                seen = Seen(max(seen.amount - claimed, Decimal(0)), seen.confirmations)
         status, got, note = judge(
-            Decimal(p["amount_usdt"]),
+            amount,
             p["paid_at"],
-            chain.get((net, p["tx_hash"])),
+            seen,
             cover.get(net),
             threshold=int(P.networks()[net]["confirmations"]),
             grace=grace,
         )
+        if status == "amount_mismatch" and claimed > 0:
+            note = (
+                "این تراکنش برای پرداخت دیگری از دفتر هم آمده است؛ "
+                f"فقط {_fmt(got or Decimal(0))} از {_fmt(amount)} تتر برای این یکی مانده."
+            )
         counts[status] += 1
         if (status, got, note) != (p["status"], p["chain_amount"], p["note_fa"]):
             await tx.exec(
@@ -151,7 +182,7 @@ async def reconcile(tx: Tx, company_id: UUID, at: datetime | None = None) -> dic
             )
             if status == "matched" and p["status"] != "matched":
                 # §33.4: `paid` is set by code when the money of a pseudonym has arrived
-                await P._lead_paid(tx, company_id, p["customer"], Decimal(p["amount_usdt"]))
+                await P._lead_paid(tx, company_id, p["customer"], amount)
         else:
             unchanged.append(p["id"])
     if unchanged:

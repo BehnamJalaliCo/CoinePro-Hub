@@ -157,6 +157,32 @@ async def test_every_order_has_a_holder_and_a_session_at_once(
     plain(listed[ref]["title_fa"], listed[ref]["reason_fa"], *listed[ref]["brief"].values())
 
 
+async def test_the_sessions_list_pages_on_with_its_cursor(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    co = (await new_company())["code"]
+    for _ in range(3):
+        await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    seen: list[str] = []
+    url = "/api/v1/sessions?state=all&limit=1"
+    for i in range(3):
+        r = await client.get(url, headers=owner)
+        assert r.status_code == 200, r.text
+        page = r.json()
+        seen += [c["ref"] for c in page["items"]]
+        if i < 2:
+            assert page["next_cursor"], page
+            url = f"/api/v1/sessions?state=all&limit=1&cursor={page['next_cursor']}"
+    assert len(seen) == len(set(seen)) == 3
+    # a cursor whose time is no time is the caller's mistake, never a 500
+    url = "/api/v1/sessions?state=all&limit=1&cursor=WyJ4IiwieSIsInoiXQ"  # ["x","y","z"]
+    bad = await client.get(url, headers=owner)
+    assert bad.status_code == 422 and "cursor" in bad.json()["fields"], bad.text
+
+
 async def test_a_company_without_a_manager_is_held_by_the_secretary_with_a_hire_card(
     client: httpx.AsyncClient,
     owner: dict[str, str],
@@ -744,6 +770,38 @@ async def test_a_councils_plan_inside_a_session_continues_the_same_order(
     rep = await report(client, owner, ref)
     assert rep["steps"][-1]["who_fa"] == "مدیر کل" and rep["steps"][-1]["what_fa"].startswith(
         "اجرا کن"
+    )
+
+
+async def test_a_councils_plan_on_an_order_with_nothing_open_makes_a_new_order(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """The order is not ended but has no open or delivered work: the same-order
+    path gives way, and its claim of the key goes back with it (no 409
+    idempotency_conflict from the new order's own claim)."""
+    company = await new_company()
+    o = await make_order(hub, company, "تحلیل بازار آموزش آنلاین")
+    ref, w = o["ref"], o["work"]
+    await su.execute(
+        """INSERT INTO work.councils (company_id, work_id, state, plan_md)
+           VALUES ($1, $2, 'done', $3)""",
+        company["id"],
+        w["id"],
+        "هدف: هر روز یک ریلز.\n| چه کسی | چه کاری | تا کی |\n|---|---|---|\n| مدیر رسانه | سه ریلز | پنجشنبه |",
+    )
+    await su.execute(
+        "UPDATE work.work SET status = 'cancelled', closed_at = now() WHERE id = $1", w["id"]
+    )
+    r = await client.post(f"/api/v1/work/{w['id']}/council/run", headers={**owner, **idem()})
+    assert r.status_code == 201, r.text
+    assert r.json()["ref"].startswith("F-") and r.json()["ref"] != ref
+    assert (
+        await su.fetchval("SELECT order_ref FROM work.councils WHERE work_id = $1", w["id"])
+        == r.json()["ref"]
     )
 
 

@@ -1,6 +1,15 @@
-# hq-admin: day-to-day administration without the root token
-# (secrets, policies, AppRoles, mounts). Not allowed: seal/unseal keys,
-# raft membership, audit devices, or creating root tokens.
+# hq-admin: day-to-day administration without the root token (secrets,
+# policies, AppRoles, mounts). provision.sh runs as this token on every
+# `make up` and rewrites every policy in this directory, hq-admin included.
+#
+# This is NOT an isolation boundary: whoever can write ACL policies and
+# AppRoles can grant themselves anything. The token may rewrite any policy
+# (its own too) to `path "*"` with sudo, bind an AppRole to it and log in,
+# and so reach seal, raft membership, audit devices or sys/generate-root.
+# No path here grants those directly, but the token is as strong as root in
+# practice; protect openbao-admin.token like the root token (it lives next
+# to it, in $HQ_SECRETS_DIR, 600). Narrowing the policy and AppRole paths
+# would not close this: a named policy can still be rewritten to `path "*"`.
 path "kv/*" {
   capabilities = ["create", "read", "update", "patch", "delete", "list"]
 }

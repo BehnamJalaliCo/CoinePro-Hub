@@ -176,6 +176,7 @@ make audit-reanchor reason="restore of backup <stamp>"   # باید عبارت r
   - توکن router↔runtime، توکن metrics، و اولین فراخواننده‌ی API ‏(`hq-ops`)
   - هیچ مقداری چاپ نمیشود.
 - **توکن ادمین غیر root:** `/home/Hub/.secrets/openbao-admin.token` (`600`)، با policy ‏`hq-admin` و دوره‌ی ۳۲ روز. در هر `make up` تمدید میشود. اگر ۳۲ روز `make up` اجرا نشود منقضی میشود و `provision.sh` یک بار دیگر با root token یک توکن ادمین تازه میسازد.
+  - این توکن **مرز امنیتی نیست:** چون policyها و AppRoleها را مینویسد، میتواند به خودش هر دسترسی‌ای بدهد (حتی seal، audit و raft). آن را مثل root token نگه دار.
 - **root token هنوز معتبر است.** باطل کردنش تصمیم مالک است. بعد از باطل شدن، فقط توکن ادمین کار میکند و اگر منقضی شود، ساختن root تازه کلید unseal لازم دارد (`bao operator generate-root`).
 - **فایل‌های سرویس‌ها** در `/home/Hub/.secrets/services/<service>/` هستند و مالکشان uid کانتینر است (10001؛ و 65534 برای Prometheus). برای دیدن یا عوض کردنشان sudo لازم است. برای ساختن دوباره‌ی secret_id، فایل را با sudo پاک کن و `make llm-provision` بزن.
 
@@ -859,6 +860,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   2. سیاست `hq.actions` روی **همان کلاس** تصمیم میگیرد. A2 فقط برای `ceo` و `manager` مجاز است (`a2_grants` در `infra/opa/policy/data.json`).
   3. **ابزار A3 بدون کارت تأییدشده اجرا نمیشود.** api یک تصمیم `a3_action` میسازد: `action: mcp_call`، `server`، `tool`، `args` و `preview` (فقط رمزها پوشانده میشوند؛ گیرنده و مبلغ دیده میشوند)، `args_sha256` و `registration_sha256`. تا کارت باز است، همان فراخوانی همان کارت را میگیرد.
      - **تأیید = دقیقاً یک اجرا (7.1):** کار پیگیری ساخته میشود؛ اولین فراخوانی یکسان (همان شرکت، سرور، ابزار، `args_sha256` و ثبت)، از هر run، تا ۲۴ ساعت بعد از مُهر، کارت را به‌صورت اتمی مصرف میکند (یک ردیف `approved` در `tools.mcp_calls` با `decision_id` یکتا) و اجرا میشود. `hq.actions` آن را با `approved_decision` میپذیرد؛ قفل شرکت همچنان جلویش را میگیرد. فراخوانی بعدی کارت تازه میخواهد.
+     - **کارت فقط با اجرای واقعی مصرف میشود (ممیزی 2026-11-11):** Gateway در resolve ‏`defer: true` میفرستد؛ api کارت تأییدشده را فقط نام میبرد و مصرف نمیکند. Gateway بعد از سیاست، رزرو egress و چک فهرست ابزارها، درست پیش از اجرا `POST /internal/v1/tools/mcp/consume` ‏(`{server, tool, args_sha256, decision}`) را میزند و ردیف `approved` همان‌جا نوشته میشود. پس اگر یکی از این چک‌ها فراخوانی را رد کند، کارت تأییدشده میماند و تکرار همان فراخوانی کارت تازه نمیسازد. اگر فراخوانی دیگری زودتر کارت را مصرف کرده باشد ← `403 policy_denied` و چیزی اجرا نمیشود.
      - کارت ردشده (یا برگشت‌خورده) در ۲۴ ساعت بعد ← `denied` (`policy_denied`)، بدون کارت تازه.
   4. خروجی سرور برچسب `source: "mcp"`، `untrusted: true` و `suspected_injection` (همان الگوهای وب) میگیرد و مثل همه‌ی خروجی‌ها ماسک میشود. فقط متن به مدل میرسد؛ عکس یا resource فقط نام میبرد (`omitted`).
   5. هر فراخوانی یک ردیف Audit دارد (`mcp.call`، کلاس واقعی، `ref: mcp:<server>/<tool>`) و یک ردیف `tools.mcp_calls`.

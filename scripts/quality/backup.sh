@@ -295,8 +295,15 @@ for _ in $(seq 30); do
 done
 inject() { printf '%s\n' "$@" >"$T/rules/rules"; }
 
+# The primary runs with production's max_connections (full profile, 200), not
+# the default 100: base backups record it in pg_control, and a hot-standby
+# restore refuses to start with a lower value. With the default the pitr,
+# weekly and random scenarios could never see that mismatch.
+pg_max_conn="$(sed -n 's/^PG_MAX_CONNECTIONS=\([0-9]*\).*/\1/p' "$REPO_DIR/infra/compose/profiles/full.env" | tail -n1)"
+[[ "$pg_max_conn" =~ ^[0-9]+$ ]] || { echo "backup: PG_MAX_CONNECTIONS missing in profiles/full.env" >&2; exit 1; }
 docker run -d --name "$N-pg" --network none -e POSTGRES_PASSWORD="$(openssl rand -hex 12)" \
   -e WALG_FILE_PREFIX=/wal -e WALG_COMPRESSION_METHOD=zstd -v "$B/wal:/wal" "$PG_IMAGE_T" postgres \
+  -c max_connections="$pg_max_conn" \
   -c archive_mode=on -c 'archive_command=/usr/local/bin/wal-g wal-push %p' -c archive_timeout=60s >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$N-pg" psql -h 127.0.0.1 -U postgres -Atc 'SELECT 1' >/dev/null 2>&1 && break

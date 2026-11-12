@@ -505,6 +505,37 @@ async def test_nothing_is_pulled_while_the_holding_is_locked(
     assert [(r["kind"], (r["to_day"] - r["from_day"]).days) for r in mine] == [("backfill", 89)]
 
 
+async def test_a_planned_pull_its_run_never_reached_is_failed_and_planned_again(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """Audit 2026-11-11: a RevenuePulls run that ended early (an activity error, its 4 h
+    timeout) left the later pulls `queued` for good; an orphaned backfill blocked the
+    account's backfill from ever being planned again."""
+    co = await new_company()
+    acct = await affiliate_account(su, co)
+    orphan = await su.fetchval(
+        """INSERT INTO revenue.pulls (company_id, account_id, kind, from_day, to_day,
+               requested_by_kind, requested_by_code, created_at)
+           VALUES ($1, $2, 'backfill', $3, $4, 'service', 'revenue', now() - interval '6 hours')
+           RETURNING id""",
+        co["id"],
+        acct["id"],
+        settled(89),
+        settled(0),
+    )
+    acts = RevenueActivities(hub, txf(hub), connector=FakeConnector())
+    async with holding_switch(su, "released"):
+        planned = await acts.revenue_plan("scheduled")
+    row = await su.fetchrow("SELECT state, error_code FROM revenue.pulls WHERE id = $1", orphan)
+    assert (row["state"], row["error_code"]) == ("failed", "interrupted")
+    fresh = await su.fetch(
+        "SELECT id, kind FROM revenue.pulls WHERE account_id = $1 AND state = 'queued'",
+        acct["id"],
+    )
+    assert [r["kind"] for r in fresh] == ["backfill"]
+    assert str(fresh[0]["id"]) in planned["queued"]
+
+
 async def test_pr_103_reconciles_the_radar_with_its_pages(
     hub: Hub, new_company: Callable[..., Any], su: Any
 ) -> None:
@@ -565,3 +596,18 @@ def test_the_settlement_day_is_t_plus_one_at_utc_plus_8() -> None:
     assert start == int(datetime(2026, 10, 21, tzinfo=A.UTC8).timestamp() * 1000)
     assert end - start == 86_400_000 - 1
     assert dataclasses.is_dataclass(A.DayPull)
+
+
+def test_a_failed_deposits_call_is_a_gap_not_zero() -> None:
+    d = datetime(2026, 10, 21, tzinfo=A.UTC8).date()
+    failed = A.DayPull(day=d, endpoints=["money/detail/list"])
+    failed.gaps.append({"endpoint": "money/detail/list", "page": 0, "error": "http_500"})
+    assert failed.deposits_usdt() is None
+    partial = A.DayPull(day=d, endpoints=["money/detail/list"], deposits={A.USDT: Decimal(5)})
+    partial.gaps.append({"endpoint": "money/detail/list", "page": 1, "error": "http_500"})
+    assert partial.deposits_usdt() is None
+    empty = A.DayPull(day=d, endpoints=["money/detail/list"])
+    assert empty.deposits_usdt() == 0
+    other = A.DayPull(day=d, endpoints=["money/detail/list", "kline"])
+    other.gaps.append({"endpoint": "kline", "page": 0, "error": "no_price", "coin": "btc"})
+    assert other.deposits_usdt() == 0

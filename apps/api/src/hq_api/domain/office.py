@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from hq_api.db import Tx
 from hq_api.domain import decisions as D
+from hq_api.domain import gov_common as GC
 from hq_api.domain import home as H
 from hq_api.domain import links as L
 from hq_api.domain import sessions as S
@@ -57,7 +58,9 @@ def _usd(v: Decimal) -> str:
 async def money(tx: Tx, now: datetime) -> OfficeMoney:
     """The month in dollars: revenue only when a company's ledger has been read (else null), the
     hub's pay-per-use spend (subscriptions are fixed and not counted here)."""
-    start = now.astimezone(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # The owner's month (owner.settings.timezone), as the treasury's default range cuts it.
+    local = now.astimezone(GC.zone(await GC.owner_tz(tx)))
+    start = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     sources = await tx.scalar("SELECT count(*) FROM money.payments WHERE origin = 'ledger'")
     revenue: Decimal | None = None
     if sources:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -186,12 +187,18 @@ def test_the_hook_asks_the_runner_over_its_socket(tmp_path: Path) -> None:
         # a path longer than a socket's own limit goes through its folder
         deep = tmp_path / ("d" * 60) / ("e" * 60)
         deep.mkdir(parents=True)
-        server = await sandbox.serve_hook(deep / "hook.sock", classify)
+        server = await sandbox.serve_hook(deep / "hook.sock", classify, "k-1")
+        sock = str(deep / "hook.sock")
         try:
-            return [
-                await asyncio.to_thread(sandbox.ask_hook_socket, str(deep / "hook.sock"), c)
+            got = [
+                await asyncio.to_thread(sandbox.ask_hook_socket, sock, c, 45.0, "k-1")
                 for c in ("ls", "psql -c 'DROP DATABASE x'", "unreachable")
             ]
+            # another turn (same user, a socket Landlock does not guard) without this turn's key
+            for wrong in ("", "k-2"):
+                refused = await asyncio.to_thread(sandbox.ask_hook_socket, sock, "ls", 45.0, wrong)
+                assert refused == (None, "forbidden")
+            return got
         finally:
             server.close()
             await server.wait_closed()
@@ -271,21 +278,132 @@ def test_a_workshop_turn_runs_behind_the_wall(
 
 
 @needs_landlock
-def test_a_walled_session_that_does_not_start_runs_without_the_wall(
+def test_a_walled_session_that_does_not_start_runs_without_the_wall_only_when_the_wall_broke(
     fake_hub: FakeHub, cfg: Config, place: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     record = place["ws"] / "W-000111" / "rec.json"
     monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
     cfg.claude_bin = str(FAKE_CLAUDE)
     save(cfg, place["cfg"])
+    # the wall works on this server: a session that does not start behind it (its turn's own
+    # files may stop it, on purpose) is never run again without it, and no other turn loses it
     result = go(fake_hub, cfg, place, turn("w2", "Make it. [[fake:wallfail]]"))
+    assert result["exit_code"] != 0, result
+    assert result["data"]["sandbox"] == {"state": "on", "kind": "landlock"}
+    assert not record.exists()  # the CLI never ran unwalled
+    result = go(fake_hub, cfg, place, turn("w2b", "hello"))
+    assert result["exit_code"] == 0 and result["data"]["sandbox"]["state"] == "on"
+
+    # the wall itself fails its probe now: the owner's `auto`, the turn runs without it
+    real = sandbox._probe_once
+    calls = [0]
+
+    async def breaks_later(*a: Any) -> str | None:
+        calls[0] += 1
+        return await real(*a) if calls[0] == 1 else "the probe failed: broken"
+
+    monkeypatch.setattr(sandbox, "_probe_once", breaks_later)
+    sandbox.forget_probe()
+    result = go(fake_hub, cfg, place, turn("w2c", "Make it. [[fake:wallfail]]"))
     assert result["exit_code"] == 0, result  # the work was done
     assert result["data"]["sandbox"] == {
         "state": "off",
         "why": "the walled session did not start",
     }
     rec = json.loads(record.read_text())
-    assert rec["brief_on_stdin"] is False and rec["home"] == str(place["home"])
+    assert rec["home"] == str(place["home"])
+
+
+def test_what_the_last_turn_left_in_its_area_never_keeps_the_wall_down(
+    place: dict[str, Path],
+) -> None:
+    """A turn could replace its tmp/ with a link, leave a folder it took its own rights away
+    from, or put a file in place of its home: the next prepare puts that right (nothing is
+    followed) instead of failing, which ran the next turn unwalled."""
+    p = the_plan(place)
+    target = place["ws"] / "W-000222"
+    p.tmp.rmdir()
+    p.tmp.symlink_to(target)
+    p.job.rmdir()
+    p.job.symlink_to("/nonexistent")
+    sandbox.prepare(p)
+    assert sandbox._is_real_dir(p.tmp) and not os.listdir(p.tmp)
+    assert sandbox._is_real_dir(p.job) and (target / "notes.txt").exists()
+    # a read-only folder (an extracted archive) inside tmp, and a file in place of the home
+    (p.tmp / "ro" / "deep").mkdir(parents=True)
+    (p.tmp / "ro" / "deep" / "f").write_text("x")
+    os.chmod(p.tmp / "ro" / "deep", 0o500)
+    os.chmod(p.tmp / "ro", 0o000)
+    (p.home / ".claude").mkdir(exist_ok=True)
+    (p.home / ".claude" / "kept").write_text("a session")
+    sandbox.prepare(p)
+    assert not os.listdir(p.tmp) and (p.home / ".claude" / "kept").exists()  # the home stays
+    sandbox.remove(p.home)
+    p.home.write_text("not a folder")
+    sandbox.prepare(p)
+    assert sandbox._is_real_dir(p.home) and (p.home / ".npmrc").is_file()
+    # the end of a turn removes a link or an unwritable folder the same way
+    sandbox.remove_quietly(p.tmp)
+    assert not os.path.lexists(p.tmp)
+
+
+def test_the_runner_never_writes_through_a_link_in_the_turns_home(tmp_path: Path) -> None:
+    real, mine = tmp_path / "real", tmp_path / "mine"
+    secret = tmp_path / "runner-config.json"
+    secret.write_text("token")
+    (real / ".config" / "hq-runner").mkdir(parents=True)
+    (real / ".npmrc").write_text("registry")
+    (real / ".gitconfig").write_text("[user]")
+    closed = [real / ".config" / "hq-runner"]
+    sandbox.make_home(real, mine, closed)
+    # the turn makes a dotfile a folder holding a link to the runner's token, and puts a file
+    # in place of the folder that holds a closed path
+    (mine / ".npmrc").unlink()
+    (mine / ".npmrc").mkdir()
+    (mine / ".npmrc" / ".npmrc").symlink_to(secret)
+    os.utime(mine / ".npmrc", (0, 0))
+    sandbox.remove(mine / ".config")
+    (mine / ".config").write_text("x")
+    (mine / ".gitconfig").unlink()
+    (mine / ".gitconfig").symlink_to(secret)
+    sandbox.make_home(real, mine, closed)
+    assert secret.read_text() == "token"
+    assert sandbox._is_real_dir(mine / ".config")
+    assert not (mine / ".gitconfig").is_symlink() and (mine / ".gitconfig").read_text() == "[user]"
+    # a session carried into a home whose folders the turn replaced with links
+    cwd = "/w/W-1"
+    store = real / ".claude" / "projects" / sandbox.project_dir(cwd)
+    (store / "s-1").mkdir(parents=True)
+    (store / "s-1.jsonl").write_text("turn 1")
+    (store / "s-1" / "side.json").write_text("{}")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (mine / ".claude").mkdir()
+    (mine / ".claude" / "projects").symlink_to(elsewhere)
+    assert sandbox.carry_session(real, mine, cwd, "s-1") is True
+    assert not os.listdir(elsewhere)
+    there = mine / ".claude" / "projects" / sandbox.project_dir(cwd)
+    assert (there / "s-1.jsonl").read_text() == "turn 1" and (there / "s-1" / "side.json").exists()
+    # a link at the session's own file or inside its folder is replaced, not written through
+    (there / "s-1.jsonl").unlink()
+    (there / "s-1.jsonl").symlink_to(secret)
+    (there / "s-1" / "side.json").unlink()
+    (there / "s-1" / "side.json").symlink_to(secret)
+    assert sandbox.carry_session(real, mine, cwd, "s-1") is True
+    assert secret.read_text() == "token" and (there / "s-1.jsonl").read_text() == "turn 1"
+    assert not (there / "s-1" / "side.json").is_symlink()
+
+
+@needs_landlock
+def test_the_probe_never_runs_in_a_works_folder(place: dict[str, Path], cfg: Config) -> None:
+    """What a work's folder holds is its turns' doing: the probe has a place of its own, so one
+    turn cannot fail it and bring the wall down for every company."""
+    save(cfg, place["cfg"])
+    p = the_plan(place)
+    (p.work / ".hq-probe").mkdir()  # the old probe's file name, made a folder
+    os.chmod(p.tmp, 0o500)
+    assert run(sandbox.probe(p, dict(os.environ), str(FAKE_CLAUDE))) is None
+    assert not [n for n in os.listdir(place["ws"] / ".hq") if n.startswith(".probe-")]
 
 
 def test_the_wall_is_auto_and_never_in_the_way(
@@ -320,3 +438,91 @@ def test_the_wrapper_refuses_to_run_a_command_it_could_not_wall(
     monkeypatch.setattr(sandbox, "abi", lambda: 0)
     assert sandbox.exec_main([], [], ["/bin/true"]) == sandbox.EXIT_NO_WALL
     assert "no Landlock" in capsys.readouterr().err
+
+
+def test_what_a_turn_left_in_its_private_area_never_takes_the_wall_down(
+    place: dict[str, Path], tmp_path: Path
+) -> None:
+    """A walled session can change its own private area: a file or a link it leaves where
+    tmp/, job/ or a folder of its home goes is removed when the next turn is set up (before, the
+    setup failed with «File exists» and the next turn ran without the wall)."""
+    p = the_plan(place)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("not the turn's")
+    shutil.rmtree(p.tmp)
+    p.tmp.write_text("planted")
+    shutil.rmtree(p.job)
+    os.symlink(elsewhere, p.job)
+    (p.home / ".config").mkdir(exist_ok=True)
+    (place["home"] / ".config" / "hq-runner").mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(p.home / ".config")
+    (p.home / ".config").write_text("planted")  # a folder of the home that holds a closed one
+    sandbox.prepare(p)
+    for d in (p.tmp, p.job, p.home / ".config"):
+        assert d.is_dir() and not d.is_symlink(), d
+    assert os.listdir(p.tmp) == [] and os.listdir(p.job) == []
+    assert (elsewhere / "keep.txt").read_text() == "not the turn's"  # a link is never followed
+
+
+def test_the_code_that_also_runs_outside_the_wall_is_read_only_behind_it(
+    place: dict[str, Path], cfg: Config
+) -> None:
+    """contract §43.9: the runner's own installation, its Python and the CLI's folder (under
+    ~/.local on the workshop) also run outside the wall (the wrapper imports the runner before
+    the wall goes up; the runner itself runs `claude --help`). A walled turn can read and run
+    them, never change them; the rest of ~/.local stays as it was."""
+    local = place["home"] / ".local"
+    venv = local / "share" / "hq-runner" / "venv"
+    (venv / "site").mkdir(parents=True)
+    (venv / "site" / "net.py").write_text("X = 1\n")
+    (local / "bin").mkdir(parents=True)
+    tool = local / "bin" / "claude"
+    tool.write_text("#!/bin/sh\necho cli\n")
+    tool.chmod(0o755)
+    (local / "share" / "other").mkdir()
+    # what is found on its own: this runner's installation and the CLI's folder, never the home
+    found = sandbox.code_paths(str(tool), place["home"], [str(place["ws"])])
+    assert str(local / "bin") in found
+    root = sandbox.package_root()
+    assert (root in found) == os.access(root, os.W_OK)  # what root owns needs no rule
+    assert str(place["home"]) not in found and "/" not in found
+    p = sandbox.plan(
+        "W-000111", place["ws"] / "W-000111", place["ws"], place["cfg"], str(tool),
+        code=[str(venv), str(local / "bin")],
+    )  # fmt: skip
+    sandbox.prepare(p)
+    # the turn's home holds its own ~/.local: what is new lands there, the code is a link
+    assert not (p.home / ".local").is_symlink() and (p.home / ".local" / "bin").is_symlink()
+    if sandbox.abi() < sandbox.MIN_ABI:
+        return
+    save(cfg, place["cfg"])
+    code = r"""
+import json, os, subprocess, sys
+venv, bin_, share = sys.argv[1:4]
+def t(fn):
+    try:
+        fn()
+        return "ok"
+    except OSError as exc:
+        return type(exc).__name__
+print(json.dumps({
+    "read": t(lambda: open(venv + "/site/net.py").read()),
+    "run": t(lambda: subprocess.run([bin_ + "/claude"], check=True, capture_output=True)),
+    "append": t(lambda: open(venv + "/site/net.py", "a").write("import os")),
+    "new": t(lambda: open(venv + "/site/evil.pth", "w").write("import os")),
+    "remove": t(lambda: os.remove(venv + "/site/net.py")),
+    "relink": t(lambda: os.symlink("/bin/sh", bin_ + "/claude2")),
+    "rest": t(lambda: open(share + "/other/x", "w").write("x")),
+}))
+"""
+    argv = sandbox.wrap(p, [sys.executable, "-c", code, str(venv), str(local / "bin"),
+                            str(local / "share")])  # fmt: skip
+    out = subprocess.run(argv, env=sandbox.env_of(p, dict(os.environ)), cwd=p.work,
+                         capture_output=True, text=True, timeout=60, check=False)  # fmt: skip
+    assert out.returncode == 0, out.stderr
+    seen = json.loads(out.stdout)
+    assert seen["read"] == "ok" and seen["run"] == "ok" and seen["rest"] == "ok", seen
+    for denied in ("append", "new", "remove", "relink"):
+        assert seen[denied] == "PermissionError", (denied, seen)
+    assert (venv / "site" / "net.py").read_text() == "X = 1\n"

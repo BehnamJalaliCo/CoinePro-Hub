@@ -113,6 +113,13 @@ def test_mcp_is_not_switched_from_here() -> None:
     assert e.value.status == 409 and "MCP" in (e.value.message_fa or "")
 
 
+def test_only_the_over_budget_exit_says_there_is_no_room() -> None:
+    job = {"op": "profile", "args": {"name": "media", "on": True}}
+    assert H.result_fa(job, "refused") == "جا نیست؛ این‌ها جا را گرفته‌اند"
+    # the dispatcher's own refusal (its allow-list) is not a memory answer
+    assert H.result_fa(job, "refused", "not_allowed") == "اجراکننده‌ی هاب این کار را نپذیرفت"
+
+
 def test_output_is_masked_and_capped() -> None:
     out = H.mask("DB_PASSWORD=hunter2\nAuthorization: Bearer abcdefghijklmnop1234\nok")
     assert "hunter2" not in out and "abcdefghijklmnop1234" not in out and "ok" in out
@@ -192,10 +199,11 @@ async def test_the_platform_sre_runs_an_op_through_the_dispatcher(
             json={"exit_code": 0, "output": "x"},
         )
         assert r.status_code == 403
+        leaked = "api | ready\napi | HQ_API_TOKEN=s3cr3t-v4lue-xyz\n"  # gitleaks:allow - made up
         r = await client.post(
             f"/internal/v1/hubops/{job['ref']}/done",
             headers=hubops_headers(),
-            json={"exit_code": 0, "output": "api | ready\napi | HQ_API_TOKEN=s3cr3t-v4lue-xyz\n"},
+            json={"exit_code": 0, "output": leaked},
         )
         assert r.status_code == 200 and r.json()["state"] == "done", r.text
         r = await client.get(f"/internal/v1/hubops/{job['ref']}", headers=await agent_headers(sre))

@@ -33,6 +33,7 @@ nothing here signs in by itself, and no credential ever passes through it
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
@@ -166,6 +167,10 @@ DEFAULT_SEATS: dict[str, list[dict[str, Any]]] = {
 }  # fmt: skip
 SEAT_ORDER = {s: i for i, s in enumerate(SEATS)}
 WEB_PACE = timedelta(seconds=60)
+# A web call still 'running' this long past its own timeout has lost its pass (the worker
+# restarted or the activity was cut off mid-job): it fails, or that player's queue never
+# moves again. Room for two other players' jobs ahead of it in the same pass.
+WEB_STALE_GRACE_S = 2400
 LOGIN_MINUTES = 10
 CALL_TIMEOUT_S = {"code_review": 900, "creative": 900, "long_read": 600}
 TEXT_LIMIT = 200_000  # a question's characters
@@ -175,7 +180,9 @@ TEXT_LIMIT = 200_000  # a question's characters
 QUEUE_DEADLINE = timedelta(minutes=15)  # a text call
 QUEUE_DEADLINE_MEDIA = timedelta(minutes=30)  # an image or a video (seat creative)
 RUN_GRACE_S = 120  # past claimed_at + timeout_s + this, a running call is lost
-WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitutes_web.WebIn)
+# egress takes no longer prompt (hq_egress.substitutes_web.PROMPT_CHARS: 200 000 since the audit
+# of 2026-11-11, the hub's own TEXT_LIMIT; it was 20 000)
+WEB_PROMPT_LIMIT = 200_000
 # The deadline of a call row `c` in SQL (constants only), the same rule as deadline_at(). A queued
 # call's clock runs from when it joined its queue (queued_at: asked again; else created_at), or
 # from when its lane was free for it again, whichever is later: a call waiting its turn behind a
@@ -807,11 +814,12 @@ async def seat_call(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """One seat call: `queued` for its runner, or `skipped` with its reason
-    (holding_locked, off, signed_out, expired, limited, per_day, too_long). The
+    (holding_locked, off, signed_out, expired, limited, per_day, too_long, no_files). The
     input is checked by `guard` first (the caller decides what a refusal means).
     ⟨2026-11-11⟩ nothing is queued that could never run: a CLI seat while the
-    substitutes runner is off (or its player has no CLI) is `off`, and a web
-    seat's question longer than egress takes is `too_long`."""
+    substitutes runner is off (or its player has no CLI) is `off`, a web seat's
+    question longer than egress takes is `too_long`, and files for a seat whose
+    player takes text only are `no_files`."""
     now = now or datetime.now(UTC)
     day = owner_day(now)
     found = await holder(tx, seat, player, task)
@@ -848,6 +856,9 @@ async def seat_call(
         if cap is None or n >= int(cap):
             reason = "per_day"
     via = s_row["via"] if s_row is not None else "cli"
+    if reason is None and file_ids and via != "web":
+        # the CLI runner takes the question's text only: its files would be dropped unseen
+        reason = "no_files"
     model = s_row["model"] if s_row is not None else None
     row = await tx.one(
         """INSERT INTO substitutes.calls (company_id, player, seat, via, task, model, state, state_reason,
@@ -907,6 +918,13 @@ def refusal(reason: str) -> ApiError:
             "ask again, or carry on with your own model",
             fields={"input_md": f"at most {WEB_PROMPT_LIMIT} characters for this player"},
             message_fa="متن برای این بازیکن بلندتر از حد است؛ کوتاهش کن و دوباره بپرس.",
+        )
+    if reason == "no_files":
+        return ApiError(
+            422,
+            "validation_failed",
+            "this seat takes no files",
+            fields={"file_ids": "this seat's player takes the question's text only"},
         )
     if reason in ("limited", "per_day"):
         return ApiError(429, "rate_limited", f"the substitute seat is {reason}")
@@ -1284,27 +1302,34 @@ async def _retry_language(tx: Tx, hub: Any, c: dict[str, Any]) -> dict[str, Any]
 
 
 @lru_cache(maxsize=1)
-def _residue() -> tuple[re.Pattern[str], re.Pattern[str]]:
+def _residue() -> tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str]]:
     data: dict[str, Any] = yaml.safe_load(RESIDUE_FILE.read_text(encoding="utf-8")) or {}
-    buttons = sorted({str(b) for b in data.get("buttons") or []}, key=len, reverse=True)
-    starts = sorted({str(x) for x in data.get("offer_starts") or []}, key=len, reverse=True)
-    b = "|".join(re.escape(x) for x in buttons) or "(?!)"
-    st = "|".join(re.escape(x) for x in starts) or "(?!)"
+
+    def alt(key: str) -> str:
+        words = sorted({str(x) for x in data.get(key) or []}, key=len, reverse=True)
+        return "|".join(re.escape(x) for x in words) or "(?!)"
+
+    b, r, st = alt("buttons"), alt("replies"), alt("offer_starts")
     button_line = re.compile(rf"^\s*(?:{b})\s*[.!،,]?\s*$", re.I)
+    reply_line = re.compile(rf"^\s*(?:{r})\s*[.!،,]?\s*$", re.I)
+    # An offer starts a line or a sentence (after . ! ? ؟), never mid-sentence
+    # («… مشتری واقعاً چه می‌خواهید؟» is the answer's own question).
     offer = re.compile(
-        rf"(?:^|(?<=[\s.!؟?،:؛]))(?:{st})[^?؟\n]*[?؟](?:\s*(?:{b})\s*[.!،,]?)*\s*$", re.I
+        rf"(?:^|(?<=[.!؟?]))\s*(?:{st})[^?؟\n]*[?؟](?:\s*(?:{b}|{r})\s*[.!،,]?)*\s*$", re.I
     )
-    return button_line, offer
+    return button_line, reply_line, offer
 
 
 def cut_residue(text: str | None) -> str | None:
     """⟨1.11⟩ §29.7 a web player's page residue cut from the end of its answer:
     trailing button labels and a trailing offer («مایلید … ؟ بله», «Would you
-    like …?»); the patterns are data (seed/web_residue.yaml). An answer that
-    is nothing but residue is kept as it is."""
+    like …?»); the patterns are data (seed/web_residue.yaml). A reply chip
+    («بله», «Yes») is cut only after such an offer: on its own it is the
+    answer's verdict and stays. An answer that is nothing but residue is kept
+    as it is."""
     if not text:
         return text
-    button_line, offer = _residue()
+    button_line, reply_line, offer = _residue()
     lines = text.rstrip().split("\n")
     for _ in range(12):
         before = list(lines)
@@ -1314,6 +1339,13 @@ def cut_residue(text: str | None) -> str | None:
             lines.pop()
             while lines and not lines[-1].strip():
                 lines.pop()
+        k = len(lines)  # reply chips (and buttons) under the page's offer
+        while k and (
+            not (ln := lines[k - 1]).strip() or reply_line.match(ln) or button_line.match(ln)
+        ):
+            k -= 1
+        if 0 < k < len(lines) and offer.search(lines[k - 1]):
+            del lines[k:]
         if lines and (m := offer.search(lines[-1])):
             lines[-1] = lines[-1][: m.start()].rstrip()
         if lines == before:
@@ -1417,6 +1449,10 @@ REPLY_HEAD = 6_000
 # work's id): the answer's reply work is requested by that work, so it belongs to the same order
 CALLER_WORK = "caller_work"
 TALK_SNIPPET = 280
+# substitute.call waits SUBSTITUTE_WAIT_S for an answer and gives it inline; a call that ends
+# inside that wait (and this margin) is left to the route, and deliver_late() sends a reply
+# work only when the route did not take it (delivered_at still empty after the wait)
+INLINE_MARGIN_S = 4
 PLAYER_NAMES = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
 CREATIVE_DONE = "creative_done:"  # ⟨2026-11-11⟩ the reason of the run an ended creative wakes
 # ⟨2026-11-11⟩ why a call ended without an answer: the owner's words (the session's line) and
@@ -1566,7 +1602,9 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> bool:
     from hq_api.domain import order_report as OR
     from hq_api.domain import work as W
 
-    if call["delivered_at"] is not None:
+    # an end inside substitute.call's own wait is answered inline by the route (deliver_late
+    # sends the reply work when the route did not take it)
+    if call["delivered_at"] is not None or _inline_window(hub, call):
         return False
     ended_at = call.get("finished_at") or datetime.now(UTC)
     if ended_at - call["created_at"] > STALE_REPLY:
@@ -1700,6 +1738,42 @@ async def wake_for_creative(tx: Tx, ref: str, *, said_fa: str | None = None) -> 
                 await _say_in_session(tx, cr["work_id"], cr["requested_by_code"], said_fa)
     except Exception:  # noqa: BLE001 - the wake never fails the creative's end
         log.warning("a creative's end did not wake its work", extra={"creative": ref})
+
+
+def _inline_wait_s(hub: Any) -> float:
+    return float(getattr(getattr(hub, "settings", None), "substitute_wait_s", 0) or 0)
+
+
+def _inline_window(hub: Any, call: dict[str, Any]) -> bool:
+    """True while substitute.call may still be polling this call to answer it inline."""
+    wait = _inline_wait_s(hub)
+    created = call.get("created_at")
+    if wait <= 0 or created is None:
+        return False
+    return bool(datetime.now(UTC) < created + timedelta(seconds=wait + INLINE_MARGIN_S))
+
+
+async def deliver_late(tx: Tx, hub: Any) -> int:
+    """An agent's call that ended inside substitute.call's wait, which the route did not
+    answer inline (the client went away first): its reply work now, once."""
+    wait = _inline_wait_s(hub)
+    if wait <= 0:
+        return 0
+    rows = await tx.all(
+        """SELECT * FROM substitutes.calls
+           WHERE caller_kind = 'agent' AND kind = 'call' AND delivered_at IS NULL
+             AND (purpose_kind IS NULL OR purpose_kind = :cw)
+             AND state IN ('done', 'failed', 'skipped') AND claimed_at IS NOT NULL
+             AND finished_at <= created_at + make_interval(secs => :w)
+             AND created_at < now() - make_interval(secs => :w)
+             AND created_at > now() - interval '1 day'
+           ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED""",
+        cw=CALLER_WORK,
+        w=wait + INLINE_MARGIN_S,
+    )
+    for c in rows:
+        await deliver_to_agent(tx, hub, c)
+    return len(rows)
 
 
 async def ask_models(tx: Tx, hub: Any) -> int:
@@ -2661,6 +2735,8 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
         lock = await gate.holding_lock(tx)
         if lock is not None:
             return gate.skipped(lock, ran=0, wiped=wiped, expired=expired)
+        # the net under the reaper (a call its pass lost, failed at a later deadline)
+        await _web_lost(tx, hub)
         if await tx.scalar(
             "SELECT 1 FROM substitutes.calls WHERE via = 'web' AND state = 'running' LIMIT 1"
         ):
@@ -2718,18 +2794,28 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
 
 
 async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> int:
-    """⟨2026-11-11⟩ One picked web job: egress, then its answer. Anything that goes wrong here
-    ends the call `failed` `worker_error` (its caller hears it); the next pass goes on with the
-    next call. 1 when egress answered and the answer was applied."""
+    """⟨2026-11-11⟩ One picked web job: egress (with the call's own files), then its answer.
+    Anything that goes wrong here ends the call `failed` `worker_error` (its caller hears it); the
+    next pass goes on with the next call. 1 when egress answered and the answer was applied."""
     try:
-        retry = {"reload": True} if int(c.get("attempt") or 1) > 1 else {}
-        answer = await egress.web(
-            account=account,
-            task=c["task"],
-            prompt=(c["input_md"] or "")[:WEB_PROMPT_LIMIT],
-            timeout_s=c["timeout_s"],
-            **retry,
-        )
+        files = await _web_files(hub, c)
+        if files is None:
+            answer: dict[str, Any] = {
+                "ok": False,
+                "error": "file_missing",
+                "detail": "a file of the call is gone or not a file of its company",
+            }
+        else:
+            extra: dict[str, Any] = {"files": files} if files else {}
+            if int(c.get("attempt") or 1) > 1:
+                extra["reload"] = True
+            answer = await egress.web(
+                account=account,
+                task=c["task"],
+                prompt=(c["input_md"] or "")[:WEB_PROMPT_LIMIT],
+                timeout_s=c["timeout_s"],
+                **extra,
+            )
         await apply_web(hub, c, account, answer)
         return 1
     except Exception:
@@ -2745,6 +2831,69 @@ async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> in
             "a failed substitute web job could not be ended", extra={"call": str(c["id"])}
         )
     return 0
+
+
+async def _web_lost(tx: Tx, hub: Any) -> int:
+    """Web calls whose pass died with them (as claim() does for the CLI): failed with
+    `timeout`, their creative failed, and whatever waits on them told (_applied)."""
+    rows = await tx.all(
+        """SELECT * FROM substitutes.calls WHERE via = 'web' AND state = 'running'
+             AND claimed_at < now() - make_interval(secs => timeout_s + :g)
+           FOR UPDATE SKIP LOCKED""",
+        g=WEB_STALE_GRACE_S,
+    )
+    for c in rows:
+        failed = await tx.one(
+            """UPDATE substitutes.calls SET state = 'failed', state_reason = 'timeout',
+                   finished_at = now(), input_md = NULL WHERE id = :id RETURNING *""",
+            id=c["id"],
+        )
+        if c["purpose_kind"] == "creative":
+            await tx.exec(
+                """UPDATE substitutes.creatives SET state = 'failed', review_md = :why, updated_at = now()
+                   WHERE ref = :ref""",
+                why="not made: timeout",
+                ref=c["purpose_ref"],
+            )
+        log.warning("web call lost its pass", extra={"call": str(c["id"]), "player": c["player"]})
+        await _applied(tx, hub, failed)
+    return len(rows)
+
+
+MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
+            "video/mp4": "mp4", "text/plain": "txt", "application/pdf": "pdf"}  # fmt: skip
+
+
+async def _web_files(hub: Any, c: dict[str, Any]) -> list[dict[str, str]] | None:
+    """The call's files as egress takes them (named, base64; contract §27.2 animate: the
+    picked image goes with its prompt), or None when one is gone or not a file of the call's
+    company (never sent without it: an answer "about the attached file" from the text alone)."""
+    ids = [str(f) for f in c.get("file_ids") or []]
+    if not ids:
+        return []
+    async with hub.db.tx([c["company_id"]]) as tx:
+        rows = await tx.all(
+            """SELECT id, name, mime, storage_key FROM files.files
+               WHERE id = ANY(CAST(:ids AS uuid[])) AND company_id = :co""",
+            ids=ids,
+            co=c["company_id"],
+        )
+    found = {str(r["id"]): r for r in rows}
+    out: list[dict[str, str]] = []
+    for fid in ids:
+        row = found.get(fid)
+        if row is None:
+            return None
+        try:
+            data: bytes = await hub.storage.get(str(row["storage_key"]))
+        except OSError:  # its bytes are gone (a sealed disposal)
+            return None
+        name = Path(str(row["name"] or "file")).name[:100] or "file"
+        ext = MIME_EXT.get(str(row["mime"] or ""))
+        if ext and not name.lower().endswith(f".{ext}"):
+            name = f"{name}.{ext}"  # the profile browser types an attached file by its name
+        out.append({"name": name, "b64": base64.b64encode(data).decode()})
+    return out
 
 
 async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
@@ -2763,8 +2912,6 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
     file_bytes: bytes | None = None
     stored: tuple[UUID, UUID | None] | None = None
     if ok and isinstance(answer.get("file"), dict):
-        import base64
-
         try:
             file_bytes = base64.b64decode(str(answer["file"].get("b64") or ""), validate=True)
         except ValueError:
@@ -2946,8 +3093,6 @@ SCREENSHOT_BYTES = 2 * 1024 * 1024
 async def _store_screenshot(tx: Tx, hub: Any, c: dict[str, Any], shot: Any) -> UUID | None:
     """⟨1.10⟩ §28.4 the page as the failed step left it (egress takes it only
     on recipe_failed), filed on the holding for the overseer and the SRE."""
-    import base64
-
     if not isinstance(shot, dict) or shot.get("mime") not in SCREENSHOT_MIME:
         return None
     try:

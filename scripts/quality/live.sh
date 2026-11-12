@@ -34,9 +34,17 @@ GATEWAY="coinepro-hq-gateway-1"
 
 running() { [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" == true ]]; }
 
-if ! docker network inspect hq-internal >/dev/null 2>&1 || ! running coinepro-hq-opa-1; then
+# Skip only where no stack runs at all (CI, a machine after `down` or a full
+# `stop`). A stack with some service up but OPA down is a failure, not a skip:
+# OPA alone must not stand in for the whole stack.
+if ! docker network inspect hq-internal >/dev/null 2>&1 ||
+  [[ -z "$(docker ps -q --filter label=com.docker.compose.project=coinepro-hq 2>/dev/null)" ]]; then
   echo "live: skip (no running coinepro-hq stack here; compose-rules checks the topology)"
   exit 0
+fi
+if ! running coinepro-hq-opa-1; then
+  echo "live: FAIL the coinepro-hq stack runs but coinepro-hq-opa-1 does not (the policy path is down)" >&2
+  exit 1
 fi
 failures=0
 fail() { echo "live: FAIL $*" >&2; failures=$((failures + 1)); }

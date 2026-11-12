@@ -90,7 +90,8 @@ def test_claude_job_streams_session_events_and_hook_blocks_drop_database(
     # The CLI ran as the contract says, in the repository, with the temporary hook settings.
     rec = json.loads(record.read_text())
     argv = rec["argv"]
-    assert argv[:2] == ["-p", brief]
+    # the brief goes in on stdin, never as an argument the CLI could read as an option
+    assert argv[0] == "-p" and brief not in argv and rec["brief_on_stdin"] is True
     assert argv[argv.index("--output-format") + 1] == "stream-json" and "--verbose" in argv
     assert argv[argv.index("--resume") + 1] == "sess-42"
     assert rec["cwd"] == str(repo)
@@ -239,7 +240,7 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
     rec = json.loads(record.read_text())
     argv = rec["argv"]
     i = argv.index("--allowedTools")
-    assert argv[i + 1 :] == allow and argv[:2] == ["-p", "catalogue"]
+    assert argv[i + 1 :] == allow and argv[0] == "-p" and "catalogue" not in argv
     assert rec["settings"]["permissions"]["allow"] == allow
     assert rec["settings"]["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
     assert fake_hub.results["cl11"]["exit_code"] == 0
@@ -253,6 +254,29 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
         runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
         run(drive(runner, lambda jid=jid: jid in fake_hub.results, within=30))
         assert fake_hub.results[jid]["exit_code"] != 0, bad
+
+
+def test_a_brief_that_starts_with_a_dash_is_never_read_as_an_option(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Markdown list from the owner ("- check the logs") went into argv after -p, where the
+    CLI took it for an unknown option and the turn failed at once: it goes in on stdin."""
+    record = tmp_path / "argv.json"
+    monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    brief = "- لاگ‌ها را بررسی کن\n- --verbose گزارش بده"
+    fake_hub.jobs.append(
+        {"id": "cl-dash", "kind": "claude", "args": {"brief": brief, "cwd": str(repo)}}
+    )
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl-dash" in fake_hub.results, within=60))
+    rec = json.loads(record.read_text())
+    assert rec["brief_on_stdin"] is True
+    assert not any(a.startswith("- ") or "لاگ" in a for a in rec["argv"])
+    assert fake_hub.results["cl-dash"]["exit_code"] == 0
 
 
 def test_the_effort_the_hub_asks_for_reaches_the_cli_when_it_can_take_it(
@@ -416,6 +440,45 @@ def test_the_mcp_server_speaks_the_protocol_and_never_fails_the_session() -> Non
     ok = TB.call_result({"outcome": "ok", "class": "A0", "code": None, "result": {"n": 1}})
     assert ok["isError"] is False and json.loads(ok["content"][0]["text"]) == {
         "outcome": "ok", "class": "A0", "result": {"n": 1}}  # fmt: skip
+
+
+def test_the_tools_socket_answers_only_its_own_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """contract §43.9: every turn of the workshop runs as the same user and Landlock does not
+    guard a socket's connect(), so another company's turn can reach this turn's tools.sock; it
+    is refused without this turn's key (which only this turn's mcp.json holds)."""
+    from hq_runner import tools_bridge as TB
+
+    calls: list[str] = []
+
+    async def lister() -> dict[str, Any]:
+        return {"tools": [{"name": "revenue_read"}]}
+
+    async def caller(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        calls.append(name)
+        return {"outcome": "ok", "class": "A0", "code": None, "ref": None}
+
+    sock = tmp_path / "tools.sock"
+
+    async def main() -> list[dict[str, Any]]:
+        server = await TB.serve(sock, lister, caller, "this-turn")
+        try:
+            out = []
+            for key in ("this-turn", "", "another-turn"):
+                monkeypatch.setenv(TB.KEY_ENV, key)
+                for op in ({"op": "list"}, {"op": "call", "name": "revenue_read", "args": {}}):
+                    out.append(await asyncio.to_thread(TB.ask, str(sock), op, 10.0))
+            return out
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    got = run(main())
+    assert got[0] == {"tools": [{"name": "revenue_read"}]} and got[1]["outcome"] == "ok"
+    assert all(g["code"] == "forbidden" for g in got[2:]), got
+    assert calls == ["revenue_read"]  # only the call with the key reached the hub
+    assert TB.mcp_config(sock, "k")["mcpServers"]["hq"]["env"][TB.KEY_ENV] == "k"
 
 
 def test_a_claude_job_runs_on_the_hubs_account_when_it_sends_one(

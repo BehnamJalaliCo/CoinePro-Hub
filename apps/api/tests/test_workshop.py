@@ -759,6 +759,18 @@ async def test_one_writing_session_per_area_the_others_queue(
     assert b2["held"] is None and b2["state"] == "idle"
     assert fake.log_[b["ref"]][0]["kind"] == "start"
     assert WS.overlaps("", "x") and WS.overlaps("a/b", "a") and not WS.overlaps("ab", "a")
+    # The list pages (the cursor's timestamp is bound typed: no 500 on page two).
+    seen: list[str] = []
+    cursor: str | None = None
+    for _ in range(4):
+        params: dict[str, Any] = {"workspace": setup["ws"], "limit": 1}
+        if cursor:
+            params["cursor"] = cursor
+        r = await client.get("/api/v1/workshop/sessions", headers=owner, params=params)
+        assert r.status_code == 200, r.text
+        seen += [x["ref"] for x in r.json()["items"]]
+        cursor = r.json()["next_cursor"]
+    assert seen == [d["ref"], c["ref"], b["ref"], a["ref"]]  # newest first, each once
 
 
 async def test_no_credential_reaches_events_logs_or_responses(
@@ -1066,6 +1078,21 @@ async def test_service_build_stays_off_without_the_owners_choice(hub: Hub) -> No
         ("ls && docker ps", "deny", "command"),
         ("echo $(whoami)", "ask", "command"),
         ("unknowntool --x", "ask", "command"),
+        # Every command in the text is ruled, not only the first one.
+        ("ls\ngit push --force origin HEAD:main", "deny", "command"),
+        ("ls\r\ngit push origin main", "deny", "command"),
+        ("ls & git push --force origin main", "deny", "command"),
+        ("cat <(git push origin main)", "deny", "command"),
+        ("echo `git push origin main`", "deny", "command"),
+        ("(git push --force)", "deny", "command"),
+        ("ls\nssh x", "deny", "command"),
+        ("ls\nrm -rf .", "ask", "command"),
+        ("ls\ngit push origin hq/S-0007", "ask", "push_branch"),
+        ("cat <(ls)", "ask", "command"),
+        ("ls 2>&1 | head", "allow", "command"),
+        ("ls &>/dev/null", "allow", "command"),
+        ("cat '.env'", "deny", "command"),
+        ('cat ".env"', "deny", "command"),
     ],
 )
 def test_the_command_rules(cmd: str, verdict: str, action: str) -> None:

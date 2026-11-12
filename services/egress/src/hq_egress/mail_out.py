@@ -6,8 +6,8 @@ on its digest in the api, and the poller only reads.
     POST /v1/mail/send   {account, host, port, envelope_from, rcpt, raw_b64}
                          -> {outcome, code, data: {refused}, entries}
     POST /v1/mail/fetch  {account, host, port, since_uid, uidvalidity, max}
-                         -> {outcome, code, data: {uidvalidity, messages: [{uid, raw_b64}]},
-                             entries}
+                         -> {outcome, code, data: {uidvalidity, messages: [{uid, raw_b64}],
+                             skipped: [{uid, reason}]}, entries}
 
 Rules: the host is the account's own site (`imap.<site>`, `smtp.<site>`, or
 any name under it); the port is one of the account's own ports and one of
@@ -17,7 +17,10 @@ the name is resolved by the guard (public addresses only, never the hub or a
 neighbour) and the connection is made to that checked address. The envelope
 sender is the account's own address (its `inject.username`); the secret goes
 only into the login, never into an entry, an answer or a log line. Messages
-are read with BODY.PEEK (the mailbox's \\Seen flags are not touched).
+are read with BODY.PEEK (the mailbox's \\Seen flags are not touched). A new
+message that is not handed over is named in `skipped` with its reason
+(`too_large`: its RFC822.SIZE is over RAW_MAX, so its body is never fetched;
+`fetch_failed`; `held_secret`), so the poller can move past it with a trace.
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ IMAP_PORTS = frozenset({993})
 RAW_MAX = 25 * 1024 * 1024  # one message, either way
 FETCH_MAX = 50
 TIMEOUT_S = 60
+SIZE = re.compile(rb"RFC822\.SIZE (\d+)")
 ADDRESS = re.compile(r"^[A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$")
 
 
@@ -198,7 +202,7 @@ def _fetch_blocking(
     since: int,
     validity: int | None,
     limit: int,
-) -> tuple[int | None, list[tuple[int, bytes]]]:
+) -> tuple[int | None, list[tuple[int, bytes]], list[tuple[int, str]]]:
     conn = IMAP_CLS(addr, host, port, context())
     try:
         conn.login(user, secret)
@@ -211,23 +215,42 @@ def _fetch_blocking(
             sorted(int(x) for x in (data[0] or b"").split() if x.isdigit()) if typ == "OK" else []
         )
         out: list[tuple[int, bytes]] = []
+        skipped: list[tuple[int, str]] = []
         for uid in [u for u in uids if u > since][:limit]:
-            typ, parts = conn.uid("FETCH", str(uid), "(RFC822.SIZE BODY.PEEK[])")
-            if typ != "OK":
+            typ, parts = conn.uid("FETCH", str(uid), "(RFC822.SIZE)")
+            size = _size(parts) if typ == "OK" else None
+            if size is not None and size > RAW_MAX:
+                skipped.append((uid, "too_large"))  # its body is never downloaded
                 continue
-            for part in parts or []:
-                if (
-                    isinstance(part, tuple)
-                    and len(part) == 2
-                    and isinstance(part[1], bytes | bytearray)
-                ):
-                    if len(part[1]) <= RAW_MAX:
-                        out.append((uid, bytes(part[1])))
-                    break
-        return now, out
+            typ, parts = conn.uid("FETCH", str(uid), "(BODY.PEEK[])")
+            body = _body(parts) if typ == "OK" else None
+            if body is None:
+                skipped.append((uid, "fetch_failed"))
+            elif len(body) > RAW_MAX:
+                skipped.append((uid, "too_large"))
+            else:
+                out.append((uid, body))
+        return now, out, skipped
     finally:
         with contextlib.suppress(imaplib.IMAP4.error, OSError):
             conn.logout()
+
+
+def _size(parts: Any) -> int | None:
+    """RFC822.SIZE of a FETCH answer, if it names one."""
+    for part in parts or []:
+        head = part[0] if isinstance(part, tuple) and part else part
+        if isinstance(head, bytes | bytearray) and (m := SIZE.search(head)):
+            return int(m.group(1))
+    return None
+
+
+def _body(parts: Any) -> bytes | None:
+    """The message bytes of a BODY[] FETCH answer."""
+    for part in parts or []:
+        if isinstance(part, tuple) and len(part) == 2 and isinstance(part[1], bytes | bytearray):
+            return bytes(part[1])
+    return None
 
 
 async def _address(state: Any, host: str, port: int) -> str:
@@ -323,7 +346,7 @@ async def fetch(a: FetchIn, request: Request) -> JSONResponse:
     entries.append(entry)
     start = time.monotonic()
     try:
-        validity, msgs = await asyncio.wait_for(
+        validity, msgs, skipped = await asyncio.wait_for(
             asyncio.to_thread(
                 _fetch_blocking, addr, host, a.port, str(a.account.inject.username),
                 str(a.account.secret), a.since_uid, a.uidvalidity, a.max,
@@ -343,9 +366,15 @@ async def fetch(a: FetchIn, request: Request) -> JSONResponse:
     entry.bytes_in = sum(len(m) for _, m in msgs)
     # The raw messages go as base64, which is never scrubbed as text: a
     # message holding a form of the secret is dropped instead (7.1's rule).
-    kept = [(u, m) for u, m in msgs if not holds_secret(m, secrets)]
+    kept: list[tuple[int, bytes]] = []
+    for u, m in msgs:
+        if holds_secret(m, secrets):
+            skipped.append((u, "held_secret"))
+        else:
+            kept.append((u, m))
     data = {
         "uidvalidity": validity,
         "messages": [{"uid": u, "raw_b64": base64.b64encode(m).decode()} for u, m in kept],
+        "skipped": [{"uid": u, "reason": r} for u, r in sorted(skipped)],
     }
     return _answer("ok", data, entries, None, secrets)

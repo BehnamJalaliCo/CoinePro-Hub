@@ -526,6 +526,50 @@ async def test_review_by_code_first_and_approval_by_its_own_ceo(
     )
 
 
+async def test_a_new_version_of_an_approved_entry_retires_the_old_one_first(
+    client: httpx.AsyncClient, su: Any, owner: dict[str, str], new_company: Callable[..., Any]
+) -> None:
+    """knowledge_entries_one_approved is a plain unique index: the owner's v2 and
+    the CEO's approval of an agent's v3 must retire the approved version first."""
+    co = await new_company()
+    dept = entry(co["code"], layer="department", department="GROWTH", kind="playbook")
+    r = await client.post("/api/v1/knowledge", headers=owner, json=dept)
+    assert r.status_code == 201, r.text
+    ref = r.json()["ref"]
+    r = await client.put(
+        f"/api/v1/knowledge/{ref}", headers=owner, json={**dept, "body_md": "نسخه‌ی دوم."}
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["version"] == 2 and r.json()["status"] == "approved"
+    r = await client.post(
+        "/internal/v1/knowledge",
+        headers={**await agent_headers(f"{co['code']}-GROWTH-MGR"), **idem()},
+        json={**dept, "company": None, "body_md": "نسخه‌ی سوم.", "ref": ref},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["version"] == 3 and r.json()["status"] == "in_review"
+    checks = {"injection": True, "secrets": True, "conflicts": True, "policy": True}
+    r = await client.post(
+        f"/internal/v1/knowledge/{ref}/review", headers={**await agent_headers("HQ-OVR"), **idem()},
+        json={"version": 3, "verdict": "pass", "checks": checks, "notes_md": ""},
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    r = await client.post(
+        f"/internal/v1/knowledge/{ref}/approve",
+        headers={**await agent_headers(f"{co['code']}-CEO"), **idem()},
+        json={"version": 3},
+    )
+    assert r.status_code == 200, r.text
+    rows = await su.fetch(
+        "SELECT version, status FROM knowledge.entries WHERE ref = $1 ORDER BY version", ref
+    )
+    assert [(x["version"], x["status"]) for x in rows] == [
+        (1, "retired"),
+        (2, "retired"),
+        (3, "approved"),
+    ]
+
+
 async def test_a_holding_entry_is_the_owners_card(
     client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any
 ) -> None:

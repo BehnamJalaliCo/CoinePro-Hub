@@ -66,11 +66,18 @@ class StudioActivities:
         async with self._tx() as tx:
             if (lock := await gate.holding_lock(tx)) is not None:
                 return gate.skipped(lock)
+            # A company already at its day's sample is left out here, so its unchecked
+            # backlog never fills the 20 and starves every other company's re-check.
             rows = await tx.all(
-                S.ITEM_SQL
+                S.ITEM_SQL  # noqa: S608 - a constant and literals, no input
                 + """ WHERE i.state = 'published' AND NOT (i.render_meta ? 'rechecked')
-                        AND i.updated_at < :before ORDER BY i.updated_at LIMIT 20 FOR UPDATE OF i SKIP LOCKED""",
+                        AND i.updated_at < :before
+                        AND (SELECT count(*) FROM media.items r WHERE r.company_id = i.company_id
+                               AND (r.render_meta->'rechecked'->>'at')::timestamptz
+                                   > now() - interval '24 hours') < :cap
+                      ORDER BY i.updated_at LIMIT 20 FOR UPDATE OF i SKIP LOCKED""",
                 before=datetime.now(UTC) - RECHECK_AFTER,
+                cap=SAMPLE_PER_COMPANY_DAY,
             )
             per: dict[Any, int] = {}
             for item in rows:

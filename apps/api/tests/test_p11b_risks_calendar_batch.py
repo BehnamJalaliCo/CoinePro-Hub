@@ -73,6 +73,20 @@ async def test_a_20_risk_without_mitigation_after_its_date_is_a_finding(
         out = await RK.sweep(tx)
         again = await RK.sweep(tx)
     assert rk["ref"] in out["review_work"] and rk["ref"] not in again["review_work"]
+    # Its owner does the review: the next one is scheduled (never 'now'), so the
+    # next daily rule gives no second review work item.
+    version = await su.fetchval("SELECT version FROM governance.risks WHERE ref = $1", rk["ref"])
+    r = await client.post(
+        "/internal/v1/governance/risks/update",
+        headers={**await ceo(co), **idem()},
+        json={"ref": rk["ref"], "version": version, "mitigation_md": "دو صرافی",
+              "note": "بازبینی شد"},
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert datetime.fromisoformat(r.json()["review_at"]) > datetime.now(UTC) + timedelta(days=13)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        later = await RK.sweep(tx, datetime.now(UTC) + timedelta(days=1))
+    assert rk["ref"] not in later["review_work"]
     r = await client.get("/api/v1/risks/matrix", headers=owner, params={"company": co["code"]})
     assert r.json()["counts"][3][4] == 1
 
@@ -294,6 +308,28 @@ async def test_the_holidays_are_seeded_and_a_deploy_on_one_is_medium(
     friday = CAL.conflicts_of({**dep, "starts_at": datetime(2026, 10, 30, 8, tzinfo=UTC),
                                "ends_at": datetime(2026, 10, 30, 9, tzinfo=UTC)}, [], ["fri"], "Asia/Tehran")  # fmt: skip
     assert [(c.rule, c.a, c.b) for c in friday] == [("blackout_day", "CE-TEST", "CE-TEST")]
+
+
+async def test_a_freeze_longer_than_400_days_is_a_capped_event_not_a_failed_sync(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """governance.calendar_events allows 400 days; a longer freeze broke every sync."""
+    co = await new_company()
+    fid = await su.fetchval(
+        """INSERT INTO control.deploy_freezes (company_id, until, reason, created_by_kind, created_by_code)
+           VALUES ($1, now() + interval '600 days', 'test', 'owner', 'owner') RETURNING id""",
+        co["id"],
+    )
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await CAL.freeze_events(tx, [co["id"]], datetime.now(UTC)) == 1
+        span = await su.fetchval(
+            "SELECT ends_at - starts_at FROM governance.calendar_events WHERE auto_key = $1",
+            f"freeze:{fid}",
+        )
+        assert span == CAL.FAR
+    finally:
+        await su.execute("UPDATE control.deploy_freezes SET lifted_at = now() WHERE id = $1", fid)
 
 
 async def test_pr_113_finds_a_deploy_outside_the_calendar(

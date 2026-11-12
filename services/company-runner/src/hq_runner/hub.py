@@ -13,12 +13,14 @@ Errors are RFC 9457 problems with a stable `code`.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import os
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
@@ -31,6 +33,8 @@ log = logging.getLogger("hq_runner.hub")
 API = "/api/v1"
 UPLOAD_TIMEOUT_S = 600.0  # ⟨0.3.2⟩ one file of out/ (a 200 MB video over the public path)
 LONG_POLL_S = 30.0
+# a downloaded file is always a new one, never a link that was already there
+NEW_FILE = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
 class HubError(Exception):
@@ -60,7 +64,7 @@ class JobGone(HubError):
 def problem_code(resp: httpx.Response) -> tuple[str | None, str | None]:
     try:
         body = resp.json()
-    except ValueError:
+    except (ValueError, httpx.StreamError):  # not JSON, or a streamed body not read
         return None, None
     if not isinstance(body, dict):
         return None, None
@@ -248,19 +252,17 @@ class Hub:
         return str(cat) if cat else None
 
     async def upload_file(
-        self, job_id: str, path: Path, name: str, content_type: str
+        self, job_id: str, fh: BinaryIO, name: str, content_type: str
     ) -> dict[str, Any]:
         """⟨0.3.2⟩ One file of a workspace turn's `out/` to the hub (raw body, streamed): the
-        hub's FileRef. The name goes percent-encoded (X-File-Name)."""
+        hub's FileRef. The name goes percent-encoded (X-File-Name). The caller opened the file
+        (once, never through a link) and closes it; each attempt reads it from the start."""
         client = self.route.client()
 
         async def body() -> Any:
-            fh = await asyncio.to_thread(path.open, "rb")
-            try:
-                while chunk := await asyncio.to_thread(fh.read, 1 << 16):
-                    yield chunk
-            finally:
-                await asyncio.to_thread(fh.close)
+            await asyncio.to_thread(fh.seek, 0)
+            while chunk := await asyncio.to_thread(fh.read, 1 << 16):
+                yield chunk
 
         headers = self.headers(True, job_id) | {
             "Content-Type": content_type,
@@ -288,9 +290,16 @@ class Hub:
         a, b = urlsplit(self.route.hub), urlsplit(urljoin(self.route.hub + "/", url))
         return (a.scheme, a.hostname, a.port) == (b.scheme, b.hostname, b.port)
 
-    async def download(self, url: str, dest: Path, max_bytes: int) -> int:
+    async def download(
+        self, url: str, dest: Path | str, max_bytes: int, *, dir_fd: int | None = None
+    ) -> int:
         """Downloads a hub URL (absolute on the hub, or a hub path) with the
-        runner token. A URL on any other host is refused: the token never leaves."""
+        runner token. A URL on any other host is refused: the token never leaves.
+
+        `dest` (relative to `dir_fd` when given) is always a new file: whatever is there is
+        removed first (a symbolic or hard link is never written through) and the file is
+        made with O_EXCL|O_NOFOLLOW, so a link planted there by a session never redirects
+        the hub's bytes to another path."""
         if not self.same_origin(url):
             raise HubError(0, "foreign_url", "files are fetched from the hub only")
         full = urljoin(self.route.hub + "/", url.lstrip("/")) if not url.startswith("http") else url
@@ -298,16 +307,26 @@ class Hub:
         size = 0
         try:
             async with client.stream("GET", full, headers=self.headers(True), timeout=300) as resp:
+                if resp.status_code >= 400:
+                    await resp.aread()  # the problem's body, read before it is parsed
                 err = classify_status(resp, job_scoped=True)
                 if err is not None:
-                    await resp.aread()
                     raise err
-                with dest.open("wb") as fh:
+                try:
+                    with contextlib.suppress(FileNotFoundError):
+                        os.unlink(dest, dir_fd=dir_fd)
+                    fd = os.open(dest, NEW_FILE, 0o600, dir_fd=dir_fd)
+                except OSError as exc:
+                    raise HubError(0, "bad_destination", type(exc).__name__) from exc
+                with os.fdopen(fd, "wb") as fh:
                     async for chunk in resp.aiter_bytes(1 << 16):
                         size += len(chunk)
                         if size > max_bytes:
                             raise HubError(0, "file_too_large")
-                        fh.write(chunk)
+                        try:
+                            fh.write(chunk)
+                        except OSError as exc:
+                            raise HubError(0, "write_failed", type(exc).__name__) from exc
         except httpx.TransportError as exc:
             raise Transient(0, "network_error", type(exc).__name__) from exc
         return size

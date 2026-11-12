@@ -5,7 +5,8 @@ a deadline: `pdftoppm` (a PDF's pages to PNG, the long side capped) and
 container has none but the worker's.
 
     detect(content_type, head) -> kind          ("png" | "jpeg" | "webp" | "tiff" | "pdf")
-    image_pixels(kind, head) -> int | None      a header's width x height
+    image_pixels(kind, data) -> int | None      the largest frame's width x height
+    image_pages(kind, data) -> int | None       frames (a TIFF's pages; 1 otherwise)
     parse_tsv(tsv) -> (text, confidence, words) one page's text and mean confidence (0..1)
     run(job) -> Result                          the whole job
 """
@@ -31,7 +32,11 @@ TYPES = {
     "application/pdf": "pdf",
 }
 SUFFIX = {"png": ".png", "jpeg": ".jpg", "webp": ".webp", "tiff": ".tif", "pdf": ".pdf"}
-HEAD_BYTES = 64 * 1024  # enough for a JPEG's frame header after its EXIF
+HEAD_BYTES = 64 * 1024  # the bytes `detect` sniffs
+# A TIFF whose directory chain needs more than this to read is refused
+# (real files have one directory per page and a few dozen entries in each).
+TIFF_MAX_IFDS = 10_000
+TIFF_MAX_ENTRIES = 100_000
 _MARKS = str.maketrans("", "", "\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
 
 
@@ -68,48 +73,118 @@ def sniff(head: bytes) -> str | None:
     return None
 
 
-def image_pixels(kind: str, head: bytes) -> int | None:
-    """Width x height from the header (PNG, JPEG, WebP), or None when the
-    header does not say (TIFF; a JPEG whose frame header is further in)."""
+def image_pixels(kind: str, data: bytes) -> int | None:
+    """Width x height from the headers (PNG, JPEG, WebP; a TIFF's largest
+    page), or None when they do not say: the caller refuses such a body, so
+    no image reaches Tesseract without its size checked first."""
     try:
-        if kind == "png" and len(head) >= 24:
-            w, h = struct.unpack(">II", head[16:24])
-            return int(w) * int(h)
+        if kind == "png" and len(data) >= 24:
+            w, h = struct.unpack(">II", data[16:24])
+            return _positive(int(w) * int(h))
         if kind == "webp":
-            chunk = head[12:16]
-            if chunk == b"VP8X" and len(head) >= 30:
-                w = 1 + int.from_bytes(head[24:27], "little")
-                h = 1 + int.from_bytes(head[27:30], "little")
+            chunk = data[12:16]
+            if chunk == b"VP8X" and len(data) >= 30:
+                w = 1 + int.from_bytes(data[24:27], "little")
+                h = 1 + int.from_bytes(data[27:30], "little")
                 return w * h
-            if chunk == b"VP8 " and len(head) >= 30:
-                w, h = struct.unpack("<HH", head[26:30])
-                return (int(w) & 0x3FFF) * (int(h) & 0x3FFF)
-            if chunk == b"VP8L" and len(head) >= 25:
-                bits = int.from_bytes(head[21:25], "little")
+            if chunk == b"VP8 " and len(data) >= 30:
+                w, h = struct.unpack("<HH", data[26:30])
+                return _positive((int(w) & 0x3FFF) * (int(h) & 0x3FFF))
+            if chunk == b"VP8L" and len(data) >= 25:
+                bits = int.from_bytes(data[21:25], "little")
                 return ((bits & 0x3FFF) + 1) * (((bits >> 14) & 0x3FFF) + 1)
         if kind == "jpeg":
-            return _jpeg_pixels(head)
+            return _jpeg_pixels(data)
+        if kind == "tiff":
+            frames = _tiff_frames(data)
+            return max(frames) if frames else None
     except (struct.error, ValueError):
         return None
     return None
 
 
-def _jpeg_pixels(head: bytes) -> int | None:
+def image_pages(kind: str, data: bytes) -> int | None:
+    """The frames Tesseract will read: a TIFF's pages (None when its
+    directory chain cannot be read), 1 for any other image."""
+    if kind != "tiff":
+        return 1
+    try:
+        frames = _tiff_frames(data)
+    except (struct.error, ValueError):
+        return None
+    return len(frames) if frames else None
+
+
+def _positive(pixels: int) -> int | None:
+    return pixels if pixels > 0 else None
+
+
+def _jpeg_pixels(data: bytes) -> int | None:
+    """The first frame header's width x height, wherever it is in the body
+    (APPn/COM segments before it can be of any size)."""
     i = 2
-    while i + 9 < len(head):
-        if head[i] != 0xFF:
+    while i + 9 < len(data):
+        if data[i] != 0xFF:
             return None
-        marker = head[i + 1]
+        marker = data[i + 1]
+        if marker == 0xFF:  # a fill byte before the marker
+            i += 1
+            continue
         if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
             i += 2
             continue
-        length = struct.unpack(">H", head[i + 2 : i + 4])[0]
+        if marker in (0xD9, 0xDA):  # the image ends or its scan starts before any frame header
+            return None
+        length = struct.unpack(">H", data[i + 2 : i + 4])[0]
+        if length < 2:
+            return None
         # SOF0..SOF15 except DHT (C4), JPG (C8) and DAC (CC)
         if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-            h, w = struct.unpack(">HH", head[i + 5 : i + 9])
-            return int(w) * int(h)
+            h, w = struct.unpack(">HH", data[i + 5 : i + 9])
+            return _positive(int(w) * int(h))  # a height of 0 (set by a later DNL) is not known
         i += 2 + length
     return None
+
+
+def _tiff_frames(data: bytes) -> list[int] | None:
+    """Width x height of each page in a TIFF's directory chain, or None when
+    a directory is cut short, loops, or lacks its width or height."""
+    if len(data) < 8:
+        return None
+    order = "<" if data[:2] == b"II" else ">"
+    offset = struct.unpack(order + "I", data[4:8])[0]
+    frames: list[int] = []
+    seen: set[int] = set()
+    budget = TIFF_MAX_ENTRIES
+    while offset:
+        if offset in seen or len(seen) >= TIFF_MAX_IFDS or offset + 2 > len(data):
+            return None
+        seen.add(offset)
+        count = struct.unpack(order + "H", data[offset : offset + 2])[0]
+        end = offset + 2 + 12 * count
+        if end + 4 > len(data):
+            return None
+        size: dict[int, int] = {}
+        for at in range(offset + 2, end, 12):
+            if len(size) == 2:
+                break
+            budget -= 1
+            if budget < 0:
+                return None
+            tag, typ, n = struct.unpack(order + "HHI", data[at : at + 8])
+            if tag in (256, 257) and n >= 1:  # ImageWidth, ImageLength
+                if typ == 3:  # SHORT
+                    size[tag] = struct.unpack(order + "H", data[at + 8 : at + 10])[0]
+                elif typ == 4:  # LONG
+                    size[tag] = struct.unpack(order + "I", data[at + 8 : at + 12])[0]
+                else:
+                    return None
+        pixels = size.get(256, 0) * size.get(257, 0)
+        if pixels <= 0:
+            return None
+        frames.append(pixels)
+        offset = struct.unpack(order + "I", data[end : end + 4])[0]
+    return frames or None
 
 
 def parse_tsv(tsv: str) -> tuple[str, float | None, int]:

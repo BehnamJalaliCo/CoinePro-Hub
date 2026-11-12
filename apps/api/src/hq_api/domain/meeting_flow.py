@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
@@ -78,6 +79,9 @@ SOURCE_SQL = {
         "SELECT 1 FROM knowledge.support_entries WHERE ref = split_part(:r, '@', 1) AND status = 'approved'"
     ),
 }
+# An audit seq the bigint cast takes: ASCII digits only (str.isdigit() is also
+# true for Persian and superscript digits) and at most 18 of them (in range).
+AUDIT_SEQ = re.compile(r"[0-9]{1,18}")
 SOURCE_SQL["kb"] = SOURCE_SQL["support_article"]
 
 
@@ -87,11 +91,15 @@ async def owner_tz(tx: Tx) -> str:
 
 
 async def spent_today(tx: Tx) -> int:
+    # The day as the agents' daily cap counts it (audit B5: one token everywhere,
+    # a cache read at a tenth), not the ledger in full.
+    from hq_api.agents.runner import EFFECTIVE_SQL  # runner imports this module
+
     n = await tx.scalar(
-        """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                               + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+        f"""SELECT COALESCE(sum({EFFECTIVE_SQL}), 0)
            FROM llm.calls
-           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AND meta ? 'run_id'"""
+           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+             AND meta ? 'run_id'"""  # noqa: S608 - a constant expression
     )
     return int(n or 0)
 
@@ -494,12 +502,22 @@ async def _save_settings(tx: Tx, meeting_id: UUID, settings: dict[str, Any]) -> 
 
 
 async def run_tokens(tx: Tx, run_id: UUID) -> int:
-    n = await tx.scalar(
-        """SELECT input_tokens + output_tokens + cache_read_tokens + cache_write_tokens FROM agents.runs
+    """A turn's tokens as the runner caps them (work.effective_tokens: a cache read at a tenth)."""
+    from hq_api.domain import work as W
+
+    r = await tx.first(
+        """SELECT input_tokens, output_tokens, cache_read_tokens, cache_write_tokens FROM agents.runs
            WHERE id = :id""",
         id=run_id,
     )
-    return int(n or 0)
+    if r is None:
+        return 0
+    return W.effective_tokens(
+        r["input_tokens"] or 0,
+        r["output_tokens"] or 0,
+        r["cache_read_tokens"] or 0,
+        r["cache_write_tokens"] or 0,
+    )
 
 
 async def turn_finished(tx: Tx, run: dict[str, Any]) -> None:
@@ -765,7 +783,7 @@ async def check_claims(tx: Tx, claims: list[dict[str, Any]]) -> list[dict[str, A
         if sql is None:
             out.append({**c, "status": "unsourced", "note": "unknown_kind"})
             continue
-        if kind == "audit" and not ref.isdigit():
+        if kind == "audit" and not AUDIT_SEQ.fullmatch(ref):
             out.append({**c, "status": "unsourced", "note": "not_found"})
             continue
         ok = await tx.scalar(sql, r=ref)
@@ -1456,12 +1474,15 @@ async def standups(tx: Tx, now: datetime, *, only: UUID | None = None) -> int:
         )
         done = [r for r in rows if r["status"] == "done"]
         doing = [r for r in rows if r["status"] in ("in_progress", "queued")]
+        # Stuck is an open work only: waiting, or past its due date. A work closed
+        # yesterday as cancelled or failed is not stuck; it gets its own line.
         stuck = [
             r
             for r in rows
-            if r["status"] == "waiting"
-            or (r["due_at"] and r["due_at"] < end and r["status"] != "done")
+            if r["status"] in ("waiting", "queued", "in_progress")
+            and (r["status"] == "waiting" or (r["due_at"] and r["due_at"] < end))
         ]
+        dropped = [r for r in rows if r["status"] in ("cancelled", "failed")]
         digest = hashlib.sha256(
             json.dumps([(r["ref"], r["status"]) for r in rows]).encode()
         ).hexdigest()
@@ -1495,10 +1516,11 @@ async def standups(tx: Tx, now: datetime, *, only: UUID | None = None) -> int:
                 or "-"
             )
 
-        body = "\n".join(
-            [f"استندآپ {d['company']}-{d['code']} ({today.isoformat()})", section("انجام‌شده", done),
-             section("در جریان", doing), section("گیرکرده", stuck)]
-        )  # fmt: skip
+        lines = [f"استندآپ {d['company']}-{d['code']} ({today.isoformat()})", section("انجام‌شده", done),
+                 section("در جریان", doing), section("گیرکرده", stuck)]  # fmt: skip
+        if dropped:
+            lines.append(section("لغو یا ناموفق", dropped))
+        body = "\n".join(lines)
         await tx.exec(
             """UPDATE meetings.meetings SET mode = 'written', digest_sha256 = :h, summary_md = :b WHERE id = :id""",
             h=digest,

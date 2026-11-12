@@ -32,6 +32,9 @@ from hq_api.domain import revenue as V
 from hq_api.hub import Hub
 
 STALE_RUNNING = timedelta(hours=4)  # a pull whose activity died
+# A planned pull still queued after its RevenuePulls run's 4 h execution timeout: that run
+# ended (timed out, terminated) before reaching it, and no later run picks it up.
+STALE_QUEUED = timedelta(hours=5)
 
 
 class RevenueActivities:
@@ -71,6 +74,11 @@ class RevenueActivities:
                 """UPDATE revenue.pulls SET state = 'failed', error_code = 'interrupted', finished_at = now()
                    WHERE state = 'running' AND started_at < :t""",
                 t=datetime.now(UTC) - STALE_RUNNING,
+            )
+            await tx.exec(
+                """UPDATE revenue.pulls SET state = 'failed', error_code = 'interrupted', finished_at = now()
+                   WHERE state = 'queued' AND kind <> 'manual' AND created_at < :t""",
+                t=datetime.now(UTC) - STALE_QUEUED,
             )
             lock = await gate.holding_lock(tx)
             rows = await V.plan_pulls(

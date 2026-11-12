@@ -43,6 +43,7 @@ import shutil
 import stat
 import struct
 import sys
+import tempfile
 import time
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
@@ -63,6 +64,7 @@ ACCESS_REFER = 1 << 13  # ABI 2
 ACCESS_TRUNCATE = 1 << 14  # ABI 3
 ACCESS_IOCTL_DEV = 1 << 15  # ABI 5
 FILE_ACCESS = (1 << 0) | (1 << 1) | (1 << 2) | ACCESS_TRUNCATE | ACCESS_IOCTL_DEV
+READ_ONLY = (1 << 0) | (1 << 2) | (1 << 3)  # execute, read a file, list a folder
 SCOPE_SIGNAL = 1 << 1  # ABI 6: no signal to a process outside the wall
 
 EXIT_NO_WALL = 126  # the wrapper could not put the wall up (the command was not run)
@@ -103,10 +105,11 @@ def access_of(version: int) -> int:
     return rights
 
 
-def restrict(paths: Iterable[str]) -> int:
+def restrict(paths: Iterable[str], read_only: Iterable[str] = ()) -> int:
     """Puts the wall around this process (and every process it starts): only `paths` (each a
-    file, or a folder with everything beneath it) can be opened, made in or removed from.
-    Returns how many rules were added. It cannot be taken down again."""
+    file, or a folder with everything beneath it) can be opened, made in or removed from, and
+    `read_only` can only be read and run. Returns how many rules were added. It cannot be
+    taken down again."""
     version = abi()
     if version < MIN_ABI:
         raise SandboxError(f"this kernel has no Landlock (ABI {version}, {MIN_ABI} needed)")
@@ -125,14 +128,16 @@ def restrict(paths: Iterable[str]) -> int:
         raise SandboxError(f"landlock_create_ruleset: {exc.strerror}") from exc
     added = 0
     try:
-        for path in dict.fromkeys(paths):
+        rules = [(p, rights) for p in dict.fromkeys(paths)]
+        rules += [(p, rights & READ_ONLY) for p in dict.fromkeys(read_only)]
+        for path, granted in rules:
             try:
                 fd = os.open(path, os.O_PATH | os.O_CLOEXEC)
             except OSError:
                 continue  # gone, or not this user's to open anyway
             try:
                 is_dir = stat.S_ISDIR(os.fstat(fd).st_mode)
-                allowed = rights if is_dir else rights & FILE_ACCESS
+                allowed = granted if is_dir else granted & FILE_ACCESS
                 rule = struct.pack("<Qi", allowed, fd)
                 with contextlib.suppress(OSError):
                     _syscall(
@@ -168,11 +173,14 @@ def _beneath(path: str, root: str) -> bool:
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
-def open_paths(protect: Iterable[str | Path], allow: Iterable[str | Path]) -> list[str]:
+def open_paths(
+    protect: Iterable[str | Path], allow: Iterable[str | Path], readonly: Iterable[str | Path] = ()
+) -> list[str]:
     """Every path that gets a rule: all that exists beside the closed paths, and `allow` (the
     turn's own folders, which may lie inside a closed one). A symbolic link gets no rule: what
-    it points to is open under its own name, or closed."""
-    closed = sorted({_real(p) for p in protect})
+    it points to is open under its own name, or closed. A `readonly` path is walked around as
+    a closed one: it gets its own rule (read and run only, in restrict())."""
+    closed = sorted({_real(p) for p in [*protect, *readonly]})
     out: list[str] = []
 
     def holds_closed(path: str) -> bool:
@@ -201,15 +209,105 @@ def open_paths(protect: Iterable[str | Path], allow: Iterable[str | Path]) -> li
     return list(dict.fromkeys(out))
 
 
+# ------------------------------------------------------- files the turn may touch --
+# The turn's private area (and its work folder) are the turn's to write: it may leave a link, a
+# file where a folder was, or a folder it took its own rights away from. What the runner does
+# there (outside the wall) never follows a link and never gives up because of what it found.
+def _is_real_dir(path: str | Path) -> bool:
+    try:
+        return stat.S_ISDIR(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def remove(path: str | Path) -> None:
+    """Whatever is at `path` goes, without following a link: a link or a file is unlinked, a
+    folder goes with all in it (its folders made writable first). Raises OSError when it stays."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISDIR(st.st_mode):
+        os.unlink(path)
+        return
+    with contextlib.suppress(OSError):
+        os.chmod(path, 0o700)
+    for top, dirs, _files in os.walk(path):  # never into a link
+        for name in dirs:
+            sub = os.path.join(top, name)
+            if not os.path.islink(sub):
+                with contextlib.suppress(OSError):
+                    os.chmod(sub, 0o700)
+    shutil.rmtree(path)  # the fd-based rmtree: a link is removed, never followed
+
+
+def remove_quietly(path: str | Path) -> None:
+    with contextlib.suppress(OSError):
+        remove(path)
+
+
+def fresh_dir(path: Path) -> None:
+    """An empty folder (700) at `path`, whatever was there."""
+    remove(path)
+    path.mkdir(mode=0o700)
+
+
+def write_new(path: Path, text: str) -> None:
+    """A file of the runner's (600) at `path`: what was there goes first, and a link planted
+    meanwhile makes it fail instead of being written through."""
+    remove(path)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def copy_file(src: str | Path, dst: Path) -> None:
+    """`src` copied to `dst` (its times kept), never through a link at `dst`."""
+    remove(dst)
+    fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, "wb") as out, open(src, "rb") as inp:
+        shutil.copyfileobj(inp, out)
+    shutil.copystat(src, dst, follow_symlinks=False)
+
+
+def _real_dirs(base: Path, rel: Path) -> None:
+    """Every folder of `rel` under `base` made, and a link or a file in the way removed."""
+    base.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = base
+    for part in rel.parts:
+        path = path / part
+        if os.path.lexists(path) and not _is_real_dir(path):
+            remove(path)
+        path.mkdir(exist_ok=True, mode=0o700)
+
+
+def _unlink_links(folder: Path) -> None:
+    """The links inside `folder` removed (a copy into it then writes only real files)."""
+    if not _is_real_dir(folder):
+        return
+    for top, dirs, files in os.walk(folder):
+        for name in [*dirs, *files]:
+            sub = os.path.join(top, name)
+            if os.path.islink(sub):
+                os.unlink(sub)
+
+
 # -------------------------------------------------------------- the turn's home --
 COPY_MAX = 1024 * 1024  # a dotfile this small is copied (a tool may rewrite it); else linked
 
 
-def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) -> None:
+def make_home(
+    real_home: str | Path,
+    home: Path,
+    protect: Iterable[str | Path],
+    readonly: Iterable[str | Path] = (),
+) -> None:
     """The turn's own home: a link to every entry of the real home that is not closed (a small
-    file is copied; a folder that holds a closed path becomes a folder of the same kind, one
-    level deeper). What the work itself put there stays; a link whose target is gone goes."""
+    file is copied; a folder that holds a closed or a read-only path becomes a folder of the
+    same kind, one level deeper, so what is new lands in the work's home). What the work itself
+    put there stays; a link whose target is gone goes."""
     closed = {_real(p) for p in protect}
+    ro = {_real(p) for p in readonly}
 
     def mirror(src: str, dst: Path) -> None:
         dst.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -222,9 +320,12 @@ def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) 
             if any(_beneath(real, c) for c in closed):
                 continue
             target = dst / e.name
-            if e.is_dir(follow_symlinks=False) and any(_beneath(c, real) for c in closed):
-                if target.is_symlink():
-                    target.unlink()
+            holds = any(_beneath(c, real) for c in closed) or any(
+                c != real and _beneath(c, real) for c in ro
+            )
+            if e.is_dir(follow_symlinks=False) and holds:
+                if not _is_real_dir(target):
+                    remove(target)  # a link or a file the work put in its place
                 mirror(e.path, target)
                 continue
             try:
@@ -238,8 +339,12 @@ def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) 
                 try:
                     if target.is_symlink():
                         target.unlink()
-                    if not target.exists() or e.stat().st_mtime > target.stat().st_mtime:
-                        shutil.copy2(e.path, target)
+                    # anything else in its place (a folder) is the work's own: never written into
+                    if not os.path.lexists(target) or (
+                        stat.S_ISREG(os.lstat(target).st_mode)
+                        and e.stat().st_mtime > target.stat().st_mtime
+                    ):
+                        copy_file(e.path, target)
                 except OSError:
                     pass
                 continue
@@ -280,15 +385,26 @@ def carry_session(
         try:
             if is_dir:
                 if s.is_dir() and not s.is_symlink():
+                    # a side of the wall the turn wrote to may hold links: nothing is followed
+                    _real_dirs(Path(dst_home), rel)
+                    if os.path.lexists(d) and not _is_real_dir(d):
+                        remove(d)
+                    _unlink_links(d)
                     shutil.copytree(s, d, dirs_exist_ok=True, symlinks=True)
                     moved = True
             elif (
                 s.is_file()
                 and not s.is_symlink()
-                and (not d.exists() or s.stat().st_mtime > d.stat().st_mtime)
+                and (
+                    not os.path.lexists(d)
+                    or d.is_symlink()
+                    or not d.is_file()
+                    or s.stat().st_mtime > d.stat().st_mtime
+                )
             ):
-                d.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                shutil.copy2(s, d)
+                _real_dirs(Path(dst_home), rel)
+                remove(d)
+                copy_file(s, d)
                 moved = True
         except OSError:
             continue
@@ -309,6 +425,7 @@ class Plan:
     private: Path
     protect: list[str]
     allow: list[str] = field(default_factory=list)
+    readonly: list[str] = field(default_factory=list)  # code that also runs outside the wall
 
     @property
     def home(self) -> Path:
@@ -327,6 +444,33 @@ class Plan:
         return self.job / "hook.sock"
 
 
+def code_paths(
+    claude: str | None, home: Path, keep: Iterable[str], extra: Iterable[str] = ()
+) -> list[str]:
+    """The code a walled turn may read and run but never change, because it also runs outside
+    the wall: this runner's installation and its Python (the wrapper imports it before the wall
+    goes up; the runner after a restart), the CLI's folder and the folder its command is linked
+    from (the runner runs `claude --help` itself, and an unwalled turn runs it). Only folders
+    this user can write are listed (what root owns is safe as it is), never the home or a folder
+    above it, and never one that holds a path of `keep` (closed, or the turn's own)."""
+    found = [package_root(), sys.prefix, sys.exec_prefix, sys.base_prefix, *extra]
+    if sys.argv and os.path.isabs(sys.argv[0]):
+        found.append(os.path.dirname(sys.argv[0]))  # e.g. ~/.local/bin, where hq-runner is
+    if claude:
+        found += [os.path.dirname(os.path.abspath(claude)), os.path.dirname(_real(claude))]
+    real_home = _real(home)
+    kept = [_real(k) for k in keep]
+    out: list[str] = []
+    for f in found:
+        r = _real(f)
+        if r == "/" or _beneath(real_home, r) or not os.path.isdir(r):
+            continue
+        if any(_beneath(k, r) for k in kept) or not os.access(r, os.W_OK):
+            continue
+        out.append(r)
+    return list(dict.fromkeys(out))
+
+
 def plan(
     ref: str,
     work: Path,
@@ -334,30 +478,53 @@ def plan(
     cfg_path: Path,
     claude: str | None,
     real_home: Path | None = None,
+    code: list[str] | None = None,
 ) -> Plan:
+    """`code`: the read-only paths (code_paths() when None)."""
     home = real_home or Path.home()
     private = workspaces / PRIVATE / ref
     protect = [str(workspaces), str(cfg_path.parent), str(home / ".claude")]
     protect += [str(p) for p in home.glob(".claude.json*")]
     allow = [str(work), str(private)]
-    if claude:
-        # a CLI installed inside ~/.claude (its old place) stays runnable, and only it
-        binary = _real(claude)
-        if _beneath(binary, _real(home / ".claude")):
-            allow.append(os.path.dirname(binary))
-    return Plan(ref, work, private, protect, allow)
+    # a CLI installed inside ~/.claude (its old place) stays runnable, read-only like the rest
+    readonly = code if code is not None else code_paths(claude, home, [*protect, *allow])
+    return Plan(ref, work, private, protect, allow, readonly)
 
 
 def prepare(p: Plan, real_home: Path | None = None) -> None:
     """The private area on the disk: its home (links to the real one), an empty tmp and an
-    empty job folder (settings, the hook's log and socket)."""
+    empty job folder (settings, the hook's log and socket).
+
+    The last turn of the work could write anything there (a link in place of tmp/, a folder it
+    cannot write): that is put right here, never followed, and never a reason for the next turn
+    to run without the wall. When the area cannot be put right in place, it is set aside whole
+    and made anew; an OSError after that is this server's, not the turn's."""
+    try:
+        _prepare(p, real_home)
+    except OSError:
+        _set_aside(p.private)
+        _prepare(p, real_home)
+
+
+def _prepare(p: Plan, real_home: Path | None) -> None:
+    p.private.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     for d in (p.private, p.home):
-        d.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.path.lexists(d) and not _is_real_dir(d):
+            remove(d)
+        d.mkdir(exist_ok=True, mode=0o700)
         os.chmod(d, 0o700)
     for d in (p.tmp, p.job):
-        shutil.rmtree(d, ignore_errors=True)
-        d.mkdir(mode=0o700)
-    make_home(real_home or Path.home(), p.home, p.protect)
+        fresh_dir(d)
+    make_home(real_home or Path.home(), p.home, p.protect, p.readonly)
+
+
+def _set_aside(private: Path) -> None:
+    """The whole area renamed out of the way (a rename follows nothing), then removed."""
+    if not os.path.lexists(private):
+        return
+    old = private.with_name(f".{private.name}.old-{time.time_ns()}")
+    os.rename(private, old)
+    remove_quietly(old)
 
 
 # the wrapper is this same installation of the runner, found without PYTHONPATH (which the
@@ -375,6 +542,8 @@ def wrap(p: Plan, argv: list[str]) -> list[str]:
         out += ["--protect", c]
     for a in p.allow:
         out += ["--allow", a]
+    for r in p.readonly:
+        out += ["--readonly", r]
     return [*out, "--", *argv]
 
 
@@ -426,16 +595,49 @@ def switched_off(env: dict[str, str] | None = None) -> bool:
 
 
 async def probe(p: Plan, env: dict[str, str], claude: str | None) -> str | None:
-    """None when a walled process can work in the turn's folder, cannot list what is closed,
-    and can start the CLI; else the reason. Remembered for an hour per server."""
+    """None when a walled process can work in a folder of its own, cannot list what is closed,
+    and can start the CLI; else the reason. Remembered for an hour per server.
+
+    The probe runs in a place of its own, never in the turn's folder or private area: whether
+    the wall works is this server's, and a work's folder holds whatever its last turn left (one
+    turn could otherwise bring the wall down for every company)."""
     key = "|".join(sorted(p.protect))
     seen = _probe.get(key)
     now = time.monotonic()
     if seen is not None and now - seen[0] < PROBE_TTL_S:
         return seen[1]
-    why = await _probe_once(p, env, claude)
+    why = await _probe_apart(p, env, claude)
     _probe[key] = (now, why)
     return why
+
+
+async def recheck(p: Plan, env: dict[str, str], claude: str | None) -> str | None:
+    """The probe again now (not the remembered answer): a walled session that did not start
+    says nothing about the wall by itself, its turn's own files may be the reason."""
+    _probe.pop("|".join(sorted(p.protect)), None)
+    return await probe(p, env, claude)
+
+
+async def _probe_apart(p: Plan, env: dict[str, str], claude: str | None) -> str | None:
+    base = p.private.parent
+    try:
+        base.mkdir(parents=True, exist_ok=True, mode=0o700)
+        place = Path(tempfile.mkdtemp(prefix=".probe-", dir=base))
+    except OSError as exc:
+        return f"no place for the probe: {exc.strerror or type(exc).__name__}"
+    try:
+        work = place / "work"
+        private = place / "area"
+        extra = [a for a in p.allow if a not in (str(p.work), str(p.private))]
+        q = Plan(".probe", work, private, list(p.protect), [str(work), str(private), *extra])
+        try:
+            work.mkdir(mode=0o700)
+            await asyncio.to_thread(prepare, q)
+        except OSError as exc:
+            return f"no place for the probe: {exc.strerror or type(exc).__name__}"
+        return await _probe_once(q, env, claude)
+    finally:
+        await asyncio.to_thread(remove_quietly, place)
 
 
 async def _run(argv: list[str], env: dict[str, str], cwd: str, limit_s: float) -> tuple[int, str]:
@@ -521,11 +723,6 @@ def forget_probe() -> None:
     _probe.clear()
 
 
-def distrust(p: Plan, why: str) -> None:
-    """A walled session did not start: the wall stays down on this server for an hour."""
-    _probe["|".join(sorted(p.protect))] = (time.monotonic(), why)
-
-
 # ------------------------------------------------------------- the hook's socket --
 @contextlib.contextmanager
 def _short(path: str | Path) -> Any:
@@ -543,11 +740,22 @@ def _short(path: str | Path) -> Any:
 
 Classify = Callable[[str], Awaitable[tuple[str | None, str | None]]]
 HOOK_LINE = 1024 * 1024
+HOOK_KEY_ENV = "HQ_RUNNER_HOOK_KEY"
 
 
-async def serve_hook(path: Path, classify: Classify) -> asyncio.AbstractServer:
+def _key_ok(given: Any, key: str) -> bool:
+    import hmac
+
+    return (
+        isinstance(given, str) and bool(key) and hmac.compare_digest(given.encode(), key.encode())
+    )
+
+
+async def serve_hook(path: Path, classify: Classify, key: str) -> asyncio.AbstractServer:
     """The hook behind the wall cannot read the runner's token: it asks here, one JSON line
-    `{cmd}` for one `{category, error}`, and the runner asks the hub."""
+    `{cmd, key}` for one `{category, error}`, and the runner asks the hub. Every turn runs as
+    the same user and Landlock does not guard a socket's connect(), so a line without this
+    turn's `key` (only in this turn's environment, HQ_RUNNER_HOOK_KEY) is refused."""
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         answer: dict[str, Any] = {"category": None, "error": "bad request"}
@@ -555,7 +763,9 @@ async def serve_hook(path: Path, classify: Classify) -> asyncio.AbstractServer:
             line = await asyncio.wait_for(reader.readline(), 30)
             obj = json.loads(line or b"{}")
             cmd = obj.get("cmd") if isinstance(obj, dict) else None
-            if isinstance(cmd, str) and cmd.strip():
+            if not isinstance(obj, dict) or not _key_ok(obj.get("key"), key):
+                answer = {"category": None, "error": "forbidden"}
+            elif isinstance(cmd, str) and cmd.strip():
                 category, error = await classify(cmd)
                 answer = {"category": category, "error": error}
         except (ValueError, TimeoutError, asyncio.LimitOverrunError):
@@ -584,16 +794,17 @@ async def serve_hook(path: Path, classify: Classify) -> asyncio.AbstractServer:
 
 
 def ask_hook_socket(
-    sock_path: str, cmd: str, timeout: float = 45.0
+    sock_path: str, cmd: str, timeout: float = 45.0, key: str | None = None
 ) -> tuple[str | None, str | None]:
-    """The hook's side: (category, error)."""
+    """The hook's side: (category, error). `key`: this turn's (HQ_RUNNER_HOOK_KEY when None)."""
     import socket
 
+    line = {"cmd": cmd, "key": os.environ.get(HOOK_KEY_ENV, "") if key is None else key}
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s, _short(sock_path) as short:
             s.settimeout(timeout)
             s.connect(short)
-            s.sendall(json.dumps({"cmd": cmd}).encode() + b"\n")
+            s.sendall(json.dumps(line).encode() + b"\n")
             data = b""
             while not data.endswith(b"\n"):
                 chunk = s.recv(65536)
@@ -611,13 +822,15 @@ def ask_hook_socket(
 
 
 # ------------------------------------------------------------------ the wrapper --
-def exec_main(protect: list[str], allow: list[str], argv: list[str]) -> int:
+def exec_main(
+    protect: list[str], allow: list[str], argv: list[str], readonly: list[str] | None = None
+) -> int:
     """`hq-runner sandbox-exec`: the wall, then the command in this same process."""
     if not argv:
         print("hq-sandbox: no command", file=sys.stderr)
         return EXIT_NO_WALL
     try:
-        restrict(open_paths(protect, allow))
+        restrict(open_paths(protect, allow, readonly or ()), readonly or ())
     except SandboxError as exc:
         print(f"hq-sandbox: {exc}", file=sys.stderr)
         return EXIT_NO_WALL

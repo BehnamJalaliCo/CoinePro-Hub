@@ -127,8 +127,9 @@ async def edit_ad_rule(
 ) -> AD.AdRule:
     """⟨1.13⟩ §31.6 change a rule. 🔏 `ads.cap` (target = the rule id) when the
     new rule lets more money through (a higher cap, a lower ROAS floor, a larger
-    minimum before judging, only telling instead of pausing, switched off, fewer
-    campaigns); a tighter rule needs none."""
+    minimum before judging, a longer window, only telling instead of pausing,
+    switched off, fewer or other campaigns); a tighter rule needs none. A null is
+    accepted only for the cap, the floor and the note (422 otherwise)."""
     company = await ctx.hub.companies.by_code(code)
     async with ctx.tx() as tx:
         old = await tx.one(
@@ -136,7 +137,11 @@ async def edit_ad_rule(
             id=rule_id,
             co=company.id,
         )
-        new = {**old, **body.model_dump(exclude_unset=True)}
+        fields = body.model_dump(exclude_unset=True)
+        for k in ("scope", "window_days", "min_spend_before_judging", "action", "state"):
+            if k in fields and fields[k] is None:
+                raise ApiError(422, "validation_failed", fields={k: "cannot be empty"})
+        new = {**old, **fields}
         if new["daily_cap"] is None and new["min_roas"] is None:
             raise ApiError(422, "validation_failed", fields={"daily_cap": "a cap or a floor"})
         wider = AD.loosens(old, new)

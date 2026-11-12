@@ -17,6 +17,8 @@ from typing import Any
 import httpx
 from PIL import Image
 
+from hq_api import media
+from hq_api.app import RUNNER_EVENTS_BYTES, RUNNER_RESULT_BYTES, upload_limit
 from hq_api.domain import hands as HANDS
 from hq_api.domain import workspace as WS
 from hq_api.hub import Hub
@@ -54,9 +56,9 @@ async def run_ask(
     )
 
 
-def png() -> bytes:
+def png(color: tuple[int, int, int] = (12, 80, 160)) -> bytes:
     buf = io.BytesIO()
-    Image.new("RGB", (64, 36), (12, 80, 160)).save(buf, format="PNG")
+    Image.new("RGB", (64, 36), color).save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -222,14 +224,38 @@ async def test_any_role_hands_a_task_to_the_workshop_and_its_files_come_back(
     assert nxt["args"]["workspace"] == w["ref"] and nxt["args"]["hands"] is True
     assert nxt["args"]["resume"] == "cs-hands-1" and "رنگ‌ها تیره‌تر" in nxt["args"]["brief"]
 
-    # Past its time the turn stops, and the holder is woken with the reason; never silent.
+    # Past its time the turn stops, and the holder is woken with the reason; never silent. What
+    # it had left in out/ (sent by the runner at the time limit) comes as an unfinished output.
+    r = await send_file(client, rn, nxt["id"], "half.png", "image/png", png((200, 40, 40)))
+    assert r.status_code == 201, r.text
+    half = r.json()
     await refuse_queued(su, w["id"])
     r = await client.post(
         f"{API}/runners/jobs/{nxt['id']}/result",
-        json={"exit_code": 124, "summary_fa": "نشست Claude به سقف زمان رسید و متوقف شد."},
+        json={
+            "exit_code": 124,
+            "summary_fa": "نشست Claude به سقف زمان رسید و متوقف شد. 1 فایل از out/ به ستاد رفت.",
+            "data": {
+                "workspace": {"ref": w["ref"], "path": "/home/studio/hq-workspace/" + w["ref"]},
+                "files": [half["id"]],
+                "sandbox": {"state": "on", "kind": "landlock"},
+            },
+        },
         headers=rn["h"],
     )
     assert r.status_code == 200, r.text
+    failed = await su.fetchrow(
+        "SELECT state, result FROM infra.server_jobs WHERE id = $1", uuid.UUID(nxt["id"])
+    )
+    assert failed["state"] == "failed" and half["id"] in failed["result"]
+    dl = await su.fetchrow(
+        """SELECT title, attachments, produced_with FROM cartable.deliverables
+           WHERE work_id = $1 ORDER BY created_at DESC LIMIT 1""",
+        uuid.UUID(w["id"]),
+    )
+    assert dl is not None and dl["title"].startswith("خروجی ناتمام کارگاه")
+    assert [str(a) for a in dl["attachments"]] == [half["id"]]
+    assert '"unfinished": true' in dl["produced_with"]
     ws = await su.fetchrow("SELECT * FROM work.workspaces WHERE work_id = $1", uuid.UUID(w["id"]))
     assert ws["state"] == "failed" and "سقف زمان" in ws["note_fa"]
     reason = await su.fetchval(
@@ -267,6 +293,62 @@ async def test_any_role_hands_a_task_to_the_workshop_and_its_files_come_back(
     assert r.status_code == 403, r.text
 
     await su.execute("UPDATE infra.servers SET state = 'revoked' WHERE company_id = $1", holding.id)
+
+
+async def test_a_turn_of_a_child_that_took_all_its_parents_budget_still_delivers(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A working group's reel: a child delegated without a figure (it took all its capped
+    parent had left) runs a workshop turn. The turn's tokens grow the child's budget and its
+    parent's (the root first), and booking them never costs the turn's output (HQB01)."""
+    from hq_api.domain import work as W
+
+    co = await new_company()
+    who = f"{co['code']}-TECH-MGR"
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        parent = await W.create(
+            tx, WS.SERVICE, company_id=co["id"], company_code=co["code"], title="برنامه‌ی محتوا",
+            brief="x", kind="one_off", priority="P3", assignee_code=who,
+            budget=W.BudgetIn(tokens=100_000),
+        )  # fmt: skip
+        child = await W.create(
+            tx, WS.SERVICE, company_id=co["id"], company_code=co["code"], title="ریل ATR",
+            brief="x", kind="one_off", priority="P3", assignee_code=who, parent=parent,
+        )  # fmt: skip
+    budgets = "SELECT budget_tokens FROM work.work WHERE id = $1"
+    assert await su.fetchval(budgets, child["id"]) == 100_000  # all its parent had left
+    rn = await workshop(client, hub, owner_session, su)
+    r = await run_ask(client, who, {"brief": "یک ریل ۱۵ ثانیه‌ای بساز", "work": child["ref"]})
+    assert r.status_code == 201, r.text
+    job = await take(client, rn)
+    await refuse_queued(su, str(child["id"]))
+    r = await client.post(
+        f"{API}/runners/jobs/{job['id']}/result",
+        json={
+            "exit_code": 0,
+            "summary_fa": "نشست Claude روی سرور تمام شد.",
+            "usage": {"input_tokens": 40_000, "output_tokens": 9_000, "model": HANDS.MODEL},
+            "data": {"session_id": "cs-hands-reel", "result_fa": "ریل آماده است."},
+        },
+        headers=rn["h"],
+    )
+    assert r.status_code == 200, r.text
+    used = await su.fetchval("SELECT tokens_used FROM work.work WHERE id = $1", child["id"])
+    assert used > 0
+    assert await su.fetchval(budgets, child["id"]) == 100_000 + used
+    assert await su.fetchval(budgets, parent["id"]) == 100_000 + used
+    assert await su.fetchval(
+        "SELECT count(*) FROM cartable.deliverables WHERE work_id = $1", child["id"]
+    ) == 1  # fmt: skip
+    ws = await su.fetchrow("SELECT state FROM work.workspaces WHERE work_id = $1", child["id"])
+    assert ws["state"] == "delivered"
+    await refuse_queued(su, str(parent["id"]))
+    await su.execute("UPDATE infra.servers SET state = 'revoked' WHERE company_id = $1",
+                     (await hub.companies.holding()).id)  # fmt: skip
 
 
 async def test_a_file_only_comes_from_a_workspace_turn_of_that_server(
@@ -427,3 +509,12 @@ async def test_a_step_order_starts_only_its_next_task_and_the_holder_can_stop_th
     assert (st["state"], st["error_code"]) == ("cancelled", "company_locked")
     r = await run_ask(client, holder, {"work": work_ref, "brief": "متن گفتار", "task": 1})
     assert r.status_code == 423, r.text
+
+
+def test_a_runner_file_upload_gets_the_owner_upload_size_limit() -> None:
+    """The body-size middleware lets a workspace turn's file through up to the route's 200 MB
+    (Caddy's @runner_files allows the same), not the 8 MB of a runner's event batch."""
+    job = f"{API}/runners/jobs/{uuid.uuid4()}"
+    assert upload_limit(f"{job}/files", 1, 1) == media.VIDEO.max_bytes
+    assert upload_limit(f"{job}/result", 1, 1) == RUNNER_RESULT_BYTES
+    assert upload_limit(f"{job}/events", 1, 1) == RUNNER_EVENTS_BYTES

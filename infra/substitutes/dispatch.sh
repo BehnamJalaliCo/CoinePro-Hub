@@ -58,8 +58,10 @@ api() { # api PATH [JSON_BODY_ON_STDIN]: POST to the api's internal route, the a
   fi
   # curl reads its body before its own -m clock starts: if the docker client
   # goes away before stdin closes, only the in-container timeout ends it
-  # (under --init: curl as PID 1 would ignore its SIGTERM).
-  docker run --rm -i --init --network "$API_NET" --read-only --cap-drop ALL \
+  # (under --init: curl as PID 1 would ignore its SIGTERM). No log driver: the
+  # answer (a job's question, the owner's code) reaches only the attached
+  # stdout, never a json-file log that Alloy ships to Loki.
+  docker run --rm -i --init --log-driver none --network "$API_NET" --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --user "$(id -u):$(id -g)" --memory 32m \
     -v "$AUTH_FILE:/run/auth:ro" --entrypoint timeout "$CURL_IMAGE" \
     45 curl -sS -m 30 -X POST -H @/run/auth -H 'Content-Type: application/json' \

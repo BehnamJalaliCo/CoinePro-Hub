@@ -526,8 +526,13 @@ def test_a_routine_is_a_schedule_that_makes_work_or_tells_someone() -> None:
     assert not RT.is_routine({**DAILY_REPORT, "actions": [work_action(), line]})
     assert not RT.is_routine({**DAILY_REPORT, "actions": []})
     yes = ("یک کارمند سئوی ۲۴ ساعته برای پروچارت", "هر روز ساعت ۹ رتبه‌ها را ببین",
-           "هفتگی یک خلاصه بده", "هر ۶ ساعت سایت را ببین", "this report daily")  # fmt: skip
-    no = ("یک ریلز درباره‌ی طلا بساز", "وضع شرکت را بررسی کن", "")
+           "هفتگی یک خلاصه بده", "هر ۶ ساعت سایت را ببین", "this report daily",
+           "مرتباً فروش را گزارش بده", "به‌طور مرتب سایت را ببین", "گزارش روزانه‌ای بده",
+           "کار 24/7")  # fmt: skip
+    no = ("یک ریلز درباره‌ی طلا بساز", "وضع شرکت را بررسی کن", "",
+          # audit 2026-11-11: «مرتب» inside an unrelated word is not a word of repetition
+          "یک گزارش مرتبط با فروش هفته بده", "برای بار دوم مرتبه‌ی سایت را ببین",
+          "فایل‌ها را مرتب کن", "در شهر تهران روز جمعه جلسه بگذار")  # fmt: skip
     assert all(RT.asks_for_a_routine([s]) for s in yes)
     assert not any(RT.asks_for_a_routine([s]) for s in no)
     nxt = RT.next_run(

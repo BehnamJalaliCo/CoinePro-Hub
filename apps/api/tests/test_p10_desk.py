@@ -535,3 +535,62 @@ async def test_support_draft_and_handoff_through_the_internal_api(
         json={"body_md": MIN_A, "kb_refs": [], "confidence": 0.5},
     )  # fmt: skip
     assert r.status_code == 404
+
+
+def test_only_a_whole_opt_out_message_opts_out() -> None:
+    """«لغو» or "stop" inside a support question is never an opt-out (the customer would
+    get no answer and be dropped from every lifecycle message for good)."""
+    for text in ("لغو", "لغو.", "STOP", "Unsubscribe", "لغو اشتراک", "لطفاً لغو اشتراک",
+                 "stop please", "unsubscribe me", "نمی‌خواهم", "دیگه پیام نده"):  # fmt: skip
+        assert desk.is_opt_out(text), text
+    for text in ("چطور برداشت رو لغو کنم؟", "سفارشم لغو نشد", "چرا معامله لغو شد؟",
+                 "میخوام سفارشم رو لغو کنم", "لغو سفارش", "app won't stop crashing",
+                 "Stop loss کار نمیکنه", "how do I stop the auto renewal", ""):  # fmt: skip
+        assert not desk.is_opt_out(text), text
+
+
+async def test_a_shared_secret_gets_the_safety_line_once(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """The safety line sent after a masked secret is the message itself: it is never
+    composed with a second copy of itself."""
+    co = await new_company()
+    basics = await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    async with holding_switch(su, "released"), fake_telegram():
+        msg = await inbound(hub, co["id"], "شماره کارتم 4111 1111 1111 1111 است")
+        await process(hub, co["id"], msg["message"]["id"])
+    bodies = [
+        r["body"]
+        for r in await su.fetch(
+            """SELECT body FROM support.messages WHERE conversation_id = $1
+                 AND direction = 'out'""",
+            msg["conversation"]["id"],
+        )
+    ]
+    assert sum(b.count(basics["safety"]) for b in bodies) == 1, bodies
+
+
+async def test_a_live_channel_with_auto_send_off_hands_a_faq_match_to_the_owner(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """auto_send `off` sends nothing: a strong FAQ match is recorded as a draft and the
+    conversation waits in the owner's queue, the customer gets the holding reply."""
+    co = await new_company()
+    basics = await seal_basics(hub, co["id"])
+    await article(hub, co["id"], MIN_Q, MIN_A)
+    await make_live(su, co["id"], auto_send="off")
+    async with holding_switch(su, "released"), fake_telegram() as tg:
+        msg = await inbound(hub, co["id"], MIN_Q)
+        out = await process(hub, co["id"], msg["message"]["id"])
+        assert (out.result, out.reason, len(out.queued or [])) == (
+            "handoff", "auto_send_off", 1,
+        ), out  # fmt: skip
+        await send_all(hub, co["id"], out.queued or [])
+    assert len(tg.calls) == 1 and basics["holding_reply"] in tg.calls[0]["text"]
+    assert MIN_A not in tg.calls[0]["text"]
+    drafted = await su.fetchval("SELECT status FROM support.messages WHERE id = $1", out.message_id)
+    state = await su.fetchval(
+        "SELECT state FROM support.conversations WHERE id = $1", msg["conversation"]["id"]
+    )
+    assert (drafted, state) == ("draft", "waiting_owner")

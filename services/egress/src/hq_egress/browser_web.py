@@ -94,7 +94,7 @@ class JobIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account: Account
     recipe: dict[str, Any]
-    prompt: str = Field(min_length=1, max_length=20_000)
+    prompt: str = Field(min_length=1, max_length=200_000)  # substitutes_web.PROMPT_CHARS
     timeout_s: float = Field(gt=0, le=900)
     proxy: Proxy
     max_file_bytes: int = Field(default=25 * 1024 * 1024, ge=1)

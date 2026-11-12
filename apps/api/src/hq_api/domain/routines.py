@@ -28,6 +28,7 @@ from uuid import UUID
 from hq_api.db import Tx
 from hq_api.domain import automations as AU
 from hq_api.domain import order_report as OR
+from hq_api.domain import orders as O
 from hq_api.domain import recurrence
 from hq_api.principal import Principal
 
@@ -41,14 +42,15 @@ NOT_ROUTINE_FA = (
     "خلاصه بده»). قاعده‌ای که با یک رویداد یا عدد شروع میشود یا خط تولید و تبلیغ را تغییر میدهد، "
     "از «خودکارسازی» با مُهر تو ساخته میشود."
 )
-# his own words that ask for something standing: a word of repetition
+# his own words that ask for something standing: a word of repetition, matched as whole words
+# (a bare «مرتب» is not one: it is also "tidy", and it sits inside «مرتبط» and «مرتبه»)
 _WORDS = (
     "هر روز", "هرروز", "روزانه", "هر شب", "هر صبح", "هر هفته", "هفتگی", "هر ماه", "ماهانه",
     "هر ساعت", "ساعتی", "24 ساعته", "شبانه روز", "شبانه‌روز", "دائمی", "دایمی", "همیشه",
-    "روال", "مرتب", "every day", "daily", "every week", "weekly", "hourly", "every hour",
-    "monthly", "24/7",
+    "روال", "مرتباً", "به طور مرتب", "بطور مرتب", "every day", "daily", "every week", "weekly",
+    "hourly", "every hour", "monthly", "24/7",
 )  # fmt: skip
-_EVERY = re.compile(r"هر\s+\S+\s+(?:ساعت|روز|هفته|ماه|دقیقه)")
+_EVERY = re.compile(r"(?<!\w)هر\s+\S+\s+(?:ساعت|روز|هفته|ماه|دقیقه)")
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
@@ -64,9 +66,8 @@ def is_routine(rule: dict[str, Any] | None) -> bool:
 
 
 def asks_for_a_routine(said: list[str]) -> bool:
-    text = " ".join(said).replace("ي", "ی").replace("ك", "ک").translate(_DIGITS).lower()
-    text = " ".join(text.split())
-    return any(w in text for w in _WORDS) or _EVERY.search(text) is not None
+    text = O.normalise(" ".join(said).translate(_DIGITS))
+    return any(O.has(text, w.translate(_DIGITS)) for w in _WORDS) or _EVERY.search(text) is not None
 
 
 def next_run(rrule: str, tz: str, now: datetime | None = None) -> datetime | None:

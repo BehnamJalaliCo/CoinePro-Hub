@@ -18,8 +18,16 @@ fi
 t0="$(date +%s%N)"
 HQ_STT_START=1 "$HQ" up -d --no-deps stt >/dev/null
 echo "container started: $(ms "$t0") ms"
+# Bounded: the one-shot lock is held until this script ends, so a stt that
+# never gets healthy must not keep TTS, media and backups waiting forever.
+deadline=$((SECONDS + 300))
 until HQ_STT_START=1 "$HQ" exec -T stt python -c \
   "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=2)" >/dev/null 2>&1; do
+  if ((SECONDS >= deadline)); then
+    HQ_STT_START=1 "$HQ" stop -t 10 stt >/dev/null 2>&1 || true
+    echo "stt-cold: /health did not answer within 300 s; stt stopped" >&2
+    exit 1
+  fi
   sleep 0.2
 done
 echo "health answers:    $(ms "$t0") ms"

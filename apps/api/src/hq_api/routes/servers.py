@@ -424,7 +424,10 @@ async def runner_events(
         raw = json.loads(await request.body() or b"[]")
     except ValueError as exc:
         raise ApiError(422, "validation_failed", fields={"events": "JSON"}) from exc
-    items = EventsIn.model_validate(raw if isinstance(raw, dict) else {"events": raw}).events
+    try:  # a pydantic ValidationError is a ValueError; unhandled it would be a 500
+        items = EventsIn.model_validate(raw if isinstance(raw, dict) else {"events": raw}).events
+    except ValueError as exc:
+        raise ApiError(422, "validation_failed", fields={"events": str(exc)[:200]}) from exc
     async with hub.db.tx(_scope(r)) as tx:
         j = await _runner_job(tx, r, id)
         _still_running(j)
@@ -450,9 +453,14 @@ async def runner_result(
     """The end of a job: `{exit_code, summary_fa?, usage?, data?, error?}`
     (idempotent). `usage` of a claude job goes into the Token Treasury."""
     async with hub.db.tx(_scope(r)) as tx:
-        j = await _runner_job(tx, r, id)
+        j = await _runner_job(tx, r, id)  # FOR UPDATE: a concurrent retry waits here
         if j["state"] == "cancelled":
             raise ApiError(409, "job_cancelled", "the job was cancelled")
+        # a result for a job already ended (the runner's retry after its read timed out, or a
+        # job the sweep failed) changes nothing, and what follows a job's end has run already:
+        # run again it would deliver the turn's output twice, book its usage twice, repeat a
+        # publish's lines and notifications
+        replay = j["state"] in SV.FINAL
         j = await SV.finish(
             tx,
             hub,
@@ -463,8 +471,8 @@ async def runner_result(
             data=body.data if body.data is not None else body.result,
             error=body.error,
         )
-    if j.get("requeued_as"):
-        # ⟨2026-11-11⟩ the account's usage limit stopped this turn and it runs again on the other
+    if replay or j.get("requeued_as"):
+        # ⟨2026-11-11⟩ also a turn the account's usage limit stopped that runs again on the other
         # account (a new job of the same session and workspace): what follows a turn's end waits
         # for that job
         return {"state": j["state"]}
@@ -935,6 +943,10 @@ async def server_activity(
     """Who did what on the server, newest first: its jobs and every command
     inside its `claude` jobs (masked). `actor`: an employee code or `owner`."""
     after = pagination.decode(cursor, 2)
+    try:  # typed: asyncpg binds by type (the id is text here: a job's, or a job's command)
+        ca = datetime.fromisoformat(str(after[0])) if after else None
+    except ValueError as exc:
+        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
     async with ctx.tx() as tx:
         s = await SV.load_server(tx, id)
         rows = await tx.all(
@@ -943,8 +955,8 @@ async def server_activity(
             actor=actor,
             f=from_,
             t=to,
-            ca=after[0] if after else None,
-            cid=after[1] if after else None,
+            ca=ca,
+            cid=str(after[1]) if after else None,
             lim=limit + 1,
         )
     items, nxt = pagination.page(rows, limit, ("at", "id"))
@@ -1663,8 +1675,20 @@ async def loop(hub: Hub) -> None:
                 from hq_api.domain import session_publish as SPB
 
                 await SPB.after_job(hub, jid)
+                # an inside question's job the sweep failed: its work hears it here, since the
+                # runner's late result is a replay that runs nothing after the end again
+                from hq_api.domain import dispatch
+
+                await dispatch.after_server_job(hub, jid)
             except Exception:  # noqa: BLE001 - one job never stops the sweep
                 log.warning("after_job failed for a swept job", extra={"job": str(jid)})
+            try:
+                # ⟨1.8⟩ a studio item's publish job that timed out: the item is told (no 7-day wait)
+                from hq_api.domain import studio_publish as P
+
+                await P.after_job(hub, jid)
+            except Exception:  # noqa: BLE001 - one job never stops the sweep
+                log.warning("studio after_job failed for a swept job", extra={"job": str(jid)})
         # ⟨§46⟩ publications IG-Hub still holds (set for a time, or being prepared) are asked about
         with contextlib.suppress(Exception):
             from hq_api.domain import session_publish as SPB

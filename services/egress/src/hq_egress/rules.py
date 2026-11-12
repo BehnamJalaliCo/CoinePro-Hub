@@ -162,6 +162,17 @@ def secret_field(facts: dict[str, Any]) -> bool:
     return bool(SECRET_FIELDS.search(names))
 
 
+def _path(url: str) -> str:
+    """The decoded path of `url` ("" if it does not parse)."""
+    try:
+        path = urlsplit(url).path
+    except ValueError:
+        return ""
+    for _ in range(3):  # however it is percent-encoded
+        path = unquote(path)
+    return path
+
+
 def get_commitment(url: str) -> str | None:
     """Why a GET of `url` is an external commitment, or None (reading)."""
     try:
@@ -169,9 +180,7 @@ def get_commitment(url: str) -> str | None:
     except ValueError:
         return None
     host = (parts.hostname or "").lower().rstrip(".")
-    path = parts.path or "/"
-    for _ in range(3):  # however it is percent-encoded
-        path = unquote(path)
+    path = _path(url) or "/"
     if GET_HOSTS.search(host):
         return "webhook_trigger"
     m = GET_PATHS.search(path)
@@ -223,7 +232,9 @@ def commitment(facts: dict[str, Any], action: str) -> str | None:
         return _form_submit(form, page)
     if tag == "a":
         absolute = str(facts.get("abs_href") or "")
-        if PATHS.search(href) or STRONG.search(label):
+        # The resolved path too: a relative href ("subscribe?list=7") has no
+        # leading slash for PATHS to see.
+        if PATHS.search(href) or PATHS.search(_path(absolute)) or STRONG.search(label):
             return "commitment_link"
         if get_commitment(href) or get_commitment(absolute):
             return "commitment_link"

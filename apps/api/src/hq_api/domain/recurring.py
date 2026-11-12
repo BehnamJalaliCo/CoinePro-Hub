@@ -69,15 +69,17 @@ async def create_run(
     tx: Tx, template_id: Any, occurrence_at: datetime, who: Principal
 ) -> dict[str, Any] | None:
     t = await tx.one(
-        """SELECT w.*, c.code AS company, e.token_cap_per_run, e.expires_at, e.status AS escrow_status
+        """SELECT w.*, c.code AS company, e.token_cap_per_run, e.expires_at, e.status AS escrow_status,
+                  s.rrule AS sc_rrule, s.timezone AS sc_timezone
            FROM work.work w JOIN core.companies c ON c.id = w.company_id
-           JOIN work.escrows e ON e.work_id = w.id WHERE w.id = :w""",
+           JOIN work.escrows e ON e.work_id = w.id
+           LEFT JOIN work.schedules s ON s.work_id = w.id WHERE w.id = :w""",
         w=template_id,
     )
     if (
         t["escrow_status"] != "active"
         or occurrence_at > t["expires_at"]
-        or t["status"] in ("cancelled", "failed")
+        or t["status"] in ("done", "cancelled", "failed")  # a closed order: no run
     ):
         return None
     row = await tx.first(
@@ -105,7 +107,7 @@ async def create_run(
     await tx.exec(
         "UPDATE work.schedules SET last_run_at = now(), next_at = :n WHERE work_id = :w",
         w=template_id,
-        n=occurrence_at,
+        n=_upcoming(t, occurrence_at),
     )
     await tx.exec(
         """INSERT INTO work.work_events (work_id, company_id, kind, actor_kind, actor_code, data)
@@ -124,6 +126,20 @@ async def create_run(
         {"recurrence_of": t["ref"], "occurrence_at": occurrence_at.isoformat()},
     )
     return row
+
+
+def _upcoming(t: dict[str, Any], occurrence_at: datetime) -> datetime | None:
+    """The schedule's next run as the work shows it: the occurrence just made while it is still
+    ahead, else the rule's next one after now (none past the escrow or the rule's end)."""
+    now = datetime.now(UTC)
+    if occurrence_at > now:
+        return occurrence_at
+    if not t.get("sc_rrule"):
+        return None
+    after = recurrence.next_at(
+        recurrence.parse(t["sc_rrule"]), t["sc_timezone"], now + timedelta(seconds=1)
+    )
+    return after if after is not None and after <= t["expires_at"] else None
 
 
 async def end(tx: Tx, template_id: Any) -> None:

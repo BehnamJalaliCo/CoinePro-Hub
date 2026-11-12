@@ -40,6 +40,26 @@ def test_the_pace_is_read_from_the_owners_words() -> None:
     assert "END" in O.pace_brief("F-0001", "auto") and "F-0001" in O.pace_brief("F-0001", "auto")
 
 
+def test_an_open_turn_keeps_the_first_and_the_newest_ask() -> None:
+    """Audit: the 11th ask in one open turn was dropped (asks[:10]), so its asker was never woken."""
+
+    def a(code: str, q: str) -> dict[str, Any]:
+        return {"question_fa": q, "by": {"kind": "agent", "code": code}}
+
+    asks = [a(f"X-{i}", f"q{i}") for i in range(11)]
+    kept = OT.keep_asks(asks)
+    assert len(kept) == OT.MAX_ASKS
+    assert kept[0]["by"]["code"] == "X-0" and kept[-1]["by"]["code"] == "X-10"
+    assert "X-10" in OT._asker_codes({**kept[0], "asks": kept})
+    # an asker's repeated ask goes first, so every distinct asker still stays
+    asks = [a("X-0", "q0"), a("X-1", "q1"), a("X-1", "q1b")]
+    asks += [a(f"X-{i}", f"q{i}") for i in range(2, 10)]
+    kept = OT.keep_asks(asks)
+    assert len(kept) == OT.MAX_ASKS
+    assert {k["by"]["code"] for k in kept} == {f"X-{i}" for i in range(10)}
+    assert [k["question_fa"] for k in kept if k["by"]["code"] == "X-1"] == ["q1b"]
+
+
 async def test_the_owners_chosen_pace_wins_over_the_words(
     client: httpx.AsyncClient,
     owner: dict[str, str],

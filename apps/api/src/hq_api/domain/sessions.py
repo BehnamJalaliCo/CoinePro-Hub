@@ -521,6 +521,14 @@ async def cards(
     """GET /sessions (and the office): open sessions by badge (your_turn, ready, stuck, moving),
     each newest `last_at` first; hidden ones only with `all`."""
     after = pagination.decode(cursor, 3)
+    rank: int | None = None
+    la: datetime | None = None
+    if after:
+        # typed values (asyncpg binds by type): the cursor carries the time as text
+        try:
+            rank, la = int(after[0]), datetime.fromisoformat(str(after[1]))
+        except (TypeError, ValueError) as exc:
+            raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
     rows = await tx.all(
         """SELECT r.*, CASE r.badge WHEN 'your_turn' THEN 1 WHEN 'ready' THEN 2 WHEN 'stuck' THEN 3
                                    WHEN 'moving' THEN 4 ELSE 5 END AS rank,
@@ -537,9 +545,9 @@ async def cards(
                      > (CAST(:rank AS int), -extract(epoch FROM CAST(:la AS timestamptz)), CAST(:id AS text)))
            ORDER BY rank, last_at DESC, r.id::text LIMIT :lim""",
         st=state,
-        rank=int(after[0]) if after else None,
-        la=after[1] if after else None,
-        id=after[2] if after else None,
+        rank=rank,
+        la=la,
+        id=str(after[2]) if after else None,
         lim=limit + 1,
     )
     items, nxt = pagination.page([dict(r) for r in rows], limit, ("rank", "last_at", "id"))

@@ -669,6 +669,56 @@ async def test_the_web_path_does_nothing_while_the_holding_is_locked(hub: Hub, s
         )
 
 
+async def test_a_web_call_that_lost_its_pass_fails_and_the_queue_moves_on(
+    hub: Hub, su: Any
+) -> None:
+    """A web call left 'running' (the worker restarted while egress had it) blocked its
+    player's web queue forever; past its timeout and the grace it fails with `timeout`."""
+    async with bench(su, hub, web=("deepseek",)):
+        await su.execute("UPDATE substitutes.seats SET per_day = 1000 WHERE player = 'deepseek'")
+        holding = await hub.companies.holding()
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            lost = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال اول",
+                                     company_id=holding.id)  # fmt: skip
+            nxt = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال دوم",
+                                    company_id=holding.id)  # fmt: skip
+        await su.execute(
+            """UPDATE substitutes.calls SET state = 'running',
+                   claimed_at = now() - make_interval(secs => timeout_s + $2 + 60) WHERE id = $1""",
+            lost["id"],
+            S.WEB_STALE_GRACE_S,
+        )
+        fake = FakeEgress({"ok": True, "text_md": "پاسخ فارسی کوتاه است."})
+        out = await S.web_jobs(hub, fake)
+        assert out["ran"] == 1 and "سوال دوم" in fake.calls[0]["prompt"]
+        row = await su.fetchrow(
+            "SELECT state, state_reason, input_md FROM substitutes.calls WHERE id = $1", lost["id"]
+        )
+        assert (row["state"], row["state_reason"], row["input_md"]) == ("failed", "timeout", None)
+        assert await su.fetchval(
+            "SELECT state FROM substitutes.calls WHERE id = $1", nxt["id"]
+        ) in ("done", "failed")
+        await su.execute(
+            "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
+        )
+        await su.execute(
+            "UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'"
+        )
+
+
+def test_an_agent_call_that_ends_inside_the_routes_wait_is_left_to_the_route() -> None:
+    """substitute.call answers inline what ends within its wait: no reply work as well
+    (deliver_late() sends it when the route did not take it)."""
+    from types import SimpleNamespace
+
+    now = datetime.now(UTC)
+    waiting = SimpleNamespace(settings=SimpleNamespace(substitute_wait_s=6))
+    assert S._inline_window(waiting, {"created_at": now - timedelta(seconds=2)})
+    assert not S._inline_window(waiting, {"created_at": now - timedelta(seconds=30)})
+    no_wait = SimpleNamespace(settings=SimpleNamespace(substitute_wait_s=0))
+    assert not S._inline_window(no_wait, {"created_at": now})
+
+
 def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) -> None:
     overlay = {"title_fa": "دوره‌ی آموزش رایگان فارکس", "body_fa": "ثبت‌نام از امروز برای همه باز است",
                "cta_fa": "همین حالا", "mark": True}  # fmt: skip
@@ -696,6 +746,42 @@ def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) ->
     # No text is ever asked of the image model.
     assert "Do not put any text" in S.template_prompt("بنر", "banner", "image", None)
     assert re.search(r"aspect 9:16", S.template_prompt("استوری", "instagram_story", "image", None))
+
+
+async def test_a_failed_overlay_render_stores_nothing_and_leaves_no_scratch(
+    hub: Hub, new_company: Callable[..., Any], monkeypatch: Any
+) -> None:
+    """A render that fails commits no original without a files row, and the clean
+    image's scratch copies (original, agent, thumb) are removed."""
+    co = await new_company()
+    handed: list[Any] = []
+    committed: list[Any] = []
+    scratch, commit = hub.storage.scratch, hub.storage.commit
+
+    def tracked() -> Any:
+        handed.append(scratch())
+        return handed[-1]
+
+    async def counted(tmp: Any) -> tuple[str, str, int]:
+        committed.append(tmp)
+        return await commit(tmp)
+
+    async def broken(*_: Any, **__: Any) -> Any:
+        raise O.Refused("the overlay could not be rendered (test)")
+
+    monkeypatch.setattr(hub.storage, "scratch", tracked)
+    monkeypatch.setattr(hub.storage, "commit", counted)
+    monkeypatch.setattr(O, "render_png", broken)
+    creative = {"kind": "image", "company_id": co["id"], "overlay": {"title_fa": "عنوان"},
+                "placement": "instagram_post", "ref": "CR-000001"}  # fmt: skip
+    try:
+        await O.store_result(hub, creative, base64.b64decode(png()), "image.png")
+    except O.Refused:
+        pass
+    else:
+        raise AssertionError("the render failure must reach the caller")
+    assert committed == []
+    assert handed and not [p for p in handed if p.exists()]
 
 
 async def test_a_second_review_waits_for_the_cto_and_approval_is_the_same_without_it(
@@ -806,3 +892,54 @@ async def test_a_player_that_does_not_take_the_seat_is_the_callers_mistake(
         assert r.status_code == 422, r.text
         assert r.json()["fields"] == {"player": "not a holder of this seat"}
         assert r.json()["message_fa"]
+
+
+async def test_a_web_call_skipped_after_queued_still_answers_the_agent(
+    client: httpx.AsyncClient, hub: Hub, su: Any
+) -> None:
+    """An agent's call that said `queued` and then met an expired profile hears why as a work
+    item (it sleeps until one comes; nothing sweeps its calls), as a failed call does."""
+    pa = await agent_headers("HQ-PA")
+    async with bench(su, hub, web=("gpt",)):
+        await per_day(su, "gpt", "assistant_errand", 5)
+        r = await client.post(
+            "/internal/v1/substitutes/call", headers=pa,
+            json={"seat": "assistant_errand", "input_md": "این متن را خلاصه کن: هفته خوب بود."},
+        )  # fmt: skip
+        assert r.status_code == 200 and r.json()["state"] == "queued", r.text
+        call = r.json()["call"]
+        await su.execute(
+            "UPDATE substitutes.players SET web_state = 'expired' WHERE player = 'gpt'"
+        )
+        fake = FakeEgress()
+        await S.web_jobs(hub, fake)
+        assert fake.calls == []  # skipped without egress
+        row = await su.fetchrow(
+            "SELECT state, state_reason, delivered_at FROM substitutes.calls WHERE id = $1::uuid",
+            call,
+        )
+        assert (row["state"], row["state_reason"]) == ("skipped", "expired") and row["delivered_at"]
+        reply = await su.fetchrow(
+            """SELECT w.brief, e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
+               JOIN substitutes.calls c ON c.reply_work_id = w.id WHERE c.id = $1::uuid""",
+            call,
+        )
+        assert reply["code"] == "HQ-PA" and "was skipped: expired" in reply["brief"]
+
+
+async def test_files_for_a_seat_on_the_cli_are_refused_never_dropped(
+    client: httpx.AsyncClient, hub: Hub, su: Any
+) -> None:
+    """The CLI runner takes the question's text only: a call with files is the caller's 422,
+    never a queued call whose files nobody sees."""
+    pa = await agent_headers("HQ-PA")
+    async with bench(su, hub, cli=("gpt",)):
+        await per_day(su, "gpt", "assistant_errand", 5)
+        r = await client.post(
+            "/internal/v1/substitutes/call", headers=pa,
+            json={"seat": "assistant_errand", "input_md": "این تصویر را توضیح بده.",
+                  "file_ids": ["00000000-0000-4000-8000-000000000001"]},
+        )  # fmt: skip
+        assert r.status_code == 422, r.text
+        assert "file_ids" in r.json()["fields"]
+        assert (await claim(client))["job"] is None

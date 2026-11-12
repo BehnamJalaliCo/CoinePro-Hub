@@ -420,6 +420,30 @@ async def test_a_purchase_becomes_a_decision_and_nothing_happens_without_the_sea
     )
 
 
+async def test_the_owners_decision_on_a_full_errand_adds_no_201st_step(su: Any, hub: Any) -> None:
+    """An errand at 200 steps (the CHECK) waits for the owner: his decision goes through, the
+    note is left out instead of breaking the CHECK and rolling the decision back."""
+    from hq_api.domain import errands as E
+
+    holding = await hub.companies.holding()
+    full = [{"at": "2026-01-01T00:00:00+00:00", "kind": "note", "summary_fa": "گام"}] * E.MAX_STEPS
+    ref = await su.fetchval(
+        """INSERT INTO owner.errands (company_id, title_fa, brief_md, source, status, steps)
+           VALUES ($1, 'کار پر', 'شرح', 'text', 'waiting_owner', $2::jsonb) RETURNING ref""",
+        holding.id,
+        json.dumps(full, ensure_ascii=False),
+    )
+    # the errand's decision_id is NULL: a decision with id None is "its" decision here
+    d = {"id": None, "ref": "D-TEST", "payload": {"errand": ref}}
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await E.on_decided(tx, d, "approved")
+    row = await su.fetchrow(
+        "SELECT status, jsonb_array_length(steps) AS n FROM owner.errands WHERE ref = $1", ref
+    )
+    assert row["status"] == "working" and row["n"] == E.MAX_STEPS
+    await su.execute("UPDATE owner.errands SET status = 'cancelled' WHERE ref = $1", ref)
+
+
 async def test_a_reminder_appears_in_the_owners_planner(
     client: httpx.AsyncClient, owner: dict[str, str], su: Any
 ) -> None:

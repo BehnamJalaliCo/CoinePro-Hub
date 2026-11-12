@@ -222,6 +222,8 @@ def validate_batch(doc: Any) -> LedgerBatch:
     has_more = doc.get("has_more", False)
     if not isinstance(has_more, bool):
         raise _break(None, None, "has_more")
+    if has_more and cursor is None:  # a next page with nowhere to start it would loop
+        raise _break(None, None, "has_more بدون next_cursor")
     columns: dict[str, dict[str, Any]] = spec["columns"]
     out: list[LedgerRow] = []
     seen: set[str] = set()
@@ -555,10 +557,18 @@ async def collect(tx: Tx, src: dict[str, Any], job: dict[str, Any]) -> dict[str,
         return out
     out["ingested"] = await ingest(tx, src, batch)
     out["rows"] = len(batch.rows)
-    out["has_more"] = batch.has_more
     cursor = batch.next_cursor if batch.next_cursor is not None else src["cursor"]
-    await mark(tx, src, error_fa=None, read=True, cursor=cursor)
     out["cursor"] = cursor
+    if batch.has_more and cursor == src["cursor"]:
+        # the same page again would be asked for ever: stop paging, the source shows why
+        out["error"] = (
+            "دفتر گفت صفحه‌ی بعدی هست ولی next_cursor جلو نرفت؛ خواندن متوقف شد. "
+            "شرط زمان در ledger.sql باید «paid_at > :since» باشد."
+        )
+        await mark(tx, src, error_fa=out["error"], read=True, cursor=cursor)
+        return out
+    out["has_more"] = batch.has_more
+    await mark(tx, src, error_fa=None, read=True, cursor=cursor)
     return out
 
 

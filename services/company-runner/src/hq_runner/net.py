@@ -33,6 +33,9 @@ log = logging.getLogger("hq_runner.net")
 PROBE_TIMEOUT_S = 3.0
 RETRY_PRIVATE_EVERY_S = 300.0
 RTT_EVERY_S = 30.0
+# a client left behind by a route swap is closed only this long after it: the jobs share one
+# client, and one of them may be in the middle of an upload (600 s) or a long download
+RETIRED_CLOSE_AFTER_S = 3600.0
 
 
 class PinnedAsyncBackend(httpcore.AsyncNetworkBackend):
@@ -240,6 +243,7 @@ class Route:
         _, self.host, self.port = hub_parts(self.hub)
         self.state = RouteState(via="public", pinned_ip=None, rtt_ms=None)
         self._client: httpx.AsyncClient | None = None
+        self._retired: list[tuple[float, httpx.AsyncClient]] = []
         self._selected_at = -1e18
         self._rtt_at = -1e18
 
@@ -289,12 +293,27 @@ class Route:
         if changed:
             old, self._client = self._client, None
             if old is not None:
-                await old.aclose()
+                # new requests take the new client; the old one is not closed under the
+                # requests other jobs still have on it
+                self._retired.append((self.clock(), old))
+        await self._close_retired()
+
+    async def _close_retired(self, everything: bool = False) -> None:
+        now = self.clock()
+        keep: list[tuple[float, httpx.AsyncClient]] = []
+        for at, client in self._retired:
+            if everything or now - at >= RETIRED_CLOSE_AFTER_S:
+                with contextlib.suppress(Exception):
+                    await client.aclose()
+            else:
+                keep.append((at, client))
+        self._retired = keep
 
     async def refresh(self) -> None:
         """Called before each poll: measures the round trip now and then and
         moves back to the private route when it answers again."""
         now = self.clock()
+        await self._close_retired()
         if (
             self.hub_ip
             and self.state.pinned_ip is None
@@ -330,6 +349,7 @@ class Route:
         return self._client
 
     async def aclose(self) -> None:
+        await self._close_retired(everything=True)
         if self._client is not None:
             await self._client.aclose()
             self._client = None

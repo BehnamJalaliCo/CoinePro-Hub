@@ -269,13 +269,15 @@ def _hex(h: str) -> str:
 
 
 def _hsl(h: float, s: float, light: float) -> str:
-    s, light = s / 100, light / 100
+    # CSS clamps an out-of-range saturation or lightness; so do we, or a
+    # channel leaves 0..255 and the hex is malformed (off_palette).
+    s, light = min(1.0, max(0.0, s / 100)), min(1.0, max(0.0, light / 100))
     c = (1 - abs(2 * light - 1)) * s
     x = c * (1 - abs((h / 60) % 2 - 1))
     m = light - c / 2
     seg = int((h % 360) // 60)
     r, g, b = [(c, x, 0), (x, c, 0), (0, c, x), (0, x, c), (x, 0, c), (c, 0, x)][seg]
-    return "#" + "".join(f"{round((v + m) * 255):02x}" for v in (r, g, b))
+    return "#" + "".join(f"{round(min(1.0, max(0.0, v + m)) * 255):02x}" for v in (r, g, b))
 
 
 def _check_html(rep: Report, source: str, allowed: set[str] | None) -> None:
@@ -424,20 +426,24 @@ def _lottie_color(rep: Report, k: list[Any]) -> None:
 def off_palette(colors: list[str], palette: list[str], tolerance: float = 6.0) -> list[str]:
     """The composition's colours that are not the brand's (within a small
     distance in RGB, so an anti-aliased or rounded hex still counts)."""
-    pal = [_rgb(p) for p in {*(c.lower() for c in palette if c), *NEUTRAL}]
+    pal = [p for p in map(_rgb, {*(c.lower() for c in palette if c), *NEUTRAL}) if p is not None]
     out = []
     for c in colors:
         if c.startswith("named:"):
             out.append(c)
             continue
         rgb = _rgb(c)
-        if not any(
+        if rgb is None or not any(
             sum((a - b) ** 2 for a, b in zip(rgb, p, strict=True)) ** 0.5 <= tolerance for p in pal
         ):
             out.append(c)
     return sorted(set(out))
 
 
-def _rgb(h: str) -> tuple[int, int, int]:
-    h = _hex(h.lstrip("#"))
+def _rgb(h: str) -> tuple[int, int, int] | None:
+    """The colour's channels, or None for a value that is not a hex colour (a
+    stored report from an older check, a malformed brand entry): off-palette."""
+    h = _hex(h.strip().lstrip("#"))
+    if not re.fullmatch(r"#[0-9a-f]{6}", h):
+        return None
     return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)

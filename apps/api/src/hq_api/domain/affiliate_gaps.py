@@ -89,6 +89,12 @@ def month_start(d: date) -> date:
     return d.replace(day=1)
 
 
+def year_back(d: date) -> date:
+    """The first of the same month a year earlier (the day goes first: 29
+    February has no date in the year before)."""
+    return d.replace(day=1, year=d.year - 1)
+
+
 def next_month(d: date) -> date:
     return (d.replace(day=28) + timedelta(days=4)).replace(day=1)
 
@@ -168,7 +174,7 @@ async def listing(
 ) -> list[SalesAffiliateGap]:
     cfg = settings()
     today = today or datetime.now(UTC).date()
-    since = month_start(today.replace(year=today.year - 1))
+    since = year_back(today)
     out: list[SalesAffiliateGap] = []
     for r in await figures(tx, company_id, None, since, next_month(today)):
         state, gap, pct, settle = judge(r, today, cfg)
@@ -287,7 +293,7 @@ async def scan(hub: Any, ask: Ask | None = None, now: datetime | None = None) ->
     async with hub.db.tx(await hub.companies.ids()) as tx:
         if await gate.holding_lock(tx) is not None:
             return out
-        since = month_start(today.replace(year=today.year - 1))
+        since = year_back(today)
         for r in await figures(tx, None, None, since, next_month(today)):
             state, gap, pct, _ = judge(r, today, cfg)
             g = await stored(tx, r["account_id"], r["month"])
@@ -348,7 +354,7 @@ async def _close(tx: Tx, g: dict[str, Any], r: dict[str, Any], gap: Decimal, pct
 
 
 async def receive(
-    hub: Any,
+    tx: Tx,
     who: Principal,
     *,
     account_id: Any,
@@ -356,36 +362,37 @@ async def receive(
     received_usdt: Decimal,
     note_fa: str | None,
 ) -> SalesAffiliateReceipt:
-    """Record what arrived for an account's month and close its gap if that settles it."""
+    """Record what arrived for an account's month and close its gap if that settles it.
+    Runs in the caller's transaction (the route claims its Idempotency-Key in the same one,
+    so a retried request never books the money twice)."""
     if month != month_start(month):
         raise ApiError(422, "validation_failed", fields={"month": "the first of a month"})
-    async with hub.db.tx(await hub.companies.ids()) as tx:
-        acc = await tx.first(
-            "SELECT a.id, a.company_id, a.exchange, a.service_account, c.code AS company "
-            "FROM revenue.accounts a JOIN core.companies c ON c.id = a.company_id WHERE a.id = :i",
-            i=account_id,
-        )
-        if acc is None:
-            raise ApiError(404, "not_found", message_fa="این حساب پیدا نشد.")
-        row = await tx.one(
-            """INSERT INTO sales.affiliate_receipts (company_id, account_id, month, received_usdt, note_fa,
-                   by_kind, by_code) VALUES (:co, :a, :m, :r, :n, :bk, :bc) RETURNING at""",
-            co=acc["company_id"], a=acc["id"], m=month, r=received_usdt,
-            n=(note_fa or None), bk=who.kind, bc=who.code,
-        )  # fmt: skip
-        await audit.record(
-            tx, who, company_id=acc["company_id"], action="affiliate.receipt", action_class="A1",
-            target_kind="affiliate_account", target_ref=f"{acc['service_account']}:{month.isoformat()[:7]}",
-            summary=f"received {received_usdt}",
-        )  # fmt: skip
-        g = await stored(tx, acc["id"], month)
-        if g is not None and g["state"] == "open":
-            cfg = settings()
-            for r in await figures(tx, None, acc["id"], month, next_month(month)):
-                state, gap, pct, _ = judge(r, datetime.now(UTC).date(), cfg)
-                if state == "ok":
-                    await _close(tx, g, r, gap, pct)
-        return SalesAffiliateReceipt(
-            company=acc["company"], account=acc["service_account"], month=month,
-            received_usdt=received_usdt, note_fa=note_fa, at=row["at"],
-        )  # fmt: skip
+    acc = await tx.first(
+        "SELECT a.id, a.company_id, a.exchange, a.service_account, c.code AS company "
+        "FROM revenue.accounts a JOIN core.companies c ON c.id = a.company_id WHERE a.id = :i",
+        i=account_id,
+    )
+    if acc is None:
+        raise ApiError(404, "not_found", message_fa="این حساب پیدا نشد.")
+    row = await tx.one(
+        """INSERT INTO sales.affiliate_receipts (company_id, account_id, month, received_usdt, note_fa,
+               by_kind, by_code) VALUES (:co, :a, :m, :r, :n, :bk, :bc) RETURNING at""",
+        co=acc["company_id"], a=acc["id"], m=month, r=received_usdt,
+        n=(note_fa or None), bk=who.kind, bc=who.code,
+    )  # fmt: skip
+    await audit.record(
+        tx, who, company_id=acc["company_id"], action="affiliate.receipt", action_class="A1",
+        target_kind="affiliate_account", target_ref=f"{acc['service_account']}:{month.isoformat()[:7]}",
+        summary=f"received {received_usdt}",
+    )  # fmt: skip
+    g = await stored(tx, acc["id"], month)
+    if g is not None and g["state"] == "open":
+        cfg = settings()
+        for r in await figures(tx, None, acc["id"], month, next_month(month)):
+            state, gap, pct, _ = judge(r, datetime.now(UTC).date(), cfg)
+            if state == "ok":
+                await _close(tx, g, r, gap, pct)
+    return SalesAffiliateReceipt(
+        company=acc["company"], account=acc["service_account"], month=month,
+        received_usdt=received_usdt, note_fa=note_fa, at=row["at"],
+    )  # fmt: skip

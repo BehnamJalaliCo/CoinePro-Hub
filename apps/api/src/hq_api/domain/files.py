@@ -284,7 +284,11 @@ async def document_done(
     tx: Tx, file_id: UUID, status: str, text: str | None, error: str | None, *, count: bool = True
 ) -> None:
     """The second transaction: `ready` (with or without text) or `failed`.
-    `count`: this is an attempt of its own (the worker counted it at its start)."""
+    `count`: this is an attempt of its own (the worker counted it at its start).
+    A NUL (pypdf gives one for a font with no ToUnicode map) cannot be stored
+    in a Postgres text: it is dropped, or the write fails on every attempt."""
+    if text:
+        text = text.replace("\x00", "")
     await tx.exec(
         """UPDATE files.processing SET status = :st, text = :t, error = :e,
                attempts = attempts + CAST(:n AS int), updated_at = now()

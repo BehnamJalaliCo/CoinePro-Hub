@@ -27,7 +27,6 @@
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-ensure_env
 
 T="$(mktemp -d)"
 NAME="hq-infra-$$"
@@ -40,6 +39,15 @@ cleanup() {
   if [[ -n "${QUALITY_TMP:-}" ]]; then rm -rf "$QUALITY_TMP"; fi
 }
 trap cleanup EXIT
+# Always a throwaway secrets file, never the server's .env (not ensure_env):
+# hq.sh and memory-budget.sh read every opt-in switch (HQ_MEDIA, HQ_SUBSTITUTES,
+# ...) and MEM_* limit the host has there, so on the hub a test that turns one
+# switch on would also see the others and fail falsely (lean+media over the
+# budget refuses HQ_OCR first). Each test sets only the switch it is about.
+"$REPO_DIR/infra/compose/gen-env.sh" --output "$T/.env" >/dev/null
+export HQ_ENV_FILE="$T/.env"
+unset HQ_PROFILE HQ_SITE_ADDRESS HQ_STT HQ_STT_START HQ_TTS HQ_MEDIA HQ_OCR HQ_MCP HQ_SUBSTITUTES \
+  HQ_SUBSTITUTES_WEB HQ_AUTOMATIONS HQ_NEWSLETTER HQ_PROVISIONING HQ_TRACING
 failed=0
 pass() { echo "infra: ok   $*"; }
 fail() { echo "infra: FAIL $*" >&2; failed=1; }
@@ -412,7 +420,7 @@ else
 fi
 # Over the budget (a limit far too large for this test): refused, never by accident.
 big_env="$T/stt-big.env"
-cp "${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}" "$big_env"
+cp "$HQ_ENV_FILE" "$big_env"
 printf 'MEM_STT=%s\n' 64g >>"$big_env"
 refusal="$(HQ_ENV_FILE="$big_env" HQ_PROFILE=full HQ_STT=on "$HQ" --dry-run up --no-start 2>&1)" && hq_rc=0 || hq_rc=$?
 rendered="$(HQ_ENV_FILE="$big_env" HQ_PROFILE=full HQ_STT=on "$HQ" config --format json 2>"$T/stt-warn")" &&

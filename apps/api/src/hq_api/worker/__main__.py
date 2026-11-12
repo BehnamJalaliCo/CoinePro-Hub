@@ -56,13 +56,45 @@ async def refresh_secrets(hub: Hub, bao: OpenBaoClient | None) -> None:
         # Nothing to refresh; never end (main stops when any task ends).
         await asyncio.Event().wait()
         return
-    while True:
-        await asyncio.sleep(SECRETS_REFRESH_S)
-        try:
-            hub.secrets = await secret_store.load(bao, api_config=False, runtime=True)
-        except OpenBaoError:
-            continue
-        hub.channels = None  # rebuilt lazily with the new credentials
+    retired: Any = None  # the channels swapped out last time, closed one cycle later
+    try:
+        while True:
+            await asyncio.sleep(SECRETS_REFRESH_S)
+            if retired is not None:
+                # Its in-flight pushes (10 s client timeout) ended long ago.
+                await _close_channels(retired)
+                retired = None
+            try:
+                fresh = await secret_store.load(bao, api_config=False, runtime=True)
+            except OpenBaoError:
+                continue
+            changed = push_credentials(fresh) != push_credentials(hub.secrets)
+            hub.secrets = fresh
+            if changed and hub.channels is not None:
+                # The channels read hub.secrets on every send; only FCM's cached access
+                # token belongs to the old service account, so rebuild them lazily.
+                retired, hub.channels = hub.channels, None
+    finally:
+        if retired is not None:
+            await _close_channels(retired)
+
+
+def push_credentials(s: Secrets) -> tuple[Any, ...]:
+    """What the push channels are built from; a refresh rebuilds them only on a change."""
+    return (
+        s.vapid_private_pem,
+        s.vapid_public_key,
+        s.vapid_subject,
+        s.fcm_service_account,
+        s.telegram_bot_token,
+        s.telegram_chat_id,
+    )
+
+
+async def _close_channels(channels: Any) -> None:
+    if hasattr(channels, "aclose"):
+        with contextlib.suppress(Exception):
+            await channels.aclose()
 
 
 def health(hub: Hub, client: Client) -> Any:

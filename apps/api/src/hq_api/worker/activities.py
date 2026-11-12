@@ -12,6 +12,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from temporalio import activity
 from temporalio.client import Client
@@ -787,6 +788,9 @@ class Activities:
         seen), never the owner's, and no voice of it; the owner's morning is
         the home's five lines (home.morning_lines)."""
         now = datetime.now(UTC)
+        resumed = await self._resume_morning_report(now)
+        if resumed is not None:
+            return resumed
         async with self._tx() as tx:
             tz = (
                 await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
@@ -930,6 +934,68 @@ class Activities:
             "deliverable": dl["ref"],
             "rewritten": link if link != dl["ref"] else None,
             "work": w["ref"],
+            "rhythm": _plain(rhythm),
+        }
+
+    async def _resume_morning_report(self, now: datetime) -> dict[str, Any] | None:
+        """Today's report already exists (a retry after the first commit, or a second run):
+        finish what an earlier attempt may not have reached - its notification (none yet
+        for any of its deliverables) and the rhythm flush (none since the report)."""
+        async with self._tx() as tx:
+            tz = (
+                await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran"
+            )
+            today = now.astimezone(ZoneInfo(tz)).date()
+            holding = await self.hub.companies.holding()
+            w = await tx.first(
+                "SELECT id, ref, created_at FROM work.work WHERE company_id = :co AND title = :t",
+                co=holding.id,
+                t=report.work_title(today),
+            )
+            if w is None:
+                return None
+            # the rewrite (if any) is the newest; the notification links to it
+            dl = await tx.first(
+                """SELECT ref, summary FROM cartable.deliverables WHERE work_id = :w
+                   ORDER BY created_at DESC, ref DESC LIMIT 1""",
+                w=w["id"],
+            )
+            notified = dl is None or bool(
+                await tx.scalar(
+                    """SELECT 1 FROM notify.notifications n
+                       JOIN cartable.deliverables d ON d.ref = n.link_ref AND d.work_id = :w
+                       WHERE n.link_kind = 'deliverable' AND n.source_code = 'morning-report'
+                       LIMIT 1""",
+                    w=w["id"],
+                )
+            )
+            raised = not notified
+            if raised and dl is not None:
+                await notify.raise_notification(
+                    tx,
+                    company_id=holding.id,
+                    company_code=holding.code,
+                    level="report",
+                    title_fa=report.title(today),
+                    body_fa=dl["summary"] or "",
+                    link_kind="deliverable",
+                    link_ref=dl["ref"],
+                    source_kind="system",
+                    source_code="morning-report",
+                    domain="infra",
+                    routed_to=await routing.aiops_head(tx),
+                )
+            flushed = await tx.scalar(
+                """SELECT 1 FROM notify.digest_batches
+                   WHERE reason = 'rhythm' AND sent_at >= :since LIMIT 1""",
+                since=w["created_at"],
+            )
+        rhythm = await notify.flush_rhythm(self.hub) if raised or not flushed else None
+        return {
+            "created": False,
+            "reason": "already sent today",
+            "work": w["ref"],
+            "notified": raised,
             "rhythm": _plain(rhythm),
         }
 
@@ -1157,6 +1223,10 @@ class Activities:
             # workspaces of closed works get their close (told to the runner on its next poll)
             out["splits"] = await SP.sweep(tx)
             out["workspaces_closed"] = await WS.sweep(tx)
+            # an agent's substitute.call that ended inside the route's wait, not answered inline
+            from hq_api.domain import substitutes as SUB
+
+            out["substitute_replies"] = await SUB.deliver_late(tx, self.hub)
             return out
 
     @activity.defn(name="secretary_tick")

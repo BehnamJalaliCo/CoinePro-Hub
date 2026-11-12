@@ -101,6 +101,10 @@ def test_output_kinds_counts_and_budgets_are_data() -> None:
     assert D.output_of(norm("یک استوری"))[:2] == ("story", 1)
     assert D.output_of(norm("گزارش فروش"))[:2] == ("report", None)
     assert D.output_of(norm("کاری بکن"))[:2] == ("other", None)
+    # a year or a figure over the cap is no count (Route.count would refuse it: 500)
+    assert D.output_of(norm("سال ۱۴۰۵ برنامه بازاریابی بنویس"))[:2] == ("plan", None)
+    assert D.output_of(norm("برای ۱۲۰ پست کپشن بنویس"))[:2] == ("post", None)
+    assert D.output_of(norm("۱۰۰ پست بنویس"))[:2] == ("post", 100)
     assert D.budget_of("reel", None) == 400_000 and D.budget_of("reel", 3) == 600_000
     assert D.budget_of("reel", 50) == 1_200_000  # never above the kind's max
     assert D.question_scope(norm("رقیب ما در بازار چه کرد")) == "outside"
@@ -292,3 +296,25 @@ def test_a_name_inside_a_longer_name_is_not_another_company() -> None:
         }
     }
     assert D.companies_in_order(O.normalise("در آی جی هاب یک ریلز بساز"), d) == ["IG"]
+
+
+def test_a_remembered_route_holds_only_what_exists_now() -> None:
+    """A remembered company deleted since is dropped, and a remembered
+    `server` kind needs the company's server online (carry_out would raise
+    KeyError on either: 500)."""
+    d = {"companies": {"HQ": {"holding": True}, "IG": {"holding": False}}}
+    dr = D.Draft(kind="work", companies=["IG"])
+    D.apply_memory(dr, {"companies": ["GONE"], "collaborators": ["OLD", "HQ"]}, d)
+    assert dr.companies == ["IG", "HQ"] and dr.remembered
+    dr = D.Draft(kind="question", companies=["IG"])
+    D.apply_memory(dr, {"kind": "server"}, d, online=set())
+    assert dr.kind == "question"
+    dr = D.Draft(kind="server", companies=["HQ"])
+    D.apply_memory(dr, {"companies": ["IG"]}, d, online={"HQ"})
+    assert dr.companies == ["IG"] and dr.kind == "question"
+    dr = D.Draft(kind="question", companies=["IG"])
+    D.apply_memory(dr, {"kind": "server"}, d, online={"IG"})
+    assert dr.kind == "server"
+    dr = D.Draft(kind="work", companies=["IG"])
+    D.apply_memory(dr, {"kind": "kit"}, d)
+    assert dr.kind == "work"

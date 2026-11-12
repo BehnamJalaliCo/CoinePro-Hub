@@ -75,6 +75,11 @@ async def list_knowledge(
                 + "%"
             )
         if layer == "employee":
+            # a memory note's id is a bigint, shown as UUID(int=id): the cursor's
+            # id half is that integer (the tie-break of notes stamped alike)
+            after_mid = after_id.int if after_id else None
+            if after_mid is not None and after_mid >= 2**63:
+                raise ApiError(422, "validation_failed", fields={"cursor": "invalid"})
             mem = await tx.all(
                 """SELECT m.id, m.note, m.run_id, m.created_at, e.code AS employee, c.code AS company,
                           d.code AS department
@@ -83,12 +88,14 @@ async def list_knowledge(
                    WHERE (CAST(:co AS text) IS NULL OR c.code = :co)
                      AND (CAST(:dept AS text) IS NULL OR d.code = :dept)
                      AND (CAST(:pat AS text) IS NULL OR core.fa_normalize(m.note) LIKE :pat)
-                     AND (CAST(:after_t AS timestamptz) IS NULL OR m.created_at < CAST(:after_t AS timestamptz))
-                   ORDER BY m.created_at DESC LIMIT :lim""",
+                     AND (CAST(:after_t AS timestamptz) IS NULL
+                          OR (m.created_at, m.id) < (CAST(:after_t AS timestamptz), CAST(:after_mid AS bigint)))
+                   ORDER BY m.created_at DESC, m.id DESC LIMIT :lim""",
                 co=company,
                 dept=department,
                 pat=pat,
                 after_t=after_t,
+                after_mid=after_mid,
                 lim=limit + 1,
             )
             items = [K.render_memory(r) for r in mem[:limit]]

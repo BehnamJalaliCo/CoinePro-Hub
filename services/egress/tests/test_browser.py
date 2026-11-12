@@ -117,6 +117,9 @@ class Sites:
         elif path == "/redir":
             status, body = 302, b""
             extra = f"Location: http://other.test:{self.port}/landing\r\n"
+        elif path == "/login-away":  # the account's login URL sends the page elsewhere
+            status, body = 302, b""
+            extra = f"Location: https://other.test:{self.tls_port}/login2\r\n"
         elif path == "/api/search":
             body = b"found"
         elif path == "/shows-secret":
@@ -377,6 +380,24 @@ async def test_a_failed_sign_in_has_its_own_code(world: Any) -> None:
         "pass_selector": "#no-such-field"})  # fmt: skip
     got = await d.run(RunIn(steps=[{"do": "read"}], proxy=login, time_s=3, account=missing))
     assert got["code"] == "sign_in_failed", got
+    away = _account(sites.tls_port, browse={
+        "kind": "form", "login_url": f"https://acct.test:{sites.tls_port}/login-away",
+        "pass_selector": "#pw2", "submit_selector": "#sub"})  # fmt: skip
+    got = await d.run(_run(login, [{"do": "read"}], account=away))
+    assert got["code"] == "sign_in_failed", got  # never typed on the host it was sent to
+    assert sites.at("other.test", "/login2") and not sites.at("other.test", "/session")
+
+
+async def test_odd_step_numbers_fall_back_and_never_end_the_call(world: Any) -> None:
+    sites, d, login = world
+    assert B._int_or("--5", 2000) == 2000 and B._int_or("\u00b2", 1000) == 1000
+    assert B._int_or("-300", 2000) == -300 and B._int_or(None, 1000) == 1000
+    base = f"http://shop.test:{sites.port}"
+    got = await d.run(_run(login, [{"do": "goto", "url": base + "/landing"}, {"do": "read"},
+                                   {"do": "scroll", "text": "--300"},
+                                   {"do": "wait", "text": "\u00b2"}]))  # fmt: skip
+    assert [s["ok"] for s in got["steps"]] == [True, True, True, True], got
+    assert "landed" in got["steps"][1]["text"]
 
 
 def _userns(pid: int | str) -> str:

@@ -419,6 +419,19 @@ BEGIN
     LOOP
         EXECUTE format('DELETE FROM fresh_start_files f USING %s x WHERE x.%I = f.id', k.child, k.col);
     END LOOP;
+    -- and a file a kept row lists in a uuid[] column, which no foreign key covers
+    -- (talk.turns.files: a session's attachment is also in owner.order_files, wiped;
+    -- lines.assets.files, knowledge.skill_versions.resources)
+    FOR k IN SELECT format('%I.%I', n.nspname, r.relname) AS child, a.attname AS col
+               FROM pg_attribute a
+               JOIN pg_class r ON r.oid = a.attrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+              WHERE a.atttypid = 'uuid[]'::regtype AND a.attnum > 0 AND NOT a.attisdropped
+                AND r.relkind IN ('r', 'p') AND NOT r.relispartition
+                AND format('%I.%I', n.nspname, r.relname) = ANY ({kept})
+    LOOP
+        EXECUTE format('DELETE FROM fresh_start_files f USING %s x WHERE f.id = ANY (x.%I)',
+                       k.child, k.col);
+    END LOOP;
 {spared_files}
     INSERT INTO fresh_start_files SELECT id FROM files.files
      WHERE parent_id IN (SELECT id FROM fresh_start_files) ON CONFLICT DO NOTHING;

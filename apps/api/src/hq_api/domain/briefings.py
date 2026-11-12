@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
@@ -48,6 +49,7 @@ VOICES = {
 }
 LETTER_WORDS = 600
 LETTER_TOKENS = 40_000
+LETTER_ATTEMPTS_MAX = 10  # reports.ceo_letters.attempts CHECK (0..10)
 UNSOURCED = "«عدد بی‌منبع»"
 TTS_RECLAIM_MIN = 15  # a claim not finished in this time is claimed again
 TTS_MAX_ATTEMPTS = 3
@@ -506,16 +508,27 @@ async def letters(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
     return {"letters": made, "week": week.isoformat()}
 
 
-async def letter_gate(ctx: Any, work_id: UUID, body_md: str) -> bool:
-    """Before a deliver (its own transaction): a CEO letter's figures. A first
-    unsourced attempt is sent back (422, recorded); the second is published
-    marked. Returns True when this delivery is to be marked «عدد بی‌منبع»."""
+async def letter_gate(
+    ctx: Any, work_id: UUID, body_md: str, authorize: Callable[[Tx], Awaitable[Any]]
+) -> None:
+    """Before a deliver (its own transaction), once the deliver is allowed
+    (`authorize`, the route's policy and lock check): a CEO letter over its
+    word limit is refused, and a first unsourced attempt is sent back (422,
+    recorded) — that send-back is the only write committed here. Every other
+    attempt is counted by `letter_attempt`, inside the delivery's own
+    transaction, so a refused or failed delivery never uses one up."""
     async with ctx.tx() as tx:
+        found = await tx.first(
+            "SELECT state FROM reports.ceo_letters WHERE work_id = :w", w=work_id
+        )
+        if found is None or found["state"] == "published":
+            return
+        await authorize(tx)  # the work row first, then the letter: the deliver's own order
         letter = await tx.first(
             "SELECT * FROM reports.ceo_letters WHERE work_id = :w FOR UPDATE", w=work_id
         )
         if letter is None or letter["state"] == "published":
-            return False
+            return
         if word_count(body_md) > LETTER_WORDS:
             raise ApiError(
                 422,
@@ -524,25 +537,41 @@ async def letter_gate(ctx: Any, work_id: UUID, body_md: str) -> bool:
                 fields={"body": f"at most {LETTER_WORDS} words"},
             )
         missing = unsourced(body_md, set(letter["figures"] or []))
-        attempts = int(letter["attempts"]) + 1
+        if not missing or int(letter["attempts"]) > 0:
+            return
         await tx.exec(
-            """UPDATE reports.ceo_letters SET attempts = :a, unsourced = :u,
-                   state = CASE WHEN :ret THEN 'returned' ELSE state END, updated_at = now()
+            """UPDATE reports.ceo_letters SET attempts = 1, unsourced = :u, state = 'returned',
+                   updated_at = now()
                WHERE id = :id""",
-            a=attempts,
             u=missing[:50],
-            ret=bool(missing) and attempts == 1,
             id=letter["id"],
         )
-    if missing and attempts == 1:
-        raise ApiError(
-            422,
-            "validation_failed",
-            "figures that are not in the facts pack: " + ", ".join(missing[:20]),
-            fields={
-                "body": "every figure must come from the facts pack: " + ", ".join(missing[:20])
-            },
-        )
+    raise ApiError(
+        422,
+        "validation_failed",
+        "figures that are not in the facts pack: " + ", ".join(missing[:20]),
+        fields={"body": "every figure must come from the facts pack: " + ", ".join(missing[:20])},
+    )
+
+
+async def letter_attempt(tx: Tx, work_id: UUID, body_md: str) -> bool:
+    """Inside the deliver's transaction (after `letter_gate`): the attempt is
+    counted and its unsourced figures kept only if the delivery commits.
+    Returns True when this delivery is to be marked «عدد بی‌منبع»."""
+    letter = await tx.first(
+        "SELECT * FROM reports.ceo_letters WHERE work_id = :w FOR UPDATE", w=work_id
+    )
+    if letter is None or letter["state"] == "published":
+        return False
+    missing = unsourced(body_md, set(letter["figures"] or []))
+    await tx.exec(
+        """UPDATE reports.ceo_letters SET attempts = least(attempts + 1, :cap), unsourced = :u,
+               updated_at = now()
+           WHERE id = :id""",
+        cap=LETTER_ATTEMPTS_MAX,
+        u=missing[:50],
+        id=letter["id"],
+    )
     return bool(missing)
 
 

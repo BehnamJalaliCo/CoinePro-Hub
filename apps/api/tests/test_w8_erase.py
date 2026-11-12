@@ -27,6 +27,7 @@ from hq_api.hub import Hub
 
 from .conftest import agent_headers, idem, step_up
 from .p14_support import filed
+from .test_p15_app_feedback import _deliverable
 from .test_p21_routing_orders import deliver, report
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_w7_sessions import WORK_TEXT, cards, refuse_queued, woken
@@ -436,6 +437,15 @@ async def test_an_archive_record_is_erased_now_unless_a_legal_hold_keeps_it(
     assert json.loads(tomb["hashes"]) == [] and tomb["decision_ref"] == "owner"
     assert set(json.loads(tomb["dates"])) == {"erased_at"}
     assert not any(exists(hub, k) for k in keys)
+    intake = await su.fetch(  # the document's own words left nowhere in its intake either
+        """SELECT x.name, x.text, x.suggestion FROM archive.intake x
+           JOIN archive.record_files f ON f.file_id = x.file_id JOIN archive.records r ON r.id = f.record_id
+           WHERE r.ref = $1""",
+        ref,
+    )
+    assert intake and all(
+        x["text"] is None and x["suggestion"] is None and x["name"] == ERASED for x in intake
+    )
     assert await su.fetchval(
         "SELECT count(*) FROM audit.entries WHERE action = 'archive.erase' AND target_ref = $1", ref
     ) == 1  # fmt: skip
@@ -494,6 +504,22 @@ async def test_one_output_is_erased_and_its_work_stays(
     assert await su.fetchval(
         "SELECT count(*) FROM audit.entries WHERE action = 'output.erase' AND target_ref = $1", output
     ) == 1  # fmt: skip
+
+
+async def test_an_output_filed_in_the_archive_is_named_in_its_erase_preview(
+    client: httpx.AsyncClient, hub: Hub, su: Any, owner: dict[str, str]
+) -> None:
+    """The archived copy of an output stays: the preview says so (it was never found: the
+    query asked for source_kind 'deliverable', which the CHECK forbids)."""
+    holding = await hub.companies.holding()
+    dl = await _deliverable(su, holding.id, system=True)
+    url = f"/api/v1/deliverables/{dl['ref']}/erase/preview"
+    pv = (await client.get(url, headers=owner)).json()
+    assert not any("بایگانی" in k for k in pv["keeps_fa"])
+    r = await client.post(f"/api/v1/deliverables/{dl['ref']}/file", headers=owner)
+    assert r.status_code == 200, r.text
+    pv = (await client.get(url, headers=owner)).json()
+    assert any("بایگانی" in k for k in pv["keeps_fa"])
 
 
 # ============================================================ §37.3 an agent proposes ==
@@ -723,3 +749,15 @@ async def test_the_owners_word_after_delivery_is_a_revision(
         )
         == "in_progress"
     )
+
+
+def test_the_cartable_filter_knows_every_decision_kind() -> None:
+    """GET /decisions?kind= accepts every kind a card can have (erase included)."""
+    import typing
+
+    from hq_api.domain import decisions as D
+    from hq_api.routes import decisions as routes
+
+    hint = typing.get_type_hints(routes.list_decisions)["kind"]
+    lit = next(a for a in typing.get_args(hint) if a is not type(None))
+    assert set(typing.get_args(lit)) == set(D.KINDS)

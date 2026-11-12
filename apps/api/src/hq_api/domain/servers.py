@@ -76,8 +76,12 @@ OPEN = ("queued", "running", "awaiting_seal")
 FINAL = ("done", "failed", "cancelled")
 PAIR_TTL_S = 900
 PAIR_INTERVAL_S = 5
+CLAIM_SLACK_S = 60  # an approved code is still taken this long after it expired (a last poll)
 ONLINE_S = 90  # a runner long-polls at most 30 s at a time: three missed polls = offline
 ROTATE_GRACE_S = 600  # the previous credential still works this long after a rotation
+# ... counted from the first use of the new one: until then (a lost rotate answer, the hub down
+# meanwhile) the previous one keeps working, at most this long
+ROTATE_PREV_MAX_S = 7 * 86400
 DISPATCH_GRACE_S = 120  # beyond the job's own timeout, before the hub fails it
 # ⟨1.10.1⟩ the runner (0.2.0) sends an event's text up to 64 000 characters and
 # streams 10 MB of a job's output; the hub keeps all of it, and what came past
@@ -150,6 +154,19 @@ def mask(text: str | None) -> str:
 
 def mask_value(value: Any) -> Any:
     return mask_secrets(value)
+
+
+def nul_free(value: Any) -> Any:
+    """NUL (U+0000) as U+FFFD in every string of `value`: PostgreSQL keeps NUL in neither text
+    nor jsonb (`find -print0`, /proc/*/cmdline or a file read with NULs in it would fail the
+    insert and the job would never end)."""
+    if isinstance(value, str):
+        return value.replace("\x00", "\ufffd")
+    if isinstance(value, dict):
+        return {nul_free(k): nul_free(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [nul_free(v) for v in value]
+    return value
 
 
 def digest_of(value: Any) -> str:
@@ -696,6 +713,23 @@ async def claim_token(tx: Tx, device_code: str) -> dict[str, Any]:
         if p["expires_at"] <= now():
             raise ApiError(410, "expired_token", "the code expired (15 minutes)")
         raise ApiError(428, "authorization_pending", "the owner has not approved the code yet")
+    # an approved code is taken by the runner polling for it, within the code's time (and a poll's
+    # slack); never for a server detached since or paired again since: a detach the owner sealed
+    # is not undone by a device code claimed later
+    if p["expires_at"] + timedelta(seconds=CLAIM_SLACK_S) <= now():
+        raise ApiError(410, "expired_token", "the code expired (15 minutes)")
+    srv = await tx.scalar(
+        "SELECT state FROM infra.servers WHERE id = :s FOR UPDATE", s=p["server_id"]
+    )
+    newer = await tx.scalar(
+        """SELECT 1 FROM infra.runner_pairings WHERE server_id = :s AND id <> :id
+             AND state IN ('approved', 'claimed') AND approved_at > :at LIMIT 1""",
+        s=p["server_id"],
+        id=p["id"],
+        at=p["approved_at"],
+    )
+    if srv == "revoked" or newer:
+        raise ApiError(410, "expired_token", "the server was detached or paired again since")
     token = new_runner_token()
     await tx.exec(
         """UPDATE infra.runners SET revoked_at = now(), revoked_by_kind = 'system',
@@ -759,19 +793,33 @@ async def runner_by_token(tx: Tx, token: str) -> dict[str, Any] | None:
     if row["server_state"] == "revoked":
         return None
     row["current"] = hmac.compare_digest(row["token_sha256"], h)
+    if row["current"] and row["prev_valid_until"] is not None:
+        # the runner has the new credential: the previous one only for the grace from now
+        await tx.exec(
+            """UPDATE infra.runners SET prev_valid_until = now() + make_interval(secs => :g)
+               WHERE id = :id AND prev_valid_until > now() + make_interval(secs => :g)""",
+            id=row["id"],
+            g=ROTATE_GRACE_S,
+        )
     return row
 
 
 async def rotate(tx: Tx, runner: dict[str, Any]) -> dict[str, Any]:
+    """A fresh credential. The previous one keeps working until the new one is first used (then
+    for ROTATE_GRACE_S), so a lost answer never locks the runner out; a rotation asked with the
+    previous credential (its answer was lost) replaces the new one it never got and keeps the
+    previous one as it is."""
     token = new_runner_token()
     await tx.exec(
-        """UPDATE infra.runners SET prev_sha256 = token_sha256,
+        """UPDATE infra.runners SET
+               prev_sha256 = CASE WHEN CAST(:cur AS boolean) THEN token_sha256 ELSE prev_sha256 END,
                prev_valid_until = now() + make_interval(secs => :g),
                token_sha256 = :t, rotated_at = now()
            WHERE id = :id""",
         id=runner["id"],
         t=token_digest(token),
-        g=ROTATE_GRACE_S,
+        g=ROTATE_PREV_MAX_S,
+        cur=bool(runner.get("current", True)),
     )
     await audit.record(
         tx,
@@ -1062,11 +1110,6 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
             await tx.exec(
                 "UPDATE infra.server_jobs SET state = :st WHERE id = :id", st=state, id=j["id"]
             )
-            if j["session_id"]:
-                await tx.exec(
-                    "UPDATE workshop.sessions SET state = 'working' WHERE id = :s AND state = 'waiting_approval'",
-                    s=j["session_id"],
-                )
         elif j["kind"] == "claude" and j["dispatched_at"]:
             # Only that command is refused; the session goes on without it.
             await tx.exec(
@@ -1074,6 +1117,15 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
             )
         else:
             await cancel(tx, j, "seal_refused", "مدیر کل اجازه‌ی این کار ویرانگر را نداد")
+            continue
+        if j["session_id"]:
+            # the session waited for this seal (runner_classify): it works again, and says so
+            n = await tx.exec(
+                "UPDATE workshop.sessions SET state = 'working' WHERE id = :s AND state = 'waiting_approval'",
+                s=j["session_id"],
+            )
+            if n:
+                await _session_emit(tx, j["session_id"])
     await audit.record(
         tx,
         audit.SYSTEM,
@@ -1086,10 +1138,41 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
     )
 
 
+SEAL_MOOT_FA = "این کار تمام شد و فرمانش دیگر منتظر مُهر نیست"
+
+
+async def _withdraw_seal(tx: Tx, j: dict[str, Any]) -> None:
+    """A job that ends while it waits for a seal (a claude job's command, or a job cancelled or
+    swept) withdraws its pending `server_destructive` card: nothing is left to seal, and a seal
+    given later would let that command run free for 24 h (runner_classify)."""
+    if j["state"] != "awaiting_seal" or not j["decision_id"]:
+        return
+    d = await tx.first(
+        """UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now(),
+               decided_by_kind = 'service', decided_by_code = 'system', note = :n
+           WHERE id = :d AND status = 'pending' AND kind = 'server_destructive'
+             AND NOT EXISTS (SELECT 1 FROM infra.server_jobs x WHERE x.decision_id = :d
+                               AND x.id <> :j AND x.state = 'awaiting_seal')
+           RETURNING ref""",
+        d=j["decision_id"],
+        j=j["id"],
+        n=SEAL_MOOT_FA,
+    )
+    if d is not None:
+        await events.emit(
+            tx,
+            j["company"],
+            "decision.decided",
+            d["ref"],
+            {"status": "withdrawn", "kind": "server_destructive"},
+        )
+
+
 async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[str, Any]:
     """Cancelled (the runner sees it on its next poll if it runs it)."""
     if j["state"] in FINAL:
         return j
+    await _withdraw_seal(tx, j)
     await tx.exec(
         """UPDATE infra.server_jobs SET state = 'cancelled', finished_at = now(), error_code = :c,
                cancel_reason = :c, summary_fa = :s
@@ -1099,6 +1182,8 @@ async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[
         s=summary_fa[:2000],
     )
     j = await load_job(tx, j["id"])
+    if j["kind"] == "publish":  # its media item learns it (not 7 days later)
+        await _apply_publish(tx, j, {}, False, code)
     await audit.record(
         tx,
         audit.SYSTEM,
@@ -1677,7 +1762,7 @@ async def add_events(tx: Tx, j: dict[str, Any], items: list[dict[str, Any]]) -> 
     top = int(j["last_seq"])
     for it in items:
         seq, type_ = int(it["seq"]), str(it["type"])
-        data = _clean_event(type_, it.get("data"))
+        data = nul_free(_clean_event(type_, it.get("data")))
         size = len(json.dumps(data, ensure_ascii=False))
         if used + size > MAX_JOB_EVENTS_BYTES and type_ in ("stdout", "stderr"):
             continue  # the cap: the rest of a flood is not kept (the runner caps too)
@@ -1794,22 +1879,18 @@ async def finish(
 ) -> dict[str, Any]:
     """The runner's result: the job ends (done or failed), its transcript is
     stored, its kind's effect applied (the map, a read's content, the links
-    of a netcheck, a publish's external id), its usage recorded."""
-    if j["state"] in FINAL:
-        # ⟨2026-11-11⟩ the runner sends a result again when it did not hear the answer: a turn
-        # already moved to the other account is still that (what follows a turn's end waits for
-        # the new job, never runs for this one)
-        if flagged_usage_limit(j):
-            again = await tx.scalar(
-                """SELECT id::text FROM infra.server_jobs
-                   WHERE server_id = :s AND usage->>'retry_of' = :id LIMIT 1""",
-                s=j["server_id"],
-                id=str(j["id"]),
-            )
-            if again is not None:
-                return {**j, "requeued_as": str(again)}
-        return j
+    of a netcheck, a publish's external id), its usage recorded.
+    A publish the sweep failed as timed_out takes its late good result: the post is out (the
+    runner downloads its files before the command's own clock starts)."""
+    summary_fa, error = nul_free(summary_fa), nul_free(error)
+    usage, data = nul_free(usage), nul_free(data)
     ok = error is None and exit_code is not None and (j["kind"] == "exec" or exit_code == 0)
+    late = (
+        ok and j["kind"] == "publish" and j["state"] == "failed" and j["error_code"] == "timed_out"
+    )
+    if j["state"] in FINAL and not late:
+        return j
+    await _withdraw_seal(tx, j)
     state = "done" if ok else "failed"
     err = None
     if error:
@@ -1840,6 +1921,11 @@ async def finish(
         result = await _apply(tx, hub, j, data)
     elif j["kind"] == "publish":
         await _apply_publish(tx, j, data or {}, False, err)
+    elif j["kind"] == "claude":
+        # a turn that failed or was stopped at its time limit keeps what it sent from out/ (the
+        # runner sends those files then too, >= 0.3.3), its wall and its effort: after_job
+        # attaches them as the work's unfinished output
+        result = _claude_parts(data) or None
     if isinstance(overflow, dict):
         result = {**(result or {}), **await _store_overflow(tx, hub, j, overflow)}
     await tx.exec(
@@ -2065,31 +2151,7 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
                 x=str(sid)[:200],
                 id=j["session_id"],
             )
-        out = {k: mask_value(data.get(k))
-               for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
-               if k in data}  # fmt: skip
-        # ⟨2026-11-09⟩ §43 the files a workspace turn sent from out/ (ids; checked by after_job)
-        # and the ones it could not (name and why)
-        files = data.get("files")
-        if isinstance(files, list):
-            out["files"] = [str(f)[:36] for f in files if isinstance(f, str)][:40]
-        skipped = data.get("files_skipped")
-        if isinstance(skipped, list):
-            out["files_skipped"] = mask_value(
-                [{"name": str(x.get("name"))[:300], "why": str(x.get("why"))[:200]}
-                 for x in skipped if isinstance(x, dict)][:40]
-            )  # fmt: skip
-        # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns, as the runner reports it
-        box = data.get("sandbox")
-        if isinstance(box, dict) and box.get("state") in ("on", "off"):
-            out["sandbox"] = {"state": box["state"]} | (
-                {"why": mask(str(box.get("why") or ""))[:300]}
-                if box["state"] == "off"
-                else {"kind": str(box.get("kind") or "")[:40]}
-            )
-        # ⟨1.31⟩ §53 how hard the session thought, as the runner passed it to the CLI (>= 0.3.5)
-        if data.get("effort") in ("low", "medium", "high", "xhigh", "max"):
-            out["effort"] = data["effort"]
+        out = _claude_parts(data)
         answer = mask(str(data.get("result_fa") or ""))
         out["result_fa"] = answer
         if len(answer) > INLINE_ANSWER:
@@ -2098,6 +2160,37 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
             out.update(result_fa=answer[:INLINE_ANSWER], result_file=str(fid))
         return out
     return mask_value({k: v for k, v in data.items() if k != "content"})  # type: ignore[no-any-return]
+
+
+def _claude_parts(data: dict[str, Any]) -> dict[str, Any]:
+    """What a `claude` job's result keeps besides its answer, done or not: the session, the files
+    it sent from out/ and the ones it could not, its wall and its effort."""
+    out: dict[str, Any] = {k: mask_value(data.get(k))
+           for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
+           if k in data}  # fmt: skip
+    # ⟨2026-11-09⟩ §43 the files a workspace turn sent from out/ (ids; checked by after_job)
+    # and the ones it could not (name and why)
+    files = data.get("files")
+    if isinstance(files, list):
+        out["files"] = [str(f)[:36] for f in files if isinstance(f, str)][:40]
+    skipped = data.get("files_skipped")
+    if isinstance(skipped, list):
+        out["files_skipped"] = mask_value(
+            [{"name": str(x.get("name"))[:300], "why": str(x.get("why"))[:200]}
+             for x in skipped if isinstance(x, dict)][:40]
+        )  # fmt: skip
+    # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns, as the runner reports it
+    box = data.get("sandbox")
+    if isinstance(box, dict) and box.get("state") in ("on", "off"):
+        out["sandbox"] = {"state": box["state"]} | (
+            {"why": mask(str(box.get("why") or ""))[:300]}
+            if box["state"] == "off"
+            else {"kind": str(box.get("kind") or "")[:40]}
+        )
+    # ⟨1.31⟩ §53 how hard the session thought, as the runner passed it to the CLI (>= 0.3.5)
+    if data.get("effort") in ("low", "medium", "high", "xhigh", "max"):
+        out["effort"] = data["effort"]
+    return out
 
 
 async def full_answer(tx: Tx, hub: Any, j: dict[str, Any]) -> str:
@@ -2299,12 +2392,17 @@ async def sweep(tx: Tx, *, ended: list[UUID] | None = None) -> int:
         await emit_state(tx, await load_server(tx, s["id"]), prev="online")
         n += 1
     for j in await tx.all(
+        # a dispatched claude job whose command waits for the seal is past its time too when its
+        # runner died meanwhile (a live runner ends it itself at its timeout)
         JOB_SQL
-        + """ WHERE j.state = 'running' AND j.dispatched_at IS NOT NULL
+        + """ WHERE j.state IN ('running', 'awaiting_seal') AND j.dispatched_at IS NOT NULL
               AND j.dispatched_at < now() - make_interval(secs => j.timeout_s + :g)
               FOR UPDATE OF j SKIP LOCKED""",
         g=DISPATCH_GRACE_S,
     ):
+        # a claude job still waiting for a command's seal is past its time too (the runner
+        # stopped it): its card goes with it
+        await _withdraw_seal(tx, j)
         await tx.exec(
             """UPDATE infra.server_jobs SET state = 'failed', finished_at = now(),
                    error_code = 'timed_out', summary_fa = 'کار در زمانش تمام نشد'
@@ -2312,6 +2410,8 @@ async def sweep(tx: Tx, *, ended: list[UUID] | None = None) -> int:
             id=j["id"],
         )
         j = await load_job(tx, j["id"])
+        if j["kind"] == "publish":  # its media item learns it (not 7 days later)
+            await _apply_publish(tx, j, {}, False, "timed_out")
         if j["session_id"]:
             await _session_end(tx, j, "failed", "timed_out", "کار در زمانش تمام نشد")
         await emit_call(tx, j)
@@ -2625,7 +2725,14 @@ async def network_links_hold(ctx: C.CheckCtx) -> C.Checked:
            JOIN core.companies c ON c.id = s.company_id
            LEFT JOIN infra.servers t ON l.to_key <> 'hub' AND t.id = CAST(NULLIF(l.to_key, 'hub') AS uuid)
            WHERE NOT l.ok AND l.last_ok_at IS NOT NULL AND s.state IS DISTINCT FROM 'revoked'
-           ORDER BY c.code, s.name, l.to_key, l.port"""
+             AND (l.to_key = 'hub' AND l.port = :hp
+                  OR l.port = ANY(CAST(:ports AS int[])) AND t.id IS NOT NULL
+                     AND t.state IS DISTINCT FROM 'revoked')
+           ORDER BY c.code, s.name, l.to_key, l.port""",
+        # only the links still measured (netcheck_targets): not a detached target, not a port
+        # no longer checked (22 since 2026-11-08), which would stay a finding for ever
+        hp=NETCHECK_HUB_PORT,
+        ports=list(NETCHECK_SERVER_PORTS),
     )
     problems = []
     for r in rows:

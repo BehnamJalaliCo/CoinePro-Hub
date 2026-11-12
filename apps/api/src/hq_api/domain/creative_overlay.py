@@ -390,22 +390,29 @@ async def store_result(
             raise Refused(str(exc)) from exc
         finally:
             src.unlink(missing_ok=True)
-        key, sha, size = await hub.storage.commit(img.original)
-        agent_bytes = await asyncio.to_thread(img.agent.read_bytes)
-        colours, mark = await _brand(hub, company_id)
-        overlay = dict(creative["overlay"] or {})
-        font = await _title_font(hub, overlay.get("font_file_id"))
-        meta = F.render(font).meta if font else None
-        family = meta.family if meta else None
-        png = await render_png(
-            hub,
-            svg(creative["placement"], overlay, ("image/jpeg", agent_bytes), colours, mark,
-                title_family=family),
-            font,
-        )  # fmt: skip
-        ckey, csha, csize = await hub.storage.commit(png)
-        img.thumb.unlink(missing_ok=True)
-        img.agent.unlink(missing_ok=True)
+        # The overlay is rendered before anything is committed: a render that fails leaves
+        # no stored original without a files row, and the scratch copies always go.
+        try:
+            agent_bytes = await asyncio.to_thread(img.agent.read_bytes)
+            colours, mark = await _brand(hub, company_id)
+            overlay = dict(creative["overlay"] or {})
+            font = await _title_font(hub, overlay.get("font_file_id"))
+            meta = F.render(font).meta if font else None
+            family = meta.family if meta else None
+            png = await render_png(
+                hub,
+                svg(creative["placement"], overlay, ("image/jpeg", agent_bytes), colours, mark,
+                    title_family=family),
+                font,
+            )  # fmt: skip
+            try:
+                key, sha, size = await hub.storage.commit(img.original)
+                ckey, csha, csize = await hub.storage.commit(png)
+            finally:
+                png.unlink(missing_ok=True)
+        finally:
+            for part in (img.original, img.thumb, img.agent):
+                part.unlink(missing_ok=True)
         cw, ch = CANVAS[creative["placement"]]
         async with hub.db.tx([company_id]) as tx:
             original = await F.insert(

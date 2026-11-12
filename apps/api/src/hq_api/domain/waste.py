@@ -8,8 +8,10 @@ is never counted twice in the share.
 
   failed_runs       calls of runs that ended `failed` or `refused`
   cancelled_work    calls of runs whose work was later cancelled
-  no_progress_runs  calls of `done` runs that left no deliverable and no work
-                    event of the employee in the run (PR-022's definition)
+  no_progress_runs  calls of `done` runs on a work item that left no deliverable
+                    and no work event of the employee in the run (PR-022's
+                    definition; a run without a work item, a thread reply, a
+                    schedule, a meeting or an alert, has no work to move)
   retry_loops       calls of runs on a work item that had >= 3 runs that day
                     and no progress on it that day
   router_errors     calls that failed (error, timeout, refusal) and still cost
@@ -148,7 +150,12 @@ def classify(
                 flagged["failed_runs"].add(c["id"])
             if run["work_status"] == "cancelled":
                 flagged["cancelled_work"].add(c["id"])
-            if run["state"] == "done" and not run["delivered"] and not run["moved"]:
+            if (
+                run["state"] == "done"
+                and run["work_id"] is not None  # a thread reply, a schedule: no work to move
+                and not run["delivered"]
+                and not run["moved"]
+            ):
                 flagged["no_progress_runs"].add(c["id"])
             if run["work_id"] in loop_works:
                 flagged["retry_loops"].add(c["id"])

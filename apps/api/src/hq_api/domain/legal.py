@@ -868,6 +868,12 @@ async def poll(hub: Any, txf: Any) -> dict[str, Any]:
         else:
             matched.append(ref)
             pdfs += new_pdfs
+    # A new message egress did not hand over (too large, unreadable, holds the
+    # secret): the cursor moves past it only with an Audit row naming it.
+    unread = sorted((uid, why) for uid, why in got.skipped if uid > since)
+    for uid, _ in unread:
+        last = max(last, uid)
+    ignored += len(unread)
     from hq_api.domain import files as F
 
     for fid, path in pdfs:  # a PDF's text, outside any transaction (07.1 §1.2)
@@ -887,6 +893,17 @@ async def poll(hub: Any, txf: Any) -> dict[str, Any]:
             i=ignored,
             a=MAIL.ACCOUNT,
         )
+        for uid, why in unread:
+            await audit.record(
+                tx,
+                POLLER,
+                company_id=holding.id,
+                action="legal.email_unread",
+                action_class="A0",
+                target_kind="legal_mailbox",
+                target_ref=f"{MAIL.ACCOUNT}:{uid}",
+                summary=f"message UID {uid} not read ({why}); it stays in the mailbox",
+            )
     return {"ok": True, "matched": matched, "ignored": ignored, "last_uid": last}
 
 
@@ -895,7 +912,9 @@ async def _store_reply(
 ) -> tuple[str | None, list[Any]]:
     """A reply to one of our sent messages: masked, on its case's timeline,
     its counsel woken. Anything else (unrelated, or a copy we already have)
-    is not stored: (None, [])."""
+    is not stored: (None, []). An automatic reply (RFC 3834 Auto-Submitted,
+    e.g. out of office) is kept on the timeline but neither reopens the
+    case nor wakes the counsel: nobody answered yet."""
     if not m["message_id"]:
         return None, []
     if await tx.scalar("SELECT 1 FROM legal.emails WHERE message_id = :m", m=m["message_id"]):
@@ -934,11 +953,14 @@ async def _store_reply(
         refs=named[-50:],
         uid=uid,
     )
-    summary = f"پاسخ از {m['from']}: {subject}" + (
-        f" · پیوست نگه‌داشته‌نشده: {', '.join(skipped)}" if skipped else ""
+    auto = bool(m.get("auto"))
+    summary = (
+        ("پاسخ خودکار" if auto else "پاسخ")
+        + f" از {m['from']}: {subject}"
+        + (f" · پیوست نگه‌داشته‌نشده: {', '.join(skipped)}" if skipped else "")
     )
     await event(tx, case, "email_in", summary[:4000], POLLER, m["message_id"][:80])
-    if case["status"] not in ("closed", "resolved"):
+    if not auto and case["status"] not in ("closed", "resolved"):
         await set_status(tx, case, "open")
     await audit.record(
         tx,
@@ -948,9 +970,9 @@ async def _store_reply(
         action_class="A0",
         target_kind="legal_case",
         target_ref=case["ref"],
-        summary=f"{len(stored)} attachment(s)",
+        summary=f"{len(stored)} attachment(s)" + (" (auto-submitted)" if auto else ""),
     )
-    if case["status"] != "closed":
+    if not auto and case["status"] != "closed":
         await wake(
             tx,
             case,

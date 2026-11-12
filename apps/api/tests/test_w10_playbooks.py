@@ -227,6 +227,13 @@ def test_the_memory_keeps_its_last_lines_and_the_fold_is_bounded() -> None:
     kept = MEM._fit(long)
     assert len(kept) <= MEM.MEMORY_CHARS and kept.startswith("- خط") and kept.endswith("x")
     assert kept.splitlines()[-1].startswith("- خط 199")
+    # a line remembered while the model folded is not lost with the model's answer
+    was = "- مشاور کل به جلسه آمد"
+    now = was + "\n- مدیر رسانه به جلسه آمد"
+    folded = "## تصمیم‌ها\n- بودجه داده شد"
+    assert MEM.merged(was, now, folded) == folded + "\n- مدیر رسانه به جلسه آمد"
+    assert MEM.merged(was, was, folded) == folded
+    assert MEM.merged(None, None, folded) == folded
     body = MEM.body_of("HQ", "F-0001", None, ["مدیر رسانه"], ["مدیر کل: سلام"])
     assert body["task_class"] == "session_memory" and body["effort"] == "low"
     assert body["json_schema"] == MEM.SCHEMA and "memory_md" in body["system"]
@@ -449,6 +456,49 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
 
 
 # ================================================= C. given to another company or platform ==
+async def test_a_draft_that_fails_after_the_model_keeps_its_key_free(
+    client: httpx.AsyncClient,
+    owner_session: dict[str, Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    talk: dict[str, Any],  # noqa: F811
+    new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit 2026-11-11: the key is claimed with the stored draft, so a draft that fails after
+    the model call is retried with the same Idempotency-Key (not 409 «still running»)."""
+    from hq_api.errors import ApiError
+
+    owner = owner_session["headers"]
+    company = await new_company()
+    co = company["code"]
+    await envelope(su, company)
+    ref = (await post_order(client, owner, REEL_TEXT.format(co=co, w=words())))["ref"]
+    route_answer(monkeypatch, model(a_draft(co)))
+    real = PB.store_draft
+    calls: list[int] = []
+
+    async def once(*a: Any, **kw: Any) -> Any:
+        calls.append(1)
+        if len(calls) == 1:
+            raise ApiError(503, "internal_error", "store failed once")
+        return await real(*a, **kw)
+
+    monkeypatch.setattr(PB, "store_draft", once)
+    key = idem()
+    r = await client.post(f"/api/v1/orders/{ref}/playbook", headers={**owner, **key})
+    assert r.status_code == 503, r.text
+    r = await client.post(f"/api/v1/orders/{ref}/playbook", headers={**owner, **key})
+    assert r.status_code == 201, r.text
+    again = await client.post(f"/api/v1/orders/{ref}/playbook", headers={**owner, **key})
+    assert again.status_code == 201 and again.json()["ref"] == r.json()["ref"]
+    assert again.headers.get("Idempotent-Replay") == "true"
+    assert (
+        await su.fetchval("SELECT count(*) FROM owner.playbooks WHERE source->>'order' = $1", ref)
+        == 1
+    )
+
+
 async def test_a_sealed_playbook_is_given_as_is_or_adapted_in_a_new_session_and_retired(
     client: httpx.AsyncClient,
     hub: Hub,

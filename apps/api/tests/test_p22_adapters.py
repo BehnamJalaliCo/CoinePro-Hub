@@ -8,6 +8,7 @@ real model, no database row. The templates are loaded and validated by a minimal
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import importlib
 import json
@@ -338,6 +339,32 @@ async def test_a_call_that_never_answers_times_out_plainly(monkeypatch: pytest.M
     assert e.value.code == "timeout" and "به موقع" in e.value.reason_fa
     # ⟨2026-11-11⟩ its call ends with it (no orphan in the player's queue, no daily cap eaten)
     assert len(abandoned) == 1
+
+
+async def test_a_timed_out_or_cancelled_seat_call_leaves_the_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: an abandoned call stayed queued and the web pass spent the seat on it later."""
+    seat_world(monkeypatch)
+    hub = FakeHub(**{"FROM substitutes.calls": {"state": "queued"}})
+    with pytest.raises(StepFailed):
+        await C.ask_seat(ctx(hub, "gpt_text", timeout_s=10), "x")
+    taken = [q for q in hub.rows["_exec"] if "state_reason = 'abandoned'" in q]
+    assert len(taken) == 1 and "state = 'queued'" in taken[0]
+
+    async def cancelled(_s: float) -> None:  # the engine's wait_for limit fires mid-wait
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(C, "sleep", cancelled)
+    hub2 = FakeHub(**{"FROM substitutes.calls": {"state": "queued"}})
+    with pytest.raises(asyncio.CancelledError):
+        await C.ask_seat(ctx(hub2, "gpt_text"), "x")
+    assert any("'abandoned'" in q for q in hub2.rows["_exec"])
+
+    # an answered call is left alone
+    hub3 = FakeHub(**{"FROM substitutes.calls": {"state": "done", "result": {"text_md": "ok"}}})
+    await C.ask_seat(ctx(hub3, "gpt_text"), "x")
+    assert "_exec" not in hub3.rows
 
 
 # --------------------------------------------------------------------- tts --
@@ -734,6 +761,46 @@ async def test_cover_fails_plainly_without_a_folder_or_images_or_an_image_back(
     assert e3.value.code == "not_image"
 
 
+async def test_cover_reads_the_owners_uploads_kept_as_the_holdings(
+    stored: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: POST /files keeps the folder's images as the holding's; a company line's cover
+    step read them as the company's own and never found them (file_missing)."""
+    holding = SimpleNamespace(id=uuid4(), code="HQ")
+    f1 = uuid4()
+    seen: dict[str, Any] = {}
+
+    class Tx(FakeTx):
+        async def first(self, sql: str, **kw: Any) -> Any:
+            seen.update(kw)
+            if str(holding.id) in kw.get("cos", []):
+                return {"id": f1, "name": "a.png", "mime": "image/png", "storage_key": "k0",
+                        "kind": "image"}  # fmt: skip
+            return None
+
+    hub = FakeHub()
+    hub.stored["k0"] = PNG
+
+    async def holding_of() -> Any:
+        return holding
+
+    scopes: list[Any] = []
+
+    @asynccontextmanager
+    async def tx(ids: Any) -> Any:
+        scopes.append(list(ids))
+        yield Tx(hub.rows)
+
+    monkeypatch.setattr(hub.companies, "holding", holding_of)
+    monkeypatch.setattr(hub.db, "tx", tx)
+    C.WEB_OVERRIDE = FakeWeb(
+        {"ok": True, "file": {"name": "c.png", "mime": "image/png", "b64": b64(PNG)}}
+    )
+    res = await REGISTRY["cover"].run(ctx(hub, "cover", library=(folder(f1),)))
+    assert res.data["from_files"] == 1
+    assert scopes[0] == [CO.id, holding.id] and seen["cos"] == [str(CO.id), str(holding.id)]
+
+
 # ----------------------------------------------------------------- publish --
 class FakeHttp:
     def __init__(self, *answers: CN.Answer) -> None:
@@ -765,6 +832,21 @@ def pub_inputs() -> dict[str, StepOutput]:
         "build": out("cap", data={"caption": "کپشن", "hashtags": ["#الف", "#ب"], "title": "عنوان",
                                   "description": "توضیح"}),
     }  # fmt: skip
+
+
+def test_a_long_caption_is_cut_between_words_and_telegram_counts_utf16() -> None:
+    """Regression: a hard cut published half a hashtag (or half a ZWJ emoji), and Telegram's 1024
+    was measured in code points while an emoji takes two UTF-16 units."""
+    c = {"caption": "کلمه " * 6 + "پایان", "hashtags": ["#آموزش", "#ترید"]}
+    full = publish.full_caption(c, 2200)
+    cut = publish.full_caption(c, len(full) - 2)
+    assert cut.endswith("#آموزش") and "#تر" not in cut
+    family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
+    assert publish.full_caption({"caption": f"سلام {family}", "hashtags": []}, 7) == "سلام"
+    emoji = "سلام " + "\U0001f600 " * 600  # 1,205 code points, 1,805 UTF-16 units
+    tg = publish.full_caption({"caption": emoji, "hashtags": []}, 1000, utf16=True)
+    assert SP.utf16_len(tg) <= 1000 and tg.endswith("\U0001f600")
+    assert SP.clip("ab cd", 3) == "ab" and SP.clip("abcdef", 3) == "abc"
 
 
 async def test_a_dry_publish_answers_without_leaving(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1054,6 +1136,24 @@ async def test_insights_read_the_figures_for_instagram_and_youtube() -> None:
         )
         == {}
     )
+
+
+async def test_the_publish_adapter_answers_the_engines_insights_read() -> None:
+    """Regression: learning.read_metrics looks for `insights` on the registered adapter and passes
+    the run's published list; only a module function existed, so no figure was ever read."""
+    read = getattr(REGISTRY["publish"], "insights", None)
+    assert read is not None
+    hub = reel_hub()
+    hub.rows["FROM growth.connections"] = {"config": {"base_url": "https://ighub.example"}}
+    http = FakeHttp(ok({"views": 500}))
+    CN.OVERRIDE = http
+    published = [
+        {"platform": "instagram_reel", "kind": "story", "external_id": "story-1"},
+        {"platform": "instagram_reel", "kind": "reel", "external_id": "reel-1"},
+    ]
+    got = await read(ctx(hub, "publish"), published)
+    assert got == {"views": 500} and http.calls[0]["url"].endswith("/v1/insights/reel-1")
+    assert await read(ctx(hub, "publish"), [{"platform": "instagram_reel", "kind": "reel"}]) == {}
 
 
 # ----------------------------------------------------------------- deliver --

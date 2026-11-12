@@ -71,7 +71,9 @@ api() { # api PATH: POST stdin to the api's internal route, the answer on stdout
     "$HQ_HUBOPS_CURL" "$1"
     return
   fi
-  docker run --rm -i --init --network "$API_NET" --read-only --cap-drop ALL \
+  # No log driver: the claim and the output reach only the attached stdout,
+  # never a json-file log that Alloy ships to Loki.
+  docker run --rm -i --init --log-driver none --network "$API_NET" --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --user "$(id -u):$(id -g)" --memory 32m \
     -v "$AUTH_FILE:/run/auth:ro" --entrypoint timeout "$CURL_IMAGE" \
     45 curl -sS -f -m 30 -X POST -H @/run/auth -H 'Content-Type: application/json' \
@@ -109,7 +111,9 @@ refuse() { # refuse REASON: nothing ran
   exit 0
 }
 
-in_list() { [[ "$2" == *" $1 "* ]]; }
+# in_list NAME LIST: NAME is one word of LIST. The lists span lines, so any whitespace separates;
+# an empty name, or one with a space, never matches (two words or an indent would).
+in_list() { [[ "$1" =~ ^[a-z0-9-]+$ && " ${2//[[:space:]]/ } " == *" $1 "* ]]; }
 
 claim="$(printf '' | api /internal/v1/hubops/claim 2>/dev/null)" || claim='{}'
 ref="$(jq -r '.job.ref // empty' <<<"$claim" 2>/dev/null || true)"

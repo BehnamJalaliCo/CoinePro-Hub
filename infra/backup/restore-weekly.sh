@@ -133,9 +133,21 @@ else
   else
     # HQ_PITR_TARGET: tests only (a moment their throwaway archive is known to cover).
     target="${HQ_PITR_TARGET:-$(date -u -d "@$(shuf -i "$lo-$hi" -n1)" '+%F %T UTC')}"
-    pitr="$("$REPO_DIR/infra/backup/pitr.sh" "$target" --prefix "$prefix" --image "$PG_IMAGE" 2>/dev/null)" ||
+    pitr_err="$work/pitr.stderr"
+    pitr="$("$REPO_DIR/infra/backup/pitr.sh" "$target" --prefix "$prefix" --image "$PG_IMAGE" 2>"$pitr_err")" ||
       true
     [[ -n "$pitr" ]] || pitr="$(jq -n --arg t "$target" '{ok: false, target: $t, error: "pitr.sh gave no result"}')"
+    # pitr.sh puts the throwaway Postgres's last log lines (the FATAL that names
+    # the cause) on stderr when recovery fails: into the journal, and into the
+    # result as log_tail, so the cause is not lost behind the generic error.
+    if [[ -s "$pitr_err" ]]; then
+      while IFS= read -r line; do blog "$line"; done <"$pitr_err"
+      if [[ "$(jq -r .ok <<<"$pitr" 2>/dev/null)" != true ]] &&
+        tailed="$(jq -c --rawfile e "$pitr_err" '. + {log_tail: ($e | rtrimstr("\n") | split("\n") | .[-12:])}' \
+          <<<"$pitr" 2>/dev/null)"; then
+        pitr="$tailed"
+      fi
+    fi
   fi
 fi
 

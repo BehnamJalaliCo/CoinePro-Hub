@@ -425,13 +425,27 @@ async def test_affiliate_due_against_received(
     assert r.status_code == 200
     states = {g["month"]: g["state"] for g in r.json()}
     assert states["2026-09-01"] == "open" and states["2026-10-01"] == "waiting"
-    # what arrived closes it once within 5%
+    # what arrived closes it once within 5%; the key is required, and a retry books nothing twice
+    receipt = {"account_id": str(acc), "month": "2026-09", "received_usdt": "290"}
+    r = await client.post(f"{API}/revenue/affiliate-receipts", json=receipt, headers=owner)
+    assert r.status_code == 422, r.text
+    key = idem()
     r = await client.post(
-        f"{API}/revenue/affiliate-receipts",
-        json={"account_id": str(acc), "month": "2026-09", "received_usdt": "290"},
-        headers=owner,
+        f"{API}/revenue/affiliate-receipts", json=receipt, headers={**owner, **key}
     )
     assert r.status_code == 201, r.text
+    again = await client.post(
+        f"{API}/revenue/affiliate-receipts", json=receipt, headers={**owner, **key}
+    )
+    assert again.status_code == 201 and again.headers.get("Idempotent-Replay") == "true"
+    assert again.json() == r.json()
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM sales.affiliate_receipts WHERE account_id = $1 AND month = '2026-09-01'",
+            acc,
+        )
+        == 1
+    )
     assert (
         await su.fetchval(
             "SELECT state FROM sales.affiliate_gaps WHERE account_id = $1 AND month = '2026-09-01'",
@@ -567,6 +581,35 @@ async def test_a_budget_change_is_measured_from_the_limit_in_force(
         assert await IM.measure(tx, line) is None  # no such line: nothing to measure from
     assert h is not None and h["cost_usd"] == 12.5 and h["kind"] == "measured"
     assert IM.score(m) == 30.0 and IM.score(None) == 0.0
+
+
+def test_a_year_back_from_29_february_is_the_first_of_february() -> None:
+    assert AG.year_back(date(2028, 2, 29)) == date(2027, 2, 1)  # replace(year=) alone raised
+    assert AG.year_back(date(2026, 11, 11)) == date(2025, 11, 1)
+
+
+async def test_a_line_caps_impact_reads_the_cards_own_company_only(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    mine, other = await new_company(), await new_company()
+    line = await su.fetchrow(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, title_fa, caps, steps)
+           VALUES ($1, 'impact_line', 1, 'telegram_post', 'خط دیگر', '{"runs_per_day": 2}', '[]')
+           RETURNING id, ref""",
+        other["id"],
+    )
+    await su.execute(
+        """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state, usd_equiv)
+           VALUES ($1, $2, 1, 'owner', 'done', 3)""",
+        other["id"],
+        line["id"],
+    )
+    card = {"kind": "proposal", "payload": {"impact_input": {
+        "kind": "line.caps", "line": line["ref"], "new_runs_per_day": 4}}}  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await IM.measure(tx, {**card, "company_id": mine["id"]}) is None
+        own = await IM.measure(tx, {**card, "company_id": other["id"]})
+    assert own is not None and own["cost_usd"] == 180.0
 
 
 def test_an_estimate_is_checked_by_code() -> None:

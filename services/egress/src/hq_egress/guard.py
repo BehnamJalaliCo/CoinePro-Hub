@@ -135,7 +135,7 @@ class Guard:
     def __post_init__(self) -> None:
         names = {h.strip().lower().rstrip(".") for h in self.hub_hosts if h.strip()}
         ips = {lit for h in names if (lit := _literal(h)) is not None}
-        self.hub_ips = frozenset(ips)
+        self.hub_ips = frozenset(_unwrapped(ip) for ip in ips)
         self.hub_hosts = frozenset(names | {str(ip) for ip in ips})
 
     def ports_for(self, host: str, extra: Iterable[int] = ()) -> frozenset[int]:
@@ -170,7 +170,8 @@ class Guard:
         if host in self.hub_hosts:
             return True
         literal = _literal(host)
-        return literal is not None and literal in self.hub_ips
+        # [::ffff:a.b.c.d] (and 6to4, NAT64) of the hub's IPv4 is the hub too
+        return literal is not None and _unwrapped(literal) in self.hub_ips
 
     def check_name(self, host: str) -> None:
         literal = _literal(host)
@@ -204,7 +205,7 @@ class Guard:
                 raise Blocked(reason, host)
             # Another name for the hub's own address: its paths were not
             # checked as the hub's (the hub's own names were, in target()).
-            if ip in self.hub_ips and not self.is_hub(host):
+            if _unwrapped(ip) in self.hub_ips and not self.is_hub(host):
                 raise Blocked("hub_internal", host)
         return found
 
@@ -217,6 +218,19 @@ def _literal(host: str) -> IP | None:
         return ipaddress.ip_address(host.strip("[]"))
     except ValueError:
         return None
+
+
+def _unwrapped(ip: IP) -> IP:
+    """The IPv4 address an IPv6 one carries (mapped, 6to4, NAT64, IPv4-compatible),
+    else the address itself: one spelling to compare with the hub's addresses."""
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return ip.ipv4_mapped
+        if ip.sixtofour is not None:
+            return ip.sixtofour
+        if ip in NAT64 or (ip in V4_COMPAT and int(ip) > 1):
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
 
 
 def _internal_path(path: str) -> bool:

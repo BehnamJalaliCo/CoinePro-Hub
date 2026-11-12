@@ -133,6 +133,8 @@ def upload_limit(path: str, max_file: int, max_body: int) -> int:
         path.startswith("/api/v1/transcribe/sessions/") and "/chunks/" in path
     ):
         return media.AUDIO.max_bytes  # ⟨1.11⟩ §29.5 a long voice's chunk too
+    if path.startswith("/api/v1/runners/jobs/") and path.endswith("/files"):
+        return media.VIDEO.max_bytes  # §43 a workspace turn's `out/` file, as an owner upload
     if path.startswith("/api/v1/runners/jobs/"):
         # ⟨1.8⟩ a runner's output batch, or a read's ≤ 20 MB file in its result
         return RUNNER_RESULT_BYTES if path.endswith("/result") else RUNNER_EVENTS_BYTES

@@ -11,7 +11,7 @@ import pytest
 
 from hq_api.audit import SYSTEM
 from hq_api.domain import decisions as D
-from hq_api.domain import recurrence
+from hq_api.domain import recurrence, recurring
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
 
@@ -433,6 +433,78 @@ async def test_recurring_by_owner_and_planner(
     bad = {**body, "schedule": {"rrule": "FREQ=YEARLY", "timezone": "Asia/Tehran"}}
     r = await client.post("/api/v1/work", headers={**owner, **idem()}, json=bad)
     assert r.status_code == 422 and "schedule.rrule" in r.json()["fields"]
+
+
+def test_the_schedule_shows_its_next_run_not_the_one_just_made() -> None:
+    now = datetime.now(UTC)
+    t = {
+        "sc_rrule": "FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
+        "sc_timezone": "UTC",
+        "expires_at": now + timedelta(days=60),
+    }
+    nxt = recurring._upcoming(t, now - timedelta(minutes=1))  # a run made at (or after) its time
+    assert nxt is not None and now < nxt <= now + timedelta(days=1)
+    assert (nxt.hour, nxt.minute) == (9, 0)
+    ahead = now + timedelta(hours=3)  # a run made ahead of its time is still the next one
+    assert recurring._upcoming(t, ahead) == ahead
+    assert recurring._upcoming({**t, "expires_at": now}, now - timedelta(minutes=1)) is None
+    assert recurring._upcoming({**t, "sc_rrule": None}, now - timedelta(minutes=1)) is None
+
+
+async def test_closing_a_recurring_order_closes_its_runs_and_schedule(
+    client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any]
+) -> None:
+    """Cancel: the open run (a root item linked by recurrence_of) is cancelled
+    too. Complete: the schedule ends, so the planner shows no further
+    occurrences and no new run can be made."""
+    co = (await new_company())["code"]
+    body = {
+        "company": co,
+        "department": "GROWTH",
+        "title": "انتشار روزانه",
+        "kind": "recurring",
+        "escrow": {
+            "allowed_action_classes": ["A0", "A1"],
+            "token_cap_per_run": 20000,
+            "usd_cap_per_month": "3",
+            "expires_at": (datetime.now(UTC) + timedelta(days=60)).isoformat(),
+        },
+        "schedule": {"rrule": "FREQ=DAILY;BYHOUR=10", "timezone": "Asia/Tehran"},
+    }
+
+    async def runs() -> list[dict[str, Any]]:
+        params = {"company": co, "kind": "one_off"}
+        return (await client.get("/api/v1/work", headers=owner, params=params)).json()["items"]
+
+    async def scheduled(ref: str) -> int:  # the order's future occurrences in the planner
+        params = {"scope": f"company:{co}"}
+        plan = (await client.get("/api/v1/planner", headers=owner, params=params)).json()
+        return sum(
+            i["ref"] == ref and i["status"] == "scheduled" for d in plan["days"] for i in d["items"]
+        )
+
+    first = (await client.post("/api/v1/work", headers={**owner, **idem()}, json=body)).json()
+    [run] = await runs()
+    assert run["status"] not in ("done", "cancelled", "failed")
+    r = await client.post(
+        f"/api/v1/work/{first['id']}/cancel", headers=owner, json={"reason": "دیگر لازم نیست"}
+    )
+    assert r.status_code == 200 and r.json()["schedule"]["status"] == "ended"
+    assert (await client.get(f"/api/v1/work/{run['id']}", headers=owner)).json()[
+        "status"
+    ] == "cancelled"
+
+    second = (await client.post("/api/v1/work", headers={**owner, **idem()}, json=body)).json()
+    assert await scheduled(second["ref"]) > 0
+    r = await client.post(
+        f"/api/v1/work/{second['id']}/complete",
+        headers=owner,
+        json={"evidence": [{"kind": "link", "ref": "https://example.org/done"}]},
+    )
+    assert r.status_code == 200, r.text
+    done = r.json()
+    assert done["status"] == "done" and done["schedule"]["status"] == "ended"
+    assert await scheduled(second["ref"]) == 0
 
 
 def test_recurrence_rules() -> None:

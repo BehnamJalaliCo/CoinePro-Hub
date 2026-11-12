@@ -96,6 +96,9 @@ PENDING = "pub:"  # the command's external id while scheduled, or while Meta pre
 CANCELLED = "cancelled:"
 CANCEL_CODE = "publish_cancelled"  # the hub's own job, cancelled before any runner took it
 TRANSIENT = ("timed_out", "not_started")  # a check the runner never answered: asked again
+# a check (or a cancel) the hub itself took back before it was answered (a kill switch, the
+# server detached): the publication IG-Hub holds is untouched, so it is asked about again
+HELD = ("company_locked", "server_detached")
 CHECK_AFTER = timedelta(seconds=90)
 CHECK_EVERY = timedelta(minutes=3)
 CHECK_FOR = timedelta(hours=6)
@@ -194,7 +197,8 @@ def _state(j: dict[str, Any]) -> State:
         return "cancelled"  # ⟨§51⟩ he cancelled it before it reached IG-Hub
     if meta.get("cancel"):
         return _waiting(meta)  # ⟨§51⟩ a cancel IG-Hub refused: the publication still stands
-    if meta.get("check") and str(j.get("error_code") or "") in TRANSIENT:
+    code = str(j.get("error_code") or "")
+    if meta.get("check") and (code in TRANSIENT or (st == "cancelled" and code in HELD)):
         return _waiting(meta)  # the question was never answered: it is asked again
     return "failed"
 
@@ -310,15 +314,19 @@ async def _route(tx: Tx, company_id: UUID) -> dict[str, Any]:
         )
     )
     hubs = CN.ig_hub()
-    srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :co", co=company_id)
+    # ⟨audit 2026-11-11⟩ a stored server that is neither IG-Hub's nor the company's own is never
+    # used: the route is not ready (the technical team registers it again), and IG-Hub stands in
+    where = CN.ig_server(cfg, str(code) if code is not None else None)
     accounts = [str(a).lstrip("@") for a in cfg.get("accounts") or []]
     command = CN.publish_command_of(cfg) or ""
+    server_co, server_name = where or (hubs["company"], hubs["server"])
     return {
         "accounts": accounts,
         "command": command,
-        "ready": bool(accounts and command),
-        "server_co": str((srv or {}).get("company") or hubs["company"]),
-        "server_name": str((srv or {}).get("name") or hubs["server"]),
+        "ready": bool(accounts and command and where is not None),
+        "server_co": server_co,
+        "server_name": server_name,
     }
 
 
@@ -541,6 +549,16 @@ def publication_key(output: str, file_id: str, account: str, what: str) -> str:
     import hashlib
 
     return hashlib.sha256(f"{output}|{file_id}|{account}|{what}".encode()).hexdigest()[:32]
+
+
+async def lock_publication(tx: Tx, output: str, file_id: str, account: str, what: str) -> None:
+    """Held till the transaction ends: two senders of the same publication (two taps, a tap and
+    the standing sweep) are made one after the other, so the second one's `last_of` sees the
+    first one's job and sends nothing."""
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))",
+        k="publish:" + publication_key(output, file_id, account, what),
+    )
 
 
 async def _send(
@@ -809,6 +827,7 @@ async def start(
         )  # fmt: skip
 
     # one tap, one post: the same file to the same account is not sent twice (whatever sent it)
+    await lock_publication(tx, d["ref"], str(file_id), wanted, what)
     before = await last_of(tx, d["ref"], str(file_id), wanted, what)
     if before is not None:
         return before
@@ -1025,6 +1044,12 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
         return "before"
     if await gate.automation_lock(tx, run["company_id"]) is not None:
         return "locked"
+    # the API (a delivered work) and the worker's sweep can both reach the same run: one at a
+    # time, so the second one sees the first one's job below and sends nothing
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))",
+        k="publish-run:" + str(run["run_id"]),
+    )
     if await tx.scalar(
         """SELECT 1 FROM infra.server_jobs j
            WHERE j.kind = 'publish' AND j.args -> 'standing' ->> 'run' = :r LIMIT 1""",
@@ -1054,6 +1079,9 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
     kinds: list[Kind] = ["reel" if str(f["mime"]).startswith("video/") else "post"]
     if rule["story"]:
         kinds.append("story")
+    # taken before the topic ledger is written (as a tap takes it before it): one order of locks
+    for what in kinds:
+        await lock_publication(tx, d["ref"], str(f["id"]), account, what)
     standing = {
         "run": str(run["run_id"]),
         "group": run["group_key"],
@@ -1457,15 +1485,27 @@ async def cancel(
     return view(dict(out))
 
 
+# A publication set for a later time is followed from that time on (not from the day it was
+# sent: one set 10 days ahead is asked about when it is due), and one not due yet is left out of
+# the batch so it never crowds out the ones that are.
 FOLLOW_SQL = """SELECT j.id, j.state, j.args, j.result, j.summary_fa, j.error_code, j.created_at,
        j.finished_at, j.work_ref
 FROM infra.server_jobs j
-WHERE j.kind = 'publish' AND j.args ? 'session' AND j.created_at > now() - interval '8 days'
+CROSS JOIN LATERAL (
+    SELECT CASE WHEN j.args -> 'meta' ->> 'scheduled_at' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+                THEN CAST(j.args -> 'meta' ->> 'scheduled_at' AS timestamptz) END AS at) s
+WHERE j.kind = 'publish' AND j.args ? 'session'
+  AND GREATEST(j.created_at, s.at) > now() - interval '8 days'
+  AND (s.at IS NULL OR s.at <= CAST(:now AS timestamptz))
   AND ((j.state = 'done' AND j.result ->> 'external_id' LIKE 'pub:%' AND j.result ->> 'url' IS NULL)
        OR (j.state = 'failed' AND j.args -> 'meta' ? 'check'
            AND j.error_code = ANY(CAST(:transient AS text[])))
+       OR (j.state = 'cancelled' AND j.args -> 'meta' ? 'check'
+           AND j.error_code = ANY(CAST(:held AS text[])))
        OR (j.state = 'failed' AND j.args -> 'meta' ? 'cancel'
-           AND COALESCE(j.error_code, '') <> 'publish_cancelled'))
+           AND COALESCE(j.error_code, '') <> 'publish_cancelled')
+       OR (j.state = 'cancelled' AND j.args -> 'meta' ? 'cancel'
+           AND j.error_code = ANY(CAST(:held AS text[]))))
   AND NOT EXISTS (
       SELECT 1 FROM infra.server_jobs n
       WHERE n.kind = 'publish' AND n.created_at > j.created_at
@@ -1479,11 +1519,16 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
     """⟨§46⟩ Every publication IG-Hub still holds (scheduled, or being prepared by Meta) is
     asked about again: a `publish` job with meta `check` and no file, 90 seconds after its time
     and then every 3 minutes, for 6 hours. Its answer is the publication's record from then on
-    (the newest job is), so the session and the run hear its end as they hear any other."""
+    (the newest job is), so the session and the run hear its end as they hear any other.
+
+    The 6 hours run from its time, or for one sent for now from its first answer
+    (`meta.first_at`, carried by every question and cancel after it): never from the newest
+    question, which would move them on with every answer and ask without end."""
     now = now or datetime.now(UTC)
     asked = 0
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        for row in await tx.all(FOLLOW_SQL, transient=list(TRANSIENT)):
+        rows = await tx.all(FOLLOW_SQL, transient=list(TRANSIENT), held=list(HELD), now=now)
+        for row in rows:
             j = dict(row)
             args = OR._j(j["args"]) or {}
             meta = dict(args.get("meta") or {})
@@ -1493,9 +1538,12 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
             ext = str(again or result.get("external_id") or "")
             when = _when(meta.get("scheduled_at"))
             since = j["finished_at"] or j["created_at"]
+            # a chain from before `first_at` was carried starts its window here, once
+            first = _when(meta.get("first_at")) or since
+            meta["first_at"] = first.isoformat()
             due = max(when, since) if when is not None else since
             due += CHECK_EVERY if again else CHECK_AFTER
-            if not ext.startswith(PENDING) or now < due or now > (when or since) + CHECK_FOR:
+            if not ext.startswith(PENDING) or now < due or now > (when or first) + CHECK_FOR:
                 continue
             try:
                 async with tx.conn.begin_nested():

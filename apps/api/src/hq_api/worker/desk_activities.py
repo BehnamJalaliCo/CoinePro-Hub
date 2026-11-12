@@ -177,12 +177,15 @@ class DeskActivities:
     # ------------------------------------------------------------- shadow --
     @activity.defn(name="support_shadow_run")
     async def shadow_run(self, run_id: str) -> dict[str, Any]:
+        """One shadow run. A retry finds a run still `running` only when an earlier
+        attempt died mid-run (a deploy, an OOM): it runs the cases again; an attempt
+        that raised marks the run (and its academy eval run) failed first."""
         async with self._tx() as tx:
             run = await tx.first(
                 "SELECT * FROM support.shadow_runs WHERE id = CAST(:id AS uuid) FOR UPDATE",
                 id=run_id,
             )
-            if run is None or run["state"] != "queued":
+            if run is None or run["state"] not in ("queued", "running"):
                 return {"run": run_id, "skipped": run["state"] if run else "unknown"}
             lock = await gate.automation_lock(tx, run["company_id"])
             if lock is not None:
@@ -203,13 +206,37 @@ class DeskActivities:
         cases = suite["cases"] if isinstance(suite["cases"], list) else json.loads(suite["cases"])
         results: list[dict[str, Any]] = []
         tokens = 0
-        for case in cases:
-            result, used = await self._case(run, company, case)
-            results.append(result)
-            tokens += used
-        async with self._tx() as tx:
-            report = await shadow.finish(tx, self.hub, run_id, results, tokens=tokens)
+        try:
+            for case in cases:
+                result, used = await self._case(run, company, case)
+                results.append(result)
+                tokens += used
+            async with self._tx() as tx:
+                report = await shadow.finish(tx, self.hub, run_id, results, tokens=tokens)
+        except Exception as e:
+            # never left `running` with no end; the tokens the done cases spent stay counted
+            await self._shadow_failed(run, f"{type(e).__name__}: {e}", tokens)
+            raise
         return {"run": run_id, "pass": report.pass_, "total": report.total, "tokens": tokens}
+
+    async def _shadow_failed(self, run: dict[str, Any], error: str, tokens: int) -> None:
+        async with self._tx() as tx:
+            await tx.exec(
+                """UPDATE support.shadow_runs SET state = 'failed', error = :e, tokens = :t,
+                       finished_at = now() WHERE id = :id AND state = 'running'""",
+                id=run["id"],
+                e=error[:300],
+                t=tokens,
+            )
+            if run["eval_run_id"] is not None:
+                await tx.exec(
+                    """UPDATE academy.eval_runs SET status = 'failed', passed = false, score = NULL,
+                           error = :e, tokens = :t, finished_at = now()
+                       WHERE id = :id AND status IN ('queued', 'running')""",
+                    id=run["eval_run_id"],
+                    e=error[:300],
+                    t=tokens,
+                )
 
     async def _case(
         self, run: dict[str, Any], company: str, case: dict[str, Any]

@@ -140,6 +140,40 @@ async def test_the_card_carries_the_real_diff_with_the_key_masked(
     assert missing.status_code == 404
 
 
+async def test_a_renamed_files_whole_patch_is_its_rename_diff(
+    client: httpx.AsyncClient, owner: dict[str, str], repo: Any
+) -> None:
+    """GET /decisions/{ref}/diff?file= of a renamed file shows the few changed lines,
+    never the whole file as added (a one-path pathspec hides the rename from -M)."""
+    co, name, r0 = repo["co"], repo["name"], repo["repo"]
+    sh(r0.work, "checkout", "-q", "main")
+    (r0.work / "long.py").write_text("".join(f"line_{i} = {i}\n" for i in range(200)))
+    sh(r0.work, "add", ".")
+    sh(r0.work, "commit", "-q", "-m", "long")
+    sh(r0.work, "push", "-q", "origin", "main")
+    sh(r0.work, "checkout", "-q", "-B", "pr-11", "main")
+    sh(r0.work, "mv", "long.py", "renamed.py")
+    text = (r0.work / "renamed.py").read_text().replace("line_5 = 5", "line_5 = 55")
+    (r0.work / "renamed.py").write_text(text)
+    sh(r0.work, "add", ".")
+    sh(r0.work, "commit", "-q", "-m", "rename")
+    sh(r0.work, "push", "-q", "-f", "origin", "HEAD:refs/pull/11/head")
+    head = sh(r0.work, "rev-parse", "HEAD")
+    tech = await agent_headers(f"{co['code']}-TECH-MGR")
+    r = await client.post(
+        "/internal/v1/decisions", headers={**tech, **idem()}, json=card(name, 11, head)
+    )
+    assert r.status_code == 201, r.text
+    row = next(f for f in r.json()["payload"]["diff"]["files"] if f["path"] == "renamed.py")
+    assert row["status"] == "renamed" and (row["additions"], row["deletions"]) == (1, 1)
+    one = await client.get(
+        f"/api/v1/decisions/{r.json()['ref']}/diff?file=renamed.py", headers=owner
+    )
+    assert one.status_code == 200, one.text
+    added = [x for x in one.json()["patch"].splitlines() if x.startswith("+")]
+    assert added == ["+line_5 = 55"], added
+
+
 async def test_head_sha_is_required_and_must_be_in_the_repository(
     client: httpx.AsyncClient, repo: Any
 ) -> None:
@@ -352,6 +386,13 @@ def test_reminder_thresholds() -> None:
     assert N.due_kinds(t0, None, t0 + timedelta(hours=23), cfg) == []
     assert N.due_kinds(t0, None, t0 + timedelta(hours=80), cfg) == ["age_24h", "age_72h"]
     assert N.due_kinds(t0, None, t0 + timedelta(days=8), cfg)[-1] == "age_7d"
+
+
+def test_before_expiry_text_follows_the_owners_threshold() -> None:
+    """Audit: the reminder says the configured hours, not a fixed six."""
+    assert "کمتر از ۶ ساعت" in N._body("before_expiry", 0)
+    assert "کمتر از ۲۴ ساعت" in N._body("before_expiry", 0, 24)
+    assert "کمتر از ۱٫۵ ساعت" in N._body("before_expiry", 0, 1.5)
 
 
 async def _card(su: Any, company_id: Any, **kw: Any) -> dict[str, Any]:

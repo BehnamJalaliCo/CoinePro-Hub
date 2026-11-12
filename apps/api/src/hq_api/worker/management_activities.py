@@ -66,13 +66,22 @@ class EgressWeb:
         }
 
     async def web(
-        self, *, account: str, task: str, prompt: str, timeout_s: int, reload: bool = False
+        self,
+        *,
+        account: str,
+        task: str,
+        prompt: str,
+        timeout_s: int,
+        reload: bool = False,
+        files: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "account": account, "task": task, "prompt": prompt, "timeout_s": timeout_s,
         }  # fmt: skip
         if reload:  # ⟨1.10⟩ §28.4: the retry after a recipe failure reloads the profile's page
             body["reload"] = True
+        if files:  # the call's files (named, base64): the recipe's attach step puts them in
+            body["files"] = files
         return await self._post("/v1/substitutes/web", body, limit_s=timeout_s + 30)
 
     async def web_logout(self, *, account: str) -> dict[str, Any]:

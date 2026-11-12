@@ -240,6 +240,10 @@ async def test_the_canvas_has_every_company_the_hub_and_plain_lines(
     nodes = {n["code"]: n for n in (await canvas(client, owner))["nodes"]}
     assert nodes[a]["open_sessions"] == 1 and nodes[b]["open_sessions"] == 0
     assert "فرمان تو" in nodes[a]["line_fa"] and humanize.check(nodes[a]["line_fa"]) == []
+    # a hidden session leaves every list, the canvas too (as /live/summary)
+    await su.execute("UPDATE owner.order_reports SET hidden_at = now() WHERE order_id = $1", order)
+    nodes = {n["code"]: n for n in (await canvas(client, owner))["nodes"]}
+    assert nodes[a]["open_sessions"] == 0 and "فرمان تو" not in nodes[a]["line_fa"]
     # a finished work no longer counts
     await su.execute("UPDATE work.work SET status = 'cancelled' WHERE id = $1", wb)
     [mine] = [x for x in (await canvas(client, owner))["links"] if x["id"] == made["id"]]
