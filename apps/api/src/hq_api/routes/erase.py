@@ -83,7 +83,12 @@ async def erase_record(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)
 async def erase_output_preview(ref: str, ctx: Ctx = Depends(owner_ctx)) -> ER.ErasePreview:
     """What erasing this output removes (it and the files only it carried) and what stays (the
     work it belongs to; an archive record filed from it; one audit line)."""
+    from hq_api.archive import clearance as CL
+
     async with ctx.tx() as tx:
+        # the archived copy is counted in archive.records, whose policies hide every row
+        # from a transaction without a clearance: the owner's is full
+        await CL.full(tx)
         return await ER.output_preview(tx, ref)
 
 
