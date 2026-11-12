@@ -1,14 +1,16 @@
 ---
 scope: holding
-version: 1
+version: 2
 status: proposed  # Claude's draft from the owner's decisions; only the owner edits and seals it in the app (contract §20.2)
 red_lines:
   - key: no_guaranteed_profit
     text_fa: "هیچ‌وقت به کاربر وعده‌ی سود قطعی داده نمیشود."
     check: rule
     patterns:
-      - "سود\\s*(?:ی\\s*)?(?:قطعی|تضمینی|تضمین[\\s‌]*شده|حتمی|بی[\\s‌]*ریسک|بدون\\s+ریسک)"
-      - "بدون\\s+(?:هیچ\\s+)?(?:ضرر|زیان|ریسک)"  # not «بی‌ضرر» (harmless)
+      # a negated clause is the honest risk line, never a promise: «هیچ سود تضمینی وجود ندارد»,
+      # «بدون ریسک نیست» (no «هیچ» before, no «نیست/ندارد/نمیده…» right after)
+      - "(?<!هیچ\\s)(?<!هیچ‌)سود\\s*(?:ی\\s*)?(?:قطعی|تضمینی|تضمین[\\s‌]*شده|حتمی|بی[\\s‌]*ریسک|بدون\\s+ریسک)(?![^.!؟?\\n]{0,20}(?:نیست|ندارد|نمیده|نمی‌ده))"
+      - "(?<!هیچ\\s)(?<!هیچ‌)بدون\\s+(?:هیچ\\s+)?(?:ضرر|زیان|ریسک)(?![^.!؟?\\n]{0,20}(?:نیست|ندارد|نمیده|نمی‌ده))"  # not «بی‌ضرر» (harmless)
       - "(?:صد|۱۰۰|100)\\s*(?:درصد|٪|%)\\s*(?:سود|برد|تضمین)"
       - "(?i)guaranteed\\s+(?:profit|return|gain)s?"
       - "(?i)risk[\\s-]*free\\s+(?:profit|return|trading)"
