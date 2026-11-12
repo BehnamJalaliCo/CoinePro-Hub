@@ -1112,3 +1112,22 @@ async def test_a_call_past_its_deadline_shows_as_ending_until_the_reaper_ends_it
         assert await SA.pending_outside(tx, [work], now) == []
         [gone] = await SA.ended_outside(tx, [work], now - timedelta(hours=1), now)
     assert gone["who_fa"] == "ChatGPT" and gone["why_fa"] == "نوبتش نرسید"
+
+
+def test_the_profit_red_line_lets_the_honest_risk_line_through(hub: Hub) -> None:
+    """agents/charter/HOLDING.md: a negated clause is the risk warning itself, never a promise."""
+    from hq_api.domain import charter as CH
+
+    pats = [
+        p for r in CH.default_red_lines(str(hub.charters.root)) for p in r.get("patterns") or []
+    ]
+    assert pats
+    for honest in (
+        "هیچ سود تضمینی وجود ندارد.",
+        "هیچ معامله‌ای بدون ریسک نیست.",
+        "بازار رمزارز بدون ریسک نیست و ممکن است سرمایه از دست برود.",
+        "ما سود تضمینی نمیدهیم.",
+    ):
+        assert not any(re.search(p, honest) for p in pats), honest
+    for promise in ("با ما سود تضمینی بگیر!", "این روش بدون ریسک است.", "سود قطعی ماهانه"):
+        assert any(re.search(p, promise) for p in pats), promise

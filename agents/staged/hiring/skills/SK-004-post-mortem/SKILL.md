@@ -4,7 +4,7 @@ name_fa: پس‌کاوی حادثه (post-mortem)
 summary_fa: بعد از هر حادثه یک گزارش بی‌سرزنش با خط زمانی منبع‌دار، اثر، علت ریشه‌ای قابل اصلاح و اقدام‌هایی که صاحب، موعد و راه سنجش دارند؛ هر ری‌استارت، rollback یا تغییر فقط پیشنهاد است و هیچ‌چیز ناشناخته‌ای حدس زده نمیشود.
 roles: [sre, db_reliability, appsec_engineer, cto, hub_platform_sre]
 companies: all
-version: 1
+version: 2
 eval: EV-007
 ---
 # Blameless post-mortem
@@ -39,8 +39,9 @@ an agent as the cause; it names the missing guardrail, check, alert, test, rule 
 10. **Repeats.** If an earlier post-mortem covers the same failure, link it and say which of its actions were not done.
 
 ## What the agent never does
-- Restarts, rollbacks, failovers, deploys, scaling, config changes and restores are A3. In a post-mortem they appear only as what was
-  done under the owner's decision (with its `D-…` ref) or as a new `propose` with what will happen, the cost, the risk and how to undo it.
+- Restarts, rollbacks, deploys and config changes on a company's own servers are done through `server.*` by the role that holds them
+  (§26, the owner, 2026-10-30); destructive steps and restores wait for the owner's seal. In a post-mortem each appears as what was done
+  with its tool's own result (or the owner's `D-…` ref for a sealed step), or as a new action item.
   Writing "I restarted" or "we will roll back" as your own act is wrong; something is done only when its tool said `ok`.
 - Deleting data or backups and changing keys, users, login or firewall settings are not actions for any agent and are not proposed.
 - No legal conclusions, notifications to authorities or messages to users. If user data may have been exposed, state the facts, tell
