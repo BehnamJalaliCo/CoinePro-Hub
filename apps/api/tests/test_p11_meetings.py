@@ -417,6 +417,11 @@ async def test_a_turns_cache_reads_count_at_a_tenth_on_the_meeting(
     after = await load(hub, m["ref"])
     assert after["used"] == 13500  # raw 103500 would be over the 40000 reserved
     assert after["end_reason"] != "budget"
+    # End it: its next turn is the devil's challenge, queued for the holding's
+    # inspector, who speaks in every later test's meeting (one queued run each).
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await MF.control(tx, await MT.load(tx, m["ref"], lock=True), "end", None)
+    assert (await end_turn(su, hub, m["ref"]))["state"] == "ended"
 
 
 async def test_a_whisper_reaches_the_owner_only(
