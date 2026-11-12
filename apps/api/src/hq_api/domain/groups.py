@@ -550,10 +550,16 @@ async def _auto_fill(
 
 
 async def reconcile_members(
-    tx: Tx, grow: dict[str, Any], *, now: datetime | None = None, fill: bool = True
+    tx: Tx,
+    grow: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    fill: bool = True,
+    only: set[UUID] | None = None,
 ) -> dict[str, int]:
     """Eligible companies join (a new one too); each member's seats resolve
-    to employees; an empty required seat asks automatic hiring (once a day)."""
+    to employees; an empty required seat asks automatic hiring (once a day).
+    `only` (a test's or a manual tick): only these companies' seats ask for a hire."""
     now = now or datetime.now(UTC)
     g = render(grow)
     out = {"joined": 0, "filled": 0, "asked": 0}
@@ -590,6 +596,7 @@ async def reconcile_members(
                 and fill
                 and m["state"] == "on"
                 and m["company_status"] == "active"
+                and (only is None or m["company_id"] in only)
                 and (asked is None or datetime.fromisoformat(asked) < now - FILL_EVERY)
             )
             blocked: str | None = None
@@ -923,7 +930,7 @@ async def tick(
         out["settled"] = await settle_runs(tx)
         for grow in await rows(tx):
             g = render(grow)
-            rec = await reconcile_members(tx, grow, now=now)
+            rec = await reconcile_members(tx, grow, now=now, only=only)
             out["joined"] += rec["joined"]
             out["asked"] += rec["asked"]
             if g.state != "on":

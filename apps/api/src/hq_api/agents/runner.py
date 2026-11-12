@@ -1241,7 +1241,10 @@ class Runner:
             # audited; only what does not fit asks the CEO
             from hq_api.domain import hiring
 
-            env = next((e for e in await hiring.envelopes(tx) if e.company == w["company"]), None)
+            env = next(
+                (e for e in await hiring.envelopes(tx, w["company"]) if e.company == w["company"]),
+                None,
+            )
             if env is not None and env.tokens_month and env.used_month + add <= env.tokens_month:
                 await tx.exec(
                     "UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=w["id"]

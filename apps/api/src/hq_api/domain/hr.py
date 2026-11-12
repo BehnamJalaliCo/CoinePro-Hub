@@ -452,7 +452,9 @@ async def check_approval(tx: Tx, d: dict[str, Any], payload: dict[str, Any]) -> 
     new = (change.get("quota_estimate_month") or {}).get("tokens")
     if new is None:
         return
-    env = next((e for e in await hiring.envelopes(tx) if e.company == d["company"]), None)
+    env = next(
+        (e for e in await hiring.envelopes(tx, d["company"]) if e.company == d["company"]), None
+    )
     if env is None or not env.tokens_month:
         return
     current = await _current_estimate(tx, payload["employee"])

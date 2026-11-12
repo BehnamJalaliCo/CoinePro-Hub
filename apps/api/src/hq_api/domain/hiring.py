@@ -161,7 +161,7 @@ async def check_approval(
                 "payload.quota_estimate_month": f"a monthly token estimate of at least {floor}"
             },
         )
-    env = next((e for e in await envelopes(tx) if e.company == d["company"]), None)
+    env = next((e for e in await envelopes(tx, d["company"]) if e.company == d["company"]), None)
     if env is not None and env.tokens_month:
         if env.committed_month + int(estimate) > env.tokens_month:
             raise ApiError(
@@ -195,8 +195,9 @@ def jalali_month_start(today: date) -> date:
     return today - timedelta(days=day - 1)
 
 
-async def envelopes(tx: Tx) -> list[Envelope]:
-    """Every active operating company's envelope (contract §18.11). Hires are
+async def envelopes(tx: Tx, company: str | None = None) -> list[Envelope]:
+    """Every active operating company's envelope (contract §18.11), or only `company`'s (a
+    hire's own check: never every company's sums for one card). Hires are
     counted over the owner's Jalali month, from midnight in the owner's time
     zone; used_month is llm-router's own counter of the company budget row
     (llm.usage, the UTC calendar month), the window the router enforces
@@ -246,8 +247,11 @@ async def envelopes(tx: Tx) -> list[Envelope]:
                   (SELECT count(*) FROM cartable.decisions d
                     WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
                       AND d.decided_at >= :start) AS hires_month
-           FROM core.companies c WHERE c.kind = 'company' AND c.status = 'active' ORDER BY c.code""",
+           FROM core.companies c WHERE c.kind = 'company' AND c.status = 'active'
+             AND (CAST(:co AS text) IS NULL OR c.code = CAST(:co AS text))
+           ORDER BY c.code""",
         start=datetime.combine(start, time.min, tzinfo=tz).astimezone(UTC),
+        co=company,
     )
     return [
         Envelope(

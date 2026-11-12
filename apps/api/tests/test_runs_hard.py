@@ -95,12 +95,17 @@ async def test_live_deltas_to_the_owner_are_masked(
     run_id = r.json()["reply"]["run_id"]
     agents.fake.enqueue("HQ-ADV", step("پاسخ"), f"شماره‌ی او {phone} است و کلید {key}.\nپایان")
     q = hub.live.subscribe("A")
+    # the masking is checked here, not the day: what the whole suite spent today stays out of it
+    real = agents.runner.s
+    agents.runner.s = replace(real, agent_daily_token_cap=10**12, company_daily_token_cap=0)
     try:
         assert (await run(agents, run_id))["state"] == "done"
         seen = []
         while not q.empty():
             seen.append(q.get_nowait())
     finally:
+        agents.runner.s = real
+        agents.fake.queues["HQ-ADV"].clear()
         hub.live.unsubscribe("A", q)
     text = "".join(d["text"] for t, d in seen if t == "reply.delta")
     assert "پایان" in text and "[phone]" in text and phone not in text and key not in text
@@ -135,9 +140,15 @@ async def test_a_long_streamed_answer_keeps_beating_and_is_stored(
         lambda: beats.append(time.monotonic()),
         0.05,
     )
+    # the beats are measured here, not the day: what the whole suite spent today stays out of it
+    # (a daily_cap refusal left this answer queued for the advisor's next test)
+    real = agents.runner.s
+    agents.runner.s = replace(real, agent_daily_token_cap=10**12, company_daily_token_cap=0)
     try:
         assert (await run(agents, run_id))["state"] == "done"
     finally:
+        agents.runner.s = real
+        agents.fake.queues["HQ-ADV"].clear()
         agents.router.stream = real_stream
         agents.runner.heartbeat, agents.runner.heartbeat_every_s = (
             lambda: None,
@@ -205,9 +216,9 @@ async def test_the_daily_cap_is_checked_before_every_model_call(
     co = (await new_company())["code"]
     await order(client, owner, co)
     (row,) = await runs_of(su, f"{co}-CEO")
+    # the day as the runner counts it (audit B5: a cache read at a tenth)
     spent = await su.fetchval(
-        """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                               + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+        f"""SELECT COALESCE(sum({R.EFFECTIVE_SQL}), 0)
            FROM llm.calls
            WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
              AND meta ? 'run_id'"""

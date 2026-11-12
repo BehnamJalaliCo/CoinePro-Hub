@@ -163,7 +163,9 @@ async def test_refusals_come_before_anything_leaves(
     publisher = await hire(su, co, "publisher")
     r = await make(client, publisher, {"text_fa": "متن"})
     assert r.status_code == 403
-    r = await make(client, f"{co['code']}-CEO", {"text_fa": "متن"})
+    # ⟨2026-11-12⟩ the CEO may (a media order without a media director is his: ROLES, media.rego);
+    # a role with no voice work may not
+    r = await make(client, f"{co['code']}-TECH-MGR", {"text_fa": "متن"})
     assert r.status_code == 403
     assert web.sent == []  # nothing left the hub
     # the same key is the same answer (stored once the voice is made)
