@@ -58,7 +58,7 @@ class Envelope(BaseModel):
 
     company: str
     tokens_month: int | None  # the company's monthly budget (llm.budgets), if set
-    committed_month: int  # monthly estimates of its approved hires: active, or not made yet
+    committed_month: int  # each active employee's estimate in force + approved hires not made yet
     used_month: int  # tokens counted against tokens_month (llm-router's UTC month)
     hires_month: int  # hire cards approved this Jalali month
 
@@ -205,9 +205,11 @@ async def envelopes(tx: Tx) -> list[Envelope]:
         str(await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran")
     )
     start = jalali_month_start(datetime.now(tz).date())
-    # committed_month counts each employee's estimate in force: the latest
-    # approved promote / demote that set one, else its hire card (the same
-    # figure as hr._current_estimate, which check_approval subtracts).
+    # committed_month counts each active employee's estimate in force: the
+    # latest approved promote / demote that set one, else its hire card, else
+    # 0 (the same figure as hr._current_estimate, which check_approval
+    # subtracts; a template's own staff have no hire card), plus every
+    # approved hire card whose employee is not made yet.
     rows = await tx.all(
         """SELECT c.code,
                   (SELECT b.token_limit FROM llm.budgets b
@@ -217,19 +219,25 @@ async def envelopes(tx: Tx) -> list[Envelope]:
                               (SELECT (COALESCE(ev.amendments->'change', ev.payload->'change')
                                        ->'quota_estimate_month'->>'tokens')::bigint
                                  FROM cartable.decisions ev
-                                WHERE e.id IS NOT NULL AND ev.kind = 'evaluation'
-                                  AND ev.status = 'approved' AND ev.payload->>'employee' = e.code
+                                WHERE ev.kind = 'evaluation' AND ev.status = 'approved'
+                                  AND ev.payload->>'employee' = e.code
                                   AND COALESCE(ev.amendments->'change', ev.payload->'change')
                                       ->'quota_estimate_month'->>'tokens' IS NOT NULL
                                 ORDER BY ev.decided_at DESC LIMIT 1),
-                              (COALESCE(d.amendments->'quota_estimate_month',
-                                        d.payload->'quota_estimate_month')->>'tokens')::bigint,
+                              (SELECT (COALESCE(d.amendments->'quota_estimate_month',
+                                                d.payload->'quota_estimate_month')->>'tokens')::bigint
+                                 FROM cartable.decisions d WHERE d.id = e.hired_by_decision_id),
                               0)), 0)
-                     FROM cartable.decisions d
-                     LEFT JOIN core.employees e ON e.hired_by_decision_id = d.id
-                    WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
-                      AND (e.status = 'active'
-                           OR (e.id IS NULL AND d.effect_status = 'pending'))) AS committed_month,
+                     FROM core.employees e
+                    WHERE e.company_id = c.id AND e.status = 'active')
+                  + (SELECT COALESCE(sum(COALESCE((COALESCE(d.amendments->'quota_estimate_month',
+                                                            d.payload->'quota_estimate_month')
+                                                   ->>'tokens')::bigint, 0)), 0)
+                       FROM cartable.decisions d
+                      WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'
+                        AND d.effect_status = 'pending'
+                        AND NOT EXISTS (SELECT 1 FROM core.employees e
+                                         WHERE e.hired_by_decision_id = d.id)) AS committed_month,
                   (SELECT COALESCE(sum(u.tokens), 0) FROM llm.usage u
                     WHERE u.company_id = c.id AND u.scope_type = 'company' AND u.scope_ref = c.code
                       AND u.period = 'month'
