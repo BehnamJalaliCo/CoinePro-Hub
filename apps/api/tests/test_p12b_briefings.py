@@ -313,35 +313,30 @@ async def test_a_refused_clean_delivery_does_not_use_up_the_send_back(
         letter = await su.fetchrow(
             "SELECT * FROM reports.ceo_letters WHERE company_id = $1 AND week = $2", co["id"], week
         )
+        # many refused deliveries already: the count stays under the table's ceiling
+        await su.execute(
+            "UPDATE reports.ceo_letters SET attempts = $2 WHERE id = $1",
+            letter["id"],
+            B.LETTER_ATTEMPTS_MAX,
+        )
         url = f"/internal/v1/work/{letter['work_id']}/deliver"
         ceo = await agent_headers(f"{co['code']}-CEO")
         clean = {"title": "نامه‌ی هفتگی", "body": "این هفته 0 خروجی داشتیم."}
-        for _ in range(3):  # refused deliveries (no Idempotency-Key) count nothing
-            r = await client.post(url, headers=ceo, json=clean)
-            assert r.status_code == 422 and "Idempotency-Key" in r.text
+        r = await client.post(url, headers=ceo, json=clean)  # no Idempotency-Key: refused
+        assert r.status_code == 422 and "Idempotency-Key" in r.text
         bad = {"title": "نامه‌ی هفتگی", "body": "این هفته 98765 کاربر تازه آمدند."}
         r = await client.post(url, headers={**ceo, **idem()}, json=bad)
         assert r.status_code == 422 and "98765" in r.text  # still sent back, once
         row = await su.fetchrow(
             "SELECT state, attempts FROM reports.ceo_letters WHERE id = $1", letter["id"]
         )
-        assert row["state"] == "returned" and row["attempts"] == 1
-        # many deliveries counted already: the count stays under the table's ceiling (0..10)
-        await su.execute(
-            "UPDATE reports.ceo_letters SET attempts = $2 WHERE id = $1",
-            letter["id"],
-            B.LETTER_ATTEMPTS_MAX,
-        )
+        assert row["state"] == "returned" and row["attempts"] == B.LETTER_ATTEMPTS_MAX
         r = await client.post(url, headers={**ceo, **idem()}, json=bad)
         assert r.status_code == 200, r.text
         title = await su.fetchval(
             "SELECT title FROM cartable.deliverables WHERE ref = $1", r.json()["deliverable"]
         )
         assert title.startswith(B.UNSOURCED)
-        attempts = await su.fetchval(
-            "SELECT attempts FROM reports.ceo_letters WHERE id = $1", letter["id"]
-        )
-        assert attempts == B.LETTER_ATTEMPTS_MAX
 
 
 async def test_a_sourced_letter_is_published_as_it_is(

@@ -195,21 +195,25 @@ async def test_uncap_under_a_capped_parent_lifts_the_parents_cap_first(
     company = await new_company()
     co = company["code"]
     async with await all_tx(hub) as tx:
+        # the CEO's root (depth 0): a manager's root is already depth 1, and depth stops at 2
         root = await W.create(
             tx, OR.SERVICE, company_id=company["id"], company_code=co, title="ریشه با سقف",
-            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-TECH-MGR",
+            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-CEO",
             budget=W.BudgetIn(tokens=100_000),
         )  # fmt: skip
-        # the deepest a work goes (delegation depth 2 under the root)
+        mid = await W.create(
+            tx, OR.SERVICE, company_id=company["id"], company_code=co, title="میانی",
+            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-TECH-MGR", parent=root,
+        )  # fmt: skip
         leaf = await W.create(
             tx, OR.SERVICE, company_id=company["id"], company_code=co, title="برگ",
-            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-TECH-MGR", parent=root,
+            brief="x", kind="one_off", priority="P3", assignee_code=f"{co}-TECH-MGR", parent=mid,
         )  # fmt: skip
     assert await budget_of(su, leaf["ref"]) == 100_000  # all its parent had left
     async with await all_tx(hub) as tx:
         await W.uncap(tx, leaf, OR.SERVICE)
-    assert [await budget_of(su, w["ref"]) for w in (root, leaf)] == [None, None]
-    await refuse_queued(su, root["ref"], leaf["ref"])
+    assert [await budget_of(su, w["ref"]) for w in (root, mid, leaf)] == [None, None, None]
+    await refuse_queued(su, root["ref"], mid["ref"], leaf["ref"])
 
 
 async def test_the_one_off_uncaps_the_open_orders_and_wakes_their_holders(

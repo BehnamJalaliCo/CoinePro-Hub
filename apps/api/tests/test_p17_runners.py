@@ -1233,8 +1233,13 @@ async def test_publish_through_a_runner(
     pub = json.loads(row["publish"]) if isinstance(row["publish"], str) else row["publish"]
     assert pub[0]["external_id"] == "1789" and pub[0]["url"] == "https://instagram.com/p/xyz"
     logs = await su.fetch(
-        "SELECT channel, via, outcome, external_id, error FROM media.publish_log WHERE item_id = (SELECT id FROM media.items WHERE ref = $1) ORDER BY at",
+        """SELECT channel, via, outcome, external_id, error FROM media.publish_log
+           WHERE item_id = (SELECT id FROM media.items WHERE ref = $1) ORDER BY at""",
         ref,
+    )
+    # the sweep told the item at once (its timed_out row stays); the late answer is the truth
+    assert [(x["outcome"], x["error"]) for x in logs] == (
+        [("error", "timed_out"), ("ok", None)] if late else [("ok", None)]
     )
     log = logs[-1]
     assert (log["channel"], log["via"], log["outcome"], log["external_id"]) == (
@@ -1243,22 +1248,31 @@ async def test_publish_through_a_runner(
         "ok",
         "1789",
     )
-    # the log keeps the timeout it saw, then the late result
-    assert [(x["outcome"], x["error"]) for x in logs[:-1]] == (
-        [("error", "timed_out")] if late else []
-    )
+    if late:
+        # the publish_failed card the timeout raised has nothing left to approve
+        dec = await su.fetchrow(
+            """SELECT d.status, d.payload ->> 'why' AS why FROM cartable.decisions d
+               JOIN media.items i ON i.decision_id = d.id WHERE i.ref = $1""",
+            ref,
+        )
+        assert (dec["status"], dec["why"]) == ("withdrawn", "publish_failed")
     # a late good result is the truth: the post is out
     assert (
         await su.fetchval("SELECT state FROM infra.server_jobs WHERE id = $1", uuid.UUID(job["id"]))
         == "done"
     )
-    if late:
-        # the card the timeout raised has nothing left to approve
-        card = await su.fetchrow(
-            "SELECT d.kind, d.status FROM cartable.decisions d JOIN media.items i ON i.decision_id = d.id WHERE i.ref = $1",
-            ref,
-        )
-        assert (card["kind"], card["status"]) == ("media_publish", "withdrawn")
+    # the runner's retry of the same result is a replay: nothing logged twice
+    again = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 0, "summary_fa": "منتشر شد",
+              "data": {"external_id": "1789", "url": "https://instagram.com/p/xyz"}},
+        headers=rn["h"],
+    )  # fmt: skip
+    assert again.status_code == 200 and again.json()["state"] == "done", again.text
+    assert await su.fetchval(
+        "SELECT count(*) FROM media.publish_log WHERE item_id = (SELECT id FROM media.items WHERE ref = $1)",
+        ref,
+    ) == len(logs)
 
 
 async def test_a_nul_in_output_or_a_result_is_kept_as_a_replacement_character(

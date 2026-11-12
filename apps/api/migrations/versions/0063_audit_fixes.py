@@ -12,9 +12,9 @@
   filed as encrypted must not read as plain because its level changed).
 - owner.progress: the newsletter's progress rows (kind `newsletter`) were refused by the kind
   CHECK; the kind is added, keeping every kind the CHECK holds now.
-- infra.server_jobs_guard: a publish the sweep failed as `timed_out` takes its late good result
-  (servers.finish: the post is out): failed -> done for that case alone; every other finished
-  job still never changes state.
+- infra.server_jobs_guard: a finished job never changes state, except a `publish` the sweep
+  failed as `timed_out` whose late good result arrives (failed -> done): the post is out (the
+  runner downloads its files before the command's own clock starts).
 
 Revision ID: 0063
 Revises: 0062
@@ -434,6 +434,40 @@ END $$;
 REVOKE ALL ON FUNCTION owner.erase_order_run(uuid) FROM PUBLIC;
 """
 
+# infra.server_jobs_guard as 0032 made it, but for a timed-out publish's late good result
+JOBS_GUARD = r"""
+CREATE OR REPLACE FUNCTION infra.server_jobs_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+BEGIN
+    IF OLD.state IN ('done', 'failed', 'cancelled') AND NEW.state <> OLD.state
+       AND NOT (OLD.kind = 'publish' AND OLD.state = 'failed' AND OLD.error_code = 'timed_out'
+                AND NEW.state = 'done') THEN
+        RAISE EXCEPTION 'job % is finished (%)', OLD.id, OLD.state USING ERRCODE = 'HQV01';
+    END IF;
+    IF NEW.last_seq < OLD.last_seq THEN
+        RAISE EXCEPTION 'job %: the sequence never goes down', OLD.id USING ERRCODE = 'HQV01';
+    END IF;
+    NEW.updated_at := now();
+    RETURN NEW;
+END $$;
+"""
+
+# as 0032 made it (the downgrade)
+JOBS_GUARD_BEFORE = r"""
+CREATE OR REPLACE FUNCTION infra.server_jobs_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+BEGIN
+    IF OLD.state IN ('done', 'failed', 'cancelled') AND NEW.state <> OLD.state THEN
+        RAISE EXCEPTION 'job % is finished (%)', OLD.id, OLD.state USING ERRCODE = 'HQV01';
+    END IF;
+    IF NEW.last_seq < OLD.last_seq THEN
+        RAISE EXCEPTION 'job %: the sequence never goes down', OLD.id USING ERRCODE = 'HQV01';
+    END IF;
+    NEW.updated_at := now();
+    RETURN NEW;
+END $$;
+"""
+
 RESCUE_KEEP = "'id', 'ref', 'company_id', 'source', 'exchange', 'subject', 'mystery', 'opened_at'"
 RESCUE_KEEP_BEFORE = (
     "'id', 'ref', 'company_id', 'source', 'conversation_id', 'exchange', 'subject', 'mystery', "
@@ -491,26 +525,6 @@ REVOKE UPDATE (title_fa) ON core.employees FROM hq_api, hq_worker;
 """
 
 
-# infra.server_jobs_guard as 0032 made it, and with the one late result it lets through
-GUARD_BODY = """
-CREATE OR REPLACE FUNCTION infra.server_jobs_guard() RETURNS trigger
-    LANGUAGE plpgsql AS $$
-BEGIN
-    IF OLD.state IN ('done', 'failed', 'cancelled') AND NEW.state <> OLD.state%s THEN
-        RAISE EXCEPTION 'job %% is finished (%%)', OLD.id, OLD.state USING ERRCODE = 'HQV01';
-    END IF;
-    IF NEW.last_seq < OLD.last_seq THEN
-        RAISE EXCEPTION 'job %%: the sequence never goes down', OLD.id USING ERRCODE = 'HQV01';
-    END IF;
-    NEW.updated_at := now();
-    RETURN NEW;
-END $$;
-"""
-GUARD_LATE = """
-       AND NOT (OLD.kind = 'publish' AND OLD.state = 'failed' AND OLD.error_code = 'timed_out'
-                AND NEW.state = 'done')"""
-
-
 def _progress_kinds(add: bool) -> str:
     """owner.progress's kind CHECK rewritten from the kinds it holds now (0055's helper), with
     `newsletter` added or taken out (taken out NOT VALID: rows already written stay)."""
@@ -539,11 +553,11 @@ def upgrade() -> None:
     execute_script(UPGRADE)
     execute_script(ERASE_RUN_FIXED)
     execute_script(_progress_kinds(True))
-    execute_script(GUARD_BODY % GUARD_LATE)
+    execute_script(JOBS_GUARD)
 
 
 def downgrade() -> None:
-    execute_script(GUARD_BODY % "")
+    execute_script(JOBS_GUARD_BEFORE)
     execute_script(_progress_kinds(False))
     execute_script(ERASE_RUN_BEFORE)
     execute_script(DOWNGRADE)

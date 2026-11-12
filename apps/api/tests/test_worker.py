@@ -253,23 +253,22 @@ async def test_pending_decision_expires(
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_pending_decision_restarts_a_closed_lifecycle(
-    hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any], su: Any
+    hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any]
 ) -> None:
     """A ref whose DecisionLifecycle already closed (a ref reused after an
     owner wipe, or a run that failed) is started again for a pending card,
     so the card still expires (audit g31)."""
     co = await new_company()
-    ref = await propose_hire(hub, co, expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    ref = await propose_hire(hub, co, expires_at=datetime.now(UTC) + timedelta(hours=1))
     await workflows_client.decision_created(wk["hub"], ref)
-    assert (await result_of(wk["client"], f"decision-{ref}"))["result"] == "expired"
-    # The same ref is pending again, as a new card after the ref sequence restarts (written past
-    # the card's own guard, which never lets an expired card change: the setup only).
-    async with su.transaction():
-        await su.execute("SET LOCAL session_replication_role = replica")
-        await su.execute(
-            """UPDATE cartable.decisions SET status = 'pending', decided_at = NULL,
-                 expires_at = now() + interval '2 seconds' WHERE ref = $1""",
-            ref,
+    # The lifecycle ends while the card is still pending (a run that failed). A
+    # decided card never goes back to pending (decisions_final), so this is the
+    # closed run with the same id that a pending card can meet.
+    await wk["client"].get_workflow_handle(f"decision-{ref}").terminate("a run that failed")
+    async with hub.db.tx(await _all(hub)) as tx:
+        await tx.exec(
+            "UPDATE cartable.decisions SET expires_at = now() + interval '2 seconds' WHERE ref = :r",
+            r=ref,
         )
     await workflows_client.decision_created(wk["hub"], ref)  # as reconcile_decisions does
     out = await result_of(wk["client"], f"decision-{ref}")
@@ -559,13 +558,9 @@ async def test_morning_report_once_a_day(hub: Hub, wk: dict[str, Any]) -> None:
     second = await client.execute_workflow(
         "MorningReport", id=f"mr-{uuid.uuid4()}", task_queue=wk["tq"]
     )
-    # the second run finishes what a first attempt may not have reached (audit g: its
-    # notification and the rhythm flush), and says what it found
-    assert {k: second[k] for k in ("created", "reason")} == {
-        "created": False,
-        "reason": "already sent today",
-    }
-    assert second["notified"] is False
+    assert second["created"] is False and second["reason"] == "already sent today"
+    # Audit g29: a second run finishes only what the first missed; here nothing.
+    assert second["work"] and second["notified"] is False
     async with hub.db.tx(await _all(hub)) as tx:
         tz = await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1")
         today = datetime.now(ZoneInfo(tz)).date()

@@ -800,35 +800,36 @@ async def runner_published(
     error: str | None,
 ) -> None:  # fmt: skip
     """⟨1.8⟩ A publish job ended: its row of the item and of the publish log;
-    once no runner is pending, the item is published (or its card raised)."""
+    once no runner is pending, the item is published (or its card raised).
+    A good answer after the sweep failed the job (timed_out) still counts: the post is out. It
+    takes the row the timeout marked, even once the `publish_failed` card rebuilt it without its
+    job, and that card is withdrawn when the item is published."""
     ref = (j["args"] or {}).get("item")
     if not ref:
         return
     item = await S.load_item(tx, str(ref), lock=True)
     entries = list(item.get("publish") or [])
-    # audit 2026-11-11: a publish the sweep failed as timed_out may still bring its good result
-    # (the runner fetched its files before the command's own clock started); the post is out, so
-    # it replaces the timeout, and the card the timeout raised (which rewrote the entries without
-    # their job) is withdrawn below
-    late = ok and j["state"] == "failed" and j.get("error_code") == "timed_out"
+    late = ok and j.get("state") == "failed" and j.get("error_code") == "timed_out"
     mine = next((e for e in entries if e.get("job") == str(j["id"])), None)
-    if mine is None and late and item["state"] == "waiting_owner":
-        placement = (j["args"] or {}).get("placement")
+    if late and mine is None:
         mine = next(
             (
                 e
                 for e in entries
                 if e.get("channel") == "runner"
-                and e.get("placement") == placement
+                and e.get("placement") == (j["args"] or {}).get("placement")
                 and not e.get("job")
-                and not e.get("at")
+                and e.get("error") == "timed_out"
             ),
             None,
         )
-    if mine is None or mine.get("at") or (mine.get("error") and not late):
+    if mine is None or mine.get("at"):
         return
+    if mine.get("error") and not (late and mine["error"] == "timed_out"):
+        return
+    if late:
+        mine["job"] = str(j["id"])
     mine.update(
-        job=str(j["id"]),
         at=datetime.now(UTC).isoformat() if ok else None,
         external_id=external_id,
         url=url,
@@ -882,8 +883,9 @@ async def runner_published(
             id=item["id"],
             n=note,
         )
+        if late:
+            await _withdraw_failed_card(tx, item)
         await events.emit(tx, item["company"], "media.item", item["ref"], {"state": "published"})
-        await _withdraw_failed_card(tx, item)
         return
     cur = await S.load_item(tx, item["ref"], lock=True)
     await card(
@@ -906,21 +908,22 @@ async def runner_published(
     )
 
 
-LATE_RESULT_FA = "نتیجه‌ی سرور دیر رسید و منتشر شده بود؛ این کارت دیگر لازم نیست"
+LATE_PUBLISHED_FA = "پاسخ دیرِ سرور رسید: منتشر شده بود"
 
 
 async def _withdraw_failed_card(tx: Tx, item: dict[str, Any]) -> None:
-    """A late good result published the item: the `media_publish` card its timeout raised has
-    nothing left to approve (approving it would post the same item twice)."""
+    """The `publish_failed` card a timed-out runner job raised is withdrawn once its late good
+    answer published the item: nothing is left for the owner to approve."""
     if not item.get("decision_id"):
         return
     d = await tx.first(
         """UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now(),
-               decided_by_kind = 'service', decided_by_code = 'system', note = :n
+               decided_by_kind = 'service', decided_by_code = 'media', note = :n
            WHERE id = :id AND status = 'pending' AND kind = 'media_publish'
+             AND payload ->> 'why' = 'publish_failed'
            RETURNING ref""",
         id=item["decision_id"],
-        n=LATE_RESULT_FA,
+        n=LATE_PUBLISHED_FA,
     )
     if d is not None:
         await events.emit(

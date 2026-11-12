@@ -459,8 +459,10 @@ async def runner_result(
         # a result for a job already ended (the runner's retry after its read timed out, or a
         # job the sweep failed) changes nothing, and what follows a job's end has run already:
         # run again it would deliver the turn's output twice, book its usage twice, repeat a
-        # publish's lines and notifications
-        replay = j["state"] in SV.FINAL
+        # publish's lines and notifications. The one exception is a late good result of a
+        # publish the sweep timed out: finish() takes it (failed -> done), and its session
+        # hears that the post is out.
+        ended = j["state"] if j["state"] in SV.FINAL else None
         j = await SV.finish(
             tx,
             hub,
@@ -471,7 +473,7 @@ async def runner_result(
             data=body.data if body.data is not None else body.result,
             error=body.error,
         )
-    if replay or j.get("requeued_as"):
+    if (ended is not None and j["state"] == ended) or j.get("requeued_as"):
         # ⟨2026-11-11⟩ also a turn the account's usage limit stopped that runs again on the other
         # account (a new job of the same session and workspace): what follows a turn's end waits
         # for that job

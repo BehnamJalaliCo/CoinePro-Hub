@@ -1159,12 +1159,15 @@ async def test_a_final_render_waiting_on_a_failed_preview_is_still_queued(
         assert (await tool(client, code, "item", body)).status_code == 200
     await only_this_job(ref)
     job = (await client.post("/internal/v1/media/render/claim", headers=MEDIA)).json()
-    # As if this claimed job were the designer's preview, with the final render waiting on it.
-    async with su.transaction():  # purpose is immutable: the setup only
-        await su.execute("SET LOCAL session_replication_role = replica")
+    # As if this claimed job were the designer's preview, with the final render waiting on it
+    # (purpose is immutable: the superuser with triggers off for this one statement).
+    await su.execute("SET session_replication_role = replica")
+    try:
         await su.execute(
             "UPDATE media.render_jobs SET purpose = 'preview' WHERE id = $1", uuid.UUID(job["id"])
         )
+    finally:
+        await su.execute("SET session_replication_role = origin")
     await su.execute(
         """UPDATE media.items SET render_meta = COALESCE(render_meta, '{}'::jsonb)
                || '{"final_wanted": true}'::jsonb WHERE ref = $1""",

@@ -514,9 +514,12 @@ async def letter_gate(
     """Before a deliver (its own transaction), once the deliver is allowed
     (`authorize`, the route's policy and lock check): a CEO letter over its
     word limit is refused, and a first unsourced attempt is sent back (422,
-    recorded) — that send-back is the only write committed here. Every other
-    attempt is counted by `letter_attempt`, inside the delivery's own
-    transaction, so a refused or failed delivery never uses one up."""
+    recorded) — that send-back is the only write committed here. The send-back
+    belongs to the first unsourced attempt, the letter still 'writing',
+    whatever `attempts` holds (rows counted before this fix included refused
+    deliveries). Every other attempt is counted by `letter_attempt`, inside
+    the delivery's own transaction, so a refused or failed delivery never uses
+    one up; the count is held under its CHECK ceiling."""
     async with ctx.tx() as tx:
         found = await tx.first(
             "SELECT state FROM reports.ceo_letters WHERE work_id = :w", w=work_id
@@ -537,12 +540,13 @@ async def letter_gate(
                 fields={"body": f"at most {LETTER_WORDS} words"},
             )
         missing = unsourced(body_md, set(letter["figures"] or []))
-        if not missing or int(letter["attempts"]) > 0:
+        if not missing or letter["state"] != "writing":
             return
         await tx.exec(
-            """UPDATE reports.ceo_letters SET attempts = 1, unsourced = :u, state = 'returned',
-                   updated_at = now()
+            """UPDATE reports.ceo_letters SET attempts = least(attempts + 1, :cap), unsourced = :u,
+                   state = 'returned', updated_at = now()
                WHERE id = :id""",
+            cap=LETTER_ATTEMPTS_MAX,
             u=missing[:50],
             id=letter["id"],
         )
