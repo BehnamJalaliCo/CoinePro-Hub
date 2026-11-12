@@ -259,14 +259,15 @@ async def test_pending_decision_restarts_a_closed_lifecycle(
     owner wipe, or a run that failed) is started again for a pending card,
     so the card still expires (audit g31)."""
     co = await new_company()
-    ref = await propose_hire(hub, co, expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    ref = await propose_hire(hub, co, expires_at=datetime.now(UTC) + timedelta(hours=1))
     await workflows_client.decision_created(wk["hub"], ref)
-    assert (await result_of(wk["client"], f"decision-{ref}"))["result"] == "expired"
-    # The same ref is pending again, as a new card after the ref sequence restarts.
+    # The lifecycle ends while the card is still pending (a run that failed). A
+    # decided card never goes back to pending (decisions_final), so this is the
+    # closed run with the same id that a pending card can meet.
+    await wk["client"].get_workflow_handle(f"decision-{ref}").terminate("a run that failed")
     async with hub.db.tx(await _all(hub)) as tx:
         await tx.exec(
-            """UPDATE cartable.decisions SET status = 'pending', decided_at = NULL,
-                 expires_at = now() + interval '2 seconds' WHERE ref = :r""",
+            "UPDATE cartable.decisions SET expires_at = now() + interval '2 seconds' WHERE ref = :r",
             r=ref,
         )
     await workflows_client.decision_created(wk["hub"], ref)  # as reconcile_decisions does
