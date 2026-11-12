@@ -168,6 +168,21 @@ fun nowFacts(w: SessionWorker, count: Int): List<String> = listOfNotNull(
 fun leadWorker(working: List<SessionWorker>): SessionWorker? =
     working.firstOrNull(::isTurn) ?: working.firstOrNull { !isCall(it) } ?: working.firstOrNull()
 
+/** How long past its deadline the hub may take to drop an outside call. */
+const val CALL_GRACE_MS = 120_000L
+
+/** An outside call past its deadline (`started_at` + `cap_s` + two minutes): the hub drops it, maybe without a word on the stream, so the
+ *  page no longer counts it as at work. */
+fun callExpired(w: SessionWorker, now: Long = HqClock.millis()): Boolean {
+    if (!isCall(w)) return false
+    val cap = w.capS ?: return false
+    val started = instant(w.startedAt)?.toEpochMilli() ?: return false
+    return now > started + cap * 1000L + CALL_GRACE_MS
+}
+
+/** Those at work now: an outside call past its deadline is not. */
+fun liveWorkers(working: List<SessionWorker>, now: Long = HqClock.millis()): List<SessionWorker> = working.filterNot { callExpired(it, now) }
+
 /** «نگه دار» stops the hub's own live work: nothing to stop while only outside calls are pending. */
 fun holdable(working: List<SessionWorker>): Boolean = working.any { !isCall(it) }
 
@@ -249,8 +264,9 @@ fun lastWorkOf(o: OrderReport, a: SessionActivity?): Pair<String, String>? {
 
 /**
  * The client's own safety net, when the hub has not said why a session stands: null unless it is open, nothing waits for the owner (no
- * question, no card, not ready), there is no knot, nobody works, the activity says neither «waiting» nor «stuck», its plan is not done,
- * and [STILL_MINUTES] have passed since the hub's idle time (else the last line's, else the report's last move). A `stuck` badge's
+ * question, no card, not ready), there is no knot, nobody works, the activity says neither «waiting» nor «stuck», and [STILL_MINUTES]
+ * have passed since the hub's idle time (else the last line's, else the report's last move). A plan whose every task is ticked still
+ * stands while the hub has not called it ready (its work was never delivered). A `stuck` badge's
  * reason is the card's sentence; a `moving` badge's reason only echoes the last step (the card already names it).
  */
 fun stillOf(o: OrderReport, a: SessionActivity?, now: Long = HqClock.millis()): Still? {
@@ -258,7 +274,6 @@ fun stillOf(o: OrderReport, a: SessionActivity?, now: Long = HqClock.millis()): 
     val badge = sessionBadge(o)
     if (badge == "ready" || badge == "your_turn" || badge == "closed") return null
     if (a.working.isNotEmpty() || !a.waitingFa.isNullOrBlank() || !a.stuckFa.isNullOrBlank()) return null
-    if (planProgress(o.tasks)?.finished == true) return null
     val since = a.idleSince?.ifBlank { null } ?: a.last.lastOrNull()?.at?.ifBlank { null } ?: o.updatedAt.ifBlank { null } ?: return null
     val t = instant(since)?.toEpochMilli() ?: return null
     if (now - t < STILL_MINUTES * 60_000L) return null

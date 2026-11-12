@@ -66,7 +66,9 @@ import com.coinepro.hq.core.data.briefOf
 import com.coinepro.hq.core.data.chatRows
 import com.coinepro.hq.core.data.isPlayer
 import com.coinepro.hq.core.data.keyPatterns
+import com.coinepro.hq.core.data.isCall
 import com.coinepro.hq.core.data.knotWhy
+import com.coinepro.hq.core.data.liveWorkers
 import com.coinepro.hq.core.data.leadFile
 import com.coinepro.hq.core.data.liveWorkRef
 import com.coinepro.hq.core.data.mergeFetched
@@ -414,11 +416,15 @@ fun OrderSessionScreen(ref: String) {
     val speaking = talk.phase != Phase.IDLE || talk.liveText.isNotBlank() || talk.liveFailed != null
 
     // ⟨1.23⟩ §41 what is shown of the work: the hub's activity, else (a hub before it) the report read as one.
-    val shown = when {
+    // (⟨2026-11-11⟩ a failed read of the live work falls back to the report, so the page still knows when the session stands still)
+    val read = when {
         o == null || closed -> null
-        liveOn -> live
+        liveOn -> live ?: aq.error?.let { activityFromReport(o) }
         else -> activityFromReport(o)
     }
+    // An outside call past its deadline is no longer at work (the hub may drop it without a word on the stream): looked at every minute
+    val callTick = rememberTicker(60_000, on = read?.working?.any(::isCall) == true)
+    val shown = read?.let { r -> liveWorkers(r.working, callTick).let { w -> if (w.size == r.working.size) r else r.copy(working = w) } }
     val working = shown?.working.orEmpty()
     val now = rememberTicker(1_000, on = working.isNotEmpty())
     val badge = o?.let(::sessionBadge) ?: "moving"

@@ -180,6 +180,21 @@ type W = Worker;
 const isTurn = (w: W) => (w.kind === 'workshop' || w.kind === 'direct') && !!w.cap_s;
 /** ⟨2026-11-11⟩ An outside model or voice working for the session: shown like a run, never as a ring, never stopped from the bar. */
 export const isCall = (w: W) => w.kind === 'call';
+/** ⟨2026-11-12⟩ A call past its own deadline (`started_at` + `cap_s`) and this grace no longer counts as work: the hub may drop a call
+ *  without a live event, and the page must not say «کار میکند» on it for ever. */
+export const CALL_GRACE_S = 120;
+export const callOver = (w: W, now: number) => isCall(w) && w.cap_s != null && Date.parse(w.started_at) + (w.cap_s + CALL_GRACE_S) * 1000 < now;
+/** The activity as the page reads it at [now]: a call past its deadline is not at work (nor in the «الان» bar); if no one is left, the
+ *  hub's «کار میکند» that counted it goes too, and the light is read from the rest. */
+export function liveActivity(a: SessionActivity | null | undefined, now: number): SessionActivity | null | undefined {
+  if (!a || !a.working.some((w) => callOver(w, now))) return a;
+  const working = a.working.filter((w) => !callOver(w, now));
+  const busy = a.mood === 'working' || a.mood === 'thinking';
+  return { ...a, working, ...(!working.length && busy ? { mood: null, mood_fa: null } : {}) };
+}
+/** ⟨2026-11-12⟩ What the page reads when the activity's GET failed: the report alone, so nobody known at work and nothing waiting or
+ *  stuck; the still watch then reads the report's steps and time (`lastWorkOf`, `updated_at`) instead of showing «کار میکند» on nothing. */
+export const activityOfReport = (): SessionActivity => ({ working: [], last: [], idle_since: null, waiting_fa: null, stuck_fa: null });
 const KIND_FA: Partial<Record<NonNullable<W['kind']>, string>> = { workshop: 'کارگاه', server: 'سرور شرکت' };
 const sentenceOf = (w: W) => plain(w.last_fa || w.doing_fa || w.work_title_fa);
 /** The worker the bar speaks of: a turn first (its ring is the bar's mark), else the hub's own run before an outside call it waits on. */
@@ -528,15 +543,14 @@ export function lastWorkOf(r: SessionReport, a: SessionActivity | null | undefin
 /**
  * The page's own safety net, when the hub has not said why a session stands (the owner's 12-hour stall read «آرام» and offered nothing
  * to press): null unless it is open, nothing waits for the owner (no question, no card, not ready), there is no knot, nobody works, the
- * activity says neither «waiting» nor «stuck», its plan is not done, and [STILL_MINUTES] have passed since the hub's idle time (else the
- * last line's, else the report's last move). A `stuck` badge's reason is the card's sentence; a `moving` badge's only echoes the last step.
+ * activity says neither «waiting» nor «stuck», and [STILL_MINUTES] have passed since the hub's idle time (else the last line's, else the
+ * report's last move). Every task ticked is no reason to stay «آرام»: a delivered session is `ready`, and one that is not, with nobody at
+ * work, stands. A `stuck` badge's reason is the card's sentence; a `moving` badge's only echoes the last step.
  */
 export function stillOf(r: SessionReport, a: SessionActivity | null | undefined, badge: Badge, now = Date.now()): Still | null {
   if (!a || r.session?.state === 'closed' || r.turn || (r.cards ?? []).length || (r.blockers ?? []).length) return null;
   if (badge === 'ready' || badge === 'your_turn' || badge === 'closed') return null;
   if (a.working.length || a.waiting_fa || a.stuck_fa) return null;
-  const live = (r.tasks ?? []).filter((t) => t.state !== 'dropped');
-  if (live.length && live.every((t) => t.state === 'done')) return null;
   const since = a.idle_since || a.last.at(-1)?.at || r.updated_at;
   if (now - msOf(since) < STILL_MINUTES * 60_000) return null;
   const last = lastWorkOf(r, a);

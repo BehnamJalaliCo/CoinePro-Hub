@@ -239,6 +239,37 @@ test('a session nobody works on is «ایستاده»: one calm card, a silver e
   });
 });
 
+test('every task ticked but not delivered, and nobody at work: still «ایستاده», never «آرام» for ever', async ({ page }) => {
+  await flag(page, 'hq.e2e.plan', 'done');
+  await clean(page, async () => {
+    await page.goto('/s/F-0095');
+    await expect(page.locator('[data-session-facts]')).not.toContainText('کار 3 از 18');
+    await expect(session(page)).toHaveAttribute('data-mood', 'still');
+    await expect(page.getByTestId('still-card')).toBeVisible();
+  });
+});
+
+test('a call the hub dropped without a word stops counting past its deadline: no «الان» bar, and the still watch reaches it', async ({ page }) => {
+  await flag(page, 'hq.e2e.call', 'late');
+  await clean(page, async () => {
+    await page.goto('/s/F-0094');
+    await expect(page.getByTestId('still-card')).toBeVisible();
+    await expect(session(page)).toHaveAttribute('data-mood', 'still');
+    await expect(page.getByTestId('now-bar')).toHaveCount(0);
+    await expect(light(page)).not.toHaveText('کار میکند');
+  });
+});
+
+test('the activity\'s GET fails: the report stands in, so the still watch runs instead of «کار میکند» on nothing', async ({ page }) => {
+  await flag(page, 'hq.e2e.activity', 'fail');
+  await clean(page, async () => {
+    await page.goto('/s/F-0095');
+    await expect(page.getByTestId('still-card')).toBeVisible();
+    await expect(session(page)).toHaveAttribute('data-mood', 'still');
+    await expect(light(page)).toHaveText('ایستاده');
+  }, [/activity → 500/]);
+});
+
 test('«کار زنده» of a session nobody works on ends with «ادامه بده», as on Android', async ({ page }) => {
   await clean(page, async () => {
     // The build held: nobody works; the sheet says since when, and takes it up again.

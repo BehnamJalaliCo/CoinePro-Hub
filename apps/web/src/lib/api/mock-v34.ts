@@ -10,6 +10,8 @@
 // `hq.e2e.stuck=plain` makes F-0005 stuck with no fix of the hub's (the knot's own way out is then «ادامه بده»). The
 // checks ask for the rarer states through `hq.e2e.ring=late` (the turn is past 90 percent of its cap), `hq.e2e.workers=2` (two work
 // at once in F-0007), `hq.e2e.mood=thinking` (a run that has taken no step yet) and `hq.e2e.old55` (a hub before §55: none of these).
+// ⟨2026-11-12⟩ `hq.e2e.plan=done` ticks every task of F-0095 (it is still not delivered), `hq.e2e.call=late` puts F-0094's call 21
+// minutes back (past its 15-minute cap and the grace: the hub dropped it without a word), `hq.e2e.activity=fail` makes the activity's GET fail.
 // ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states and in no list: F-0094 while
 // the draft waits in ChatGPT's queue (an outside call at work, `kind: call`), F-0095 the next morning, when nothing ran after «… از ChatGPT
 // خواسته شد و در صف است» and the hub still said «آرام» (the page says «ایستاده» with «ادامه بده»).
@@ -149,7 +151,8 @@ function seed() {
   ]);
   mk({
     ref: 'F-0095', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', persona: 'ceo@PC', pace: 'step', listed: false,
-    opened_at: ago41(830 * 60), last_at: ago41(812 * 60), holder: pc, participants: [holderP('مدیرعامل پرو-چارت', 'PC', 'ceo@PC')], tasks: reelsPlan(),
+    opened_at: ago41(830 * 60), last_at: ago41(812 * 60), holder: pc, participants: [holderP('مدیرعامل پرو-چارت', 'PC', 'ceo@PC')],
+    tasks: flag('hq.e2e.plan') === 'done' ? reelsPlan().map((t) => ({ ...t, state: 'done' as const })) : reelsPlan(),
   }, [
     ['owner', 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من.', ago41(830 * 60)],
     ['ceo@PC', '**سؤال از تو** · گام ۱ انجام شد (استخدام سناریست و روش موضوع روزانه). تأیید یا اصلاح؟ اگر تأیید است، گام ۲ (متن گوینده و تنظیم یک‌بارِ صدا) را شروع کنم؟', ago41(815 * 60)],
@@ -228,11 +231,12 @@ function actOf(s: S): Act41 {
     };
   }
   else if (s.ref === 'F-0094') {
+    const t0 = (flag('hq.e2e.call') === 'late' ? 21 : 4) * 60;
     a = {
-      working: [{ who_fa: 'ChatGPT', company_fa: 'پرو-چارت', work_title_fa: 'پیش‌نویس متن ریلز اول', started_at: ago41(4 * 60), step: 0, doing_fa: 'در صف ChatGPT: پیش‌نویس متن', kind: 'call', cap_s: 900, last_fa: null, last_at: ago41(4 * 60) }],
+      working: [{ who_fa: 'ChatGPT', company_fa: 'پرو-چارت', work_title_fa: 'پیش‌نویس متن ریلز اول', started_at: ago41(t0), step: 0, doing_fa: 'در صف ChatGPT: پیش‌نویس متن', kind: 'call', cap_s: 900, last_fa: null, last_at: ago41(t0) }],
       last: [
-        { id: `run-${s.ref}-1`, at: ago41(5 * 60), who_fa: who, company: co, text_fa: 'دوباره سر کار آمد', kind: 'start', state: 'done', task_n: null },
-        { id: `run-${s.ref}-2`, at: ago41(4 * 60), who_fa: who, company: co, text_fa: 'از ChatGPT پرسید', kind: 'step', state: 'done', task_n: 3 },
+        { id: `run-${s.ref}-1`, at: ago41(t0 + 60), who_fa: who, company: co, text_fa: 'دوباره سر کار آمد', kind: 'start', state: 'done', task_n: null },
+        { id: `run-${s.ref}-2`, at: ago41(t0), who_fa: who, company: co, text_fa: 'از ChatGPT پرسید', kind: 'step', state: 'done', task_n: 3 },
       ],
       idle_since: null, waiting_fa: null, stuck_fa: null,
     };
@@ -553,6 +557,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     return json(decorate(plainStuck ? { ...rep, blockers: [] } : rep, s));
   }
   if (act === 'activity' && m === 'GET') {
+    if (flag('hq.e2e.activity') === 'fail') return problem(500, 'internal', 'فعالیت این جلسه خوانده نشد.');
     const a = actOf(s);
     // Once its knot is untied the session is no longer stuck (the hub then goes on by itself).
     if (a.stuck_fa && !plainStuck && !((await reportOf(s.ref))?.blockers ?? []).length) a.stuck_fa = null;
