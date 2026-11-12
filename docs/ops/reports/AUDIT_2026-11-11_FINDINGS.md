@@ -2,6 +2,7 @@
 
 > Companion of `AUDIT_2026-11-11.md`. The finders and verifiers wrote in English; kept as written.
 > Part 1: the hub code (fixed on `server/p36-audit`). Part 2: apps/web, apps/android and agents (not fixed: the consult session's folders).
+> Part 1's notes are the fixers' own, written before the full api suite ran. The merge and the repair round changed a few of them (g02/g17 letter send-back, g06 envelope count, g11/g12/g19 late publish result, g04 erase preview needs the route's clearance); `AUDIT_2026-11-11.md` has the final behaviour.
 
 ## Part 1: hub code (252)
 
