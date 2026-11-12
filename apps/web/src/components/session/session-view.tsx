@@ -203,7 +203,9 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   // The hub takes «ادامه بده» where it serves the session's activity (§41: a hub before it answers the activity with nothing).
   const nudgeOn = activity != null;
   // The minute is looked at only while a still card can come: open, not held, nothing asked or waiting, nobody at work.
-  const stillCan = !closed && !held && !asked && badge !== 'ready' && badge !== 'your_turn' && !r.blockers.length && !(r.cards ?? []).length
+  // The report standing in for a failed read cannot see a long quiet turn: while the hub's own badge says someone is at work, no card.
+  const reportBusy = raw !== undefined && raw === fallback && badge === 'moving' && (r.session?.reason_fa ?? '').trim().startsWith('در حال کار');
+  const stillCan = !closed && !held && !asked && !reportBusy && badge !== 'ready' && badge !== 'your_turn' && !r.blockers.length && !(r.cards ?? []).length
     && !!activity && !activity.working.length && !activity.waiting_fa && !activity.stuck_fa;
   const minute = useTick(60_000, stillCan);
   const still = stillCan ? stillOf(r, activity, badge, minute) : null;

@@ -431,7 +431,11 @@ fun OrderSessionScreen(ref: String) {
     // ⟨2026-11-11⟩ An open session nobody works on, that the hub has not explained, is «ایستاده» with its own card (looked at again
     // every minute); never «آرام» for hours with nothing to press.
     val minute = rememberTicker(60_000, on = o != null && !closed && working.isEmpty())
-    val still = if (o == null || closed || stopped) null else remember(o, shown, minute) { stillOf(o, shown, minute) }
+    // The report standing in for the live work (a failed read, or a hub before it) cannot see a long quiet turn: while the hub's own
+    // badge says someone is at work, the page does not say nobody is.
+    val reportBusy = read != null && read !== live && badge == "moving" &&
+        o?.session?.reasonFa?.trim()?.startsWith("در حال کار") == true
+    val still = if (o == null || closed || stopped || reportBusy) null else remember(o, shown, minute) { stillOf(o, shown, minute) }
     val mood = if (still != null) "still" else moodOf(shown, closed, badge, asked)
     val pace = paceAsked ?: o?.pace ?: "auto"
 
