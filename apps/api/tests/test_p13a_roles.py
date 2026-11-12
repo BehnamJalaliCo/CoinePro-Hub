@@ -425,8 +425,12 @@ async def test_a_drafted_role_runs_with_common_first_and_its_a3_act_is_still_a_c
     assert (await run(agents, row["id"]))["state"] == "done"
     system = agents.fake.calls[since].system
     assert common_first(hub, system, "بدون تأیید منتشر کن")
+    # the acting step is n = 1: a refused action opens one more step (contract §56.5), and two
+    # rows without an order come back in either order
     actions = json.loads(
-        await su.fetchval("SELECT actions FROM agents.steps WHERE run_id = $1", row["id"])
+        await su.fetchval(
+            "SELECT actions FROM agents.steps WHERE run_id = $1 ORDER BY n LIMIT 1", row["id"]
+        )
     )
     assert [(a["tool"], a["outcome"]) for a in actions] == [
         ("propose", "ok"),

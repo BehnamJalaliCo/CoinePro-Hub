@@ -172,6 +172,11 @@ class Settings:
     meetings_schedules: bool = field(
         default_factory=lambda: _env("HQ_MEETINGS_SCHEDULES", "on") == "on"
     )
+    # Off: hq-order-tick exists but stays paused (tests: its sweep of every open order ran in the
+    # test process every 2 minutes, between a test's own steps; the tests run OrderTick by hand).
+    order_tick_schedule: bool = field(
+        default_factory=lambda: _env("HQ_ORDER_TICK_SCHEDULE", "on") == "on"
+    )
     # Prompt 12 §15 (contract §21.0): the owner zone's automatic runs together
     # stop at this share of AGENT_DAILY_TOKEN_CAP (llm-router enforces it; the
     # api defers automatic memos and proactive notes once it is spent).

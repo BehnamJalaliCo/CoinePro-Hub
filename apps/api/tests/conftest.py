@@ -102,6 +102,7 @@ def settings(**over: Any) -> Settings:
         "files_root": "/tmp/hq-files-test",
         "oversight_schedules": False,  # the protocols' schedules exist, paused
         "meetings_schedules": False,  # prompt 11: the meeting room's too (tests drive it by hand)
+        "order_tick_schedule": False,  # hq-order-tick too: tests run OrderTick by hand
         "rate_per_principal": 100_000,
         "auth_rate_per_ip": 100_000,
     }

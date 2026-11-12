@@ -120,8 +120,9 @@ async def test_a_long_streamed_answer_keeps_beating_and_is_stored(
     client: httpx.AsyncClient, owner: dict[str, str], su: Any, agents: Any
 ) -> None:
     """A real Opus answer may stream for minutes against the activity's 3-minute
-    heartbeat timeout; here time is scaled down (beat every 50 ms, a 1 s
-    silence before the first delta) and the beats must keep coming."""
+    heartbeat timeout; here time is scaled down (beat every 50 ms, a 2 s
+    silence before the first delta) and the beats must keep coming: no gap reaches
+    half the silence (a loaded CI runner may hold the loop ~0.6 s once)."""
     r = await client.post(
         "/api/v1/threads/A/messages", headers={**owner, **idem()}, json={"body": "طولانی بنویس"}
     )
@@ -131,7 +132,7 @@ async def test_a_long_streamed_answer_keeps_beating_and_is_stored(
     real_stream = agents.router.stream
 
     async def slow_stream(body: dict[str, Any], timeout_s: int, on_delta: Any) -> ModelCall:
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(2.0)
         out: ModelCall = await real_stream(body, timeout_s, on_delta)
         return out
 
@@ -155,7 +156,7 @@ async def test_a_long_streamed_answer_keeps_beating_and_is_stored(
             R.HEARTBEAT_EVERY_S,
         )
     gaps = [b - a for a, b in itertools.pairwise(beats)]
-    assert len(beats) >= 10 and max(gaps) < 0.5
+    assert len(beats) >= 10 and max(gaps) < 1.0
     stored = await su.fetchval(
         """SELECT count(*) FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
            WHERE t.code = 'A' AND m.author_code = 'HQ-ADV' AND m.body = 'پاسخ بلند و کامل.'"""

@@ -315,6 +315,7 @@ def fixed(
     ceo_daily: bool = False,
     support_sweep_min: int = 30,
     meetings_paused: bool = False,
+    order_tick_paused: bool = False,
 ) -> list[Desired]:
     return [
         Desired(
@@ -341,7 +342,15 @@ def fixed(
             MAINTENANCE, "Maintenance", (), every(5), timedelta(minutes=10), timedelta(minutes=10)
         ),
         # ⟨2026-11-11⟩ an open session never goes silent: its sweep every 2 minutes, on its own
-        Desired(ORDER_TICK, "OrderTick", (), every(2), timedelta(minutes=2), timedelta(minutes=5)),
+        Desired(
+            ORDER_TICK,
+            "OrderTick",
+            (),
+            every(2),
+            timedelta(minutes=2),
+            timedelta(minutes=5),
+            paused=order_tick_paused,
+        ),
         Desired(
             DIGEST, "NotificationDigest", (), every(5), timedelta(minutes=10), timedelta(minutes=5)
         ),
