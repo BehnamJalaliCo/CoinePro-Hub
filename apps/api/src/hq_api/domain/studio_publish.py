@@ -806,10 +806,29 @@ async def runner_published(
         return
     item = await S.load_item(tx, str(ref), lock=True)
     entries = list(item.get("publish") or [])
+    # audit 2026-11-11: a publish the sweep failed as timed_out may still bring its good result
+    # (the runner fetched its files before the command's own clock started); the post is out, so
+    # it replaces the timeout, and the card the timeout raised (which rewrote the entries without
+    # their job) is withdrawn below
+    late = ok and j["state"] == "failed" and j.get("error_code") == "timed_out"
     mine = next((e for e in entries if e.get("job") == str(j["id"])), None)
-    if mine is None or mine.get("at") or mine.get("error"):
+    if mine is None and late and item["state"] == "waiting_owner":
+        placement = (j["args"] or {}).get("placement")
+        mine = next(
+            (
+                e
+                for e in entries
+                if e.get("channel") == "runner"
+                and e.get("placement") == placement
+                and not e.get("job")
+                and not e.get("at")
+            ),
+            None,
+        )
+    if mine is None or mine.get("at") or (mine.get("error") and not late):
         return
     mine.update(
+        job=str(j["id"]),
         at=datetime.now(UTC).isoformat() if ok else None,
         external_id=external_id,
         url=url,
@@ -864,6 +883,7 @@ async def runner_published(
             n=note,
         )
         await events.emit(tx, item["company"], "media.item", item["ref"], {"state": "published"})
+        await _withdraw_failed_card(tx, item)
         return
     cur = await S.load_item(tx, item["ref"], lock=True)
     await card(
@@ -884,6 +904,32 @@ async def runner_published(
             for e in entries
         ],
     )
+
+
+LATE_RESULT_FA = "نتیجه‌ی سرور دیر رسید و منتشر شده بود؛ این کارت دیگر لازم نیست"
+
+
+async def _withdraw_failed_card(tx: Tx, item: dict[str, Any]) -> None:
+    """A late good result published the item: the `media_publish` card its timeout raised has
+    nothing left to approve (approving it would post the same item twice)."""
+    if not item.get("decision_id"):
+        return
+    d = await tx.first(
+        """UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now(),
+               decided_by_kind = 'service', decided_by_code = 'system', note = :n
+           WHERE id = :id AND status = 'pending' AND kind = 'media_publish'
+           RETURNING ref""",
+        id=item["decision_id"],
+        n=LATE_RESULT_FA,
+    )
+    if d is not None:
+        await events.emit(
+            tx,
+            item["company"],
+            "decision.decided",
+            d["ref"],
+            {"status": "withdrawn", "kind": "media_publish"},
+        )
 
 
 async def _account(hub: Any, key: str) -> tuple[dict[str, Any] | None, str | None]:

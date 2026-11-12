@@ -105,12 +105,14 @@ async def narrate(client: httpx.AsyncClient, s: dict[str, Any], text: str) -> No
 
 async def queued_call(su: Any, s: dict[str, Any], *, seat: str = "content_draft") -> Any:
     """A ChatGPT web call the holder's run made for the order's root (as substitute.call stores
-    it), still in the player's queue."""
+    it) three minutes ago, with the run: still in the player's queue, long past the route's own
+    wait (an end inside that wait is the route's to answer inline)."""
     return await su.fetchval(
         """INSERT INTO substitutes.calls (company_id, player, seat, via, task, state, caller_kind,
-               caller_code, purpose_kind, purpose_ref, input_md, timeout_s, day, month_key)
+               caller_code, purpose_kind, purpose_ref, input_md, timeout_s, day, month_key,
+               created_at)
            VALUES ($1, 'gpt', $2, 'web', 'text', 'queued', 'agent', $3, 'caller_work', $4, 'x', 300,
-                   current_date, '1405-08') RETURNING id""",
+                   current_date, '1405-08', now() - interval '3 minutes') RETURNING id""",
         s["company"]["id"], seat, s["holder"], str(s["wid"]),
     )  # fmt: skip
 

@@ -373,10 +373,12 @@ async def test_a_post_set_far_ahead_is_followed_at_its_time_and_a_held_question_
     job = await take(client, rn)
     await answer(client, rn, job["id"], {"external_id": "pub:88", "url": None})
     # it was sent nine days before its time: it is still asked about when that comes
-    await su.execute(
-        "UPDATE infra.server_jobs SET created_at = now() - interval '9 days' WHERE id = $1",
-        UUID(job["id"]),
-    )
+    async with su.transaction():  # created_at is immutable: the setup only
+        await su.execute("SET LOCAL session_replication_role = replica")
+        await su.execute(
+            "UPDATE infra.server_jobs SET created_at = now() - interval '9 days' WHERE id = $1",
+            UUID(job["id"]),
+        )
     after = later + timedelta(seconds=100)
     assert await asked(hub, su, output, after) == 1
     check = await take(client, rn)

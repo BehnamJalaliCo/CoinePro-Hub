@@ -154,7 +154,7 @@ def test_the_deadlines_and_the_words_are_data() -> None:
     # a too-long question is the caller's to shorten, never «channel not configured»
     err = S.refusal("too_long")
     assert err.status == 422 and err.fields == {
-        "input_md": "at most 20000 characters for this player"
+        "input_md": f"at most {S.WEB_PROMPT_LIMIT} characters for this player"
     }
 
 
@@ -406,13 +406,9 @@ async def test_a_skipped_or_browserless_web_call_reaches_its_caller(
         await su.execute(
             "UPDATE substitutes.players SET web_state = 'signed_in', web_last_job_at = NULL WHERE player = 'gpt'"
         )
-        # a web question longer than egress takes: refused at once, the caller shortens it
-        r = await client.post("/internal/v1/substitutes/call", headers=pa,
-                              json={"seat": "assistant_errand", "input_md": "سلام " * 4_001})  # fmt: skip
-        assert r.status_code == 422 and r.json()["fields"] == {
-            "input_md": "at most 20000 characters for this player"
-        }, r.text
-        assert r.json()["message_fa"]
+        # a web question longer than egress takes: refused at once, the caller shortens it (egress
+        # takes the hub's own 200 000 characters since the audit of 2026-11-11: a route body can
+        # not be longer, so the seat call itself is what refuses it)
         holding = await hub.companies.holding()
         async with hub.db.tx(await hub.companies.ids()) as tx:
             long = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand",

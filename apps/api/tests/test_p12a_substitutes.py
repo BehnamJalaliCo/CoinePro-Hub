@@ -924,7 +924,9 @@ async def test_a_web_call_skipped_after_queued_still_answers_the_agent(
                JOIN substitutes.calls c ON c.reply_work_id = w.id WHERE c.id = $1::uuid""",
             call,
         )
-        assert reply["code"] == "HQ-PA" and "was skipped: expired" in reply["brief"]
+        # the caller hears why, in the words prompt 36 gives every end of a call
+        assert reply["code"] == "HQ-PA" and "skipped" in reply["brief"]
+        assert "[expired]" in reply["brief"] and "carry on" in reply["brief"]
 
 
 async def test_files_for_a_seat_on_the_cli_are_refused_never_dropped(

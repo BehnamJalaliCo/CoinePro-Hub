@@ -1232,21 +1232,33 @@ async def test_publish_through_a_runner(
     assert row["state"] == "published"
     pub = json.loads(row["publish"]) if isinstance(row["publish"], str) else row["publish"]
     assert pub[0]["external_id"] == "1789" and pub[0]["url"] == "https://instagram.com/p/xyz"
-    log = await su.fetchrow(
-        "SELECT channel, via, outcome, external_id FROM media.publish_log WHERE item_id = (SELECT id FROM media.items WHERE ref = $1)",
+    logs = await su.fetch(
+        "SELECT channel, via, outcome, external_id, error FROM media.publish_log WHERE item_id = (SELECT id FROM media.items WHERE ref = $1) ORDER BY at",
         ref,
     )
+    log = logs[-1]
     assert (log["channel"], log["via"], log["outcome"], log["external_id"]) == (
         "runner",
         "runner",
         "ok",
         "1789",
     )
+    # the log keeps the timeout it saw, then the late result
+    assert [(x["outcome"], x["error"]) for x in logs[:-1]] == (
+        [("error", "timed_out")] if late else []
+    )
     # a late good result is the truth: the post is out
     assert (
         await su.fetchval("SELECT state FROM infra.server_jobs WHERE id = $1", uuid.UUID(job["id"]))
         == "done"
     )
+    if late:
+        # the card the timeout raised has nothing left to approve
+        card = await su.fetchrow(
+            "SELECT d.kind, d.status FROM cartable.decisions d JOIN media.items i ON i.decision_id = d.id WHERE i.ref = $1",
+            ref,
+        )
+        assert (card["kind"], card["status"]) == ("media_publish", "withdrawn")
 
 
 async def test_a_nul_in_output_or_a_result_is_kept_as_a_replacement_character(
