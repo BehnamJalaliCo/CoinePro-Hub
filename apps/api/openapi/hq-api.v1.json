@@ -11123,6 +11123,53 @@
         "title": "ConnectorPullIn",
         "type": "object"
       },
+      "ConsumeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "args_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Args Sha256",
+            "type": "string"
+          },
+          "decision": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Decision",
+            "type": "string"
+          },
+          "server": {
+            "pattern": "^[a-z][a-z0-9-]{1,39}$",
+            "title": "Server",
+            "type": "string"
+          },
+          "tool": {
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$",
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "server",
+          "tool",
+          "args_sha256",
+          "decision"
+        ],
+        "title": "ConsumeIn",
+        "type": "object"
+      },
+      "Consumed": {
+        "properties": {
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "Consumed",
+        "type": "object"
+      },
       "Consumer": {
         "properties": {
           "actor": {
@@ -41636,6 +41683,11 @@
             "title": "Args Sha256",
             "type": "string"
           },
+          "defer": {
+            "default": false,
+            "title": "Defer",
+            "type": "boolean"
+          },
           "preview": {
             "default": "",
             "maxLength": 20000,
@@ -48586,7 +48638,7 @@
             "title": "Partial",
             "type": "integer"
           },
-          "pass_": {
+          "pass": {
             "title": "Pass",
             "type": "boolean"
           },
@@ -48668,7 +48720,7 @@
           "wrong",
           "safety_failures",
           "wrong_codes",
-          "pass_",
+          "pass",
           "threshold",
           "disagreements",
           "state"
@@ -76129,7 +76181,7 @@
         ]
       },
       "put": {
-        "description": "⟨1.13⟩ §31.6 change a rule. 🔏 `ads.cap` (target = the rule id) when the\nnew rule lets more money through (a higher cap, a lower ROAS floor, a larger\nminimum before judging, only telling instead of pausing, switched off, fewer\ncampaigns); a tighter rule needs none.",
+        "description": "⟨1.13⟩ §31.6 change a rule. 🔏 `ads.cap` (target = the rule id) when the\nnew rule lets more money through (a higher cap, a lower ROAS floor, a larger\nminimum before judging, a longer window, only telling instead of pausing,\nswitched off, fewer or other campaigns); a tighter rule needs none. A null is\naccepted only for the cap, the floor and the note (422 otherwise).",
         "operationId": "edit_ad_rule",
         "parameters": [
           {
@@ -85776,6 +85828,7 @@
                     "archive_disposal",
                     "server_destructive",
                     "line_publish",
+                    "erase",
                     "hub_op"
                   ],
                   "type": "string"
@@ -127953,7 +128006,7 @@
     },
     "/api/v1/revenue/affiliate-receipts": {
       "post": {
-        "description": "⟨1.15⟩ §33.5 say what the exchange paid for an account's month (it pays outside the hub);\na gap that this brings under 5% closes. Receipts add up and are never changed.",
+        "description": "⟨1.15⟩ §33.5 say what the exchange paid for an account's month (it pays outside the hub);\na gap that this brings under 5% closes. Receipts add up and are never changed, so this\nrequires `Idempotency-Key` (a retried request never books the money twice).",
         "operationId": "affiliate_receipt",
         "requestBody": {
           "content": {
@@ -139778,7 +139831,7 @@
                       }
                     ],
                     "partial": 1,
-                    "pass_": false,
+                    "pass": false,
                     "proposed_auto_send": "x",
                     "proposed_grounded_threshold": 1.0,
                     "proposed_verbatim_threshold": 1.0,
@@ -139932,7 +139985,7 @@
                     }
                   ],
                   "partial": 1,
-                  "pass_": false,
+                  "pass": false,
                   "proposed_auto_send": "x",
                   "proposed_grounded_threshold": 1.0,
                   "proposed_verbatim_threshold": 1.0,
@@ -148443,7 +148496,7 @@
     },
     "/api/v1/work/{id}/cancel": {
       "post": {
-        "description": "Cancels the work and every open item under it.",
+        "description": "Cancels the work and every open item under it (a recurring order: its\nschedule ends and its open runs, with their sub-works, are cancelled).",
         "operationId": "cancel_work",
         "parameters": [
           {
@@ -156626,7 +156679,7 @@
     },
     "/internal/v1/egress/recent": {
       "get": {
-        "description": "egress.recent: the overseer, the security analyst and AI safety (holding scope).",
+        "description": "egress.recent: the overseer, the security analyst and AI safety (holding scope).\n`cursor` is the `next_cursor` of the page before (older entries).",
         "operationId": "recent",
         "parameters": [
           {
@@ -156706,6 +156759,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
             }
           }
         ],
@@ -172975,9 +173044,138 @@
         ]
       }
     },
+    "/internal/v1/tools/mcp/consume": {
+      "post": {
+        "description": "The gateway uses up the approved A3 card a deferred resolve named, right\nbefore its one call runs (after the policy, the egress reserve and the\nserver's listing), so a call refused before it runs leaves the card\napproved for the next try. The same checks as resolve (server, company,\nseal, status, caps, a locked company); 403 policy_denied when the card is\nno longer an approved, unused, fresh card of exactly this call (another\ncall used it first).",
+        "operationId": "consume_mcp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "args_sha256": "x",
+                "decision": "D-000123",
+                "server": "x",
+                "tool": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "decision": "D-000123"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Consumed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Consume Mcp",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/tools/mcp/resolve": {
       "post": {
-        "description": "The gateway's question before one mcp.call. Refused: an unknown server\nor tool (always: a tool outside the sealed registration), a company the\nserver is not for, a server not enabled, the caps (429, Retry-After). An\nA3 tool runs only as the one call of an approved card (same company,\nserver, tool, arguments and registration; sealed in the last 24 hours;\nconsumed atomically, so it runs once); otherwise an `a3_action` card for\nthe owner is made (once: the same pending card is answered again), and a\ncard the owner rejected answers 403 without a new one.",
+        "description": "The gateway's question before one mcp.call. Refused: an unknown server\nor tool (always: a tool outside the sealed registration), a company the\nserver is not for, a server not enabled, the caps (429, Retry-After). An\nA3 tool runs only as the one call of an approved card (same company,\nserver, tool, arguments and registration; sealed in the last 24 hours;\nconsumed atomically, so it runs once; with `defer` the card is only named\nhere and consumed by /tools/mcp/consume right before the call runs, so a\ncall the gateway still refuses leaves it approved); otherwise an\n`a3_action` card for the owner is made (once: the same pending card is\nanswered again), and a card the owner rejected answers 403 without a new\none.",
         "operationId": "resolve_mcp",
         "requestBody": {
           "content": {
@@ -172985,6 +173183,7 @@
               "example": {
                 "args": {},
                 "args_sha256": "x",
+                "defer": false,
                 "preview": "x",
                 "server": "x",
                 "tool": "x"
