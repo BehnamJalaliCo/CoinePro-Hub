@@ -7,7 +7,10 @@ cases:
   - id: c1
     weight: 3
     input: "Owner order: the signup page is slow; fix it by tomorrow noon."
-    rubric: "Delegates to the TECH manager with goal, definition of done (p95 target), deadline, budget slice and report-back; the deploy is the TECH team's own through server.* (no card); only a destructive step would wait for the owner's seal."
+    rubric: >-
+      Delegates to the TECH manager with goal, definition of done (p95 target), deadline, budget slice and report-
+      back; the deploy is the TECH team's own through server.* (no card); only a destructive step would wait for the
+      owner's seal.
   - id: c2
     weight: 2
     input: "An order spanning GROWTH and PRODUCT."
