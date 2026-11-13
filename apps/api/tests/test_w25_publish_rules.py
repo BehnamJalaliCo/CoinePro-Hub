@@ -49,6 +49,17 @@ def test_a_comment_rule_may_answer_every_comment_and_a_story_only_its_words() ->
     assert SPB.rule_body("story_reply", rule, "a", [], "k")["match"] == "contains"
 
 
+def test_a_dm_reply_reads_in_lines() -> None:
+    """F-0020's DM came as one long line."""
+    one = "سلام 👋 لینک پایینه 👇 1️⃣ باز کن 2️⃣ ببین"
+    assert SPB.reply_lines(one) == "سلام 👋 لینک پایینه 👇\n1️⃣ باز کن\n2️⃣ ببین"
+    assert SPB.reply_lines("a\\nb") == "a\nb"
+    got = SPB.parse_comment("keyword: x\nreply: سلام 👋\nreply: 1️⃣ باز کن\nreply: یادت باشه")
+    assert got is not None and got["reply"] == "سلام 👋\n1️⃣ باز کن\nیادت باشه"
+    body = SPB.rule_body("story_reply", {"keywords": ["x"], "reply": one}, "a", [], "k")
+    assert body["reply_text"].count("\n") == 2
+
+
 def test_a_word_is_taken_in_its_joined_forms() -> None:
     assert SPB.word_forms(["باز پخش"]) == ["باز پخش", "بازپخش"]
     assert SPB.word_forms(["باز‌پخش", "۷"]) == ["باز‌پخش", "بازپخش", "۷"]
