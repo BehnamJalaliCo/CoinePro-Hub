@@ -154,7 +154,8 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
     a = job["args"]
     assert job["kind"] == "claude" and note.endswith(job["id"])
     assert a["direct"] is True and a["tools"] == "hub" and a["hands"] is True
-    assert a["model"] == "claude-opus-5-5" and a["effort"] == "max" and a["sandbox"] == "auto"
+    # ⟨2026-11-13⟩ the usage audit (P1): a session's talk thinks at xhigh, a flow's build at max
+    assert a["model"] == "claude-opus-5-5" and a["effort"] == "xhigh" and a["sandbox"] == "auto"
     assert a["workspace"] == o["work_ref"] and a["order"] == ref and "resume" in a
     assert f"جلسه‌ی {ref}" in a["brief"] and "ابزارهای ستاد" in a["brief"]
     assert "order_ask" in a["brief"] and "workshop_run" not in a["brief"]
@@ -754,3 +755,129 @@ async def test_in_a_direct_session_a_word_with_a_question_mark_reaches_the_holde
     assert out["replied"] is True and out["woken"] == [o["work_ref"]]
     rep = (await client.get(f"/api/v1/orders/{o['ref']}/report", headers=owner)).json()
     assert any(s["who_fa"] == "مدیر کل" and "موشنگرافی" in s["what_fa"] for s in rep["steps"])
+
+
+def test_a_later_turn_carries_only_what_moves() -> None:
+    """⟨2026-11-13 usage audit⟩ F-0018's later briefs re-sent the whole state (27 tasks, 24 done;
+    one output title 20 times) and the 9000-character cut fell before `waiting_on`. A later turn
+    of the same Claude session gets the open tasks and what moves; the first one the whole state,
+    its outputs once each."""
+    w = {"ref": "W-000123", "title": "ریلز ATR"}
+    emp = {"code": "PC-MED-MGR", "title_fa": "مدیر رسانه", "company": "PC",
+           "company_name_fa": "پروچارت"}  # fmt: skip
+    plan = [
+        {"n": n, "title": f"قدم {n}", "state": "done" if n < 25 else "todo"} for n in range(1, 28)
+    ]
+    brief = {"order": "F-0018", "text": "ریلز روزانه", "plan": plan, "plan_next": 25,
+             "outputs": ["خروجی جلسه: نوت‌برداری"] * 20, "files": ["font.zip", "3934.mp4"],
+             "playbooks": [{"ref": "PB-1"}], "related_sessions": [{"ref": "F-0017"}],
+             "steps": ["مدیر کل: شروع کن"], "waiting_on": [{"kind": "work", "ref": "W-000415"}],
+             "owner_said": ["شروع کن"]}  # fmt: skip
+
+    class Charter:
+        body = "You direct the company's media."
+
+    first = DR.compose(w, emp, brief, charter=Charter(), tools=["order.ask"],
+                       reason="owner_reply:F-0018", first=True, inputs=[])  # fmt: skip
+    assert first.count("خروجی جلسه: نوت‌برداری") == 1 and "font.zip" in first
+    assert '"n": 1,' in first and "W-000415" in first
+    later = DR.compose(w, emp, brief, charter=Charter(), tools=["order.ask"],
+                       reason="owner_reply:F-0018", first=False, inputs=[])  # fmt: skip
+    for gone in ("خروجی جلسه", "font.zip", "PB-1", "F-0017", '"n": 1,'):
+        assert gone not in later, gone
+    state = DR.state_of(brief, first=False)
+    assert [t["n"] for t in state["plan"]] == [25, 26, 27] and state["plan_done"] == 24
+    assert state["waiting_on"] and state["steps"] and state["plan_next"] == 25
+    assert len(later) < len(first) // 2
+    assert "ToolSearch" in first and "۶ هزار" in first  # the step and notebook rules
+
+
+async def test_a_session_whose_account_is_full_starts_afresh_on_the_other_one(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13 usage audit⟩ A prompt cache is one account's: on F-0018 the move to the second
+    account rewrote 717K and 678K tokens of two sessions at the write price. A session carrying
+    more than ROTATE_ON_SWITCH_TOKENS whose account is full while the other has room starts
+    afresh. And a resumed session's turn is booked at what it added to the CLI's running total."""
+    import uuid
+
+    from hq_api.domain import session_memory as MEM
+
+    from .test_w13_second_account import _quota
+
+    keys = ["claude-max", "claude-max-2"]
+    before = await su.fetch("SELECT key, status FROM llm.connections WHERE key = ANY($1)", keys)
+    saved = await su.fetch(
+        """SELECT q.* FROM llm.quota_status q JOIN llm.connections c ON c.id = q.connection_id
+           WHERE c.key = ANY($1)""",
+        keys,
+    )
+    clear = """DELETE FROM llm.quota_status
+               WHERE connection_id IN (SELECT id FROM llm.connections WHERE key = ANY($1))"""
+    on_main = """UPDATE infra.server_jobs
+                 SET usage = usage || '{"account": "claude-max"}'::jsonb WHERE id = $1"""
+    caught: list[str] = []
+
+    async def catch_up(hub_: Any, call: Any, ref: str) -> int:
+        caught.append(ref)
+        return 1
+
+    monkeypatch.setattr(MEM, "catch_up", catch_up)
+    cli = f"cs-{uuid.uuid4()}"
+    try:
+        await su.execute("UPDATE llm.connections SET status = 'enabled' WHERE key = ANY($1)", keys)
+        await su.execute(clear, keys)
+        co = (await new_company())["code"]
+        rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+        o = await an_order(client, owner, su, co)
+        run = await queued_run(su, o)
+        note = await DR.hand_over(hub, run, o["emp"])
+        await end_run(su, run, note)
+        job = await take(client, rn)
+        await result(client, rn, job["id"], "اولین نوبت تمام شد.",
+                     usage={"cache_write_tokens": 40_000, "session_id": cli, "cost_usd": 1.5,
+                            "model": "claude-opus-5-5"})  # fmt: skip
+        await su.execute(on_main, uuid.UUID(job["id"]))
+        # the main account full, the second one with room: a light session still goes on
+        await _quota(su, "claude-max", "limited", "1", "1 day")
+        assert not await DR.rotate_if_heavy(hub, o["work_id"])
+        await su.execute(clear, keys)
+        run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+        note = await DR.hand_over(hub, run, o["emp"])
+        await end_run(su, run, note)
+        second = await take(client, rn)
+        assert second["args"].get("resume")
+        await result(client, rn, second["id"], "دومین نوبت تمام شد.",
+                     usage={"cache_write_tokens": 50_000, "session_id": cli, "cost_usd": 4.0,
+                            "model": "claude-opus-5-5"})  # fmt: skip
+        await su.execute(on_main, uuid.UUID(second["id"]))
+        booked = await su.fetchval(
+            "SELECT equiv_cost_usd FROM llm.calls WHERE meta ->> 'server_job' = $1", second["id"]
+        )
+        assert float(booked) == pytest.approx(2.5)  # 4.0 is the session's running total
+        # 90K carried, its account has room: it goes on
+        assert not await DR.rotate_if_heavy(hub, o["work_id"])
+        # its account is full and the other has room: a fresh session on the other account
+        await _quota(su, "claude-max", "limited", "1", "1 day")
+        assert await DR.rotate_if_heavy(hub, o["work_id"])
+        assert caught == [o["ref"]]
+    finally:
+        await su.execute(clear, keys)
+        for r in saved:
+            cols = list(r.keys())
+            await su.execute(
+                f"INSERT INTO llm.quota_status ({', '.join(cols)}) VALUES "
+                f"({', '.join(f'${i + 1}' for i in range(len(cols)))})",
+                *[r[c] for c in cols],
+            )
+        for r in before:
+            await su.execute(
+                "UPDATE llm.connections SET status = $2 WHERE key = $1", r["key"], r["status"]
+            )

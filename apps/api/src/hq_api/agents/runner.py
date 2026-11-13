@@ -193,6 +193,30 @@ LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked fo
 SKIPPED = "skipped_after_failure"
 CLAIM_TOOLS = ("order.progress", "deliver", "errand.finish")
 MAX_STEPS = 50  # agents.steps.n and agents.runs.steps_cap stop at 50
+# ⟨2026-11-13⟩ F-0018 P5: a part of an open session (a colleague's or another company's work under
+# an owner's order) that reached its per-run cap goes on in its own next run, which reads what this
+# one did (LAST_RUN_FA); the session's holder is not woken to issue it again from scratch (IG's
+# W-000413 → 414 and W-000415 → 416 each began again from nothing). At most CAPPED_RUNS_MAX such
+# runs in a row; after that the holder is woken and decides, as before.
+CAPPED_REASON = "capped:"
+CAPPED_RUNS_MAX = 2
+LAST_RUN_CHARS = 3_000
+CAPPED_IN_A_ROW_SQL = """
+SELECT count(*) FROM agents.runs r
+WHERE r.work_id = :w AND r.id <> :run AND r.trigger = 'work' AND r.state = 'done' AND r.partial
+  AND r.queued_at > COALESCE(
+      (SELECT max(x.queued_at) FROM agents.runs x
+        WHERE x.work_id = :w AND x.id <> :run AND x.trigger = 'work' AND x.state = 'done'
+          AND NOT x.partial AND x.steps > 0),
+      '-infinity')
+"""
+GOES_ON_FA = (
+    "\n\nاجرای بعدی همین کار در صف است و از همین‌جا ادامه میدهد؛ کار تازه‌ای برایش لازم نیست."
+)
+LAST_RUN_FA = (
+    "# Your last run of this work stopped at its cap ({code}); go on from where it stopped\n"
+    "What it did is below. Do not do it again: check only what you need, then do what is left."
+)
 # The gateway's answers when an action waits for the owner: an A3 action (with a ref, the card it
 # raised), and a server job or a hub op that waits for his seal (`awaiting_seal`, the card's ref).
 # Not a refusal, and never to be called again: a second call is a second card, and sealing both
@@ -400,7 +424,9 @@ class Runner:
                         refuse = "talk_loop"  # ⟨21⟩ §29.2: its order talked without output
                     if refuse is None and await OR.held_for_owner(tx, run):
                         # ⟨2026-11-09⟩ «با من»: the order waits for the owner's answer; this run
-                        # comes back when he answers (OR.resume_held)
+                        # comes back when he answers (OR.resume_held). The run his answer woke
+                        # passes here (nothing waits then); a question asked after it started
+                        # holds the work's next run, not this one (_steps, F-0018 P3).
                         refuse = "owner_turn"
             if refuse is None and await tx.scalar(
                 # a talk run (contract §32) reads beside the employee's work; it never makes it busy (0045)
@@ -747,17 +773,22 @@ class Runner:
                 return ("refused", "work_closed", "the work was cancelled during the run")
             waiting = await self._owner_turn(rc)
             if waiting is not None:
-                # ⟨2026-11-09⟩ «با من»: the session began to wait for the owner during this run.
-                # Whoever asked has finished its step; anyone else stops here and goes on once
-                # he answers (OR.resume_held).
+                # ⟨2026-11-09⟩ «با من»: the session waits for the owner. Whoever asked has finished
+                # its step; anyone else is held before its first model step and goes on once he
+                # answers (OR.resume_held).
                 if rc.emp["code"] in waiting["askers"]:
                     asked = True  # its step ended with the question: a finished run, not a cut one
                     break
-                return (
-                    "refused",
-                    "owner_turn",
-                    "the step-by-step order waits for the owner's answer",
-                )
+                if n == 0:
+                    return (
+                        "refused",
+                        "owner_turn",
+                        "the step-by-step order waits for the owner's answer",
+                    )
+                # ⟨2026-11-13⟩ F-0018 P3: a run that has started goes on to its end; the
+                # question holds its work's next run (claim), never this one half way. Cut here,
+                # W-000381 was woken by each answer and cut by the next question 12 times in 27
+                # minutes, each time from its first step.
             left = token_cap - rc.used_tokens
             if left < min(per_step, token_cap) // 4 or left <= 0:
                 rc.stop = "budget"
@@ -1150,6 +1181,10 @@ class Runner:
             if done
             else "سقف قدم یا توکن این اجرا پیش از پایان کار رسید و کاری از آن به نتیجه نرسید."
         )
+        # ⟨2026-11-13⟩ F-0018 P5: queued before the deliverable, so its delivery does not wake the
+        # session's holder to issue the work again (order_turns.on_child_closed)
+        if await self._continue_capped(rc, work_ref):
+            body += GOES_ON_FA
         out = await self.gateway.call(
             rc.token,
             max(n, 1),
@@ -1165,6 +1200,77 @@ class Runner:
         if out.get("outcome") == "ok":
             return "done", "limit_reached", "partial deliverable " + str(out.get("ref") or "")
         return "failed", "limit_reached", None
+
+    async def _continue_capped(self, rc: RunCtx, work_ref: str) -> bool:
+        """⟨2026-11-13⟩ F-0018 P5: the next run of a part of an open session that reached this
+        run's cap is queued (reason `capped:<ref>`; held like any run while a «با من» order waits
+        for the owner). Not for the holder's own work (the session's sweep wakes it, §41.3), a
+        work of no open session (its budget decides, _budget_stop), or after CAPPED_RUNS_MAX
+        capped runs in a row. Answers whether a run is queued."""
+        if rc.run.get("trigger") != "work":
+            return False
+        async with await self._tx() as tx:
+            w = await tx.first(
+                """SELECT id, status, parent_id, requested_by_work_id FROM work.work
+                   WHERE ref = :r""",
+                r=work_ref,
+            )
+            if w is None or w["status"] not in W.OPEN:
+                return False
+            if w["parent_id"] is None and w["requested_by_work_id"] is None:
+                return False
+            ref = await OR.order_of_work(tx, w["id"])
+            if ref is None or not await tx.scalar(
+                "SELECT 1 FROM owner.order_reports WHERE ref = :r AND ended_at IS NULL", r=ref
+            ):
+                return False
+            if int(await tx.scalar(CAPPED_IN_A_ROW_SQL, w=w["id"], run=rc.run["id"]) or 0) >= (
+                CAPPED_RUNS_MAX
+            ):
+                return False
+            rid = await tx.scalar(
+                "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{CAPPED_REASON}{work_ref}"
+            )
+        return rid is not None
+
+    async def _last_capped(self, tx: Tx, run: dict[str, Any]) -> str | None:
+        """⟨2026-11-13⟩ F-0018 P5: what the work's last run did, when it stopped at its cap (the
+        latest run of the work that made a step ended `partial`): its steps, newest kept."""
+        last = await tx.first(
+            """SELECT r.id, r.partial, r.error_code FROM agents.runs r
+               WHERE r.work_id = :w AND r.id <> :run AND r.trigger = 'work' AND r.state = 'done'
+                 AND r.steps > 0
+               ORDER BY r.finished_at DESC NULLS LAST LIMIT 1""",
+            w=run["work_id"],
+            run=run["id"],
+        )
+        if last is None or not last["partial"]:
+            return None
+        steps = await tx.all(
+            "SELECT n, summary_fa, actions FROM agents.steps WHERE run_id = :r ORDER BY n",
+            r=last["id"],
+        )
+        lines = []
+        for s in steps:
+            actions = s["actions"]
+            if isinstance(actions, str):
+                actions = json.loads(actions)
+            acts = ", ".join(
+                " ".join(str(x) for x in (a.get("tool"), a.get("outcome"), a.get("ref")) if x)
+                for a in (actions or [])
+                if isinstance(a, dict)
+            )
+            lines.append(
+                f"{s['n']}. {(s['summary_fa'] or '').strip()[:400]}"
+                + (f" [{acts}]" if acts else "")
+            )
+        if not lines:
+            return None
+        head = LAST_RUN_FA.format(code=last["error_code"] or "limit_reached")
+        body = "\n".join(lines)
+        if len(body) > LAST_RUN_CHARS:
+            body = "…\n" + body[-LAST_RUN_CHARS:]  # the latest steps matter most
+        return head + "\n" + body
 
     def _prompt_cost(self, rc: RunCtx, system: str) -> int:
         """⟨21⟩ §29.6 the next prompt as the run's cap counts it: what the last
@@ -1374,6 +1480,7 @@ class Runner:
         scope = await self.read_scope(rc)
         brief: dict[str, Any] | None = None
         work_at = 0
+        last_run: str | None = None
         async with self.hub.db.tx(scope) as tx:
             lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
             presence = await tx.one("SELECT khalvat FROM owner.presence WHERE id = 1")
@@ -1384,6 +1491,8 @@ class Runner:
                 brief = await self._work_brief(tx, run["work_id"])
                 work_at = len(parts)
                 parts.append("")  # the work, filled once this transaction is over (see below)
+                if run["trigger"] == "work":
+                    last_run = await self._last_capped(tx, run)
             if run["thread_id"] is not None:
                 msgs = await tx.all(
                     """SELECT ref, author_kind, author_code, body, links, attachments, kind
@@ -1480,6 +1589,9 @@ class Runner:
             parts[work_at] = "# Work\n" + await masked_json(brief)
             if wake:
                 parts.insert(1, "# Woken by the hub\n" + str(wake)[:WAKE_CHARS])
+            if last_run:
+                # ⟨2026-11-13⟩ F-0018 P5: near the top, never the part a long context cuts
+                parts.insert(2 if wake else 1, last_run)
         if notes:
             parts.append(
                 "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)

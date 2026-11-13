@@ -375,6 +375,7 @@ COMMENT_KEYS = {
     "link": ("link", "url", "لینک"),
     "public": ("public", "public_reply", "عمومی", "پاسخ عمومی", "جواب عمومی"),
     "match": ("match", "تطبیق"),
+    "button": ("button", "دکمه"),
 }
 # ⟨2026-11-13⟩ a word that means «every comment, whatever it says» (the owner: «به غیر از تنظیم
 # کلمه برای کامنت هوشمند باید یه گزینه هر کلمه ای بذاریم»)
@@ -409,6 +410,18 @@ def with_public(rule: dict[str, Any]) -> dict[str, Any]:
     return {**rule, "public_replies": (own + pool)[: max(PUBLIC_MIN, len(own))][:10]}
 
 
+# ⟨2026-11-13⟩ a DM reply reads in lines (F-0020's came as one long line): `reply:` may be given on
+# several lines of comment.txt (joined), a written «\n» is a line, and a numbered step starts one
+NUMBER_MARKS = (*(f"{d}\ufe0f\u20e3" for d in "123456789"), "🔟")
+
+
+def reply_lines(text: str) -> str:
+    t = text.replace("\\n", "\n")
+    for mark in NUMBER_MARKS:
+        t = t.replace(f" {mark}", f"\n{mark}")
+    return "\n".join(line.strip() for line in t.split("\n")).strip()
+
+
 def word_forms(words: Any) -> list[str]:
     """⟨2026-11-13⟩ Each keyword and its joined forms (F-0018: the caption asked for «بازپخش», the
     rule had «باز پخش»): spaces and half-spaces taken out as well, at most 10 words."""
@@ -436,7 +449,7 @@ def clean_comment(raw: Any) -> dict[str, Any] | None:
         w.lower() in ANY_WORDS for w in words
     )
     words = word_forms(w for w in words if w.lower() not in ANY_WORDS)
-    reply = str(raw.get("reply") or raw.get("reply_text") or "").strip()[:1000]
+    reply = reply_lines(str(raw.get("reply") or raw.get("reply_text") or ""))[:1000]
     if not (words or every) or not reply:
         return None
     out: dict[str, Any] = {"keywords": words, "reply": reply}
@@ -471,6 +484,8 @@ def parse_comment(text: str | None) -> dict[str, Any] | None:
             if label in names:
                 if key == "public":
                     got.setdefault("public_replies", []).append(value)
+                elif key == "reply" and "reply" in got:
+                    got["reply"] = f"{got['reply']}\n{value}"  # a reply over several lines
                 else:
                     got.setdefault(key, value)
     return clean_comment(got)
@@ -1352,7 +1367,7 @@ def rule_body(
         "keywords": word_forms(rule.get("keywords") or []),
         # every comment only on its own post; a DM or a story reply is answered on its words
         "match": "any" if trigger == "comment" and rule.get("match") == "any" else "contains",
-        "reply_text": str(rule.get("reply") or "")[:1000],
+        "reply_text": reply_lines(str(rule.get("reply") or ""))[:1000],
         # under a comment only: ten, in turn (ten people in a row, ten different replies)
         "public_replies": with_public(rule)["public_replies"] if trigger == "comment" else [],
         "post_ids": [p for p in post_ids if p.isdigit()],
@@ -1575,6 +1590,14 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 )
             return
         ok = done.state == "published"
+        if ok and s.get("order"):
+            try:
+                async with tx.conn.begin_nested():
+                    from hq_api.domain import flows as FL
+
+                    await FL.on_published(tx, args, done)
+            except Exception:  # noqa: BLE001 - the post is out whatever its notice does
+                log.warning("the flow's notice was not sent", extra={"job": str(job_id)})
         if ok and args.get("kind") in ("story", "reel", "post", "carousel"):
             try:
                 async with tx.conn.begin_nested():

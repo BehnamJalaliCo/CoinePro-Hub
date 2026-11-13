@@ -313,6 +313,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     from hq_api.domain import players as PL
 
     routine_delivered: UUID | None = None
+    flow_delivered: UUID | None = None
     direct_order: str | None = None  # ⟨2026-11-13⟩ its memory folded after the commit
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await SV.load_job(tx, job_id)
@@ -467,6 +468,17 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                         routine_delivered = w["id"]
                 else:  # the holder tells the owner what is ready and asks «تأیید یا اصلاح؟»
                     await _wake_or_say(tx, w, f"{DONE_REASON}{w['ref']}")
+            # ⟨2026-11-13⟩ a flow's day (domain/flows.py): a turn of its own work that left files
+            # (the whole package, checked there) sends it out by itself, after the commit
+            if (
+                hands
+                and files
+                and w["parent_id"] is None
+                and await tx.scalar(
+                    "SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"]
+                )
+            ):
+                flow_delivered = w["id"]
             await _set(tx, ws, state, None)
         elif j["state"] == "cancelled":
             await _close_direct(tx, j)
@@ -506,7 +518,9 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                     )
                 # ⟨2026-11-09⟩ never a silent stop: the holder gets a run now and says why (60
                 # minutes, an error); a fix is the next workshop.run (a fresh session, same folder)
-                await _wake_or_say(tx, w, f"{FAILED_REASON}{w['ref']}")
+                why = await _failed_reason(tx, w)
+                if why:
+                    await _wake_or_say(tx, w, why)
             elif w["status"] in W.OPEN and w["assignee_id"] is not None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
@@ -515,6 +529,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         from hq_api.domain import direct as DR
 
         DR.fold_soon(hub, direct_order)
+    if flow_delivered is not None:
+        from hq_api.domain import flows as FL
+
+        await FL.after_delivered(hub, flow_delivered)
     if routine_delivered is not None:
         # after the commit, as the agent's own deliver does (it never raises; the groups' tick
         # sweeps what this misses)
@@ -558,6 +576,32 @@ async def _close_direct(tx: Tx, j: dict[str, Any]) -> None:
         from hq_api.domain import direct as DR
 
         await DR.close_run(tx, j)
+
+
+async def _failed_reason(tx: Tx, w: dict[str, Any]) -> str:
+    """⟨2026-11-13⟩ Why the holder is woken after a failed turn. A flow's day (domain/flows.py) has
+    nobody to tell and its holder works in the workshop: its own session goes on there (a direct
+    turn, e.g. after the API refused a turn for a moment), within the flow's continue cap; past it,
+    as any work (a classic run says why)."""
+    from hq_api.domain import direct as DR
+
+    if w["parent_id"] is None:
+        order = await tx.scalar(
+            "SELECT run_meta -> 'flow' ->> 'order' FROM work.work WHERE id = :w", w=w["id"]
+        )
+        if order:
+            from hq_api.domain import flows as FL
+
+            if await FL.over_cap(tx, w["id"]):
+                return ""  # the day's cap (P4): no more turns; the owner was told
+            went = await tx.scalar(
+                "SELECT count(*) FROM agents.runs WHERE work_id = :w AND reason = :r",
+                w=w["id"],
+                r=f"{DR.CONTINUE_REASON}{order}",
+            )
+            if int(went or 0) < DR.FLOW_CONTINUE_MAX:
+                return f"{DR.CONTINUE_REASON}{order}"
+    return f"{FAILED_REASON}{w['ref']}"
 
 
 async def _wake_or_say(tx: Tx, w: dict[str, Any], reason: str) -> None:
