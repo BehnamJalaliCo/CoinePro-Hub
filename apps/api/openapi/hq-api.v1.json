@@ -18026,6 +18026,60 @@
         "title": "FixIn",
         "type": "object"
       },
+      "FlowRunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "title": "FlowRunIn",
+        "type": "object"
+      },
+      "FlowRunOut": {
+        "properties": {
+          "order": {
+            "title": "Order",
+            "type": "string"
+          },
+          "publish_at": {
+            "title": "Publish At",
+            "type": "string"
+          },
+          "why_fa": {
+            "title": "Why Fa",
+            "type": "string"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "required": [
+          "order",
+          "work",
+          "publish_at",
+          "why_fa"
+        ],
+        "title": "FlowRunOut",
+        "type": "object"
+      },
       "FormatOverlay": {
         "additionalProperties": false,
         "properties": {
@@ -93474,6 +93528,102 @@
         ]
       }
     },
+    "/api/v1/flows/{key}/run": {
+      "post": {
+        "description": "The owner runs a flow's day now (a test, or a day n8n missed).",
+        "operationId": "run_flow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "day": "2026-10-17"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowRunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "order": "x",
+                  "publish_at": "x",
+                  "why_fa": "x",
+                  "work": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Flow",
+        "tags": [
+          "flows"
+        ]
+      }
+    },
     "/api/v1/foundings": {
       "get": {
         "description": "A `Page`, newest first (§18.16).",
@@ -159313,6 +159463,89 @@
         "summary": "Tool File Meta",
         "tags": [
           "internal"
+        ]
+      }
+    },
+    "/internal/v1/flows/{key}/run": {
+      "post": {
+        "description": "n8n's daily call, signed like a line's callback; the order is the owner's standing order\n(2026-11-13), carried out at his pace «خودکار».",
+        "operationId": "run_flow_n8n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "order": "x",
+                  "publish_at": "x",
+                  "why_fa": "x",
+                  "work": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Flow N8N",
+        "tags": [
+          "flows"
         ]
       }
     },

@@ -88,6 +88,8 @@ NOTES_FILE = "NOTES.md"
 # CONTINUE_MAX times since the owner's last word: then the sweep's `stuck` and its one notice.
 CONTINUE_REASON = "continue:"
 CONTINUE_MAX = 6
+# ⟨2026-11-13⟩ a flow's day (domain/flows.py) has no owner's word between its steps
+FLOW_CONTINUE_MAX = 16
 
 RULES_FA = (
     "قاعده‌های این جلسه:",
@@ -661,7 +663,8 @@ async def go_on(tx: Tx, rep: dict[str, Any], w: dict[str, Any], ref: str) -> boo
         r=f"{CONTINUE_REASON}{ref}",
         since=since,
     )
-    if int(went or 0) >= CONTINUE_MAX:
+    flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
+    if int(went or 0) >= (FLOW_CONTINUE_MAX if flow else CONTINUE_MAX):
         return False
     run = await tx.scalar(
         "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{CONTINUE_REASON}{ref}"

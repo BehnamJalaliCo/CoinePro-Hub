@@ -375,6 +375,7 @@ COMMENT_KEYS = {
     "link": ("link", "url", "لینک"),
     "public": ("public", "public_reply", "عمومی", "پاسخ عمومی", "جواب عمومی"),
     "match": ("match", "تطبیق"),
+    "button": ("button", "دکمه"),
 }
 # ⟨2026-11-13⟩ a word that means «every comment, whatever it says» (the owner: «به غیر از تنظیم
 # کلمه برای کامنت هوشمند باید یه گزینه هر کلمه ای بذاریم»)
@@ -1575,6 +1576,14 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 )
             return
         ok = done.state == "published"
+        if ok and s.get("order"):
+            try:
+                async with tx.conn.begin_nested():
+                    from hq_api.domain import flows as FL
+
+                    await FL.on_published(tx, args, done)
+            except Exception:  # noqa: BLE001 - the post is out whatever its notice does
+                log.warning("the flow's notice was not sent", extra={"job": str(job_id)})
         if ok and args.get("kind") in ("story", "reel", "post", "carousel"):
             try:
                 async with tx.conn.begin_nested():

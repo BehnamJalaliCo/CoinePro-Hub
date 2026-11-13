@@ -313,6 +313,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     from hq_api.domain import players as PL
 
     routine_delivered: UUID | None = None
+    flow_delivered: UUID | None = None
     direct_order: str | None = None  # ⟨2026-11-13⟩ its memory folded after the commit
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await SV.load_job(tx, job_id)
@@ -467,6 +468,17 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                         routine_delivered = w["id"]
                 else:  # the holder tells the owner what is ready and asks «تأیید یا اصلاح؟»
                     await _wake_or_say(tx, w, f"{DONE_REASON}{w['ref']}")
+            # ⟨2026-11-13⟩ a flow's day (domain/flows.py): a turn of its own work that left files
+            # (the whole package, checked there) sends it out by itself, after the commit
+            if (
+                hands
+                and files
+                and w["parent_id"] is None
+                and await tx.scalar(
+                    "SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"]
+                )
+            ):
+                flow_delivered = w["id"]
             await _set(tx, ws, state, None)
         elif j["state"] == "cancelled":
             await _close_direct(tx, j)
@@ -515,6 +527,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         from hq_api.domain import direct as DR
 
         DR.fold_soon(hub, direct_order)
+    if flow_delivered is not None:
+        from hq_api.domain import flows as FL
+
+        await FL.after_delivered(hub, flow_delivered)
     if routine_delivered is not None:
         # after the commit, as the agent's own deliver does (it never raises; the groups' tick
         # sweeps what this misses)
