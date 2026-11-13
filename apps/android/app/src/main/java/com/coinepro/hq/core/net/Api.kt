@@ -1948,8 +1948,9 @@ class Api(
     // --------------------------------------------- ⟨1.22⟩ §40 a session becomes a working group --
     /** §40.2 the holder drafts a playbook from this session (open or closed): one model call, so it takes a few seconds. → 201, `draft`;
      *  its card follows in the session's talk. [key] is the press's own UUID (a retry of the press replays the same draft). */
-    suspend fun draftPlaybook(ref: String, key: String): Playbook =
-        call(write("POST", "/orders/${seg(ref)}/playbook", JsonObject(emptyMap()), null, key), serializer())
+    suspend fun draftPlaybook(ref: String, key: String, playbook: String? = null): Playbook =
+        // ⟨1.37⟩ §59.3 with [playbook] the draft is that playbook's next version (a hub before it ignores the field)
+        call(write("POST", "/orders/${seg(ref)}/playbook", buildJsonObject { if (playbook != null) put("playbook", playbook) }, null, key), serializer())
     /** §40.3 the library, newest first; [state] `draft` · `sealed` · `retired` narrows it. A bare list. */
     suspend fun playbooks(state: String? = null): List<Playbook> = get("/playbooks", mapOf("state" to state))
     suspend fun playbook(ref: String): Playbook = get("/playbooks/${seg(ref)}")

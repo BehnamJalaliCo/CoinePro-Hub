@@ -113,6 +113,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val q = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
             // ⟨1.24⟩ §42.3 the holding live's seed.
             v42.handle(req.method, path)?.let { Thread.sleep(60); return respond(req, it) }
+            // ⟨1.37⟩ §59 the library and the automations, before §40's playbooks, §31's automations and §30's runs.
+            v59.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.33⟩ §55 the limits of the treasury, and the command sheet's order when the demo is asked to refuse it.
             v55.handle(req.method, path, b, q)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.35⟩ §57 a session's team, its side talks and a seat's hire, before the sessions' own routes.
@@ -324,6 +326,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val v47 = V47Demo(v35)
     /** ⟨1.33⟩ §55 what the 1.0.1 look reads: the limits (every state), a refused order. */
     private val v55 = V55Demo(desk = { company -> outputs.desk(company) }, member = { group, company, state -> v40.setMember(group, company, state) })
+    /** ⟨1.37⟩ §59 the library of working groups and the automations: PB-0004, AT-0700 and the board. */
+    private val v59 = V59Demo(v40)
     /** ⟨1.35⟩ §57 the session's team: F-0094's seats, side talk and narrator; the holder and the people present of every other session. */
     private val v57 = V57Demo(v35) { company -> v47.teamNarrator(company) }
     /** ⟨1.24⟩ §42 the holding live: `/live/summary` and the live views' script on the stream. */

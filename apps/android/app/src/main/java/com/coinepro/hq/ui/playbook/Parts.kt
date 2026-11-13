@@ -435,15 +435,17 @@ fun SessionPlaybooks(order: String, onDrafted: (Playbook) -> Unit) {
     val c = Divan.colors
     val lib = rememberPlaybooks()
     val mine = playbooksOf(order, lib.data.orEmpty())
+    // ⟨1.37⟩ §59.3 a session whose working group is sealed makes its next version, not a second working group
+    val sealed = mine.firstOrNull { it.sealed && it.draftVersion == null }
     val draft = rememberAction()
     var key by remember(order) { mutableStateOf(UUID.randomUUID().toString()) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HqButton("کارگروه از این جلسه بساز", {
+        HqButton(if (sealed != null) "نسخه‌ی تازه‌ی کارگروه از این جلسه" else "کارگروه از این جلسه بساز", {
             draft.run {
-                val pb = env.api.draftPlaybook(order, key)
+                val pb = env.api.draftPlaybook(order, key, sealed?.ref)
                 key = UUID.randomUUID().toString()
                 env.cache.invalidate("talk", "order-report", *PLAYBOOK_TAGS)
-                toasts.ok("پیش‌نویس کارگروه آماده است؛ کارتش در گفتگوست.")
+                toasts.ok(if (sealed != null) "${com.coinepro.hq.core.data.versionFa(pb.version)} پیش‌نویس شد؛ کارتش در گفتگوست." else "پیش‌نویس کارگروه آماده است؛ کارتش در گفتگوست.")
                 onDrafted(pb)
             }
         }, Modifier.fillMaxWidth(), variant = BtnVariant.SECONDARY, icon = DivanIcon.DEPARTMENT, loading = draft.busy)

@@ -43,7 +43,7 @@ fun versionStateFa(state: String): Pair<String, Tone> = when (state) {
 }
 
 /** The library's three states as the owner names them (§59.1: «پیش‌نویس، مهرشده، کنارگذاشته»). */
-val LIBRARY_STATES: List<Pair<String, String>> = listOf("sealed" to "مُهرشده", "draft" to "پیش‌نویس", "retired" to "کنارگذاشته")
+val LIBRARY_STATES: List<Pair<String, String>> = listOf("sealed" to "مُهرشده", "draft" to "پیش‌نویس", "retired" to "بازنشسته")
 
 /**
  * A card's one line of figures: «هر اجرا $0.84 · ۲۴ دقیقه · 95% موفق»; the parts the hub has not counted yet are left out, and a
@@ -367,6 +367,17 @@ val BOARD_KINDS: List<Pair<String, String>> = listOf(
 
 fun boardKindFa(kind: String): String = BOARD_KINDS.firstOrNull { it.first == kind }?.second ?: "دیگر"
 
+/** One automation's kind, in a row's facts: «کارگروه خودکار» · «انتشار خودکار» · «روال دائمی» · «خط تولید» · «از یک جمله» · «بایگانی». */
+fun boardKindOneFa(kind: String): String? = when (kind) {
+    "flow" -> "کارگروه خودکار"
+    "standing_publish" -> "انتشار خودکار"
+    "routine" -> "روال دائمی"
+    "line" -> "خط تولید"
+    "rule" -> "از یک جمله"
+    "archive" -> "بایگانی"
+    else -> null
+}
+
 /** The board in its groups, each in the hub's order; a kind this app does not know goes under «دیگر». */
 fun boardGroups(items: List<BoardItem>): List<Pair<String, List<BoardItem>>> {
     val known = BOARD_KINDS.mapNotNull { (k, fa) -> items.filter { it.kind == k }.takeIf { it.isNotEmpty() }?.let { fa to it } }
@@ -423,7 +434,7 @@ fun flowModeFa(mode: String): String = if (mode == "ask") "قبل از انتش�
 /** A step's cost and minutes in one line: «$0.42 · ۳ دقیقه». */
 fun stepCostFa(costUsd: Double?, startedAt: String?, endedAt: String?): String? {
     val minutes = minutesBetween(startedAt, endedAt)
-    return listOfNotNull(costUsd?.let { usd(it) }, minutes?.let { if (it < 1) "کمتر از یک دقیقه" else "${faNum(it)} دقیقه" }).joinToString(" · ").ifBlank { null }
+    return listOfNotNull(costUsd?.takeIf { it > 0.0 }?.let { usd(it) }, minutes?.let { if (it < 1) "کمتر از یک دقیقه" else "${faNum(it)} دقیقه" }).joinToString(" · ").ifBlank { null }
 }
 
 /** Whole minutes between two instants; null when either is missing. */

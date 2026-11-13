@@ -147,14 +147,13 @@ fun AutomationsBoardScreen() {
                 if (shown.isEmpty()) item(key = "empty") {
                     Empty("اتوماسیونی نیست", icon = DivanIcon.SETTINGS, body = "از «کتابخانه‌ی کارگروه‌ها» یک کارگروه را در شرکتی به کار ببر، یا با یک جمله بساز.")
                 }
-                for ((title, group) in boardGroups(shown)) {
-                    item(key = "t-$title") { SectionTitle(title, note = "${faNum(group.size)} اتوماسیون") }
-                    item(key = "g-$title") {
-                        HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                            group.forEachIndexed { i, it ->
-                                if (i > 0) HorizontalDivider(color = c.lineDivider)
-                                BoardRow(it, onChanged = { q.refresh() })
-                            }
+                // one list, in the order of the kinds (each row says its kind); the chips above narrow it
+                val ordered = boardGroups(shown).flatMap { (_, g) -> g }
+                if (ordered.isNotEmpty()) item(key = "list") {
+                    HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                        ordered.forEachIndexed { i, it ->
+                            if (i > 0) HorizontalDivider(color = c.lineDivider)
+                            BoardRow(it, onChanged = { q.refresh() })
                         }
                     }
                 }
@@ -221,7 +220,7 @@ private fun BoardRow(it: BoardItem, onChanged: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(plain(it.titleFa.ifBlank { "اتوماسیون" }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                remember(it) { facts(it.companyFa, it.playbookFa?.let { p -> "از «$p»" }, it.version?.let { v -> versionFa(v) }, it.whenFa.ifBlank { null }) },
+                remember(it) { facts(com.coinepro.hq.core.data.boardKindOneFa(it.kind), it.companyFa, it.version?.let { v -> versionFa(v) }, it.whenFa.ifBlank { null }) },
                 style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -304,7 +303,7 @@ fun AutomationsCalendarScreen() {
                             ) {
                                 Text(jTime(e.at), style = Divan.type.caption, color = c.textSecondary)
                                 Column(Modifier.weight(1f)) {
-                                    Text(plain(facts(e.titleFa, e.companyFa.ifBlank { null }).text), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(facts(e.titleFa, e.companyFa.ifBlank { null }), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(plain(e.topicFa ?: "موضوع روز اجرا انتخاب میشود"), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 if (e.state == "skipped") Pill("رد", Tone.SILVER)

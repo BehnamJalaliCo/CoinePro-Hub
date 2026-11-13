@@ -272,7 +272,7 @@ private fun TodayBudget(f: FlowAutomation) {
     HqCard(Modifier.fillMaxWidth().testTag("flow-today")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("امروز", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, modifier = Modifier.weight(1f))
-            Text(plain(facts(if (f.today.runs > 0) "${faNum(f.today.runs)} اجرا" else "هنوز اجرایی نه", spentFa(f.budget.copy(spentTodayUsd = spent))).text), style = Divan.type.caption, color = c.textSecondary)
+            Text(facts(if (f.today.runs > 0) "${faNum(f.today.runs)} اجرا" else "هنوز اجرایی نه", spentFa(f.budget.copy(spentTodayUsd = spent))), style = Divan.type.caption, color = c.textSecondary)
         }
         MeterBar(pct, Modifier.fillMaxWidth().padding(top = 8.dp), tone = when { pct >= 90 -> BarTone.NEG; pct >= 70 -> BarTone.WARN; else -> BarTone.SILVER })
         Text("به سقف که برسد میایستد و همین‌جا میگوید.", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(top = 6.dp))
@@ -336,7 +336,7 @@ private fun AuditFold(ref: String) {
     Fold("دفتر تغییرها", remember(list.size) { facts(if (list.isEmpty()) "هنوز تغییری نیست" else "${faNum(list.size)} تغییر") }, tag = "flow-audit") {
         for (a in list) Column(Modifier.padding(vertical = 4.dp)) {
             Text(plain(a.summaryFa.ifBlank { a.action }), style = Divan.type.caption, color = c.textPrimary)
-            Text(plain(facts(a.whoFa.ifBlank { null }, jDateTime(a.at)).text), style = Divan.type.micro, color = c.textMuted)
+            Text(facts(a.whoFa.ifBlank { null }, jDateTime(a.at)), style = Divan.type.micro, color = c.textMuted)
         }
     }
 }

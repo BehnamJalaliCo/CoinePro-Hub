@@ -181,6 +181,10 @@ class LiveViewsScreensTest(private val name: String, private val night: Boolean)
         // ⟨1.0.1⟩ The office opens on what waits for the owner; its live parts (the pulse, the companies' live cards, the token meter)
         // are under it, so the picture starts at the pulse: each of the two pictures shows its own state again.
         scene.from?.let { key ->
+            // ⟨1.1.0⟩ On a loaded CI runner (the whole suite: 1.0.3's red run) the office's answers land after the fixed settle above, and
+            // its pulse is not there yet to scroll to: wait for it (at most ~10 s more) before anything flies, so the picture is the same.
+            var waits = 0
+            while (runCatching { compose.onAllNodes(androidx.compose.ui.test.hasScrollToKeyAction())[0].performScrollToKey(key) }.isFailure && waits++ < 40) settle(1)
             compose.onAllNodes(androidx.compose.ui.test.hasScrollToKeyAction())[0].performScrollToKey(key)
             settle(4)
         }
