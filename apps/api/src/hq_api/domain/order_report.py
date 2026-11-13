@@ -189,6 +189,9 @@ class Output(BaseModel):
     ref: str
     title_fa: str
     kind: Literal["final", "part", "partial"]
+    # ⟨1.35⟩ §57.6 a direct turn's file re-issued: the earlier output it replaces (the apps show
+    # only the newest of a chain, with «نسخه‌ی n»)
+    revision_of: str | None = None
 
 
 class Summary(BaseModel):
@@ -990,8 +993,8 @@ def summary_of(
 async def _outputs(tx: Tx, works: list[dict[str, Any]]) -> list[dict[str, Any]]:
     roots = {w["id"] for w in works if w["is_root"]}
     rows = await tx.all(
-        """SELECT ref, title, work_id, created_at FROM cartable.deliverables
-           WHERE work_id = ANY(:ids) ORDER BY created_at, ref""",
+        """SELECT ref, title, work_id, created_at, produced_with ->> 'revision_of' AS revision_of
+           FROM cartable.deliverables WHERE work_id = ANY(:ids) ORDER BY created_at, ref""",
         ids=[w["id"] for w in works],
     )
     out = []
@@ -1004,6 +1007,7 @@ async def _outputs(tx: Tx, works: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "title_fa": HZ.humanize(r["title"]) or "خروجی",
                 "kind": kind,
                 "at": r["created_at"].isoformat(),
+                **({"revision_of": r["revision_of"]} if r["revision_of"] else {}),
             }
         )
     return out
@@ -1445,7 +1449,7 @@ def base_reason(reason: str | None) -> str:
 WAKE_REASONS = (
     "session_idle:%", "owner_reply:%", "child_delivered:%", "child_failed:%", "child_cancelled:%",
     "joined:%", "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%",
-    "owner_turn_over:%",
+    "owner_turn_over:%", "side_word:%",
 )  # fmt: skip
 PRODUCTIVE_TOOLS = (
     "order.progress", "order.ack", "deliver", "work.delegate", "work.request", "work.split",
@@ -1690,6 +1694,10 @@ async def order_of_work(tx: Tx, work_id: UUID) -> str | None:
 # colleague it handed a part to. A run the owner's own word started is never held.
 OWNER_WORD_REASONS = ("owner_reply:", "nudge:", "pace:", "owner_turn_over:", "session_reopened:")
 OWNER_TURN_REASON = "owner_turn_over:"
+# ⟨1.35⟩ §57.3 the owner's word in a side talk with one person of the session: his own word too
+# (never held for his answer), but not a word of the main thread (the holder's idle wakes still
+# count from his last word there)
+SIDE_WORD_REASON = "side_word:"
 
 
 async def owner_turn(tx: Tx, work_id: UUID | None) -> dict[str, Any] | None:
@@ -1726,7 +1734,7 @@ def answers_owner(run: dict[str, Any], waiting: dict[str, Any]) -> bool:
     """Whether the run carries the owner's word on what the order waits for: his own word started
     it (`OWNER_WORD_REASONS`) and it was queued after the question. A word he said before the
     question was asked («ادامه بده» a moment before a colleague asked) does not answer it."""
-    if not base_reason(run.get("reason")).startswith(OWNER_WORD_REASONS):
+    if not base_reason(run.get("reason")).startswith((*OWNER_WORD_REASONS, SIDE_WORD_REASON)):
         return False
     since, queued = waiting.get("since"), run.get("queued_at")
     return since is None or queued is None or queued >= since
@@ -1738,7 +1746,14 @@ async def held_for_owner(tx: Tx, run: dict[str, Any]) -> bool:
     if run.get("trigger") != "work" or run.get("work_id") is None:
         return False
     waiting = await owner_turn(tx, run["work_id"])
-    return waiting is not None and not answers_owner(run, waiting)
+    if waiting is None or answers_owner(run, waiting):
+        return False
+    # ⟨1.35⟩ §57.3 a side work the owner's side talk made is his word itself
+    return not await tx.scalar(
+        """SELECT EXISTS (SELECT 1 FROM owner.session_side_lines
+             WHERE work_id = :w AND made_work)""",
+        w=run["work_id"],
+    )
 
 
 async def resume_held(tx: Tx, ref: str) -> list[str]:

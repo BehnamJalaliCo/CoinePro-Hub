@@ -976,6 +976,17 @@ async def talk_brief(
     related = await MEM.related(tx, order_ref, _company_of(order))
     if related:
         out["related_sessions"] = related
+    if for_run and work_id is not None:
+        # ⟨1.35⟩ §57.3 a run of a work the owner spoke to in a side talk: that talk's last lines
+        from hq_api.domain import session_team as ST
+
+        try:
+            async with tx.conn.begin_nested():
+                side = await ST.run_brief(tx, dict(rep), work_id)
+            if side is not None:
+                out["side_talk"] = side
+        except Exception:  # noqa: BLE001 - the brief never fails on what it adds
+            log.warning("the side talk could not be read", extra={"order": order_ref})
     # ⟨2026-11-11⟩ what works for the order outside a run, what ended without an answer, and,
     # for a run the idle sweep started, the explicit turn: nothing runs, do task N or ask
     try:

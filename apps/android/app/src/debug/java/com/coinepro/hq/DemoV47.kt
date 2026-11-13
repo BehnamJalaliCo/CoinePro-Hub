@@ -17,8 +17,9 @@ import kotlinx.serialization.json.contentOrNull
  * - **The ledger (§47.4):** TradeYar's in the working group «کمپین مناسبتی» holds 42 topics and 40 outside samples (two pages; lines from
  *   the routine's own claim, from a package that went out, and added by the owner); CoinePro FX's is empty. Adding one already said is a
  *   `409 topic_taken` that names the earlier line and its day; a sample needs its link; a freed line leaves the list.
- * - **The narrator (§48):** TradeYar's is set (Charon, «آرام و مطمئن»); CoinePro FX has none, and there the hub is out of its account of
- *   the speech service (the owner's one step); Pro-Chart has none. A voice the service does not have is a 422.
+ * - **The narrator (§48):** TradeYar's is set (Charon, «آرام و مطمئن»); ⟨1.35⟩ Pro-Chart's too (Kore, «فارسی معیار و گرم»: what its reels
+ *   session F-0094 set once, §57's «گوینده» chip); CoinePro FX has none, and there the hub is out of its account of the speech service
+ *   (the owner's one step). A voice the service does not have is a 422.
  * - **The best hour (§49):** TradeYar's account has enough posts (21:00); CoinePro FX's has too few yet; Pro-Chart's was never read.
  * - **A standing routine (§50):** F-0100 (Pro-Chart's reels session) has one on and one off (its last runs failed); `POST /routines` makes
  *   one from a sentence that names a time, on at once, and refuses any other with the hub's own words; `/automations/{ref}/state`
@@ -102,7 +103,18 @@ internal class V47Demo(private val v35: V35Demo) {
 
     // ------------------------------------------------------------------ §48 the narrator --
     private val voices = JsonArray(VOICES.map { (n, g, t) -> jo("name" to n, "gender" to g, "trait_fa" to t) })
-    private val narrators = mutableMapOf("TY" to jo("voice" to "Charon", "style_fa" to "آرام و مطمئن", "by" to "owner", "updated_at" to at(4_300)))
+    private val narrators = mutableMapOf(
+        "TY" to jo("voice" to "Charon", "style_fa" to "آرام و مطمئن", "by" to "owner", "updated_at" to at(4_300)),
+        "PC" to jo("voice" to "Kore", "style_fa" to "فارسی معیار و گرم", "by" to "ceo@PC", "updated_at" to at(820)),
+    )
+
+    /** ⟨1.35⟩ §57.1 the narrator of [code] as a session's team carries it (`TeamNarrator`), when one is set. */
+    @Synchronized
+    fun teamNarrator(code: String): JsonObject? = narrators[code]?.let { n ->
+        val voice = n.str("voice").orEmpty()
+        val trait = VOICES.firstOrNull { it.first == voice }?.third
+        jo("company" to code, "voice" to voice, "voice_fa" to listOfNotNull(voice, trait).joinToString("، "), "style_fa" to n.str("style_fa"))
+    }
 
     private fun narrator(code: String): JsonObject {
         val n = narrators[code]

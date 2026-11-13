@@ -22,8 +22,8 @@ import { NarratorPicker } from '@/components/v47/narrator';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import {
-  NARRATOR_FA, SIDE_EMPTY_FA, TEAM_FA, hireAskFa, hireable, linesOf, seatWho, talkable, teamKey, useSessionTeam, useSessionTeamActions, useSideLines,
-  withFa, type Seat, type SideLine,
+  HIRE_NOTE_FA, HOLDER_TALK_FA, NARRATOR_FA, SIDE_EMPTY_FA, SIDE_NOTE_FA, TEAM_FA, WORKING_FA, hireAskFa, hireable, hiredFa, linesOf, seatWho, talkable, teamKey,
+  useSessionTeam, useSessionTeamActions, useSideLines, withFa, wokenFa, type Seat, type SideLine,
 } from '@/lib/api/v57';
 import { cx, jTime } from '@/lib/format';
 import { DecisionBar } from './decision-bar';
@@ -54,7 +54,7 @@ function SeatChip({ s, closed, onOpen }: { s: Seat; closed: boolean; onOpen: (s:
     if (closed || !hireable(s)) return null;
     return (
       <li className="flex flex-none">
-        <button type="button" aria-haspopup="dialog" data-seat={s.key} data-state="empty" onClick={() => onOpen(s)}
+        <button type="button" aria-haspopup="dialog" aria-label={`${s.role_fa}: خالی؛ استخدام`} data-seat={s.key} data-state="empty" onClick={() => onOpen(s)}
           className={cx(CHIP, 'border border-dashed border-strong px-3 text-sec hover:bg-hover hover:text-ink')}>
           {`+ ${s.role_fa}`}
         </button>
@@ -65,13 +65,13 @@ function SeatChip({ s, closed, onOpen }: { s: Seat; closed: boolean; onOpen: (s:
   const unread = s.unread > 0;
   return (
     <li className="flex flex-none">
-      <button type="button" aria-haspopup={s.holder ? undefined : 'dialog'} title={who} data-seat={s.key} data-state={s.state} data-holder={s.holder ? '' : undefined}
+      <button type="button" aria-haspopup={s.holder ? undefined : 'dialog'} title={s.holder ? HOLDER_TALK_FA : who} data-seat={s.key} data-state={s.state} data-holder={s.holder ? '' : undefined}
         onClick={() => onOpen(s)}
         className={cx(CHIP, 'pe-3 ps-1 hover:bg-hover', working ? 'bg-raised text-ink shadow-[inset_0_0_0_1px_var(--hq-silver-line)]' : 'bg-tile text-ink')}>
         <SeatMark s={s} />
         <span className="font-semibold">{s.role_fa}</span>
         {who !== s.role_fa ? <span className="sr-only">، {who}</span> : null}
-        {working ? <span className="sr-only">، الان سر کار است</span> : null}
+        {working ? <span className="sr-only">، {WORKING_FA}</span> : null}
         {unread ? <><span aria-hidden data-unread className="absolute end-1 top-1 size-2 rounded-full bg-gold-ink ring-2 ring-[var(--hq-surface-page)]" /><span className="sr-only">، {faCount(s.unread)} حرف تازه</span></> : null}
       </button>
     </li>
@@ -143,6 +143,7 @@ function SideTalk({ refId, seat, closed, onClose }: { refId: string; seat: Seat;
   const act = useSessionTeamActions(refId);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [woken, setWoken] = useState(false);
   // One key for one word: a retry of the same words reuses it, so the hub never takes it twice; new words get a new key.
   const said = useRef<{ text: string; key: string } | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -156,7 +157,7 @@ function SideTalk({ refId, seat, closed, onClose }: { refId: string; seat: Seat;
     if (said.current?.text !== t) said.current = { text: t, key: crypto.randomUUID() };
     setError(null);
     act.say.mutate({ code: seat.key, text: t, key: said.current.key }, {
-      onSuccess: () => { haptic('tick'); said.current = null; setText(''); },
+      onSuccess: (out) => { haptic('tick'); said.current = null; setText(''); setWoken(out.woken); },
       onError: (err) => { haptic('error'); setError(err instanceof ApiError ? err.messageFa : 'نرسید؛ دوباره بزن.'); },
     });
   };
@@ -164,10 +165,11 @@ function SideTalk({ refId, seat, closed, onClose }: { refId: string; seat: Seat;
     <p className="border-t border-div px-5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3 text-[12px] leading-5 text-muted">این جلسه بسته شده؛ این گفتگو فقط خواندنی است.</p>
   ) : (
     <form onSubmit={send} className="flex flex-col gap-1.5 border-t border-div px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3" aria-label={`نوشتن به ${who}`}>
-      {error ? <p role="alert" className="text-[12px] leading-5 text-neg" data-side-error>{error}</p> : null}
+      {error ? <p role="alert" className="text-[12px] leading-5 text-neg" data-side-error>{error}</p>
+        : woken ? <p role="status" className="text-[12px] leading-5 text-sec" data-side-woken>{wokenFa(who)}</p> : null}
       <div className="flex items-end gap-2">
         <textarea value={text} rows={1} dir="auto" aria-label={`پیام به ${who}`} placeholder={`به ${who} بگو…`} autoComplete="off" spellCheck={false}
-          onChange={(e) => { setText(e.target.value); if (error) setError(null); }}
+          onChange={(e) => { setText(e.target.value); if (error) setError(null); if (woken) setWoken(false); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
           style={{ minHeight: 44, maxHeight: 132 }}
           className="block min-w-0 flex-1 resize-none rounded-[12px] border border-strong bg-tile px-3 py-[9px] text-[14px] leading-6 text-ink outline-none placeholder:text-muted focus:border-[var(--hq-silver-ink)]" />
@@ -180,10 +182,10 @@ function SideTalk({ refId, seat, closed, onClose }: { refId: string; seat: Seat;
   );
   return (
     <SpringSheet open onOpenChange={(v) => { if (!v) onClose(); }} title={withFa(who)} testid="side-talk" width={520} bar={composer}
-      description={<Facts>{who !== seat.role_fa ? seat.role_fa : null}{seat.state === 'working' ? 'الان سر کار است' : null}{'فقط بین تو و او'}</Facts>}>
+      description={<Facts>{who !== seat.role_fa ? seat.role_fa : null}{seat.state === 'working' ? WORKING_FA : null}{SIDE_NOTE_FA}</Facts>}>
       <div className="flex min-h-[22dvh] flex-col gap-2 pb-1" data-lines={lines.length}>
         {q.hasNextPage ? (
-          <Button variant="text" size="sm" className="self-center" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>حرف‌های قبلی</Button>
+          <Button variant="text" size="sm" className="self-center" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>حرف‌های پیش‌تر</Button>
         ) : null}
         {q.isLoading ? <p className="text-[13px] text-muted" role="status">میخوانم…</p>
           : q.isError && !lines.length ? <p className="text-[13px] text-neg" role="alert">{q.error instanceof ApiError ? q.error.messageFa : 'خوانده نشد؛ کمی بعد دوباره باز کن.'}</p>
@@ -209,7 +211,7 @@ function HireSheet({ refId, seat, onClose }: { refId: string; seat: Seat; onClos
     if (!seat.role || act.hire.isPending) return;
     setRefused(null);
     act.hire.mutate({ role: seat.role, key: key.current }, {
-      onSuccess: () => { haptic('seal'); toast({ tone: 'ok', text: `${seat.role_fa} استخدام شد و به این جلسه آمد.` }); onClose(); },
+      onSuccess: () => { haptic('seal'); toast({ tone: 'ok', text: hiredFa(seat.role_fa) }); onClose(); },
       // A refusal made nothing: the next try is a new word with its own key.
       onError: (e) => { haptic('error'); key.current = crypto.randomUUID(); setRefused(e instanceof ApiError ? e.messageFa : 'استخدام نشد؛ دوباره بزن.'); },
     });
@@ -218,7 +220,7 @@ function HireSheet({ refId, seat, onClose }: { refId: string; seat: Seat; onClos
     <SpringSheet open onOpenChange={(v) => { if (!v) onClose(); }} title={hireAskFa(seat.role_fa)} testid="hire-seat" width={440}
       bar={<DecisionBar label={hireAskFa(seat.role_fa)} error={refused} state={act.hire.isPending ? 'working' : 'idle'}
         primary={{ label: 'استخدام کن', onClick: go }} quiet={[{ label: 'نه', onClick: onClose }]} />}>
-      <p className="pb-1 text-[13px] leading-6 text-sec">همین حالا با تنظیم‌های پیش‌فرض نقشش به همین جلسه می‌آید؛ بی کارت و بی اثر انگشت، در سقف پاکت این ماه.</p>
+      <p className="pb-1 text-[13px] leading-6 text-sec">{HIRE_NOTE_FA}</p>
     </SpringSheet>
   );
 }

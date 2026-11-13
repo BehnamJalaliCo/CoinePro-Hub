@@ -52,7 +52,14 @@ export const TEAM_FA = 'تیم این جلسه';
 export const withFa = (who: string) => `با ${who}`;
 export const hireAskFa = (roleFa: string) => `${roleFa} استخدام شود؟`;
 export const NARRATOR_FA = 'گوینده';
-export const SIDE_EMPTY_FA = 'هر چه این‌جا بگویی فقط به او میرسد؛ جلسه‌ی اصلی سر جایش میماند و او کارش را ادامه میدهد.';
+export const SIDE_EMPTY_FA = 'هنوز با او حرفی نزده‌ای. هر چه اینجا بگویی به خود او میرسد و کارش را ادامه میدهد؛ جلسه‌ی اصلی همان است.';
+export const SIDE_NOTE_FA = 'گفتگوی کوتاه؛ جلسه همان است';
+export const WORKING_FA = 'در کار';
+/** After a word that woke him: his answer comes to this side talk. */
+export const wokenFa = (who: string) => `${who} روی حرفت کار میکند؛ جوابش همین‌جا می‌آید.`;
+export const hiredFa = (roleFa: string) => `${roleFa} استخدام شد و به جلسه آمد.`;
+export const HIRE_NOTE_FA = 'همین‌جا در جلسه، با تنظیم پیش‌فرض همین نقش؛ در سقف پاکت ماه.';
+export const HOLDER_TALK_FA = 'نوشتن به مسئول جلسه';
 
 // ======================================================================================================== the reads ==
 /** At most this many lines a page of a side talk. */

@@ -25,7 +25,8 @@
     /internal/v1/orders/{ref}/ack        order.ack (A1): the assignee's plan
     /internal/v1/orders/{ref}/progress   order.progress (A1): one step
     /internal/v1/orders/{ref}/ask        ⟨1.16⟩ order.ask (A1): one question to the owner
-                                         (the owner's turn, told at once)
+                                         (the owner's turn, told at once); ⟨1.35⟩ §57.4 from a
+                                         side work, either is a line of that side talk only
     /internal/v1/work/{ref}/budget       work.budget (A2): a CEO, its company's
                                          work, inside the month envelope
     /internal/v1/cards/{ref}/decide      card.decide (A2): the agent approver of
@@ -47,6 +48,7 @@ from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import control, hiring
 from hq_api.domain import decisions as D
 from hq_api.domain import order_report as OR
+from hq_api.domain import session_team as ST
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
@@ -485,7 +487,14 @@ async def order_progress(
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
         await _session_open(tx, ref)
-        rep = await OR.progress(tx, ctx.who, ref, body.step_fa)
+        # ⟨1.35⟩ §57.4 a person answering from a side work: a line of that side talk only
+        side = await ST.side_work_of(tx, ref, ctx.who)
+        if side is not None:
+            await ST.answer(tx, ref, ctx.who, body.step_fa, side)
+            rep = await OR.ensure(tx, ref)
+            assert rep is not None
+        else:
+            rep = await OR.progress(tx, ctx.who, ref, body.step_fa)
         if body.done:
             from hq_api.domain import sessions as SE
 
@@ -506,7 +515,8 @@ async def order_progress(
             action_class="A1",
             target_kind="order",
             target_ref=ref,
-            summary=body.step_fa[:200],
+            summary=(f"side talk ({side['ref']}): " if side is not None else "")
+            + body.step_fa[:200],
         )
         out = await OR.report(tx, ref)
     assert out is not None
@@ -526,7 +536,12 @@ async def order_ask(ref: str, body: AskIn, ctx: Ctx = Depends(internal_ctx)) -> 
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
         await _session_open(tx, ref)
-        await OT.ask(tx, ctx.who, ref, body.question_fa)
+        # ⟨1.35⟩ §57.4 a question from a side work goes to that side talk, not to the owner's turn
+        side = await ST.side_work_of(tx, ref, ctx.who)
+        if side is not None:
+            await ST.answer(tx, ref, ctx.who, body.question_fa, side)
+        else:
+            await OT.ask(tx, ctx.who, ref, body.question_fa)
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,  # type: ignore[arg-type]
@@ -534,7 +549,8 @@ async def order_ask(ref: str, body: AskIn, ctx: Ctx = Depends(internal_ctx)) -> 
             action_class="A1",
             target_kind="order",
             target_ref=ref,
-            summary=body.question_fa[:200],
+            summary=(f"side talk ({side['ref']}): " if side is not None else "")
+            + body.question_fa[:200],
         )
         out = await OR.report(tx, ref)
     assert out is not None

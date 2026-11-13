@@ -29,9 +29,10 @@ test('the row under the header: the holder first, the scriptwriter at work with 
     await expect(writer).toContainText('نویسنده');
     await expect(writer).toHaveAttribute('data-state', 'working');
     await expect(writer.locator('[data-unread]')).toHaveCount(1);
-    await expect(writer).toHaveAccessibleName(/نویسنده.*الان سر کار است.*۲ حرف تازه/);
+    await expect(writer).toHaveAccessibleName(/نویسنده.*در کار.*۲ حرف تازه/);
     // The media seats nobody fills yet.
     await expect(seat(page, 'role:video_director')).toHaveText('+ کارگردان');
+    await expect(seat(page, 'role:video_director')).toHaveAccessibleName('کارگردان: خالی؛ استخدام');
     await expect(seat(page, 'role:motion_designer')).toHaveText('+ موشن‌گرافی');
     await expect(seat(page, 'role:video_director')).toHaveAttribute('data-state', 'empty');
     // The company's narrator.
@@ -67,6 +68,7 @@ test('a filled seat opens «با …»: his side talk alone, a word goes to him,
     await expect(lines.nth(3)).toHaveAttribute('data-who', 'owner');
     await expect(lines.nth(3)).toContainText(word);
     await expect(sheet.getByLabel(`پیام به ${WRITER_FA}`)).toHaveValue('');
+    await expect(sheet.locator('[data-side-woken]')).toHaveText(`${WRITER_FA} روی حرفت کار میکند؛ جوابش همین‌جا می‌آید.`);
     // He answers a moment later: the sheet reads its talk again every four seconds while it is open.
     await expect(lines).toHaveCount(5, { timeout: 12_000 });
     await expect(lines.nth(4)).toHaveAttribute('data-who', 'seat');
@@ -106,7 +108,7 @@ test('an empty seat asks once «… استخدام شود؟» and is filled at o
     await seat(page, 'role:video_director').click();
     await page.getByRole('dialog', { name: 'کارگردان استخدام شود؟' }).getByRole('button', { name: 'استخدام کن' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.getByText('کارگردان استخدام شد و به این جلسه آمد.')).toBeVisible();
+    await expect(page.getByText('کارگردان استخدام شد و به جلسه آمد.')).toBeVisible();
     // The seat is his now: a filled chip, and his side talk opens (empty yet).
     await expect(seat(page, 'role:video_director')).toHaveCount(0);
     const director = seat(page, 'PC-DIRECTOR-01');

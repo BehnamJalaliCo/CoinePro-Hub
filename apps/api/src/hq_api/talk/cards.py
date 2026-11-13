@@ -588,24 +588,11 @@ async def _child_of_order(
     brief: str,
 ) -> dict[str, Any]:
     """A work of the order for `emp`: a child of the root in the holder's company; in another
-    company (or the holding) a work requested by the root, which the order's tree follows."""
-    from hq_api.domain import work as W
+    company (or the holding) a work requested by the root, which the order's tree follows
+    (⟨1.35⟩ shared with §57's side works: domain.session_team.child_of_order)."""
+    from hq_api.domain import session_team as ST
 
-    if emp["company_id"] == parent["company_id"]:
-        return await W.delegate(tx, ctx.who, parent, to_code=str(emp["code"]), title=title,
-                                brief=brief, priority=None, due_at=None, budget=None)  # fmt: skip
-    return await W.create(
-        tx,
-        ctx.who,
-        company_id=emp["company_id"],
-        company_code=str(emp["company"]),
-        title=title,
-        brief=brief,
-        kind="one_off",
-        priority=str(parent["priority"]),
-        assignee_code=str(emp["code"]),
-        requested_by_work_id=parent["id"],
-    )
+    return await ST.child_of_order(tx, ctx.who, parent, emp, title=title, brief=brief)
 
 
 async def _join(ctx: Ctx, tx: Tx, ref: str, conv: dict[str, Any], emp: dict[str, Any]) -> str:

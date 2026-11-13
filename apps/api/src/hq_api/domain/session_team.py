@@ -170,14 +170,16 @@ async def _person_of_key(tx: Tx, key: str) -> dict[str, Any] | None:
     if "@" in key:
         role, _, code = key.partition("@")
         row = await tx.first(
-            PERSON_SQL + """ WHERE c.code = :co AND e.role = :r AND e.status = 'active'
+            PERSON_SQL
+            + """ WHERE c.code = :co AND e.role = :r AND e.status = 'active'
                                AND e.kind <> 'system' ORDER BY e.hired_at LIMIT 1""",
             co=code,
             r=role,
         )
     else:
         row = await tx.first(
-            PERSON_SQL + """ WHERE c.kind = 'holding' AND e.role = :r AND e.status = 'active'
+            PERSON_SQL
+            + """ WHERE c.kind = 'holding' AND e.role = :r AND e.status = 'active'
                                AND e.kind <> 'system' ORDER BY e.hired_at LIMIT 1""",
             r=key,
         )
@@ -684,7 +686,8 @@ async def hire(ctx: Any, tx: Tx, ref: str, role: str) -> SessionTeam:
     """POST /orders/{ref}/team/hire: an empty media seat filled at once, the owner's own hire in
     his session (by code with `owner_order`: the model offered, the estimate, the five a day);
     the role's charter defaults (model, effort) and 30 runs as the monthly estimate. A hard check
-    that refuses answers its own code; nothing is made."""
+    that refuses answers its own code; nothing is made. An active employee of that role in the
+    session's company who is not in it yet comes in instead (nobody new is hired)."""
     from hq_api.domain import decisions as D
     from hq_api.domain import hiring
     from hq_api.domain import sessions as SE
@@ -699,6 +702,20 @@ async def hire(ctx: Any, tx: Tx, ref: str, role: str) -> SessionTeam:
     if company is None or company.kind == "holding":
         raise ApiError(409, "validation_failed", "the session has no company",
                        message_fa=NO_COMPANY_FA)  # fmt: skip
+    have = await tx.first(
+        PERSON_SQL
+        + """ WHERE e.company_id = :co AND e.role = :r AND e.status = 'active'
+                           AND e.kind <> 'system' ORDER BY e.hired_at LIMIT 1""",
+        co=company.id,
+        r=role,
+    )
+    if have is not None:
+        # the company has that person already: they come into this session, nobody new is hired
+        await SE.add_participant(ctx, tx, ref, "person", f"{role}@{company.code}")
+        await ctx.audit(tx, company_id=company.id, action="session.participant",
+                        action_class="A1", target_kind="order", target_ref=ref,
+                        summary=f"+{have['code']} for the empty {role} seat")  # fmt: skip
+        return await team(tx, ref)
     lib = await D.company_charters(tx, ctx.hub.charters, company.id)
     charter = lib.get(role) if lib is not None else None
     if charter is None or charter.kind != "employee" or not charter.department:

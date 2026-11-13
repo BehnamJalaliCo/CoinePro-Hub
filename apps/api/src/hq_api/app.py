@@ -102,6 +102,7 @@ from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
 from hq_api.routes import sales as sales_routes  # prompt 24: §33.1, §33.4-§33.5
 from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
+from hq_api.routes import session_team as session_team_routes  # ⟨1.35⟩ §57 the session's team
 from hq_api.routes import sessions as session_routes  # prompt 25: §35.1-§35.3 every order a session
 from hq_api.routes import speech as speech_routes  # ⟨2026-11-06⟩ speech.make: AI Studio's voices
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
@@ -321,6 +322,8 @@ def create_app(
     # ⟨1.17⟩ prompt 25 (contract §35.1-§35.3): every order a session: the list, participants,
     # the plan, close / reopen / hide
     app.include_router(session_routes.router, prefix="/api/v1")
+    # ⟨1.35⟩ §57: the session's team, one person at a time (side talks, an empty seat's hire)
+    app.include_router(session_team_routes.router, prefix="/api/v1")
     # ⟨1.22⟩ §40: a session's playbook (drafted, sealed, given to another company)
     app.include_router(playbook_routes.router, prefix="/api/v1")
     # ⟨1.19⟩ prompt 26 (contract §37.2-§37.3): an archive record or an output erased for good, an

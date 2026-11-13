@@ -128,6 +128,7 @@ STARTED_FA = "شروع کرد: {title}"
 # wake's reason); the first run of a work, or one woken for no named reason, still says what it began.
 START_WHY_FA: tuple[tuple[str, str], ...] = (
     ("owner_reply:", "حرف تو را گرفت و دارد فکر میکند"),
+    ("side_word:", "حرف تو را گرفت و دارد فکر میکند"),  # ⟨1.35⟩ §57.3 a side talk's word
     ("nudge:", "گفتی ادامه بده؛ دارد فکر میکند"),
     ("pace:step:", "روش کار «با من» شد؛ دارد فکر میکند"),
     ("pace:auto:", "روش کار «خودکار» شد؛ دارد فکر میکند"),

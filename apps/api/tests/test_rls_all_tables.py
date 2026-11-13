@@ -554,6 +554,9 @@ HOLDING_ONLY = {
     "owner.session_tasks",
     # prompt 26 (§36.3): an order's files are the owner's, as the order is
     "owner.order_files",
+    # ⟨1.35⟩ §57: a session's side talks and their read marks are the owner's, as the order is
+    "owner.session_side_lines",
+    "owner.session_side_reads",
     # W10 (§40.2): the playbooks (working groups drafted from the owner's sessions) are the holding's
     "owner.playbooks",
     # prompt 21 (§29.4, §29.5): the secretary's memory and the owner's long voice

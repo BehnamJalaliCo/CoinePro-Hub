@@ -48,6 +48,14 @@ SKIP_TRIGGERS = ("talk", "meeting")
 FAILED_REASON = "workspace_failed:"
 DONE_REASON = "workshop_done:"  # ⟨2026-11-09⟩ §43 a workshop turn of the order itself ended
 OUT_ONLY_FA = "فایل‌های این نوبت پیوست همین خروجی است."
+# ⟨1.35⟩ §57.6 a direct turn's output is named by its files (the owner: «دقیقا خروجیه چی تحویل
+# شد؟»): «{name}», «{name} و {n} فایل دیگر»; a file re-issued under a version mark is a revision
+NAMED_MORE_FA = "{name} و {n} فایل دیگر"
+REVISION_FA = "نسخه‌ی تازه‌ی {base}"
+VERSION_MARK = re.compile(
+    r"(?:[\s._-]+[vV][0-9]{1,3}|\s*\([0-9]{1,3}\)|[\s._-]*نسخه(?:\u200c?ی)?[\s._-]*[0-9۰-۹]{1,3})$"
+)
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 WORKSHOP_FA = "کارگاه هلدینگ"
 FILES_MAX = 20  # files a turn may send back (POST /runners/jobs/{id}/files holds it)
 BRIEF_CHARS = 12000
@@ -398,10 +406,12 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 from hq_api.domain import direct as DR
 
                 if files and (w["status"] in W.OPEN or w["status"] == "delivered"):
+                    # ⟨1.35⟩ §57.6 named by its files, never «خروجی جلسه: …»; a revision says so
+                    title, revision_of = await named_output(tx, w, files)
                     await PL.deliver(
                         tx,
                         w,
-                        title=f"خروجی جلسه: {w['title']}"[:300],
+                        title=title,
                         body=said or OUT_ONLY_FA,
                         produced_with={
                             "runtime": "workshop",
@@ -411,6 +421,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                             "job": str(j["id"]),
                             "session": j.get("session_ref"),
                             "files": len(files),
+                            **({"revision_of": revision_of} if revision_of else {}),
                             **({"sandbox": wall} if wall else {}),
                             **made_with(j),
                         },
@@ -598,6 +609,82 @@ async def made_files(tx: Tx, j: dict[str, Any], company_id: Any) -> list[str]:
         job=str(j["id"]),
     )
     return [str(r["id"]) for r in rows]
+
+
+def file_stem(name: str) -> str:
+    """A file's name without its folder and its extension."""
+    base = str(name).replace("\\", "/").rsplit("/", 1)[-1].strip()
+    head, dot, ext = base.rpartition(".")
+    return head if dot and head.strip() and 1 <= len(ext) <= 8 else base
+
+
+def version_base(name: str) -> str:
+    """⟨1.35⟩ §57.6 a file's name without its extension and any version mark at its end (`-v6`,
+    `_v2`, ` (3)`, «نسخه ۳», one after another)."""
+    out = file_stem(name)
+    while True:
+        cut = VERSION_MARK.sub("", out).rstrip(" ._-")
+        if not cut or cut == out:
+            return out
+        out = cut
+
+
+def _same_file(name: str) -> str:
+    return " ".join(version_base(name).replace("\u200c", " ").lower().split())
+
+
+def _rank(f: dict[str, Any]) -> int:
+    """Which file names the output: a video, then a picture, a PDF, a sound, the rest, text."""
+    mime = str(f.get("mime") or "")
+    for i, prefix in enumerate(("video/", "image/", "application/pdf", "audio/")):
+        if mime.startswith(prefix):
+            return i
+    return 5 if mime.startswith("text/") else 4
+
+
+def output_name(
+    files: list[dict[str, Any]], earlier: list[dict[str, Any]]
+) -> tuple[str, str | None]:
+    """(the title, the earlier output it revises or None) of a direct turn's output: its main
+    file's name, «و n فایل دیگر» for more; «نسخه‌ی تازه‌ی {base}» when the main file differs only
+    by a version mark from a file of an earlier output of the work (`earlier`: {ref, name},
+    newest first)."""
+    if not files:
+        return OUT_ONLY_FA, None
+    main = sorted(files, key=_rank)[0]  # stable: the first made of its kind
+    key = _same_file(main["name"])
+    revision_of = next((str(e["ref"]) for e in earlier if _same_file(e["name"]) == key), None)
+    head = (
+        REVISION_FA.format(base=version_base(main["name"]))
+        if revision_of
+        else file_stem(main["name"])
+    )
+    more = len(files) - 1
+    title = NAMED_MORE_FA.format(name=head, n=str(more).translate(_FA_DIGITS)) if more else head
+    return title[:300], revision_of
+
+
+async def named_output(tx: Tx, w: dict[str, Any], files: list[str]) -> tuple[str, str | None]:
+    """output_name for the files a turn left in `out/` and the work's earlier outputs."""
+    rows = {
+        str(r["id"]): dict(r)
+        for r in await tx.all(
+            "SELECT id, name, mime FROM files.files WHERE id = ANY(CAST(:ids AS uuid[]))",
+            ids=files,
+        )
+    }
+    made = [rows[f] for f in files if f in rows]
+    earlier = [
+        dict(r)
+        for r in await tx.all(
+            """SELECT d.ref, f.name FROM cartable.deliverables d
+               CROSS JOIN LATERAL unnest(d.attachments) AS a(file_id)
+               JOIN files.files f ON f.id = a.file_id
+               WHERE d.work_id = :w ORDER BY d.created_at DESC, d.ref DESC""",
+            w=w["id"],
+        )
+    ]
+    return output_name(made, earlier)
 
 
 def _usage(u: dict[str, Any]) -> tuple[int, int, int, int]:

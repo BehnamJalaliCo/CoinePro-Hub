@@ -284,7 +284,8 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
     )
     pw = made["produced_with"]
     pw = json.loads(pw) if isinstance(pw, str) else pw
-    assert made["title"].startswith("خروجی جلسه: ") and pw["direct"] is True
+    # ⟨1.35⟩ §57.6 named by its file, never «خروجی جلسه: …»
+    assert made["title"] == "reel" and pw["direct"] is True and "revision_of" not in pw
     assert (pw["effort"], pw["model"]) == ("max", "claude-opus-5-5")
     assert [str(x) for x in made["attachments"]] == [fid]
     # the order's work stays open (it is his session), and no classic run is woken to repeat it

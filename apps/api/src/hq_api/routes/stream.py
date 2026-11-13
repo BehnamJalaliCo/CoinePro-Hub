@@ -53,6 +53,7 @@ HOLDING_FULL = frozenset(
         "llm.tick",
         "session.updated",
         "session.activity",
+        "session.team",  # ⟨1.35⟩ §57.4 {order, seat}: a side talk moved
         "control.changed",
         "links.updated",
     }
