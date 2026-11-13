@@ -35,7 +35,7 @@ FOLD_EVERY = 20
 # meeting starts from this memory (the owner: never a model that forgot, never millions of tokens
 # re-read per word); at most FOLD_CHUNK turns go to the model at once, oldest first
 DIRECT_FOLD_EVERY = 8
-FOLD_CHUNK = 40
+FOLD_CHUNK = 25
 CATCH_UP_ROUNDS = 8
 TASK_CLASS = "session_memory"
 RELATED = 3
@@ -44,13 +44,16 @@ SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": ["memory_md"],
-    "properties": {"memory_md": {"type": "string", "maxLength": MEMORY_CHARS}},
+    # ⟨2026-11-13⟩ no maxLength: a memory a little over it failed the whole answer (Haiku on
+    # F-0018); the text is cut to MEMORY_CHARS here (_fit), oldest lines first
+    "properties": {"memory_md": {"type": "string"}},
 }
 SYSTEM = (
     "You keep the memory of one working session between a holding's owner (مدیر کل) and the people "
     "in it (the holder of the owner's order, the employees hired into it, outside helpers such as "
     "ChatGPT). Fold the new turns into the memory so far and answer the WHOLE memory again: plain "
-    "Persian, at most 6000 characters, short lines under these headings when there is something "
+    "Persian, at most 5000 characters (about 50 short lines; never longer), short lines under these "
+    "headings when there is something "
     "to say: «## تصمیم‌ها» (what was decided), «## چه کسی چه میکند» (each person present and their "
     "task), «## ابزارها و کمک‌ها» (the tools and helpers chosen, e.g. «موضوع روزانه را نویسنده با "
     "ChatGPT پیدا میکند»), «## نکته‌های باز» (what is still open). Keep refs (W-, F-, D-, PB-, CV-) "

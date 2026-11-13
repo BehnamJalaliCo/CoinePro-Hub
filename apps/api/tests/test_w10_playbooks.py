@@ -184,7 +184,9 @@ async def test_the_session_remembers_by_code_and_a_small_model_folds_it(
     assert prompt["memory_so_far"] == memory and prompt["session"] == ref
     assert any("بودجه بده" in line for line in prompt["new_turns"])
     assert "مشاور کل" in prompt["present"]
-    assert seen[0]["json_schema"]["properties"]["memory_md"]["maxLength"] == MEM.MEMORY_CHARS
+    # ⟨2026-11-13⟩ no maxLength in the schema (one a little over it failed the whole answer); the
+    # memory is cut to MEMORY_CHARS here
+    assert "maxLength" not in seen[0]["json_schema"]["properties"]["memory_md"]
     assert await memory_of(su, ref) == (folded, turns)
     # a failure never blocks: the old memory stays
     route_answer(monkeypatch, None)
