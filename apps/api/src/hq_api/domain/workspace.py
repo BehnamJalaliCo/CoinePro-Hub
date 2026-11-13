@@ -398,11 +398,15 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             if direct:
                 from hq_api.domain import direct as DR
 
+                # ⟨2026-11-13⟩ F-0018: every card read «خروجی جلسه: <the order's title>» and one
+                # video came three times: a card names what it holds, and a file whose content
+                # this work already delivered is not delivered again
+                files = await fresh_files(tx, w["id"], files)
                 if files and (w["status"] in W.OPEN or w["status"] == "delivered"):
                     await PL.deliver(
                         tx,
                         w,
-                        title=f"خروجی جلسه: {w['title']}"[:300],
+                        title=(await card_title(tx, files))[:300],
                         body=said or OUT_ONLY_FA,
                         produced_with={
                             "runtime": "workshop",
@@ -587,6 +591,50 @@ def wall_of(j: dict[str, Any]) -> tuple[str | None, str | None]:
         return None, None
     why = str(box.get("why") or "")[:300] if box["state"] == "off" else None
     return str(box["state"]), why
+
+
+async def fresh_files(tx: Tx, work_id: Any, files: list[str]) -> list[str]:
+    """⟨2026-11-13⟩ The files whose content (sha256) no earlier card of this work holds."""
+    if not files:
+        return []
+    old = await tx.all(
+        """SELECT DISTINCT f.sha256 FROM cartable.deliverables d
+           JOIN files.files f ON f.id = ANY(d.attachments)
+           WHERE d.work_id = :w""",
+        w=work_id,
+    )
+    seen = {r["sha256"] for r in old}
+    rows = await tx.all(
+        "SELECT id, sha256 FROM files.files WHERE id = ANY(CAST(:ids AS uuid[]))", ids=files
+    )
+    sha = {str(r["id"]): r["sha256"] for r in rows}
+    out: list[str] = []
+    for f in files:
+        if sha.get(f) in seen:
+            continue
+        seen.add(sha.get(f))
+        out.append(f)
+    return out
+
+
+async def card_title(tx: Tx, files: list[str]) -> str:
+    """⟨2026-11-13⟩ A session card's title: what it holds, by its files' names («کاور ویدیوی اول»,
+    «صدای ویدیوی اول و ۲ فایل دیگر»), not the order's title on every card."""
+    rows = await tx.all(
+        "SELECT id, name FROM files.files WHERE id = ANY(CAST(:ids AS uuid[]))", ids=files
+    )
+    names = {str(r["id"]): str(r["name"] or "") for r in rows}
+
+    def plain(n: str) -> str:
+        stem = n.rsplit(".", 1)[0] if "." in n else n
+        return " ".join(stem.replace("_", " ").replace("-", " ").split())[:80] or "فایل"
+
+    first = [plain(names.get(f, "")) for f in files[:2]]
+    more = len(files) - len(first)
+    title = "، ".join(first)
+    if more > 0:
+        title += f" و {more} فایل دیگر".translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+    return title
 
 
 async def made_files(tx: Tx, j: dict[str, Any], company_id: Any) -> list[str]:

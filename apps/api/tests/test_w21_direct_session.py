@@ -284,7 +284,8 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
     )
     pw = made["produced_with"]
     pw = json.loads(pw) if isinstance(pw, str) else pw
-    assert made["title"].startswith("خروجی جلسه: ") and pw["direct"] is True
+    # ⟨2026-11-13⟩ the card names what it holds (its file), not the order's title
+    assert made["title"] == "reel" and pw["direct"] is True
     assert (pw["effort"], pw["model"]) == ("max", "claude-opus-5-5")
     assert [str(x) for x in made["attachments"]] == [fid]
     # the order's work stays open (it is his session), and no classic run is woken to repeat it
@@ -601,7 +602,7 @@ async def test_a_voice_the_session_made_reaches_its_next_turn_in_the_in_folder(
     fid = await su.fetchval(
         """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
                created_by_kind, created_by_code, kind, meta)
-           VALUES ($1, 'speech-abc.ogg', 'audio/ogg', 10, repeat('a', 64), 'k', 'agent', $2,
+           VALUES ($1, 'speech-abc.ogg', 'audio/ogg', 10, repeat('a', 64), gen_random_uuid()::text, 'agent', $2,
                    'audio', jsonb_build_object('order_id', $3::text, 'made_by', 'speech.make'))
            RETURNING id""",
         o["emp"]["company_id"], o["holder"], str(order_id),
@@ -613,3 +614,47 @@ async def test_a_voice_the_session_made_reaches_its_next_turn_in_the_in_folder(
     names = {i["file_id"]: i["name"] for i in nxt["args"].get("inputs") or []}
     assert str(fid) in names and names[str(fid)].endswith(".ogg")
     assert "in/" in nxt["args"]["brief"]
+
+
+async def test_a_card_names_its_files_and_the_same_content_is_not_delivered_twice(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """⟨2026-11-13⟩ F-0018: every card read «خروجی جلسه: …» and one video came three times."""
+    from hq_api.domain import workspace as WSX
+
+    co = await new_company()
+
+    async def a_file(name: str, sha: str) -> str:
+        return str(await su.fetchval(
+            """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                   created_by_kind, created_by_code, kind)
+               VALUES ($1, $2, 'video/mp4', 1, $3, gen_random_uuid()::text, 'agent', 'x', 'video')
+               RETURNING id""",
+            co["id"], name, sha * 64,
+        ))  # fmt: skip
+
+    v1, v2, cover = await a_file("ویدیو-۱۵-ثانیه.mp4", "a"), await a_file("پیش_نمایش.mp4", "a"), \
+        await a_file("کاور-ویدیوی-اول.jpg", "b")  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await WSX.card_title(tx, [cover]) == "کاور ویدیوی اول"
+        assert (
+            await WSX.card_title(tx, [v1, cover, v2])
+            == "ویدیو ۱۵ ثانیه، کاور ویدیوی اول و ۱ فایل دیگر"
+        )
+        # the same content twice in one turn: once
+        w = await su.fetchval(
+            """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code)
+               VALUES ($1, 'one_off', 'کار', 'service', 'test') RETURNING id""",
+            co["id"],
+        )
+        assert await WSX.fresh_files(tx, w, [v1, v2, cover]) == [v1, cover]
+    # once a card of the work holds it, it is not delivered again
+    emp = await su.fetchval("SELECT id FROM core.employees WHERE company_id = $1 LIMIT 1", co["id"])
+    await su.execute(
+        """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary,
+               attachments, produced_with, usage, evidence, category)
+           VALUES ($1, $2, $3, 't', 's', ARRAY[$4::uuid], '{}', '{}', '[]', 'report')""",
+        co["id"], w, emp, v1,
+    )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await WSX.fresh_files(tx, w, [v2, cover]) == [cover]
