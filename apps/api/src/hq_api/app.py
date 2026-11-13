@@ -76,6 +76,7 @@ from hq_api.routes import connections as connection_routes  # prompt 21 part 3: 
 from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
 from hq_api.routes import erase as erase_routes  # prompt 26: §37.2-§37.3 erasing for good
+from hq_api.routes import flow_auto as flow_auto_routes  # ⟨1.37⟩ §59.7 flows, board, today
 from hq_api.routes import flows as flow_routes  # ⟨2026-11-13⟩ n8n's daily runs
 from hq_api.routes import grok as grok_routes  # prompt 24: §33.7, §33.10
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
@@ -96,6 +97,7 @@ from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: �
 from hq_api.routes import office as office_routes  # prompt 25: §35.5 the owner's office
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import playbooks as playbook_routes  # ⟨1.22⟩ §40 a session's playbook
+from hq_api.routes import site_links as site_link_routes  # ⟨1.37⟩ §59.5-§59.6 links, replies
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import routines as routine_routes  # ⟨1.31⟩ §50 a routine from one sentence
@@ -332,6 +334,11 @@ def create_app(
     app.include_router(erase_routes.router, prefix="/api/v1")
     app.include_router(erase_routes.internal_router, prefix="/internal/v1")
     # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
+    # ⟨1.37⟩ §59 the flow automations, the board and the owner's day (before /automations/{ref}),
+    # a company's links and a flow's replies; n8n's tick and summary
+    app.include_router(flow_auto_routes.router, prefix="/api/v1")
+    app.include_router(flow_auto_routes.internal_router, prefix="/internal/v1")
+    app.include_router(site_link_routes.router, prefix="/api/v1")
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")
     # ⟨2026-11-06⟩ a CEO's or manager's proposed automation (the owner seals it)

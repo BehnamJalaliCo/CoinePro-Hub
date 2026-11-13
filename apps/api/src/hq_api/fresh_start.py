@@ -105,6 +105,8 @@ WIPE: tuple[str, ...] = (
     "growth.newsletter_campaigns", "growth.calendar_manual",
     # ⟨1.12⟩ prompt 22: what the production lines ran and learned from it goes
     "lines.runs", "lines.step_runs", "lines.run_features", "lines.insights",
+    # ⟨1.37⟩ §59.9 what a flow run's post did goes with its run (read again)
+    "growth.run_results",
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
     "people.stars",
     "quality.claims",
@@ -172,6 +174,8 @@ KEEP: tuple[str, ...] = (
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
     "owner.playbooks",  # ⟨1.22⟩ §40.2 the working groups the owner's sessions made stay
+    # ⟨1.37⟩ §59.1, §59.5, §59.7: a playbook's versions, a company's links, the flows' clock stay
+    "owner.playbook_versions", "growth.site_links", "growth.flow_clock",
     # ⟨1.31⟩ §47, §48: what was already said stays said (the posts are still out there), and a
     # company's narrator is the owner's setting
     "growth.topics", "media.narrators",

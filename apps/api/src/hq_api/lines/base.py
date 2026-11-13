@@ -15,6 +15,8 @@ from typing import Any, Protocol
 KINDS = (
     "gpt_text", "dedupe", "tts", "pattern_search", "council_pick", "opus_build", "render",
     "cover", "quality", "publish", "deliver", "n8n", "seal", "persona_test",
+    # ⟨1.37⟩ §59.2 a working group's flow (migration 0066)
+    "topic", "voice_check", "inspire", "workshop", "package", "report",
 )  # fmt: skip
 
 

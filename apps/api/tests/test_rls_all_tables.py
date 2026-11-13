@@ -559,6 +559,9 @@ HOLDING_ONLY = {
     "owner.session_side_reads",
     # W10 (§40.2): the playbooks (working groups drafted from the owner's sessions) are the holding's
     "owner.playbooks",
+    # ⟨1.37⟩ §59.1, §59.7: a playbook's versions and the flows' clock are the holding's
+    "owner.playbook_versions",
+    "growth.flow_clock",
     # prompt 21 (§29.4, §29.5): the secretary's memory and the owner's long voice
     "owner.dispatch_memory",
     "owner.voice_sessions",
@@ -1598,6 +1601,28 @@ async def _fill_w20(su: Any, co: dict[str, Any]) -> None:
     )
     await su.execute(
         "INSERT INTO files.opened (file_id, company_id) VALUES (gen_random_uuid(), $1)", c
+    )
+    # ⟨1.37⟩ §59.5, §59.9 (migration 0066): a company's links, and what a flow run's post did
+    await su.execute(
+        """INSERT INTO growth.site_links (company_id, site)
+           VALUES ($1, '{"url": "https://example.com", "title_fa": "سایت"}')
+           ON CONFLICT (company_id) DO NOTHING""",
+        c,
+    )
+    line = await su.fetchval(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, title_fa,
+               caps, steps) VALUES ($1, 'rls_flow', 1, 'instagram_reel', 'rls', '{}', '[]')
+           RETURNING id""",
+        c,
+    )
+    run = await su.fetchval(
+        """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state)
+           VALUES ($1, $2, 1, 'n8n', 'done') RETURNING id""",
+        c,
+        line,
+    )
+    await su.execute(
+        "INSERT INTO growth.run_results (run_id, company_id, likes) VALUES ($1, $2, 3)", run, c
     )
 
 
