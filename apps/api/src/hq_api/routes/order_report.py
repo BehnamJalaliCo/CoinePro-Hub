@@ -152,6 +152,38 @@ async def cancel_publish(job: UUID, ctx: Ctx = Depends(owner_ctx)) -> OR.Session
         return await SPB.cancel(tx, ctx.who, job, request_id=ctx.request_id)
 
 
+class PublishRuleIn(Model):
+    """⟨2026-11-13⟩ A rule on a publication that is out (IG-Hub makes it)."""
+
+    trigger: Literal["comment", "story_reply"]
+    keywords: list[str] = Field(min_length=1, max_length=10)
+    reply: str = Field(min_length=1, max_length=1000)
+    link: str | None = Field(default=None, max_length=1900)
+    button: str | None = Field(default=None, max_length=20)
+    public_replies: list[str] = Field(default_factory=list, max_length=10)
+
+
+class PublishRuleOut(BaseModel):
+    job: str
+    trigger: str
+    keywords: list[str]
+
+
+@router.post("/publishes/{job}/rules", response_model=PublishRuleOut, responses=E)
+async def publish_rule(job: UUID, body: PublishRuleIn, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """⟨2026-11-13⟩ A rule on a publication that is out: `comment` (the smart comment on its own
+    post: the words in every joined form, the private reply, a link as a button, public
+    replies) or `story_reply` (the account's story replies). IG-Hub makes it; the session says
+    when it is on. `409` for a publication not out yet, `422` without a word and a reply."""
+    from hq_api.domain import session_publish as SPB
+
+    async with ctx.tx() as tx:
+        out = await SPB.queue_rule(
+            tx, ctx.who, job, body.trigger, body.model_dump(), request_id=ctx.request_id
+        )
+    return PublishRuleOut(**out)
+
+
 class ReplyIn(Model):
     # ⟨2026-11-09⟩ as long as a talk turn (the owner's long replies in F-0013 and F-0014 got 422)
     text: str = Field(min_length=1, max_length=10000)

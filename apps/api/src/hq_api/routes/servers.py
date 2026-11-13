@@ -492,7 +492,11 @@ async def runner_result(
         await WS.after_job(hub, j["id"])  # ⟨1.15⟩ §33.10 a workspace's turn, after the commit
     elif j["kind"] == "netcheck" and j["state"] == "done":
         await SV.after_netcheck(hub, j)  # ⟨1.24⟩ §42.2 an offline server's reason, measured again
-    elif j["kind"] == "publish" and (j.get("args") or {}).get("session") and j["state"] in SV.FINAL:
+    elif (
+        j["kind"] == "publish"
+        and ((j.get("args") or {}).get("session") or (j.get("args") or {}).get("rule_for"))
+        and j["state"] in SV.FINAL
+    ):
         from hq_api.domain import session_publish as SPB
 
         await SPB.after_job(hub, j["id"])  # ⟨2026-11-10⟩ §44.5 the session hears its publish
