@@ -9,7 +9,8 @@ groups_tick       every 10 minutes (hq-groups-tick): the group files, the
 connections_read  hourly (hq-connections-read): each connection's daily read
                   through egress, IG-Hub's runner jobs; the hub's own figures;
                   nothing while the holding is locked; then the companies'
-                  journeys (§33.8: stages by code, one line when a stage changes)
+                  journeys (§33.8: stages by code, one line when a stage changes);
+                  ⟨1.37⟩ then what each flow run's post did (§59.9, run_results)
 connection_test   the owner's «آزمودن» (one read now; the launch gate is
                   checked by the read itself)
 home_morning      08:00 the owner's time (hq-home-morning): suggestions,
@@ -59,6 +60,12 @@ class GrowthActivities:
             out = {**out, "ig_posts": await BH.read_due(self.hub)}
         except Exception:  # noqa: BLE001 - the best hour never fails the connections' read
             out = {**out, "ig_posts": None}
+        try:  # ⟨1.37⟩ §59.9 what each flow run's post did (hourly the first day, 24 h, 7 days)
+            from hq_api.domain import run_results as RR
+
+            out = {**out, "run_results": await RR.read_due(self.hub)}
+        except Exception:  # noqa: BLE001 - the results never fail the connections' read
+            out = {**out, "run_results": None}
         return out
 
     @activity.defn(name="connection_test")
