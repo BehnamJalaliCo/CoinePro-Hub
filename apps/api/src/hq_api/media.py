@@ -58,7 +58,8 @@ SFNT_TYPES = frozenset({
 })  # fmt: skip
 WOFF_TYPES = frozenset({"font/woff", "application/font-woff", "application/x-font-woff"})
 WOFF2_TYPES = frozenset({"font/woff2", "application/font-woff2"})
-TEXT_TYPES = frozenset({"text/plain", "text/markdown", "text/x-markdown"})
+# ⟨1.37⟩ §59.1 a playbook's export comes back as application/json (the app's import)
+TEXT_TYPES = frozenset({"text/plain", "text/markdown", "text/x-markdown", "application/json"})
 ZIP_TYPES = frozenset({"application/zip", "application/x-zip-compressed", "application/x-zip"})
 # A phone often sends a font or an archive as plain bytes: then the bytes alone name its type.
 OCTET = "application/octet-stream"
@@ -208,6 +209,8 @@ def check_type(content_type: str | None, head: bytes) -> tuple[str, Kind] | str:
     if mime in TEXT_TYPES:  # text has no signature: UTF-8 with no binary bytes
         if not looks_text(head) or font_type(head) or is_zip(head) or head.startswith(b"%PDF-"):
             return "the content is not what the Content-Type says"
+        if mime == "application/json":
+            return mime, kind
         return ("text/markdown" if "markdown" in mime else "text/plain"), kind
     if mime not in sniff(head):
         return "the content is not what the Content-Type says"

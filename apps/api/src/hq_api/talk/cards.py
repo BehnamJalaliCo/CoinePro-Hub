@@ -945,7 +945,8 @@ async def _playbook_card(
     draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else None
     async with ctx.tx() as tx:
         row = await PB.row_of(tx, ref)
-        if str((store._j(row["source"]) or {}).get("order") or "") != str(conv.get("order_ref")):
+        # ⟨1.37⟩ §59.3 its newest draft may come from a later session of the same group
+        if not await PB.drafted_in(tx, row, str(conv.get("order_ref") or "")):
             raise _fail("این کارگروه از جلسه‌ی دیگری است.", "payload.playbook")
         if draft is None:
             if note is not None:
