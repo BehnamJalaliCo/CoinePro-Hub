@@ -543,3 +543,33 @@ async def test_a_heavy_session_starts_afresh_from_its_memory_and_notes(
     # the fresh session carries little again: no second rotation on the next word
     await result(client, rn, third["id"], "ادامه دادم.", usage={"cache_write_tokens": 80_000})
     assert not await DR.rotate_if_heavy(hub, o["work_id"])
+
+
+def test_every_meta_key_the_hub_sends_is_one_the_router_takes() -> None:
+    """⟨2026-11-13⟩ A meta key llm-router does not allow fails the whole call (422): the session
+    memory sent `order` and never folded. The keys the api's model calls send, against the
+    router's own allow-list (services/llm-router/src/llm_router/schemas.py)."""
+    import ast
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "src" / "hq_api"
+    tail = "llm-router/src/llm_router/schemas.py"
+    here = Path(__file__).resolve()
+    roots = [*(parent / "services" for parent in here.parents), Path("/w")]
+    found = [r / tail for r in roots if (r / tail).exists()]
+    if not found:
+        pytest.skip("the router's source is not mounted here")
+    block = found[0].read_text().split("META_KEYS = frozenset(")[1].split("})")[0]
+    allowed = set(re.findall(r'^\s+"([a-z_]+)",', block, re.M))
+    sent: set[str] = set()
+    for f in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(f.read_text())):
+            if not isinstance(node, ast.Dict):
+                continue
+            keys = {k.value: v for k, v in zip(node.keys, node.values, strict=True)
+                    if isinstance(k, ast.Constant)}  # fmt: skip
+            meta = keys.get("meta")
+            if "task_class" in keys and isinstance(meta, ast.Dict):  # a router call's body
+                sent |= {str(x.value) for x in meta.keys if isinstance(x, ast.Constant)}
+    assert sent and sent <= allowed, sorted(sent - allowed)

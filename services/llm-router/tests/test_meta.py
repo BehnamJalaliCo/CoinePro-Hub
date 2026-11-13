@@ -66,3 +66,12 @@ def test_skills_and_addenda_are_lists_of_short_refs() -> None:
 def test_other_metadata_is_refused(meta: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         RunRequest(**BODY, meta=meta)
+
+
+def test_the_hubs_own_refs_are_allowed() -> None:
+    """⟨2026-11-13⟩ The api sends the session, the lead and the decision a call is about (session
+    memory, playbook drafts, sales follow-ups, the DCEO); each was refused before."""
+    r = RunRequest(**BODY, meta={"purpose": "session_memory", "order": "F-0018"})
+    assert r.meta == {"purpose": "session_memory", "order": "F-0018"}
+    assert RunRequest(**BODY, meta={"purpose": "sales_followup", "lead": "L-0001"}).meta
+    assert RunRequest(**BODY, meta={"purpose": "dceo_predict", "decision": "D-000166"}).meta
