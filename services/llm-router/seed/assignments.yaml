@@ -27,3 +27,6 @@ assignments:
      note: A session's memory folded (contract 40.1)}
   - {scope_type: task_class, scope_ref: playbook_draft, model: claude-sonnet-5-5, effort: medium,
      note: A playbook drafted from a session (contract 40.2)}
+  # Contract §59.2 (prompt 38): a flow's topic, three short candidates (§59.12 lighter turns).
+  - {scope_type: task_class, scope_ref: flow_topic, model: claude-sonnet-5-5, effort: low,
+     note: A flow's day topic (contract 59.2)}

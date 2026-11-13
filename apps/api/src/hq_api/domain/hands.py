@@ -291,12 +291,16 @@ async def start(
     effort: str | None = None,
     direct: dict[str, Any] | None = None,
     text_of: Callable[[bool, list[dict[str, Any]]], str] | None = None,
+    tools: list[str] | None = None,
+    extra_args: dict[str, Any] | None = None,
 ) -> WorkshopRun:
     """The turn on the workshop for the work (its workspace made or resumed), or the turn that
     still runs (`state: working`, nothing new). 409 for a workspace the owner stopped or one on a
     company's own server. ⟨1.32⟩ §54 `direct`: the turn is the session's own (domain/direct.py):
     these args go with it (`direct`, `tools`, `run`) and `text_of(first, inputs)` writes its
-    brief in place of the workshop's own; the owner's stop was already weighed by the caller."""
+    brief in place of the workshop's own; the owner's stop was already weighed by the caller.
+    ⟨1.37⟩ §59.12 `tools`: the turn's own short list (a flow step's, at most 10; the workshop's
+    whole list otherwise); `extra_args` go with the job (a line step's `line_step`)."""
     w = await W.load(tx, w["id"], lock=True)
     ws = await WS.of_work(tx, w["id"], lock=True)
     if ws is not None and ws["server_id"] != server["id"]:
@@ -344,12 +348,13 @@ async def start(
         "model": MODEL,
         "effort": effort if effort in EFFORTS else EFFORT,
         "permission_mode": PERMISSION_MODE,
-        "allowed_tools": list(ALLOWED_TOOLS),
+        "allowed_tools": [t for t in tools if t in ALLOWED_TOOLS] if tools else list(ALLOWED_TOOLS),
         "timeout_s": SESSION_TIMEOUT_S,
         # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns: the runner puts it up when
         # its server can (>= 0.3.4), and runs the turn without it when it cannot
         "sandbox": "auto",
         **({"inputs": inputs} if inputs else {}),
+        **(extra_args or {}),
         **(direct or {}),
     }
     if text_of is not None:
