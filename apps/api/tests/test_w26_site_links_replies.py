@@ -144,14 +144,25 @@ async def test_the_owner_sets_the_companys_links(
 
 # -------------------------------------------------------------- the policy --
 async def a_flow(su: Any, company_id: Any, replies: dict[str, Any] | None = None) -> str:
+    """A flow automation over a real line of its company (every flow's answer reads its line)."""
+    line: str = await su.fetchval(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, channel,
+               title_fa, state, mode, caps, steps)
+           VALUES ($1::uuid, 'flow', 1, 'instagram', '{"kind": "instagram"}'::jsonb,
+                   'ریلز روزانه', 'on', 'auto', '{"runs_per_day": 6}'::jsonb,
+                   '[{"key": "topic", "kind": "topic", "title_fa": "موضوع"}]'::jsonb)
+           RETURNING ref""",
+        company_id,
+    )
     ref: str = await su.fetchval(
         """INSERT INTO growth.automations (company_id, scope, sentence_fa, rule, state, sealed_at,
                kind, playbook, playbook_version, line, schedule, replies, account, story)
            VALUES ($1::uuid, 'company', 'ریلز روزانه', '{}'::jsonb, 'on', now(), 'flow',
-                   'PB-9001', 1, 'LN-9001', '{"mode": "best"}'::jsonb, $2::jsonb, 'pro.chart', true)
+                   'PB-9001', 1, $3, '{"mode": "best"}'::jsonb, $2::jsonb, 'pro.chart', true)
            RETURNING ref""",
         company_id,
         json.dumps(replies) if replies is not None else None,
+        line,
     )
     return ref
 
