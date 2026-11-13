@@ -124,7 +124,10 @@ def body_of(
         "system": SYSTEM,
         "prompt": prompt,
         "json_schema": SCHEMA,
-        "max_output_tokens": 2_500,
+        # ⟨2026-11-13⟩ was 2500: Persian runs about a token per 1.3 characters, so a memory past
+        # ~3000 characters was cut mid-answer (the CLI's cap, every attempt) and never saved; the
+        # owner: a longer answer from Sonnet is fine
+        "max_output_tokens": 8_000,
         "timeout_s": 60,
         "meta": {"purpose": "session_memory", "order": ref},
     }
