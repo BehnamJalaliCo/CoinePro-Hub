@@ -21,6 +21,8 @@
 
 > **v1.35 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** تیم جلسه، یک نفر در هر بار (§۵۷): ردیف «تیم این جلسه»، گفتگوی کوتاه کنار جلسه با هر نفر، استخدام یک‌ضربه‌ای صندلی خالی، گوینده از همان ردیف، و نام درست هر تحویل با نسخه‌ها در یک خط.
 
+> **v1.37 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۸):** کتابخانه‌ی کارگروه‌ها و بخش اتوماسیون‌ها (§۵۹): هر کارگروه نسخه، قدم‌ها، بسته و درس‌هایش را دارد؛ با یک فرم در هر شرکتی به کار میرود؛ روند روزانه‌اش یک اتوماسیون `flow` است که n8n تیک میزند و روی موتور خط تولید (§۳۰) اجرا میشود؛ لینک‌های شرکت با UTM هر مسیر، سیاست جواب کامنت و استوری و دایرکت، خط زمان هر اجرا، نتیجه‌ها، خلاصه‌ی روزانه، و تابلوی همه‌ی اتوماسیون‌ها با کلید یک‌ضربه‌ای مالک. §۵۸.۳ بازنویسی شد. قاعده‌ی پست منتشرشده (۳۷.۱ و ۳۷.۲) هم ثبت شد (§۵۹.۶).
+
 > **v1.36 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** جای نوشتن هنگام سؤال، کارگروه جلسه‌ی بسته در کتابخانه، انتشار خودکار همان مُهر کارگروه، بایگانی بسته‌ی منتشرشده و پاک شدن بقیه پس از ۷۲ ساعت، و میز انتشار در صفحه‌ی خودش (§۵۸).
 >
 > **v1.33 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** آنچه ظاهر تازه‌ی اپ میخواند (§۵۵، پرامپت ۳۵): خط زنده‌ی کار و «چراغ حال» جلسه (`Worker.kind`، `cap_s`، `last_fa`، `SessionActivity.mood`)، «میز انتشار» (`GET /publish-desk`)، حلقه‌ی هر اکانت Claude و کنتور امروز (`GET /treasury/limits`)، و یک ردیف برای هر انتشار (کارهای پیگیری و لغو دیگر ردیف جدا نیستند). فقط خواندنی و افزودنی؛ migration ندارد.
@@ -5336,6 +5338,8 @@ The owner, 2026-11-13, in one message, the decisions left to the consulting sess
 No new automation: a sealed working group's routine runs on the hub's own scheduler at its time, and with
 «انتشار خودکار» (§45) its package goes out through IG-Hub without asking. The group page says it as one line:
 «هر روز {ساعت}: ساخت → {تأیید تو | انتشار خودکار} → اینستاگرام» (an n8n workflow is not needed and none is made).
+⟨1.37⟩ **Revised by §59.7:** a playbook with `steps` runs as a `flow` automation that n8n ticks; this line holds for a
+group's plain routines only.
 
 ### 58.4 What stays after a publication, and what goes
 - When a publication is confirmed published (IG-Hub's success), its package is **kept**: the video, the cover and
@@ -5352,3 +5356,300 @@ No new automation: a sealed working group's routine runs on the hub's own schedu
 - The office (home) keeps one line for it: «انتشار: {ready} آماده · {queue} در صف» → the page.
 - The page has a tab per channel the holding publishes to (`DeskCard.channel`; today «اینستاگرام»; YouTube and others
   appear when their route exists), each with «آماده · در صف · منتشرشده». The «خروجی‌ها» tab beside it stays.
+
+## 59. The library of working groups, and the automations ⟨1.37⟩ (2026-11-13, prompt 38)
+The owner, 2026-11-13 (`docs/server-prompts/CONSULT_ASK_38_GROUP_LIBRARY_AUTOMATIONS.md`, the hub's ask on his order):
+- «این کارگروه رو که راه انداختیم رو باید ببندیم و یه نسخه‌ای ازش بسازیم که بتونیم توی شرکت‌های دیگه ازش استفاده بکنیم.
+  باید از اولین و تا آخرین لحظه اتوماسیون بشه.»
+- «بحث دکمه نیست، باید اتوماتیک پشت صحنه انجام بشه. اون دکمه انتشارم قرار نیست دیگه من بزنم … توسط n8n.»
+- «باید جایی از آپ یه بخشی رو به این اتوماسیون‌ها اختصاص بدیم، و این روند کارگروه رو هم باید یک کتابخانه‌ای برایشان اختصاص بدیم.»
+
+Built **on** what runs today, not beside it: a playbook (§40) gains versions and its steps; its steps run on the production
+line engine (§30: one `LineRun` per day, its `StepRun`s are the timeline); the day's trigger is an automation (§31.7) of a
+new kind `flow`, ticked by **n8n** (§30.4); publishing is the standing word (§45, §46.4, §49) and the post's rules (§59.6);
+the topic is the ledger's (§47) and the voice the company's narrator (§48). Nothing here is a second scheduler, a second
+publish path or a second rule engine. **§58.3 is revised**: the daily flow of a working group is an n8n-ticked `flow`
+automation (§59.7); a sealed group's plain routines (§29.11) keep the hub's own tick.
+
+### 59.1 A playbook has versions, steps, a package and lessons (§40.2, additive)
+```
+Playbook += { version,                      # ⟨1.37⟩ the number of THIS body: v1 at the first seal, v2 … (was: a count of edits)
+              edits,                        # what `version` counted before 1.37 (each PATCH of a draft)
+              draft_version: int | null,    # a newer draft of the same playbook exists (its number)
+              versions: [VersionRef],       # newest first
+              steps: [FlowStep],            # the flow, in order (§59.2)
+              package: [PackageFile],       # what one run hands over
+              lessons: [Lesson],            # what went wrong once and the rule it left
+              stats: PlaybookStats,         # the last 30 days of its flow runs, every member
+              companies_fa: [str] }         # the member companies' names, for the card
+VersionRef   { version, state: "draft"|"sealed"|"retired", at, by_fa, changelog_fa: [str], members: int }
+PackageFile  { name, title_fa, step, required: bool }      # e.g. caption.txt «کپشن», from the step `package`
+Lesson       { n, title_fa, cause_fa, fix_fa, rule_fa, step | null }   # `rule_fa` is also in that step's `rules_fa`
+PlaybookStats{ runs, done, success_pct | null, avg_cost_usd | null, avg_minutes | null, last_run_at | null, companies }
+```
+- **One playbook, many versions.** A sealed version is frozen. A change (in words in a session, §59.3, or `PATCH`) makes the
+  **next version as a draft** (`draft_version`) while the sealed one keeps running. `PATCH /playbooks/{ref}` edits the newest
+  draft (409 `validation_failed` «این نسخه مُهر شده؛ تغییر، نسخه‌ی تازه میسازد» on a sealed playbook with no draft: the app
+  first calls `POST /playbooks/{ref}/revise` → the new draft, a copy of the newest sealed body). `PATCH` takes `steps`,
+  `package` and `lessons` as well (each list whole).
+- `GET /playbooks/{ref}?version=n` → that version's body (`state` is that version's). Without `version`: the newest sealed
+  body, else the newest draft. `GET /playbooks/{ref}/versions` → `[VersionRef]`.
+- **Seal** (`POST /playbooks/{ref}/seal`, §40.2, §45.1) seals the newest draft as version n with its `changelog_fa`: code's
+  diff lines against version n−1 (§59.1 compare), plus the drafter's own summary line when it gave one. Members stay on the
+  version they use until the owner moves them.
+- **Compare:** `GET /playbooks/{ref}/compare?a=&b=` → `PlaybookDiff {a, b, changes: [{part: "title"|"purpose"|"platform"|
+  "seat"|"step"|"rule"|"lesson"|"package"|"kpi", key, kind: "added"|"removed"|"changed", before_fa | null, after_fa |
+  null}]}`; code, never a model. The same lines are a sealed version's `changelog_fa`.
+- **«استفاده از این نسخه»:** `PUT /playbooks/{ref}/members/{code}/version {version}` (owner; tap; audit `playbook.version`,
+  A2) → `PlaybookMember`; the member's flow automation (§59.7) runs that version from its next run. A retired version: 409.
+- `PlaybookMember += {version, automation | null}`.
+- **Library list:** `GET /playbooks?state=&platform=&company=&q=` (`q`: Persian-normalised words over title and purpose;
+  `company`: a member or the source company) → `[Playbook]` with `stats`, `companies_fa` and `versions` (no `steps` body
+  needed in the list; the hub may leave `steps`, `lessons` and `package` empty there).
+- **Copy:** `POST /playbooks/{ref}/copy {version?, platform?, title_fa?, note_fa?}` (owner; `Idempotency-Key`) → a **new
+  playbook** in `draft` (v1, `parent` = `{ref}@{version}`), its steps and rules as they were, the platform changed. With
+  `note_fa` the copy also opens a session as §40.3's `apply` does (the holding's media lead adapts it there: a YouTube or a
+  Telegram flow from an Instagram one) → `PlaybookApplied {playbook, order?, conversation?}`.
+- **Export:** `GET /playbooks/{ref}/export?version=` → a file `application/json` named `<title>-v<n>.playbook.json`:
+  `{format: "coinepro.playbook/1", version, exported_at, playbook: {title_fa, purpose_fa, platform, seats, steps, package,
+  routines, kpis, connections, rules_fa, lessons}}`. **No company, account, link, narrator or member** is in it.
+- **Import:** `POST /playbooks/import` (owner; multipart `file`, or JSON `{file_id}` of a file already on the hub) → a new
+  playbook in `draft` from it (`note_fa` says what was dropped: an unknown role, a step kind the hub does not run, a helper it
+  does not have). 422 `validation_failed` for a file that is not `coinepro.playbook/1`.
+- **Retire** (§40.3) stays: every member's flow stops; nothing is deleted.
+- Data: migration `0065` (`owner.playbook_versions`; the existing playbooks become v1, a sealed one v1 sealed).
+
+### 59.2 A step of the flow
+```
+FlowStep { key, title_fa, seat,                     # the seat (role) that owns it; §40.2's seats
+           kind,                                    # §30.2's kinds, and the six below
+           helper: "gpt"|"gemini"|"aistudio"|"workshop"|"code"|"ighub"|"model" | null,
+           model: str | null, effort: "low"|"medium"|"high"|"max" | null,
+           input_fa, output_fa,                     # what it takes and what it leaves, one line each
+           rules_fa: [str],                         # the step's own rules (a lesson's rule joins here)
+           inputs: [step key], gate: "auto"|"ask", optional: bool,
+           max_attempts: 1..3, timeout_s, settings: {...} }
+```
+New step kinds for the line engine (§30.2, additive; each is one adapter):
+
+| kind | what it does | by |
+|---|---|---|
+| `topic` | the day's topic: three candidates from the company's ledger and its last results; the first one the ledger accepts (§47.2) is claimed | a small model (`flow_topic`, Sonnet-class) + code |
+| `voice_check` | the voice against its script: the hub's STT (§17) word match ≥ 0.85, length within ±25% of the script's estimate, no silence > 2 s; else `tts` again (≤ its `max_attempts`) | code |
+| `inspire` | one fresh reference (a similar video or a Pinterest pin) that is not in the ledger's references (§47) | `pattern_search` + code |
+| `workshop` | a `workshop.run` turn (§43): the build from the script, the voice, the cover, the direction and the reference; `out/` comes back as the step's files | Opus 5.5, effort from the step (`max` for the video), ≤ 60 min, render with at most 2 processes |
+| `package` | `caption.txt`, `comment.txt` (from the reply policy, §59.6) and `topic.txt` next to the video and the cover, as one output (§45.2) | code (+ the caption's text from the script step) |
+| `report` | the day's line for the owner's summary (§59.9) | code |
+
+- `tts` uses the company's narrator (§48) and the voice chain (`gemini-3.8-flash-tts` by API, the AI Studio page second;
+  never a `lite` model). `gpt_text` and `cover` are ChatGPT seat calls (§21.13): each text in a **new temporary chat**, each
+  image in a **new regular chat** (temporary chats make no images).
+- **Opus at its highest effort only where the step says so** (the video's `workshop`); every other model step names a
+  Sonnet-class model or a helper. A step's cost and model are on its `StepRun` (§59.8).
+- The `publish` step is §45's standing publish (reel + story when `story`, at the hour of §59.7) and the rules of §59.6
+  follow it by themselves; with `mode: ask` it waits for the owner's tap (§59.7).
+
+### 59.3 Closing a session makes a version (§40.2, §58.2)
+- `POST /orders/{ref}/playbook {playbook?}`: with `playbook` (or when the session came from one, `SessionCard.source`) the
+  draft is that playbook's **next version**, not a new playbook. The drafter (the holder's model through `playbook_draft`,
+  Sonnet-class) writes it from the session's memory, its plan (the owner's steps in his order are the `steps`, §41.2), the
+  people and helpers it used, and the session's fault log when it has one (`NOTES.md` of the direct session, or the hub's
+  `docs/ops/reports/<ORDER>_WORKING_GROUP_LOG.md`) → `lessons`, each lesson's rule joining its step's `rules_fa`.
+- The owner changes it in words in the session (the holder rewrites the draft, §40.2) and seals it with one tap.
+
+### 59.4 «در شرکت دیگر به کار ببر»: one form (`POST /playbooks/{ref}/use`)
+Owner; `Idempotency-Key`; his tap, no step-up (a hire inside the month's envelope, §45.1); audit `playbook.use` (A3).
+```
+UseForm {
+  version,                                   # default: the newest sealed
+  company,                                   # not a member yet (409 otherwise: «این شرکت همین کارگروه را دارد»)
+  accounts: [handle],                        # the company's registered Instagram accounts (§45.1); one is the default
+  narrator: {voice, style_fa?} | null,       # §48; null keeps the company's own (set: it is saved for the company)
+  brand: {colors: [hex], font?: str, logo_file?: file id} | null,   # null: the company's brand (§18.14)
+  links: SiteLinks | null,                   # §59.5; saved for the company
+  replies: ReplyPolicy | null,               # §59.6; null: the playbook's defaults
+  time: {mode: "fixed"|"best", at?: "HH:MM", days?: ["SA".."FR"], story: bool},
+  budget: {per_run_usd, per_day_usd},
+  mode: "auto"|"ask",                        # default auto: nobody taps
+  dry: bool                                  # true: only the preview below, nothing made
+}
+```
+- `dry: true` → `UsePreview {lines_fa: [str] (each day, in order, in plain Persian), first_at, cost_estimate_usd |
+  null, warnings: [{key, text_fa, by_hub: bool}]}`. A warning that the hub settles itself (`by_hub`: the company's publish
+  path, a seat to hire, the AI Studio page signed out while the API works) is never the owner's step.
+- Without `dry`: the membership (§29.11, `version` pinned), its seats (resolved, else hired inside the envelope, §29.10),
+  a line (§30) of the version's steps for that company, platform and account, the standing word (§45: `mode`, `account`,
+  `story`, `at` or `best`), and the flow automation (§59.7) → `201 PlaybookUsed {playbook, member, automation}`.
+- **The narrator's sample:** `POST /narrators/sample {voice, style_fa?, text_fa?}` (owner) → `{file: {id, name, mime,
+  size}}`, at most 8 seconds, the company's sample sentence or `text_fa`; cached a day per (voice, style, text); spent in the
+  treasury as any speech.
+- `apply` (§40.3: adapt in a new session) stays for a change bigger than the form.
+
+### 59.5 A company's links (`GET · PUT /api/v1/companies/{code}/site-links`, owner)
+`/links` is the canvas (§35.6); a company's own web links are here.
+```
+SiteLinks { company, site: {url, title_fa}, sections: [{key, title_fa, url}],
+            utm: {source: "instagram", campaign: "{flow}" | str, medium: {comment, story, dm}},
+            updated_at, by_fa }
+```
+- `url`s are https (422 `fields.site.url` / `fields.sections[i].url`); `key` is `[a-z0-9_]{1,24}`; at most 30 sections.
+- A reply's link is built by code, never a model: the section's url (else the site's) + `utm_source`, `utm_medium` (the
+  path's: `comment` | `story` | `dm`), `utm_campaign` (`{flow}`: the automation's short name), `utm_content` (the run's
+  day, `YYYYMMDD`). Parameters already on the url are kept.
+- `PUT` is the owner's tap (audit `company.site_links`, A2). Pro-Chart today: `https://pro-chart.com` (it opens `/next/`
+  itself), no sections.
+
+### 59.6 Replies to comments, stories and DMs
+**As built (37.1, 37.2), recorded here:**
+- `POST /api/v1/publishes/{job}/rules {trigger: "comment"|"story_reply", match: "contains"|"any", keywords, reply, link?,
+  button?, public_replies?}` (owner) → `{job, trigger, keywords}`: a rule on a publication that is out, made by IG-Hub
+  (`POST /api/v1/rules` with the hub's key, one rule per `key`). `409` for a publication not out yet; `422` without a word
+  (unless `any`) or a reply. Audit `publish.rule`. Every keyword goes with its joined forms (spaces and half-spaces out).
+- `comment.txt` of a package: `keyword:` (the word said in the video), `match: any` (every comment is answered),
+  `reply:` and `link:` (the DM's text and link), `button:`, and each `public:` line a public reply. `PublishComment.match`.
+- The public replies: the package's own first, filled up to ten from the hub's warm pool; IG-Hub picks one at random for
+  each person. A link reply is **one message**: the text with at most three buttons under it.
+- `any` is for a post's comments only; a story reply and a DM answer only the word. Instagram's API cannot like a comment.
+- A story gets its reel's comment rule by itself (the same words, `story_reply`), whichever goes out first, once per output.
+
+**New: the policy of an automation** (`FlowAutomation.replies`, set in the form §59.4 or `PUT /automations/{ref}/replies`):
+```
+ReplyPolicy {
+  comment: {match: "any"|"word"|"per_video"},       # per_video (default): each video's comment.txt chooses
+  story: bool, dm: bool,                             # answer the word in story replies / in DMs (default both true)
+  public_pool: [str],                                # ≥ 10 (code fills from the hub's pool), ≤ 30, each ≤ 300 chars
+  dm: {text_fa, buttons: [{title_fa, section | null}]},   # the default DM; text ≤ 640, buttons ≤ 3, title ≤ 20
+  per_video_dm: bool,                                # true (default): each video's `reply:` replaces dm.text_fa that day
+  repeat: {mode: "once_a_year"|"after_days", days?: 1..365},   # default once_a_year: one answer per person per rule a year
+  section: str | null                                # which link the DM's first button opens (null: the site)
+}
+```
+- The `package` step writes `comment.txt` from it: `keyword:` the word the script says aloud (the `gpt_text` step is told to
+  say it), `match: any` when the policy (or that video) says so, `reply:` the day's DM (`{topic}` in the text is the day's
+  topic), `link:` the section's link with the path's UTM, and ten or more `public:` lines from the pool.
+- After the publish the hub makes **three** rules for that output (each once, each with its own UTM): `comment` on the post,
+  `story_reply` (when `story`), and `dm` (when `dm`; IG-Hub's `dm` trigger, the word only). `repeat` is each rule's
+  cooldown at IG-Hub (`cooldown_days`: 365, or N). A rule IG-Hub refuses is told once in the run, never silently dropped.
+- **Validation (422 `fields.*`):** `dm.text_fa` > 640 chars, more than 3 buttons, a title > 20, a `section` that is not one
+  of the company's (§59.5), `public_pool` with fewer than one own line is fine (the pool fills it), more than 30 is not.
+- `POST /automations/{ref}/replies/preview {topic_fa?}` → `{dm: {text, buttons: [{title, url}]}, public: [str] (3 samples),
+  comment_fa, story_fa, dm_fa}`: what a person sees, built by the same code; the apps draw it as Instagram does.
+
+### 59.7 The flow automation (`Automation.kind = "flow"`, §31.7 additive)
+```
+FlowAutomation {
+  ref, kind: "flow", company, company_fa, playbook, playbook_fa, version, line,
+  title_fa, state: "on"|"off"|"paused", paused_until | null,
+  schedule: {mode: "fixed"|"best", at: "HH:MM" | null, days: [..] | null, when_fa},
+  account, story: bool, mode: "auto"|"ask",
+  budget: {per_run_usd, per_day_usd, spent_today_usd},
+  replies: ReplyPolicy,
+  steps: [FlowStep],                       # the version's, as this company runs them
+  next: {at, topic_fa | null, skip: bool} | null,
+  upcoming: [{at, topic_fa | null, skip: bool}],     # the next 14 days
+  last_run: FlowRunRef | null, today: {runs, cost_usd},
+  n8n: {workflow: "hq-flows", last_tick_at | null},
+  created_at, by_fa }
+FlowRunRef { ref, at, state, topic_fa | null, note_fa, cost_usd | null }
+```
+- **Created only** by `POST /playbooks/{ref}/use` (§59.4) or for the first member of a sealed playbook that has `steps`
+  (the seal with `publish`, §45.1). F-0018's group becomes the first (prompt 38).
+- **The clock is n8n** (§30.4): one workflow `hq-flows` (`automations/n8n/hq-flows.json`) ticks each minute with a signed
+  `POST /internal/v1/flows/tick`; the hub starts every flow whose occurrence is due (once per occurrence, by key), as a
+  `LineRun` with `trigger: "n8n"`. The run starts **early enough to be ready by its hour**: the occurrence's start is its
+  publish hour minus the playbook's `avg_minutes` (default 90 min); with `best`, the best hour of §49. If no tick came for
+  10 minutes the hub's own scheduler runs what is due and the board's health says «n8n خاموش است؛ هاب خودش اجرا کرد».
+  n8n holds no model key and calls no model.
+- **Controls** (owner; each a tap; no step-up; `Idempotency-Key` on POST; audit `automation.<verb>` with before/after):
+  - `POST /automations/{ref}/state {state: "on"|"off"}` (§31.7, for every kind of §59.10);
+  - `POST /automations/{ref}/run-now` → `FlowRunRef` (a run now, not counted as the day's when the day's already ran: it
+    still publishes, at once or at its hour, as the schedule says);
+  - `POST /automations/{ref}/pause {until?}` (`paused`; no `until`: till `state on`);
+  - `POST /automations/{ref}/skip {at?, skip: bool}` (the next occurrence, or the one at `at`; `skip: false` undoes it);
+  - `PATCH /automations/{ref} {schedule?, account?, story?, mode?, budget?, title_fa?}` → `FlowAutomation`.
+- **Budget:** before each step the engine checks the run's and the day's spend; the step that would pass a cap does not
+  start: the run is `waiting` with `note_fa` «به سقف بودجه‌ی امروز رسید ($x از $y)» and the owner gets **one**
+  notification (category decision) with «سقف را بالا ببر» and «این نوبت رد شود». Lowering a cap is a tap; raising one is a
+  tap while the day's cap stays inside the company's month envelope (§18.11), else 🔏 `automation.budget` (target
+  `<ref>:<per_day_usd>`).
+- **Mode:** `auto` (default): nobody taps; the package goes out at its hour. `ask`: the run waits at `publish` with a
+  «نوبت تو» card (the video, the caption, «انتشار» and «این بار نه»); untapped by the end of the owner's day, the run ends
+  `skipped` «تأیید نشد؛ منتشر نشد».
+- **The kill switch, a freeze, a paused member, a retired version** stop a run before its next step (`skipped` with why).
+
+### 59.8 A run's timeline (`GET /api/v1/line-runs/{ref}`, §30.5 additive)
+- `LineRun += {automation, playbook, playbook_fa, version, company_fa, topic_fa, published: [Published + {permalink,
+  kind}], results: RunResults | null, cost: {tokens, usd_equiv, usd}, minutes}`.
+- `StepRun += {title_fa, seat_fa, helper, model, effort, cost_usd, outputs: [StepFile], error_fa}`;
+  `StepFile {id, name, mime, size, kind: "text"|"audio"|"image"|"video"|"file", text | null}` (`text` ≤ 4000 chars for a
+  `.txt` or `.md`, so caption.txt and comment.txt show without a download).
+- `error_fa` is **one plain Persian line** (never a stack, a code or a host). The two answers:
+  - «دوباره از همین قدم»: `POST /line-runs/{ref}/rerun {from_step}` (§30.3, owner, a tap) → the new run;
+  - «رد کردن این نوبت»: `POST /line-runs/{ref}/cancel {skip: true}` → the run `skipped`, the ledger's topic freed.
+- `GET /automations/{ref}/runs?limit=20&before=` → `{items: [FlowRunRef + {results}], next_cursor}`.
+
+### 59.9 Results and the owner's day
+```
+RunResults { permalink | null, story_permalink | null, comments | null, dms_sent | null, clicks | null,
+             views | null, reach | null, likes | null, saves | null, shares | null, read_at | null }
+DaySummary { day, line_fa, items: [{automation, title_fa, company_fa, state, published: [{kind, url}], comments,
+             dms_sent, clicks, cost_usd, note_fa}], cost_usd }
+```
+- Read by code from IG-Hub (never guessed): the post's likes and comments (§49.1), the DMs its rules sent, the clicks of
+  its counted links, and views and reach when IG-Hub reads Meta's insights; a figure IG-Hub does not give is `null` and the
+  apps show «—». Read hourly for the first day, then at 24 h and 7 days (§30.3).
+- `GET /api/v1/automations/today?day=` → `DaySummary`. `line_fa`: «امروز: ریلز «…» منتشر شد، ۱۲ کامنت، ۹ دایرکت، ۴ کلیک»
+  (one per flow; «امروز چیزی منتشر نشد: …» with the reason when none went out).
+- `hq-flows` (n8n) calls `POST /internal/v1/flows/summary` at 21:30 the owner's time: **one** notification (category
+  `news`) with `line_fa`, and the stream event `automation.summary`.
+
+### 59.10 The automations board (`GET /api/v1/automations/board?company=&kind=`, owner)
+One list for everything that runs by itself.
+```
+AutomationBoard { items: [BoardItem], health: [Health], today: {runs, published, cost_usd} }
+BoardItem { ref, kind: "flow"|"routine"|"standing_publish"|"line"|"rule"|"archive",
+            title_fa, company | null, company_fa | null, playbook | null, playbook_fa | null, version | null,
+            when_fa, state: "on"|"off"|"paused"|"proposed", switchable: bool,
+            last: {at, state, note_fa} | null, next_at | null, cost_today_usd | null, opens: str }
+Health { key: "n8n"|"ighub"|"publish_path"|"helpers_browser"|"aistudio"|"workshop", state: "ok"|"warn"|"down", note_fa }
+```
+- `kind`: `flow` (§59.7), `routine` (§50), `standing_publish` (§45: one per member with `auto`; its ref
+  `SP:<group>:<company>`), `line` (§30, a line not under a flow), `rule` (§31.7), `archive` (§23.7, the ref `AU-…`).
+- `opens`: the app's place for it (`automation/<ref>`, `lines/<ref>`, `groups/<key>`, an order for a routine, `archive-settings`).
+- **The switch is the owner's, one tap** (`POST /automations/{ref}/state`, every kind): `standing_publish` off = its mode
+  `ask` (§45.1), on = `auto`; `archive` on/off is its status (no step-up: he sealed it once); `rule` from `proposed` still
+  needs its seal (§31.7, `switchable: false` until then).
+- Health is read by code: n8n's last tick, IG-Hub's last answer, each company's publish path (§44.5), the helpers' browser
+  (ChatGPT and AI Studio signed in, §21.13), the workshop's last turn. `note_fa` is plain; nothing technical is the owner's
+  step (§34.4).
+- `GET /automations/calendar?from=&to=&company=` → `{days: [{day, items: [{ref, at, title_fa, company_fa, topic_fa | null,
+  state: "planned"|"skipped"|"running"|"done"|"failed"}]}]}`.
+- `GET /automations/{ref}/audit?limit=50` → `[{at, who_fa, action, summary_fa}]`: every change of that automation (its
+  switch, hour, account, mode, budget, replies), from the audit log.
+
+### 59.11 Stream, data, policy, codes
+- Stream topic `automations`: `automation.run {ref, run, state, note_fa}`, `automation.step {ref, run, step, state}`,
+  `automation.changed {ref, state}`, `automation.summary {day, line_fa}`.
+- Data: migration `0065` (`owner.playbook_versions`; `growth.automations.kind`, `.playbook`, `.version`, `.line`,
+  `.schedule`, `.budget`, `.replies`, `.mode`, `.paused_until`, `.skips`; `growth.site_links`; `growth.memberships.version`,
+  `.automation`; `growth.run_results`), FORCE RLS as their neighbours; nothing deleted.
+- OPA: the new owner routes in `growth.rego`; `/internal/v1/flows/*` signed by n8n's HMAC (§30.4) only.
+- Codes: as §14; `budget_reached` (409, a run-now past the day's cap, with `message_fa`).
+
+### 59.12 Lighter turns (the cost of F-0018)
+F-0018 carried ~74 hub tools (~22K tokens) into every step, and a fresh direct session ~50K before its first word.
+- A flow step is **one call or one workshop turn**, never a direct session; a `workshop` step's turn carries only the
+  tools its step needs (files in and out, `speech.make` when it speaks, `topic.claim` for `topic`), at most 10.
+- A direct session's conversational turn (no build, no file to make) runs on a Sonnet-class model **without** a
+  workshop turn; Opus at its highest effort is for the video's build only (§53, §54 otherwise unchanged).
+- Every run shows its cost (`LineRun.cost.usd`, each `StepRun.cost_usd`) and the board shows today's.
+
+### 59.13 The apps (1.1.0)
+- **Android:** the library (search, filters, cards with version, members and the average cost, time and success), each
+  playbook's page (the flow step by step, the package, KPIs, lessons, versions with compare and «استفاده از این نسخه»,
+  copy, export, import, retire), the use form with its preview and «شروع», the automations board (health, today, the
+  switch on every row), each flow's page (controls, settings, replies with the Instagram preview, results, calendar,
+  audit), each run's timeline (each step's output: text, voice, cover, video, caption and comment.txt; a failed step's
+  one line with «دوباره از همین قدم» and «رد کردن این نوبت»), the owner's daily line on the home.
+- **Web:** unchanged (the owner's rule of 2026-11-13: the web only with his word); it keeps working with this hub.
+- A hub without these routes: the new places say «با به‌روزرسانی بعدی هاب»; nothing breaks.
