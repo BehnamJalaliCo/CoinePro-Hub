@@ -530,7 +530,8 @@ fun OrderSessionScreen(ref: String) {
                         made = if (allFiles.isEmpty()) null else ({ FilesStrip(allFiles) }),
                         // ⟨1.36⟩ §58.2 the working group it left in the library, one tap from here
                         kept = o.session?.let { com.coinepro.hq.core.data.playbookKept(it.playbookKept, it.playbook) } == true,
-                        onKept = { nav.go("playbooks") },
+                        keptFa = o.session?.playbookKeptFa,
+                        onKept = { nav.go(o.session?.let { com.coinepro.hq.core.data.keptPlaybookRef(it.playbookKept, it.playbook) }?.let { "playbook/$it" } ?: "playbooks") },
                     )
                 }
                 // The steps of the work that is live, as thin lines at the end of the thread.

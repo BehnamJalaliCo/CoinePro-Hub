@@ -32,11 +32,16 @@ fun latestOutputFa(title: String): String = "خروجی آخر: ${quietLine(titl
 /** The one line of a closed session that left its working group in the library. */
 const val PLAYBOOK_KEPT_FA = "کارگروه این جلسه در کتابخانه ماند"
 
-/** Whether the hub says the session left its working group: `playbook_kept` true (or "true"), or a `playbook` it names (a ref, or an
- *  object with one). Anything else, or nothing, is no. */
+/** The playbook a closed session left in the library, when the hub names it: `playbook_kept` (the hub writes its ref, `PB-…`), else a
+ *  `playbook` (a ref, or an object with one). */
+fun keptPlaybookRef(kept: JsonElement?, playbook: JsonElement?): String? =
+    refOf(kept)?.takeUnless { it.equals("true", ignoreCase = true) || it.equals("false", ignoreCase = true) } ?: refOf(playbook)
+
+/** Whether the hub says the session left its working group: a playbook it names ([keptPlaybookRef]), or `playbook_kept` true (or
+ *  "true"). Anything else, or nothing, is no. */
 fun playbookKept(kept: JsonElement?, playbook: JsonElement?): Boolean {
     val k = (kept as? JsonPrimitive)?.let { it.booleanOrNull ?: it.contentOrNull?.trim()?.equals("true", ignoreCase = true) } == true
-    return k || refOf(playbook) != null
+    return k || keptPlaybookRef(kept, playbook) != null
 }
 
 // --------------------------------------------------------------- §58.4 what stays --

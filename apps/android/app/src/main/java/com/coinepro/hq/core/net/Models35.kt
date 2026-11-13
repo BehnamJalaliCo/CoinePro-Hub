@@ -74,10 +74,12 @@ data class SessionCard(
     val hidden: Boolean = false,
     /** ⟨1.22⟩ §40.3 the playbook (`PB-…`) this session was opened from, to adapt it for its company. */
     val source: String? = null,
-    /** ⟨1.36⟩ §58.2 the closed session left its working group in the library: `playbook_kept` (true), or the playbook it left (a ref or
-     *  an object); read leniently. */
+    /** ⟨1.36⟩ §58.2 the closed session left its working group in the library: `playbook_kept` (the hub writes the playbook's ref; true
+     *  reads the same), or a `playbook` it left (a ref or an object); read leniently. */
     val playbookKept: kotlinx.serialization.json.JsonElement? = null,
     val playbook: kotlinx.serialization.json.JsonElement? = null,
+    /** ⟨1.36⟩ §58.2 the hub's own line for it («کارگروه این جلسه در کتابخانه ماند»). */
+    val playbookKeptFa: String? = null,
 )
 
 /** The session block of an order report (§35.2, additive). */
@@ -94,6 +96,8 @@ data class SessionState(
     /** ⟨1.36⟩ §58.2 as on [SessionCard]: the working group this session left in the library. */
     val playbookKept: kotlinx.serialization.json.JsonElement? = null,
     val playbook: kotlinx.serialization.json.JsonElement? = null,
+    /** ⟨1.36⟩ §58.2 the hub's own line for it («کارگروه این جلسه در کتابخانه ماند»). */
+    val playbookKeptFa: String? = null,
 )
 
 // ------------------------------------------------------------------ §35.5 --

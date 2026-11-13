@@ -6,8 +6,9 @@ The owner, 2026-11-13: «میز انتشار … حجمش زیاد میشه … 
     kept        when IG-Hub confirms a publication (session_publish.after_job), its output gets one
                 files.publish_keep row: the package (the published file, its cover, caption.txt)
                 and the time. The package is filed to the archive (§23) as the publication's record
-                (an archive record of its own, its own copy of the three files); a filing that does
-                not go through now is done by the next sweep.
+                (an archive record of its own, its own copy of the three files, a draft until the
+                archivist classes it: no class of the schema takes a video); a filing that does not
+                go through now is done by the next sweep.
     the sweep   daily (the archive's daily job): an output published PUBLISH_SWEEP_HOURS ago or more
                 loses every other file of it and of the earlier versions of its revision chain
                 (§57.6: drafts, other renders, notes, the comment and topic files once used, the
@@ -40,6 +41,7 @@ log = logging.getLogger("hq_api.publish_keep")
 SERVICE = Principal(kind="service", code="publish_sweep", role="service")
 SWEEP_HOURS = 72
 SWEEP_LIMIT = 50  # outputs a pass
+FILE_DAYS = 14  # a package not filed by then is not tried again (its files may be gone)
 CHAIN_MAX = 20  # earlier versions followed back
 CAPTION_NAMES = ("caption.txt", "caption.md")
 TEXT_MAX = 64 * 1024
@@ -206,7 +208,9 @@ async def file_to_archive(hub: Any, output: str) -> str | None:
                 stored=stored,
                 parties=None,
                 links=[{"kind": "about", "to": {"kind": "deliverable", "ref": output}}],
-                file_now=True,
+                # no class of the schema takes a video yet: the record stays the archive's draft
+                # (kept like any; the archivist may class and file it)
+                file_now=False,
                 source_kind="system",
                 source_ref=f"publication:{output}",
             )
@@ -226,7 +230,7 @@ async def after_published(hub: Any, output: str) -> None:
     (the sweep files what this missed)."""
     try:
         await file_to_archive(hub, output)
-    except Exception:  # noqa: BLE001 - the daily sweep files it again
+    except Exception:
         log.warning(
             "the publication's package was not filed yet", extra={"output": output}, exc_info=True
         )
@@ -311,15 +315,21 @@ async def sweep(hub: Any, txf: Any, now: datetime | None = None) -> dict[str, in
     async with txf() as tx:
         unfiled = await tx.all(
             """SELECT output FROM files.publish_keep WHERE record_ref IS NULL
+                 AND published_at > now() - make_interval(days => :d)
                ORDER BY published_at LIMIT :n""",
+            d=FILE_DAYS,
             n=SWEEP_LIMIT,
         )
     for r in unfiled:
         try:
             if await file_to_archive(hub, str(r["output"])):
                 out["filed"] += 1
-        except Exception:  # noqa: BLE001 - one output never stops the pass
-            log.warning("a publication's package was not filed", extra={"output": r["output"]})
+        except Exception:
+            log.warning(
+                "a publication's package was not filed",
+                extra={"output": r["output"]},
+                exc_info=True,
+            )
     async with txf() as tx:
         due = await tx.all(
             """SELECT output FROM files.publish_keep WHERE swept_at IS NULL

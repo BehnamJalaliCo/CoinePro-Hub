@@ -13840,6 +13840,11 @@
             "title": "Accounts",
             "type": "array"
           },
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
           "at": {
             "format": "date-time",
             "title": "At",
@@ -13897,6 +13902,17 @@
             "default": 1,
             "title": "Files",
             "type": "integer"
+          },
+          "freed_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freed Bytes"
           },
           "group_fa": {
             "anyOf": [
@@ -30321,6 +30337,17 @@
             "title": "Company",
             "type": "string"
           },
+          "flow_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow Fa"
+          },
           "group": {
             "title": "Group",
             "type": "string"
@@ -44759,6 +44786,17 @@
           "title_fa": {
             "title": "Title Fa",
             "type": "string"
+          },
+          "when_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "When Fa"
           }
         },
         "required": [
@@ -48043,6 +48081,28 @@
             "title": "Participants",
             "type": "array"
           },
+          "playbook_kept": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Kept"
+          },
+          "playbook_kept_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Kept Fa"
+          },
           "reason_fa": {
             "title": "Reason Fa",
             "type": "string"
@@ -48537,6 +48597,28 @@
             "default": false,
             "title": "Hidden",
             "type": "boolean"
+          },
+          "playbook_kept": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Kept"
+          },
+          "playbook_kept_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Kept Fa"
           },
           "reason_fa": {
             "title": "Reason Fa",
@@ -94198,7 +94280,8 @@
                         "seat": "x",
                         "state": "on",
                         "task_class": "x",
-                        "title_fa": "گزارش هفتگی رشد"
+                        "title_fa": "گزارش هفتگی رشد",
+                        "when_fa": "x"
                       }
                     ],
                     "seats": [
@@ -94346,7 +94429,8 @@
                       "seat": "x",
                       "state": "on",
                       "task_class": "x",
-                      "title_fa": "گزارش هفتگی رشد"
+                      "title_fa": "گزارش هفتگی رشد",
+                      "when_fa": "x"
                     }
                   ],
                   "seats": [
@@ -94749,6 +94833,7 @@
                 "example": [
                   {
                     "company": "TY",
+                    "flow_fa": "x",
                     "group": "x",
                     "joined_at": "2026-10-17T05:42:00Z",
                     "name_fa": "تریدیار",
@@ -94906,6 +94991,7 @@
               "application/json": {
                 "example": {
                   "company": "TY",
+                  "flow_fa": "x",
                   "group": "x",
                   "joined_at": "2026-10-17T05:42:00Z",
                   "name_fa": "تریدیار",
@@ -95062,6 +95148,7 @@
               "application/json": {
                 "example": {
                   "company": "TY",
+                  "flow_fa": "x",
                   "group": "x",
                   "joined_at": "2026-10-17T05:42:00Z",
                   "name_fa": "تریدیار",
@@ -95693,7 +95780,8 @@
                       "seat": "x",
                       "state": "on",
                       "task_class": "x",
-                      "title_fa": "گزارش هفتگی رشد"
+                      "title_fa": "گزارش هفتگی رشد",
+                      "when_fa": "x"
                     }
                   ],
                   "seats": [
@@ -113771,6 +113859,8 @@
                           "title_fa": "گزارش هفتگی رشد"
                         }
                       ],
+                      "playbook_kept": "x",
+                      "playbook_kept_fa": "x",
                       "reason_fa": "x",
                       "ref": "W-000789",
                       "source": "x",
@@ -115420,6 +115510,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -116021,6 +116113,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -116417,6 +116511,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -116936,6 +117032,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -117335,6 +117433,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -117729,6 +117829,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -118425,6 +118527,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -118823,6 +118927,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -119219,6 +119325,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -120543,6 +120651,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -127180,6 +127290,7 @@
                       "accounts": [
                         "x"
                       ],
+                      "archived": false,
                       "at": "2026-10-17T05:42:00Z",
                       "best": {
                         "account": "x",
@@ -127209,6 +127320,7 @@
                         "size": 1
                       },
                       "files": 1,
+                      "freed_bytes": 1,
                       "group_fa": "x",
                       "kind": "reel",
                       "mode": "ask",
@@ -127244,6 +127356,7 @@
                       "accounts": [
                         "x"
                       ],
+                      "archived": false,
                       "at": "2026-10-17T05:42:00Z",
                       "best": {
                         "account": "x",
@@ -127273,6 +127386,7 @@
                         "size": 1
                       },
                       "files": 1,
+                      "freed_bytes": 1,
                       "group_fa": "x",
                       "kind": "reel",
                       "mode": "ask",
@@ -127308,6 +127422,7 @@
                       "accounts": [
                         "x"
                       ],
+                      "archived": false,
                       "at": "2026-10-17T05:42:00Z",
                       "best": {
                         "account": "x",
@@ -127337,6 +127452,7 @@
                         "size": 1
                       },
                       "files": 1,
+                      "freed_bytes": 1,
                       "group_fa": "x",
                       "kind": "reel",
                       "mode": "ask",
@@ -135322,6 +135438,8 @@
                           "title_fa": "گزارش هفتگی رشد"
                         }
                       ],
+                      "playbook_kept": "x",
+                      "playbook_kept_fa": "x",
                       "reason_fa": "x",
                       "ref": "W-000789",
                       "source": "x",
@@ -166832,6 +166950,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -167241,6 +167361,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"
@@ -167653,6 +167775,8 @@
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
+                    "playbook_kept": "x",
+                    "playbook_kept_fa": "x",
                     "reason_fa": "x",
                     "source": "x",
                     "state": "open"

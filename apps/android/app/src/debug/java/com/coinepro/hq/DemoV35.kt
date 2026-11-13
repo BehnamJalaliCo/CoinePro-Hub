@@ -369,7 +369,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "badge" to s.badge, "reason_fa" to s.reason, "brief" to brief(s), "pace" to s.pace, "participants" to JsonArray(s.participants),
         "tasks" to jo("done" to s.tasks.count { it.str("state") == "done" }, "total" to s.tasks.count { it.str("state") != "dropped" }),
         "opened_at" to at(s.opened), "last_at" to at(s.last), "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source,
-        *(if (s.playbookKept) arrayOf("playbook_kept" to true) else emptyArray()),
+        *(if (s.playbookKept) arrayOf("playbook_kept" to KEPT_REF, "playbook_kept_fa" to KEPT_FA) else emptyArray()),
     )
 
     private fun brief(s: S) = jo("done_fa" to s.brief.first, "now_fa" to s.brief.second, "need_fa" to s.brief.third)
@@ -388,7 +388,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "pace" to s.pace, "conversation_ref" to s.cv, "turn" to s.turn,
         "session" to jo(
             "state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source,
-            *(if (s.playbookKept) arrayOf("playbook_kept" to true) else emptyArray()),
+            *(if (s.playbookKept) arrayOf("playbook_kept" to KEPT_REF, "playbook_kept_fa" to KEPT_FA) else emptyArray()),
         ),
         "brief" to brief(s), "tasks" to JsonArray(s.tasks), "participants" to JsonArray(s.participants), "files" to JsonArray(s.files),
         "memory_md" to s.memory,
@@ -930,6 +930,10 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         const val STALLED_FA = "گام ۲ در جریان است. موضوع اول («معرفی ابزارهای ترسیم روی نمودار پرو-چارت») ثبت شد. گوینده‌ی ثابت پرو-چارت " +
             "(Kore، فارسی معیار و گرم) یک‌بار برای همیشه تنظیم شد. پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و " +
             "کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است."
+        /** ⟨1.36⟩ §58.2 what a closed session left in the library, as the hub says it (the draft of the library's demo). */
+        const val KEPT_REF = "PB-0002"
+        const val KEPT_FA = "کارگروه این جلسه در کتابخانه ماند"
+
         /** ⟨1.36⟩ §58.1 a long question of the holder's (F-0096): more than three lines on a phone. */
         const val LONG_QUESTION_FA = "نسخه‌ی اول ریلز «حد ضرر را کجا بگذاریم» آماده است و خودش را همین پایین میبینی. پیش از اینکه کاور و کپشن را نهایی کنم سه چیز را باید بدانم.\n" +
             "یک: شروع ریلز با سؤال «حد ضرر تو کجاست؟» بماند یا با عدد «۸۰٪ معامله‌گرها حد ضرر را اشتباه میگذارند» شروع کنیم؟\n" +

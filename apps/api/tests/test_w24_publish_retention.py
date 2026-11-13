@@ -116,7 +116,7 @@ async def test_a_confirmed_publication_keeps_its_package_in_the_archive(
         "SELECT id, state, source_kind, source_ref FROM archive.records WHERE ref = $1",
         row["record_ref"],
     )
-    assert rec["state"] == "filed" and rec["source_ref"] == f"publication:{made['output']}"
+    assert rec["state"] == "draft" and rec["source_ref"] == f"publication:{made['output']}"
     names = {
         r["name"]
         for r in await su.fetch(
@@ -222,14 +222,12 @@ async def test_the_sweep_takes_the_rest_of_the_chain_and_keeps_what_is_used(
     assert await su.fetchval(
         "SELECT record_ref FROM files.publish_keep WHERE output = $1", second["ref"]
     )
-    gone_bytes = sum(
-        int(await su.fetchval("SELECT size FROM files.files WHERE id = $1", x))
-        for x in (notes_v2, topic, notes_v1, draft, poster)
-    )
-    keys = [
-        str(await su.fetchval("SELECT storage_key FROM files.files WHERE id = $1", x))
-        for x in (notes_v2, draft, poster)
-    ]
+    gone_bytes = 0
+    for x in (notes_v2, topic, notes_v1, draft, poster):
+        gone_bytes += int(await su.fetchval("SELECT size FROM files.files WHERE id = $1", x))
+    keys = []
+    for x in (notes_v2, draft, poster):
+        keys.append(str(await su.fetchval("SELECT storage_key FROM files.files WHERE id = $1", x)))
     got = await PK.sweep(hub, txf, now=datetime.now(UTC) + timedelta(hours=73))
     assert got["outputs"] >= 1
     for x in (notes_v2, topic, notes_v1, draft, poster):

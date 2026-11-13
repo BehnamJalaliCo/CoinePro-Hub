@@ -581,8 +581,8 @@ private fun LeafFigure(label: String, modifier: Modifier = Modifier, value: @Com
 fun EndLeaf(
     cancelled: Boolean, outputs: Int, tookFa: String?, used: Long?, onReopen: (() -> Unit)?, modifier: Modifier = Modifier, reopening: Boolean = false,
     made: (@Composable () -> Unit)? = null,
-    /** ⟨1.36⟩ §58.2 the session left its working group in the library ([onKept] opens the library). */
-    kept: Boolean = false, onKept: (() -> Unit)? = null,
+    /** ⟨1.36⟩ §58.2 the session left its working group in the library ([keptFa]: the hub's line for it; [onKept] opens it). */
+    kept: Boolean = false, onKept: (() -> Unit)? = null, keptFa: String? = null,
 ) {
     val c = Divan.colors
     val shape = RoundedCornerShape(16.dp)
@@ -604,13 +604,13 @@ fun EndLeaf(
             }
         }
         made?.invoke()
-        if (kept) KeptLine(onKept)
+        if (kept) KeptLine(onKept, text = keptFa)
     }
 }
 
 /** «کارگروه این جلسه در کتابخانه ماند»: one line; a tap opens the library, where «برای شرکت تازه» gives it to another company. */
 @Composable
-fun KeptLine(onOpen: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun KeptLine(onOpen: (() -> Unit)?, modifier: Modifier = Modifier, text: String? = null) {
     val c = Divan.colors
     Row(
         modifier.testTag("playbook-kept").clip(RoundedCornerShape(8.dp))
@@ -619,6 +619,6 @@ fun KeptLine(onOpen: (() -> Unit)?, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         com.coinepro.hq.designsystem.DIcon(DivanIcon.DEPARTMENT, size = 14.dp, tint = c.silverInk)
-        Text(com.coinepro.hq.core.data.PLAYBOOK_KEPT_FA, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text?.trim()?.ifBlank { null } ?: com.coinepro.hq.core.data.PLAYBOOK_KEPT_FA, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

@@ -51,7 +51,12 @@ class RoomTest {
     @Test
     fun aClosedSessionsWorkingGroupIsReadLeniently() {
         fun card(extra: String) = Api.json.decodeFromString(SessionCard.serializer(), """{"ref":"F-1","badge":"closed","closed_at":"2026-11-13T08:00:00Z"$extra}""")
+        // the hub writes the playbook's ref (and its own line); true reads the same
+        assertTrue(card(""","playbook_kept":"PB-0007","playbook_kept_fa":"کارگروه این جلسه در کتابخانه ماند"""").let { playbookKept(it.playbookKept, it.playbook) })
+        assertEquals("PB-0007", card(""","playbook_kept":"PB-0007"""").let { com.coinepro.hq.core.data.keptPlaybookRef(it.playbookKept, it.playbook) })
+        assertEquals("کارگروه این جلسه در کتابخانه ماند", card(""","playbook_kept_fa":"کارگروه این جلسه در کتابخانه ماند"""").playbookKeptFa)
         assertTrue(card(""","playbook_kept":true""").let { playbookKept(it.playbookKept, it.playbook) })
+        assertNull(card(""","playbook_kept":true""").let { com.coinepro.hq.core.data.keptPlaybookRef(it.playbookKept, it.playbook) })
         assertTrue(card(""","playbook_kept":"true"""").let { playbookKept(it.playbookKept, it.playbook) })
         assertTrue(card(""","playbook":"PB-0007"""").let { playbookKept(it.playbookKept, it.playbook) })
         assertTrue(card(""","playbook":{"ref":"PB-0007","state":"draft"}""").let { playbookKept(it.playbookKept, it.playbook) })
