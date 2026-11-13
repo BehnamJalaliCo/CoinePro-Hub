@@ -161,6 +161,7 @@
   - `test_w26_n8n_signature`.
 - **تست‌های قبلی:** `test_w10_playbooks`، `test_p22_engine`، `test_p22_adapters`، `test_w18_standing_publish`، `test_w25_publish_rules`، `test_w24_*`، `test_rls_all_tables`، `test_p16_fresh_start`، `test_w12_live`.
 - **ابزارها:** ruff، mypy، `make check`. `apps/api/openapi/hq-api.v1.json` به‌روز شود.
+  - **دروازه‌ی `clients-api` امروز قرمز است و باید با همین کار سبز شود.** اندروید 1.1.0 پیش از هاب ساخته شد و ۲۲ فراخوان §۵۹ آن هنوز در OpenAPI نیست (`bash scripts/quality/clients-api.sh` همه را نام میبرد). این دروازه را دست نزن و فهرست استثنا هم نساز: وقتی مسیرها ساخته شوند و OpenAPI تازه شود، خودش سبز میشود. اگر مسیری را به شکل دیگری ساختی، در گزارش بنویس تا اپ با قرارداد هماهنگ شود.
 - **بکاپ، بعد migration `0065`.** آزمون رفت‌وبرگشت migration را روی هاب انجام نده.
 - **deploy:** `api`، `worker` و پروفایل `automations` (n8n)، تک‌تک با `hq.sh`.
   - وب لازم نیست: نسخه‌ی آن فقط برای CI به 1.1.0 رفته است و کد وب عوض نشده.
