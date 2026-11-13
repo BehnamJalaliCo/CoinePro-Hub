@@ -36,10 +36,11 @@ FOLD_EVERY = 20
 # re-read per word); at most FOLD_CHUNK turns go to the model at once, oldest first
 DIRECT_FOLD_EVERY = 8
 FOLD_CHUNK = 25
+MIN_CHUNK = 6  # the smallest chunk tried again in halves
 CATCH_UP_ROUNDS = 8
 TASK_CLASS = "session_memory"
 RELATED = 3
-TURN_CHARS = 1_500
+TURN_CHARS = 900  # ⟨2026-11-13⟩ was 1500: a turn's gist, not its whole text
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -200,12 +201,21 @@ async def _fold(hub: Any, call: Any, ref: str, *, force: bool, every: int) -> di
         keys = list(dict.fromkeys([str(conv.get("holder") or ""), *(conv.get("present") or [])]))
         titles = {k: (await SE.title_of(tx, k))[0] for k in keys if k}
         holding = await hub.companies.holding()
-    lines = [clean(_line(r, titles))[0][:TURN_CHARS] for r in rows]
-    body = body_of(holding.code, ref, rep["memory_md"], list(titles.values()), lines)
-    out = await call(body)
-    text = (
-        clean(str((out or {}).get("memory_md") or "").strip())[0] if isinstance(out, dict) else ""
-    )
+    text = ""
+    # ⟨2026-11-13⟩ a chunk the model cannot fold (it ran past its output cap on some turns of
+    # F-0018) is tried again on its first half, then its first quarter: the memory moves on
+    while rows:
+        lines = [clean(_line(r, titles))[0][:TURN_CHARS] for r in rows]
+        body = body_of(holding.code, ref, rep["memory_md"], list(titles.values()), lines)
+        out = await call(body)
+        text = (
+            clean(str((out or {}).get("memory_md") or "").strip())[0]
+            if isinstance(out, dict)
+            else ""
+        )
+        if text or len(rows) <= MIN_CHUNK:
+            break
+        rows = rows[: len(rows) // 2]
     if not text:
         log.info("session memory: the model gave nothing", extra={"ref": ref})
         return {"folded": False, "why": "no_answer"}
