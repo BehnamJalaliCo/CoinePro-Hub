@@ -970,7 +970,9 @@ async def day_summary(tx: Tx, day: date | None = None) -> DaySummary:
             nxt, _ = await next_of(tx, row, tz, now)
             later = nxt if nxt is not None and nxt < b else None
         item = DayItem(
-            automation=row["ref"], title_fa=(row.get("title_fa") or row["sentence_fa"]), company_fa=row["company_fa"] or "",
+            automation=row["ref"],
+            title_fa=(row.get("title_fa") or row["sentence_fa"]),
+            company_fa=row["company_fa"] or "",
             state=last["state"] if last else ("planned" if later else row["state"]),
             published=published,
             comments=_sum([f.comments for f in figs]), dms_sent=_sum([f.dms_sent for f in figs]),
