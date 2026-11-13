@@ -518,7 +518,9 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                     )
                 # ⟨2026-11-09⟩ never a silent stop: the holder gets a run now and says why (60
                 # minutes, an error); a fix is the next workshop.run (a fresh session, same folder)
-                await _wake_or_say(tx, w, await _failed_reason(tx, w))
+                why = await _failed_reason(tx, w)
+                if why:
+                    await _wake_or_say(tx, w, why)
             elif w["status"] in W.OPEN and w["assignee_id"] is not None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
@@ -588,6 +590,10 @@ async def _failed_reason(tx: Tx, w: dict[str, Any]) -> str:
             "SELECT run_meta -> 'flow' ->> 'order' FROM work.work WHERE id = :w", w=w["id"]
         )
         if order:
+            from hq_api.domain import flows as FL
+
+            if await FL.over_cap(tx, w["id"]):
+                return ""  # the day's cap (P4): no more turns; the owner was told
             went = await tx.scalar(
                 "SELECT count(*) FROM agents.runs WHERE work_id = :w AND reason = :r",
                 w=w["id"],

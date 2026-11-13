@@ -154,7 +154,8 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
     a = job["args"]
     assert job["kind"] == "claude" and note.endswith(job["id"])
     assert a["direct"] is True and a["tools"] == "hub" and a["hands"] is True
-    assert a["model"] == "claude-opus-5-5" and a["effort"] == "max" and a["sandbox"] == "auto"
+    # ⟨2026-11-13⟩ the usage audit (P1): a session's talk thinks at xhigh, a flow's build at max
+    assert a["model"] == "claude-opus-5-5" and a["effort"] == "xhigh" and a["sandbox"] == "auto"
     assert a["workspace"] == o["work_ref"] and a["order"] == ref and "resume" in a
     assert f"جلسه‌ی {ref}" in a["brief"] and "ابزارهای ستاد" in a["brief"]
     assert "order_ask" in a["brief"] and "workshop_run" not in a["brief"]

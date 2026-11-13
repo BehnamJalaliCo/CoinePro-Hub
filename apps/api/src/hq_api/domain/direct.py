@@ -475,7 +475,7 @@ async def _hand_over(
                 tx, who, server, w, brief="", title=f"{ref}: {w['title']}",
                 files=files, direct={"direct": True, "tools": TOOLS, "run": str(rid),
                                      "order": ref},
-                text_of=text_of,
+                text_of=text_of, effort=await effort_of(tx, w),
             )  # fmt: skip
     except ApiError:
         await tx.scalar(
@@ -484,6 +484,18 @@ async def _hand_over(
         raise
     await events.emit(tx, str(emp["company"]), "order.updated", ref, {"direct": "working"})
     return HANDED.format(job=out.job)
+
+
+# ⟨2026-11-13⟩ the F-0018 usage audit (P1), the owner's word: «max» only where the video is made
+# (a flow's day, which is the build), «xhigh» for a session's talk and plan. One effort for a
+# whole session: changing it mid-session would throw the prompt cache away.
+DIRECT_EFFORT = "xhigh"
+BUILD_EFFORT = "max"
+
+
+async def effort_of(tx: Tx, w: dict[str, Any]) -> str:
+    flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
+    return BUILD_EFFORT if flow else DIRECT_EFFORT
 
 
 # ------------------------------------------------------- a lean session (2026-11-13) --
@@ -730,6 +742,11 @@ async def go_on(tx: Tx, rep: dict[str, Any], w: dict[str, Any], ref: str) -> boo
     flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
     if int(went or 0) >= (FLOW_CONTINUE_MAX if flow else CONTINUE_MAX):
         return False
+    if flow:
+        from hq_api.domain import flows as FL
+
+        if await FL.over_cap(tx, w["id"]):
+            return False  # the day's cap (P4): the owner was told
     run = await tx.scalar(
         "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{CONTINUE_REASON}{ref}"
     )

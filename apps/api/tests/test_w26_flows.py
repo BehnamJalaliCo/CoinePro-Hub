@@ -7,6 +7,7 @@ with the most views; and «گزارش کوتاه به من رو توی آپ تو
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
@@ -138,23 +139,40 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
     r = await run_ask(client, holder, {"work": work_ref, "brief": "بسته‌ی امروز"})
     assert r.status_code == 201, r.text
     job = await take(client, ws)
-    files = []
-    for name, ctype, data in (
-        ("video.mp4", "video/mp4", mp4(2)), ("story.mp4", "video/mp4", mp4(1)),
-        ("cover.png", "image/png", a_png(1)), ("caption.txt", "text/plain", "کپشن #پرو_چارت".encode()),
-        ("comment.txt", "text/plain", COMMENT.encode()), ("topic.txt", "text/plain", "بازپخش".encode()),
-    ):  # fmt: skip
-        r = await send_file(client, ws, job["id"], name, ctype, data)
-        assert r.status_code == 201, r.text
-        files.append(r.json()["id"])
-    await refuse_queued(su, str(w["id"]))
-    r = await client.post(
-        f"/api/v1/runners/jobs/{job['id']}/result",
-        json={"exit_code": 0, "summary_fa": "تمام شد.",
-              "data": {"session_id": "cs-flow-1", "result_fa": "آماده.", "files": files}},
-        headers=ws["h"],
+    # F-0020: the package comes over two turns (the cover and the texts, then the video and the
+    # story): nothing goes out before the whole package, then it goes out from both outputs
+    turns = (
+        (("cover.png", "image/png", a_png(1)),
+         ("caption.txt", "text/plain", "کپشن #پرو_چارت".encode()),
+         ("comment.txt", "text/plain", COMMENT.encode()),
+         ("topic.txt", "text/plain", "بازپخش".encode())),
+        (("video.mp4", "video/mp4", mp4(2)), ("story.mp4", "video/mp4", mp4(1))),
     )  # fmt: skip
-    assert r.status_code == 200, r.text
+    for n, sent in enumerate(turns):
+        if n:
+            await refuse_queued(su, str(w["id"]))
+            r = await run_ask(client, holder, {"work": work_ref, "brief": "ویدیو"})
+            assert r.status_code == 201, r.text
+            job = await take(client, ws)
+        files = []
+        for name, ctype, data in sent:
+            r = await send_file(client, ws, job["id"], name, ctype, data)
+            assert r.status_code == 201, r.text
+            files.append(r.json()["id"])
+        await refuse_queued(su, str(w["id"]))
+        r = await client.post(
+            f"/api/v1/runners/jobs/{job['id']}/result",
+            json={"exit_code": 0, "summary_fa": "تمام شد.",
+                  "data": {"session_id": "cs-flow-1", "result_fa": "آماده.", "files": files}},
+            headers=ws["h"],
+        )  # fmt: skip
+        assert r.status_code == 200, r.text
+        if not n:
+            assert not await su.fetchval(
+                "SELECT count(*) FROM infra.server_jobs WHERE kind = 'publish'"
+                " AND args -> 'session' ->> 'order' = $1",
+                order,
+            )
     jobs = await su.fetch(
         "SELECT id, args FROM infra.server_jobs WHERE kind = 'publish'"
         " AND args -> 'session' ->> 'order' = $1 ORDER BY created_at",
@@ -197,3 +215,48 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
         )
         assert out is not None and "کامنت هوشمند روشن است" in out
     assert datetime.now(UTC) < at
+
+
+async def test_a_day_stops_at_its_cap_and_builds_on_the_highest_effort(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The F-0018 usage audit, P1 and P4 (the owner's word): «max» only where the video is made,
+    «xhigh» for the rest; a day stops at $10 and the owner hears it once."""
+    from hq_api.domain import direct as DR
+
+    pc = await new_company()
+    monkeypatch.setattr(FL, "FLOWS", {"t": a_flow(pc["code"])})
+    day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=3)
+    r = await client.post(
+        "/api/v1/flows/t/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert r.status_code == 201, r.text
+    order, work_ref = r.json()["order"], r.json()["work"]
+    w = await su.fetchrow("SELECT id, company_id FROM work.work WHERE ref = $1", work_ref)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await DR.effort_of(tx, {"id": w["id"]}) == "max"
+        assert await DR.effort_of(tx, {"id": uuid.uuid4()}) == "xhigh"  # any other session
+        assert await FL.over_cap(tx, w["id"]) is False
+    await su.execute(
+        """INSERT INTO llm.calls (id, started_at, finished_at, company_id, actor_ref, work_ref,
+               task_class, priority, caller, provider, model, cost_usd, equiv_cost_usd, status)
+           VALUES (gen_random_uuid(), now(), now(), $1, 'X', $2, 'server_claude', 3,
+                   'company_runner', 'anthropic', 'claude-opus-5-5', 0, 10.5, 'ok')""",
+        w["company_id"],
+        work_ref,
+    )
+    for _ in range(2):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await FL.over_cap(tx, w["id"]) is True
+    said = await su.fetch(
+        "SELECT title_fa, body_fa FROM notify.notifications WHERE source_code = 'flow'"
+        " AND link_ref = $1",
+        order,
+    )
+    assert len(said) == 1 and "سقف هزینه" in said[0]["title_fa"]

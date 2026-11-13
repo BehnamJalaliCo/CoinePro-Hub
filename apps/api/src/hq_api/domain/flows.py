@@ -22,6 +22,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -192,6 +193,65 @@ def _json(x: Any) -> str:
     return json.dumps(x, ensure_ascii=False)
 
 
+# ------------------------------------------------------------ the day's cap --
+# ⟨2026-11-13⟩ the F-0018 usage audit (P4): a day aims at about $6 and stops at $10 (the turns'
+# own cost, as the hub books it since the audit: llm.calls.equiv_cost_usd). A work's token budget
+# grows with every workshop turn, so it never held a direct session; this does.
+FLOW_USD_CAP = Decimal("10")
+CAPPED_TITLE_FA = "{title} به سقف هزینه‌ی روز رسید"
+CAPPED_BODY_FA = (
+    "هزینه‌ی ساخت امروز به {usd} دلار رسید و ادامه‌ی خودکار متوقف شد؛ بسته کامل نشده است. "
+    "اگر بخواهی، همین روز را دوباره راه می‌اندازم."
+)
+
+
+async def spent_usd(tx: Tx, work_ref: str) -> Decimal:
+    got = await tx.scalar(
+        "SELECT COALESCE(SUM(equiv_cost_usd), 0) FROM llm.calls WHERE work_ref = :w", w=work_ref
+    )
+    return Decimal(str(got or 0))
+
+
+async def over_cap(tx: Tx, work_id: UUID) -> bool:
+    """A flow's day past its cap: no more turns by themselves; the owner hears it once."""
+    w = await flow_of_work(tx, work_id)
+    if w is None:
+        return False
+    usd = await spent_usd(tx, str(w["ref"]))
+    if usd < FLOW_USD_CAP:
+        return False
+    meta = w["flow"]
+    if not meta.get("capped"):
+        meta["capped"] = f"{usd:.2f}"
+        await tx.exec(
+            "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))"
+            " WHERE id = :w",
+            w=w["id"],
+            m=_json(meta),
+        )
+        flow = FLOWS.get(str(meta.get("key")))
+        from hq_api.domain import notify
+
+        await notify.raise_notification(
+            tx,
+            company_id=w["company_id"],
+            company_code=str(w["company"]),
+            level="report",
+            title_fa=CAPPED_TITLE_FA.format(title=flow.title_fa if flow else "انتشار روزانه")[:300],
+            body_fa=CAPPED_BODY_FA.format(usd=f"{usd:.0f}".translate(FA_DIGITS)),
+            link_kind="order",
+            link_ref=str(meta.get("order") or w["ref"]),
+            source_kind="system",
+            source_code="flow",
+        )
+        await audit.record(
+            tx, FLOW, company_id=w["company_id"], action="flow.capped", action_class="A1",
+            target_kind="work", target_ref=str(w["ref"]),
+            summary=f"{meta.get('key')} {meta.get('day')}: ${usd:.2f} >= ${FLOW_USD_CAP}",
+        )  # fmt: skip
+    return True
+
+
 # ------------------------------------------------------------ the package --
 READY_TITLE_FA = "{title} آماده شد"
 # (a notification keeps Persian only: no handle, no link; the session has them)
@@ -215,6 +275,45 @@ async def flow_of_work(tx: Tx, work_id: UUID) -> dict[str, Any] | None:
     if row is None or not row["flow"]:
         return None
     return {**dict(row), "flow": OR._j(row["flow"]) or {}}
+
+
+async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
+    """The day's package from every finished output of its work, the newest file of each name (a
+    session delivers it over several turns: F-0020 sent the cover and the texts first, the video and
+    the story in a later turn). None until a video and `caption.txt` are both there. `d`: the output
+    of the video (the publication's own); the texts are read from their own outputs."""
+    rows = await tx.all(
+        SPB.OUTPUT_SQL + " WHERE d.work_id = :w AND d.company_id = :co"
+        " ORDER BY d.created_at DESC LIMIT 30",
+        w=w["id"],
+        co=w["company_id"],
+    )
+    newest: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+    for r in rows:
+        d = dict(r)
+        if (OR._j(d.get("produced_with")) or {}).get("unfinished"):
+            continue
+        for f in await SPB._files(tx, d):
+            newest.setdefault(str(f["name"] or "").strip().lower(), (dict(f), d))
+    files = [f for f, _ in newest.values()]
+    reel, story = _split(files)
+    caption = next((newest[n] for n in SPB.CAPTION_NAMES if n in newest), None)
+    if reel is None or caption is None:
+        return None
+    covers = [f for f, _ in newest.values()
+              if str(f["mime"]).startswith("image/") and str(f["name"] or "").lower().startswith("cover")]  # fmt: skip
+    comment = next((newest[n] for n in SPB.COMMENT_NAMES if n in newest), None)
+    topic = newest.get("topic.txt")
+    owner_of = {id(f): d for f, d in newest.values()}
+    return {
+        "d": owner_of[id(reel)],
+        "reel": reel,
+        "story": story,
+        "cover": covers[0] if covers else None,
+        "caption_d": caption[1],
+        "comment_d": comment[1] if comment else None,
+        "topic_d": topic[1] if topic else None,
+    }
 
 
 def _split(files: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -245,21 +344,22 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
     if meta.get("sent"):
         return "sent"
     await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k=f"flow:{w['ref']}")
-    pkg = await SPB.package_of(tx, {"work_ref": w["ref"], "company_id": w["company_id"]})
-    if pkg is None or not pkg.get("captioned"):
+    pkg = await package(tx, w)
+    if pkg is None:
         return "open"
-    d = pkg["d"]
-    files = await SPB._files(tx, d)
-    reel, story = _split([dict(f) for f in files])
-    if reel is None:
-        return "open"
+    d, reel, story = pkg["d"], pkg["reel"], pkg["story"]
     route = await SPB._route(tx, w["company_id"])
     account = str(meta.get("account") or "")
     if not route["ready"] or account not in route["accounts"]:
         return "route"
-    caption = (await SPB._text_of(tx, hub, d, SPB.CAPTION_NAMES) or "").strip()
-    comment = await SPB.comment_of(tx, hub, d)
-    topic = (await SPB._text_of(tx, hub, d, ("topic.txt",)) or "").strip().splitlines()
+    caption = (await SPB._text_of(tx, hub, pkg["caption_d"], SPB.CAPTION_NAMES) or "").strip()
+    comment = await SPB.comment_of(tx, hub, pkg["comment_d"]) if pkg["comment_d"] else None
+    topic_d = pkg["topic_d"]
+    topic = (
+        (await SPB._text_of(tx, hub, topic_d, ("topic.txt",)) or "").strip().splitlines()
+        if topic_d
+        else []
+    )
     at = datetime.fromisoformat(str(meta["publish_at"]))
     when = at if at > datetime.now(UTC) + timedelta(minutes=2) else None
     order = str(meta.get("order") or "") or None
@@ -275,7 +375,7 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
         if await SPB.last_of(tx, d["ref"], str(f["id"]), account, what) is not None:
             continue
         j = await SPB._send(
-            tx, FLOW, d, f, pkg.get("cover") if what == "reel" else None,
+            tx, FLOW, d, f, pkg["cover"] if what == "reel" else None,
             hub=hub, what=what, account=account, caption=caption if what == "reel" else "",
             route=route, order=order, scheduled_at=when,
             comment=comment if what == "reel" else None,
