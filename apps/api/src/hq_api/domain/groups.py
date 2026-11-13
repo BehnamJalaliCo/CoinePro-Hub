@@ -96,6 +96,8 @@ class Routine(BaseModel):
     # hub's condition for a run (sealed_series: something to publish in)
     task_class: str | None = None
     needs: str | None = None
+    # ⟨1.36⟩ §58.3 its schedule in the owner's words («هر روز ساعت 9:00»), null when unreadable
+    when_fa: str | None = None
 
 
 class Kpi(BaseModel):
@@ -170,6 +172,9 @@ class Membership(BaseModel):
     plan_at: datetime | None = None
     # ⟨§45⟩ the owner's standing permission to publish (PUT /groups/{key}/members/{code}/publish)
     publish: MemberPublish = Field(default_factory=MemberPublish)
+    # ⟨1.36⟩ §58.3 the group's one line for this company: «هر روز {ساعت}: ساخت → {تأیید تو |
+    # انتشار خودکار} → اینستاگرام»; null when the group publishes nowhere or runs nothing daily
+    flow_fa: str | None = None
 
 
 class RoutineRun(BaseModel):
@@ -336,7 +341,13 @@ def render(row: dict[str, Any]) -> Group:
     d = row["definition"]
     paused = row.get("routine_states") or {}
     routines = [
-        Routine(**{**r, "state": "paused" if paused.get(r["key"]) == "paused" else "on"})
+        Routine(
+            **{
+                **r,
+                "state": "paused" if paused.get(r["key"]) == "paused" else "on",
+                "when_fa": when_fa(r.get("schedule")),
+            }
+        )
         for r in d.get("routines") or []
     ]
     return Group(
@@ -373,9 +384,36 @@ MEMBER_SQL = """
 """
 
 
+def when_fa(schedule: Any) -> str | None:
+    """A routine's RRULE in the owner's words, or None when it does not read."""
+    from hq_api.domain import automations as AU
+
+    try:
+        return AU.when_fa(str(schedule or ""))
+    except Exception:  # noqa: BLE001 - an odd rule shows no time, never an error
+        return None
+
+
+CHANNEL_FA = {"instagram": "اینستاگرام"}
+FLOW_FA = "{when}: ساخت → {step} → {channel}"
+FLOW_STEP_FA = {"ask": "تأیید تو", "auto": "انتشار خودکار"}
+
+
+def flow_fa(g: Group, publish: MemberPublish) -> str | None:
+    """⟨1.36⟩ §58.3 the group's line for one member: when its lead's routine makes the package,
+    who lets it out (his tap, or his standing word), and where it goes."""
+    channel = next((CHANNEL_FA[c] for c in g.connections if c in CHANNEL_FA), None)
+    on = [x for x in g.routines if x.state == "on" and x.when_fa]
+    r = next((x for x in on if g.lead and x.seat == g.lead), None) or (on[0] if on else None)
+    if channel is None or r is None:
+        return None
+    return FLOW_FA.format(when=r.when_fa, step=FLOW_STEP_FA[publish.mode], channel=channel)
+
+
 def render_member(r: dict[str, Any], g: Group | None = None) -> Membership:
     seats = {s["seat"]: s for s in r.get("seats") or []}
     order = g.seats if g is not None else [Seat(**{**s, "count": 1}) for s in seats.values()]
+    publish = member_publish(r.get("publish"))
     return Membership(
         group=r["group_key"],
         company=r["company"],
@@ -395,7 +433,8 @@ def render_member(r: dict[str, Any], g: Group | None = None) -> Membership:
         ],
         plan=r.get("plan"),
         plan_at=r.get("plan_at"),
-        publish=member_publish(r.get("publish")),
+        publish=publish,
+        flow_fa=flow_fa(g, publish) if g is not None else None,
     )
 
 

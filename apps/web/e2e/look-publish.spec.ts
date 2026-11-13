@@ -140,7 +140,9 @@ test('the desk is reached from the outputs, from the home and from the navigatio
     await expect(page).toHaveURL(/\/outputs$/);
     await page.goto('/');
     const line = page.getByTestId('desk-line');
-    await expect(line).toContainText('۶ خروجی آماده‌ی انتشار');
+    // ⟨1.0.3⟩ §58.5 the home keeps one line: «انتشار: ۶ آماده | ۲ در صف».
+    await expect(line).toContainText('انتشار:');
+    await expect(line).toContainText('۶ آماده');
     await expect(line).toContainText('۲ در صف');
     await line.click();
     await expect(page).toHaveURL(/\/outputs\/desk$/);

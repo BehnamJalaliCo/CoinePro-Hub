@@ -14,6 +14,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // ⟨1.0.3⟩ §58.1 the keyboard resizes the page (as Android's IME insets do): the session's composer stays above it, never under it.
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: dark)', color: '#0B0D14' },
     { media: '(prefers-color-scheme: light)', color: '#F3EEE3' },

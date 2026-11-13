@@ -13,7 +13,7 @@ import com.coinepro.hq.core.data.MEMBER_STILL_FA
 import com.coinepro.hq.core.data.deskDayFa
 import com.coinepro.hq.core.data.deskEmpty
 import com.coinepro.hq.core.data.deskLead
-import com.coinepro.hq.core.data.deskLineFa
+import com.coinepro.hq.core.data.deskHomeLineFa
 import com.coinepro.hq.core.data.deskQueueWordFa
 import com.coinepro.hq.core.data.deskRatio
 import com.coinepro.hq.core.data.deskSorted
@@ -465,9 +465,9 @@ class Look2Test {
         assertFalse(deskEmpty(desk))
         assertTrue(deskEmpty(PublishDesk()))
         assertEquals("چیزی آماده‌ی انتشار نیست؛ هر خروجی تأییدشدنی همین‌جا می‌آید.", DESK_EMPTY_FA)
-        // the home's line: counts in a sentence
-        assertEquals(listOf("3 خروجی آماده‌ی انتشار", "2 در صف"), deskLineFa(desk))
-        assertEquals(listOf("چیزی آماده نیست"), deskLineFa(PublishDesk()))
+        // ⟨1.36⟩ §58.5 the home's one line: prose counts in Persian digits
+        assertEquals("انتشار: ۳ آماده · ۲ در صف", deskHomeLineFa(desk))
+        assertEquals("انتشار: ۰ آماده · ۰ در صف", deskHomeLineFa(PublishDesk()))
         // each kind in its network's frame; a queued card that waits for no hour says what it waits for
         assertEquals(listOf(9f / 16f, 9f / 16f, 4f / 5f, 1f), listOf("reel", "story", "post", "carousel").map(::deskRatio))
         assertEquals(listOf("در حال انتشار", "در حال وصل شدن", "منتظر تأیید", null), listOf("publishing", "waiting_setup", "waiting_seal", "scheduled").map(::deskQueueWordFa))

@@ -14,7 +14,7 @@
 //   drafting the text, the AI narrator) is one of those at work in the «الان» bar, with its model's mark.
 
 import Link from 'next/link';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/brand/avatar';
 import { ModelMark } from '@/components/brand/model-mark';
@@ -31,6 +31,7 @@ import { WORKSPACE_LIVE, useStopWorkspace, type OrderParallel } from '@/lib/api/
 import type { Badge, OrderCard, SessionReport, SessionTask } from '@/lib/api/v34';
 import { useNudge, type ActivityLine, type Mood, type SessionActivity, type Worker } from '@/lib/api/v41';
 import { DECIDE_YOURSELF_FA, MOOD_FA, deskDayFa, readyAnswers, type MoodKey } from '@/lib/api/v55';
+import { LESS_FA, MORE_FA, latestFa } from '@/lib/api/v58';
 import { ago, cx, jTime, tokens } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { haptic } from './haptics';
@@ -419,15 +420,46 @@ function LiveWhy({ refId, a, ready }: { refId: string; a: SessionActivity; ready
 const CARD = 'hq-edge hq-m1 flex flex-none flex-col gap-2 rounded-[14px] bg-card p-3';
 const answerCls = 'inline-flex min-h-10 items-center rounded-[12px] border border-strong px-3.5 py-1.5 text-start text-[13px] font-semibold leading-5 text-ink hover:bg-hover disabled:text-disabled';
 
+/** Whether a clamped block hides some of its text (looked at again when its box or its text changes). */
+function useOverflows(ref: RefObject<HTMLElement | null>, on: boolean, key: string): boolean {
+  const [over, setOver] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !on) return;
+    const look = () => setOver(el.scrollHeight > el.clientHeight + 1);
+    look();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(look);
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [ref, on, key]);
+  return over;
+}
+
 /**
  * The holder's open question, in ONE place, right above the composer: the question, its ready answers as buttons (the hub's quick
  * replies, else the two or three options a question with «یا» names), always a last quiet «خودت تصمیم بگیر و ادامه بده», and how long
  * it has waited. One tap sends that answer through the session's own reply; typing in the composer still works.
+ * ⟨1.0.3⟩ §58.1 it never hides what he writes: the question shows at most three lines with «بیشتر» (which opens it in place, scrolling
+ * inside itself to at most 40% of the screen); while the composer has the focus or holds his words the card is its first line alone
+ * (a tap on it shows it whole again); [latest]: the session's newest output, one tap away on the full screen.
  */
-export function WaitingCard({ r, onReply, busy }: { r: SessionReport; onReply: (text: string) => Promise<boolean>; busy: boolean }) {
+export function WaitingCard({ r, onReply, busy, composer, latest }: {
+  r: SessionReport; onReply: (text: string) => Promise<boolean>; busy: boolean;
+  composer?: { focused: boolean; text: boolean }; latest?: { title: string; onOpen: () => void } | null;
+}) {
   const t = r.turn!;
   const [sent, setSent] = useState<string | null>(null);
   const [going, setGoing] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  // A tap on the folded line shows the card whole while he has words in the composer; his next focus there folds it again.
+  const [peek, setPeek] = useState(false);
+  const focused = !!composer?.focused;
+  const [wasFocused, setWasFocused] = useState(focused);
+  if (focused !== wasFocused) { setWasFocused(focused); if (focused) { setPeek(false); setOpen(false); } }
+  const folded = focused || (!!composer?.text && !peek);
+  const question = useRef<HTMLParagraphElement>(null);
+  const clamps = !folded && !open;
+  const over = useOverflows(question, clamps, t.question_fa);
   const answers = useMemo(() => readyAnswers(plain(t.question_fa), (r as { quick_replies?: string[] }).quick_replies), [t.question_fa, r]);
   const task = taskOf(r.tasks);
   const waited = waitedFa(t.at);
@@ -438,20 +470,46 @@ export function WaitingCard({ r, onReply, busy }: { r: SessionReport; onReply: (
     setGoing(null);
     if (ok) { haptic('seal'); setSent(text); } else haptic('error');
   };
-  return (
-    <section aria-label="منتظر تو" data-testid="waiting-card" className={CARD}>
-      {sent ? (
+  if (sent) {
+    return (
+      <section aria-label="منتظر تو" data-testid="waiting-card" className={CARD}>
         <span role="status" className="hq-m2-in flex items-center gap-1.5 text-[13px] text-sec"><span className="text-pos"><DrawnTick size={16} /></span>جوابت رفت: {sent}</span>
-      ) : (
-        <>
-          <span className="text-[11px] leading-5 text-muted" data-waited><Facts>{`${t.who_fa} میپرسد`}{waited}{task && task.n <= task.total ? `${taskFa(task)} ایستاده` : null}</Facts></span>
-          <p className="text-[14.5px] font-semibold leading-7 text-ink [overflow-wrap:anywhere]"><PlainText text={t.question_fa} /></p>
-          <div role="group" aria-label="جواب‌های آماده" className="flex flex-col items-start gap-1.5">
-            {answers.length ? <div className="flex flex-wrap gap-2">{answers.map((x) => <button key={x} type="button" disabled={busy || !!going} onClick={() => void reply(x)} className={answerCls}>{x}</button>)}</div> : null}
-            <Button variant="text" size="sm" className="-ms-2" disabled={busy || !!going} loading={going === DECIDE_YOURSELF_FA} onClick={() => void reply(DECIDE_YOURSELF_FA)}>{DECIDE_YOURSELF_FA}</Button>
-          </div>
-        </>
-      )}
+      </section>
+    );
+  }
+  if (folded) {
+    return (
+      <section aria-label="منتظر تو" data-testid="waiting-card" data-folded="" className={cx(CARD, 'py-2')}>
+        <button type="button" aria-expanded={false} onClick={() => setPeek(true)} className="flex min-w-0 items-center gap-2 text-start" data-question-line>
+          <MoodLight mood="waiting" word={`${t.who_fa} میپرسد`} className="flex-none" />
+          <span className="min-w-0 flex-1 truncate text-[13px] text-ink"><PlainText text={t.question_fa} /></span>
+          <Icon name="chevron" size={14} className="flex-none text-muted" />
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section aria-label="منتظر تو" data-testid="waiting-card" data-expanded={open ? '' : undefined} className={CARD}>
+      <span className="text-[11px] leading-5 text-muted" data-waited><Facts>{`${t.who_fa} میپرسد`}{waited}{task && task.n <= task.total ? `${taskFa(task)} ایستاده` : null}</Facts></span>
+      <p ref={question} data-question
+        className={cx('text-[14.5px] font-semibold leading-7 text-ink [overflow-wrap:anywhere]', open ? 'max-h-[40dvh] overflow-y-auto overscroll-contain pe-1' : 'line-clamp-3')}
+        tabIndex={open ? 0 : undefined}>
+        <PlainText text={t.question_fa} />
+      </p>
+      {over || open ? (
+        <Button variant="text" size="sm" className="-ms-2 -mt-1 self-start" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? LESS_FA : MORE_FA}</Button>
+      ) : null}
+      {latest ? (
+        <button type="button" aria-haspopup="dialog" onClick={latest.onOpen} data-latest-output
+          className="inline-flex min-h-8 max-w-full items-center gap-1.5 self-start rounded-full border border-strong px-3 text-[12px] text-sec hover:bg-hover hover:text-ink">
+          <Icon name="deliverable" size={14} className="flex-none text-silver-ink" />
+          <span className="min-w-0 truncate">{latestFa(plain(latest.title))}</span>
+        </button>
+      ) : null}
+      <div role="group" aria-label="جواب‌های آماده" className="flex flex-col items-start gap-1.5">
+        {answers.length ? <div className="flex flex-wrap gap-2">{answers.map((x) => <button key={x} type="button" disabled={busy || !!going} onClick={() => void reply(x)} className={answerCls}>{x}</button>)}</div> : null}
+        <Button variant="text" size="sm" className="-ms-2" disabled={busy || !!going} loading={going === DECIDE_YOURSELF_FA} onClick={() => void reply(DECIDE_YOURSELF_FA)}>{DECIDE_YOURSELF_FA}</Button>
+      </div>
     </section>
   );
 }
@@ -648,9 +706,9 @@ function LeafFigure({ label, children }: { label: string; children: ReactNode })
 
 /**
  * The end of a closed session: what was made (its files, as [made]), how long it took, how many tokens; never half an empty screen.
- * [used]: the tokens of its outputs, null while they are not known.
+ * [used]: the tokens of its outputs, null while they are not known. [kept]: ⟨1.0.3⟩ §58.2 the working group it left in the library.
  */
-export function EndLeaf({ r, made, used, outputs, action }: { r: SessionReport; made?: ReactNode; used: number | null; outputs: number; action?: ReactNode }) {
+export function EndLeaf({ r, made, used, outputs, action, kept }: { r: SessionReport; made?: ReactNode; used: number | null; outputs: number; action?: ReactNode; kept?: ReactNode }) {
   const took = tookFa(r.at, r.session?.closed_at ?? r.updated_at);
   const cancelled = r.state === 'cancelled';
   return (
@@ -665,6 +723,8 @@ export function EndLeaf({ r, made, used, outputs, action }: { r: SessionReport; 
         <LeafFigure label="طول کشید">{took ?? '—'}</LeafFigure>
         <LeafFigure label="مصرف">{used ? <><Ltr>{tokens(used)}</Ltr> واحد</> : '—'}</LeafFigure>
       </div>
+      {/* ⟨1.0.3⟩ §58.2 the working group this session left in the library */}
+      {kept}
       {made}
     </section>
   );

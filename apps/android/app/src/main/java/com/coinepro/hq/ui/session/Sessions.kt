@@ -116,6 +116,8 @@ fun SessionRow(s: SessionCard, modifier: Modifier = Modifier, onErase: (() -> Un
             ).joinToString(" · ")
             if (who.isNotBlank()) Text(who, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             StallWatch(s.badge, s.lastAt.ifBlank { s.openedAt })
+            // ⟨1.36⟩ §58.2 a closed session that left its working group in the library says so in one line
+            if (s.closedAt != null && com.coinepro.hq.core.data.playbookKept(s.playbookKept, s.playbook)) com.coinepro.hq.ui.look.KeptLine(null)
         }
         BadgePill(s.badge)
         // The long press's menu: a popup, it takes no room in the row.

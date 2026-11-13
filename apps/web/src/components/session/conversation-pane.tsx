@@ -163,15 +163,23 @@ export type PaneProps = {
    * session's own reply, which says whether the hub took it. Typing still works; it is not a second, parallel turn.
    */
   answer?: (text: string) => Promise<boolean>;
+  /** ⟨1.0.3⟩ §58.1 whether the composer has the focus or holds text (the session's question card then folds to its first line). */
+  onComposer?: (s: { focused: boolean; text: boolean }) => void;
 };
 
-/** The composer's textarea grows to this many lines, then scrolls. */
-const MAX_LINES = 6;
+/** The composer's textarea grows to this many lines, then scrolls (⟨1.0.3⟩ §58.1: five). */
+const MAX_LINES = 5;
+/** ⟨1.0.3⟩ §58.1 a session's draft is kept per conversation, across leaving the screen (this browser only). */
+const DRAFT_KEY = (ref: string) => `hq.draft.${ref}`;
+const readDraft = (ref: string): string => { try { return window.localStorage.getItem(DRAFT_KEY(ref)) ?? ''; } catch { return ''; } };
+const keepDraft = (ref: string, text: string) => {
+  try { if (text.trim()) window.localStorage.setItem(DRAFT_KEY(ref), text); else window.localStorage.removeItem(DRAFT_KEY(ref)); } catch { /* storage off: the draft lives as long as the page */ }
+};
 const LINE_PX = 24;
 /** How near the end counts as «at the end» (px). */
 const END_SLACK = 80;
 
-export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above, variant = 'talk', fill, quietSend, onScrolled, answer }: PaneProps) {
+export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above, variant = 'talk', fill, quietSend, onScrolled, answer, onComposer }: PaneProps) {
   const session = variant === 'session';
   const qc = useQueryClient();
   const toast = useToast();
@@ -196,6 +204,15 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const scroller = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   const area = useRef<HTMLTextAreaElement | null>(null);
+  // ⟨1.0.3⟩ §58.1 where the cursor was when the composer last let go of the focus: the page brings him back to it.
+  const caret = useRef<{ start: number; end: number } | null>(null);
+  const [focused, setFocused] = useState(false);
+  // ⟨1.0.3⟩ §58.1 a session's draft: read once its conversation is known, written as he types, gone once the word is sent.
+  const [drafted, setDrafted] = useState<string | null>(null);
+  if (session && ref && drafted !== ref) { setDrafted(ref); setText(readDraft(ref)); }
+  useEffect(() => { if (session && ref && drafted === ref) keepDraft(ref, text); }, [session, ref, drafted, text]);
+  const hasDraft = !!text.trim();
+  useEffect(() => { onComposer?.({ focused, text: hasDraft }); }, [onComposer, focused, hasDraft]);
   // The talk opens at its last turn and stays there while he is at the end; once he scrolls up it leaves him be and offers «↓».
   const pinned = useRef(true);
   // ⟨2026-11-11⟩ «↓» is a smooth scroll: until it reaches the end, its own scroll events do not let go of the end.
@@ -252,7 +269,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const atEnd = !leave || leave.ref !== ref;
   const unseen = atEnd ? 0 : Math.max(0, turns.length - leave.at);
 
-  // The composer grows with the text to six lines and then scrolls.
+  // The composer grows with the text to five lines and then scrolls.
   useLayoutEffect(() => {
     const el = area.current;
     if (!el) return;
@@ -366,7 +383,10 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
         if (!el) return;
         el.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
         el.focus({ preventScroll: true });
-        el.setSelectionRange(el.value.length, el.value.length);
+        // §58.1 back to where the cursor was (a closed viewer returns him to the same draft and cursor), else the end
+        const at = caret.current;
+        const n = el.value.length;
+        if (at && at.end <= n) el.setSelectionRange(at.start, at.end); else el.setSelectionRange(n, n);
       },
     });
     return () => onApi?.(null);
@@ -453,6 +473,8 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
             onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); void files.add(fs); } }}
             onChange={(e) => { const v = e.target.value; if (looksLikeKey(v, engines.data)) { setText(''); openKey(v.trim()); } else setText(v); }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text, 'typed', true); } }}
+            onFocus={() => setFocused(true)}
+            onBlur={(e) => { caret.current = { start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd }; setFocused(false); }}
             style={{ minHeight: 48, maxHeight: MAX_LINES * LINE_PX + 22 }}
             className={cx(field, 'block w-full min-w-0 resize-none py-[11px] leading-6')} />
           <div className="flex items-center gap-2">

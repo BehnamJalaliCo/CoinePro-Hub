@@ -92,6 +92,8 @@ WIPE: tuple[str, ...] = (
     "owner.order_files",  # ⟨1.18⟩ §36.3 an order's files go with it (the files themselves stay)
     # ⟨1.35⟩ §57 a session's side talks and how far the owner read them go with its order
     "owner.session_side_lines", "owner.session_side_reads",
+    # ⟨1.36⟩ §58.4 what a publication kept (its archive record stays) and the owner's opens
+    "files.publish_keep", "files.opened",
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
     # ⟨1.31⟩ §49 the posts IG-Hub reported and the daily read of each account go (read again)
     "growth.ig_posts", "growth.ig_post_reads",

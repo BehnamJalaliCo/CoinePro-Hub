@@ -1,6 +1,7 @@
 package com.coinepro.hq.core.net
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 // Contract §55 ⟨1.33⟩: what the 1.0.1 look reads. The publish desk (§55.2), the limits block of the treasury (the owner's Claude accounts, each one ring, and
 // today's meter) and, when the hub's live summary carries one, a 24-hour series for each figure of the office pulse. Same rules as
@@ -93,6 +94,10 @@ data class DeskCard(
     /** ask · auto */
     val mode: String? = null,
     val at: String = "",
+    /** ⟨1.36⟩ §58.4 a published card's package filed to the archive (true, or the record), and the bytes the 72-hour sweep freed of the
+     *  rest; read leniently (a number or a string; or inside [archived]). */
+    val archived: JsonElement? = null,
+    val freedBytes: JsonElement? = null,
 )
 
 /** `GET /publish-desk`: everything that can go out, is set to go out, or went out. Each list at most 30. */

@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -39,6 +44,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,6 +100,7 @@ import com.coinepro.hq.designsystem.ringColor
 import com.coinepro.hq.designsystem.settle
 import com.coinepro.hq.designsystem.silverLine
 import com.coinepro.hq.designsystem.smoothSize
+import com.coinepro.hq.designsystem.timesFig
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
@@ -273,16 +280,73 @@ private fun EdgeCard(tag: String, modifier: Modifier = Modifier, edge: androidx.
  * The holder's open question, in ONE place, right above the composer: who asks, how long it has waited and which task stands still;
  * the question; its ready answers as buttons (from the question itself when it names two or three options with «یا»), always a last
  * quiet «خودت تصمیم بگیر و ادامه بده». One tap sends that answer through the session's own reply; typing still works.
+ *
+ * ⟨1.36⟩ §58.1 it never hides what he writes: at most three lines of the question, «بیشتر» opens it in place (at most 40% of the
+ * screen, scrolling inside itself); while he writes ([folded]: the composer has the keyboard or words) it is one line, a tap opens it
+ * again. [latest]: the chip of the session's newest output («خروجی آخر: …»), [onLatest] opens it over the session.
  */
 @Composable
-fun WaitingCard(whoFa: String, questionFa: String, askedAt: String?, standingFa: String?, answers: List<String>, busy: String?, onAnswer: (String) -> Unit, modifier: Modifier = Modifier) {
+fun WaitingCard(
+    whoFa: String, questionFa: String, askedAt: String?, standingFa: String?, answers: List<String>, busy: String?, onAnswer: (String) -> Unit,
+    modifier: Modifier = Modifier, folded: Boolean = false, latest: String? = null, onLatest: (() -> Unit)? = null, open0: Boolean = false,
+) {
     val c = Divan.colors
-    EdgeCard("waiting-card", modifier) {
+    var open by rememberSaveable(questionFa) { mutableStateOf(open0) }
+    // he started to write: the card steps back to its first line (it opens again with a tap)
+    androidx.compose.runtime.LaunchedEffect(folded) { if (folded) open = false }
+    var long by remember(questionFa) { mutableStateOf(false) }
+    val style = Divan.type.small.copy(fontSize = 14.5.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+    val chip: (@Composable () -> Unit)? = if (latest != null && onLatest != null) ({ LatestChip(latest, onLatest) }) else null
+    EdgeCard("waiting-card", modifier.smoothSize()) {
+        if (folded && !open) {
+            Row(
+                Modifier.fillMaxWidth().testTag("waiting-folded").clickable(role = Role.Button, onClickLabel = "دیدن همه‌ی سؤال") { open = true },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    remember(whoFa, questionFa) { facts("$whoFa میپرسد", com.coinepro.hq.core.data.questionFirstLine(questionFa)) },
+                    style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                chip?.invoke()
+            }
+            return@EdgeCard
+        }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(remember(whoFa, askedAt, standingFa) { facts("$whoFa میپرسد", waitedFa(askedAt), standingFa) }, style = Divan.type.micro, color = c.textMuted, maxLines = 2)
-            Text(plain(questionFa), style = Divan.type.small.copy(fontSize = 14.5.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+            if (open) {
+                val most = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * com.coinepro.hq.core.data.QUESTION_MAX_SHARE).dp
+                Box(Modifier.fillMaxWidth().heightIn(max = most).testTag("waiting-open").verticalScroll(rememberScrollState())) {
+                    Text(plain(questionFa), style = style, color = c.textPrimary)
+                }
+            } else Text(
+                plain(questionFa), style = style, color = c.textPrimary, maxLines = com.coinepro.hq.core.data.QUESTION_LINES, overflow = TextOverflow.Ellipsis,
+                onTextLayout = { r -> if (r.hasVisualOverflow) long = true },
+            )
+            if (long || open || chip != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (long || open) Text(
+                    if (open) "کمتر" else "بیشتر",
+                    Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 4.dp, horizontal = 2.dp),
+                    style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
+                )
+                Spacer(Modifier.weight(1f))
+                chip?.invoke()
+            }
             ReadyAnswers(answers, busy, onAnswer)
         }
+    }
+}
+
+/** «خروجی آخر: …»: the session's newest output, one tap from the question (it opens over the session; the draft stays). */
+@Composable
+private fun LatestChip(label: String, onClick: () -> Unit) {
+    val c = Divan.colors
+    Row(
+        Modifier.widthIn(max = 220.dp).height(30.dp).testTag("latest-output").clip(RoundedCornerShape(50)).border(1.dp, c.lineStrong, RoundedCornerShape(50))
+            .clickable(role = Role.Button, onClickLabel = "باز کردن خروجی آخر", onClick = onClick).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        com.coinepro.hq.designsystem.DIcon(DivanIcon.DELIVERABLE, size = 13.dp, tint = c.textSecondary)
+        Text(timesFig(label), style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -514,7 +578,12 @@ private fun LeafFigure(label: String, modifier: Modifier = Modifier, value: @Com
  * while they are not known); never half an empty screen. [onReopen] null: the hub has no way back.
  */
 @Composable
-fun EndLeaf(cancelled: Boolean, outputs: Int, tookFa: String?, used: Long?, onReopen: (() -> Unit)?, modifier: Modifier = Modifier, reopening: Boolean = false, made: (@Composable () -> Unit)? = null) {
+fun EndLeaf(
+    cancelled: Boolean, outputs: Int, tookFa: String?, used: Long?, onReopen: (() -> Unit)?, modifier: Modifier = Modifier, reopening: Boolean = false,
+    made: (@Composable () -> Unit)? = null,
+    /** ⟨1.36⟩ §58.2 the session left its working group in the library ([onKept] opens the library). */
+    kept: Boolean = false, onKept: (() -> Unit)? = null,
+) {
     val c = Divan.colors
     val shape = RoundedCornerShape(16.dp)
     val figure = Divan.type.small.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -535,5 +604,21 @@ fun EndLeaf(cancelled: Boolean, outputs: Int, tookFa: String?, used: Long?, onRe
             }
         }
         made?.invoke()
+        if (kept) KeptLine(onKept)
+    }
+}
+
+/** «کارگروه این جلسه در کتابخانه ماند»: one line; a tap opens the library, where «برای شرکت تازه» gives it to another company. */
+@Composable
+fun KeptLine(onOpen: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    Row(
+        modifier.testTag("playbook-kept").clip(RoundedCornerShape(8.dp))
+            .then(if (onOpen != null) Modifier.clickable(role = Role.Button, onClickLabel = "کتابخانه‌ی کارگروه‌ها", onClick = onOpen) else Modifier)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        com.coinepro.hq.designsystem.DIcon(DivanIcon.DEPARTMENT, size = 14.dp, tint = c.silverInk)
+        Text(com.coinepro.hq.core.data.PLAYBOOK_KEPT_FA, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

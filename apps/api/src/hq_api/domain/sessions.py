@@ -57,6 +57,7 @@ CLOSE_REASON = "the owner closed the session"
 OWNER_FA = "مدیر کل"
 CARDS_MAX = 50
 NOT_FOUND_FA = "این فرمان پیدا نشد."
+KEPT_FA = "کارگروه این جلسه در کتابخانه ماند"  # ⟨1.36⟩ §58.2 (playbooks.KEPT_FA)
 
 
 # ------------------------------------------------------------------ shapes --
@@ -475,6 +476,11 @@ async def view(
     tasks = await tasks_of(tx, rep["order_id"])
     holder = await OT.holder(tx, rep["ref"])
     brief = brief_of(badge, reason, rep, OR._j(rep.get("outputs")) or [], tasks)
+    kept = None
+    if rep.get("closed_at") is not None:  # ⟨1.36⟩ §58.2 what it left in the library
+        from hq_api.domain import playbooks as PB
+
+        kept = await PB.kept_of(tx, str(rep["ref"]))
     return View(
         session=SessionState(
             state="closed" if rep.get("closed_at") is not None else "open",
@@ -483,6 +489,8 @@ async def view(
             closed_at=rep.get("closed_at"),
             hidden=rep.get("hidden_at") is not None,
             source=rep.get("source_playbook"),
+            playbook_kept=kept,
+            playbook_kept_fa=KEPT_FA if kept else None,
         ),
         brief=Brief.model_validate(brief),
         tasks=[render_task(t) for t in tasks],
@@ -512,6 +520,8 @@ async def card(tx: Tx, rep: dict[str, Any], order: dict[str, Any]) -> SessionCar
         closed_at=rep.get("closed_at"),
         hidden=rep.get("hidden_at") is not None,
         source=rep.get("source_playbook"),
+        playbook_kept=v.session.playbook_kept,
+        playbook_kept_fa=v.session.playbook_kept_fa,
     )
 
 

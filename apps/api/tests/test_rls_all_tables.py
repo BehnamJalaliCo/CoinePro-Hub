@@ -1589,6 +1589,16 @@ async def _fill_w20(su: Any, co: dict[str, Any]) -> None:
            VALUES ($1, 'rls.account', now(), 1)""",
         c,
     )
+    # ⟨1.36⟩ §58.4 (migration 0064): a published output's kept package and the owner's opens
+    await su.execute(
+        """INSERT INTO files.publish_keep (output, company_id, job_id, published_at)
+           VALUES ('O-' || (900000000 + floor(random() * 99999999))::bigint, $1,
+                   gen_random_uuid(), now())""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO files.opened (file_id, company_id) VALUES (gen_random_uuid(), $1)", c
+    )
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)

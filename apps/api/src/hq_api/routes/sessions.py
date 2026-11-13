@@ -27,6 +27,7 @@ Owner only (owner_ctx), as the order report's routes are. Every write is audited
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 from uuid import UUID
 
@@ -38,6 +39,7 @@ from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import erase as ER
 from hq_api.domain import order_report as OR
 from hq_api.domain import order_turns as OT
+from hq_api.domain import playbooks as PB
 from hq_api.domain import session_activity as SA
 from hq_api.domain import session_memory as MEM
 from hq_api.domain import sessions as SE
@@ -46,6 +48,7 @@ from hq_api.schemas import Model, Page
 from hq_api.security import stepup
 
 router = APIRouter(tags=["orders"])
+log = logging.getLogger("hq_api.routes.sessions")
 E = responses(401, 403, 404, 409, 422)
 PERSONA_KEY = (
     r"^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9}"
@@ -175,6 +178,19 @@ async def close_session(
         rep = await SE.close(tx, ref, body.verdict, body.note, hub=ctx.hub)
         if rep.get("conversation_ref"):
             background.add_task(MEM.fold_after_close, ctx.hub, ref)
+        # ⟨1.36⟩ §58.2 its working group stays in the library (a draft; the model refines it
+        # after the answer); a failure here never fails the close
+        kept = None
+        try:
+            async with tx.conn.begin_nested():
+                kept = await PB.keep_on_close(tx, ctx.hub, ref)
+        except Exception:  # noqa: BLE001
+            log.warning("the session's playbook was not kept", extra={"order": ref})
+        if kept is not None:
+            background.add_task(PB.refine_kept, ctx.hub, ref, kept)
+            await ctx.audit(tx, company_id=rep["company_id"], action="playbook.draft",
+                            action_class="A1", target_kind="playbook", target_ref=kept,
+                            summary=f"kept from the closed session {ref}")  # fmt: skip
         await ctx.audit(tx, company_id=rep["company_id"], action="session.close", action_class="A2",
                         target_kind="order", target_ref=ref,
                         summary=f"{body.verdict}: {rep['state']}")  # fmt: skip

@@ -34,6 +34,8 @@ type S = {
   holder: { code: string; title_fa: string; company: string; company_fa: string } | null; persona: string; text_fa: string; last_at: string; state?: string;
   /** ⟨2026-11-11⟩ false: a session the checks open by its ref, in no list (the lists stay as they were). */
   listed?: boolean;
+  /** ⟨1.0.3⟩ §58.2 its close left its working group's draft in the library. */
+  kept?: boolean;
 };
 const sessions = new Map<string, S>();
 /** ⟨1.19⟩ Orders erased for good: they answer 404 and never come back from the fixtures. */
@@ -167,11 +169,22 @@ function seed() {
     holder: { code: 'PC-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'PC', company_fa: 'پرو-چارت' },
     participants: [holderP('مدیر رسانه پرو-چارت', 'PC', 'media_director@PC'), { key: 'scriptwriter@PC', kind: 'person', title_fa: 'نویسنده‌ی ریلز پرو-چارت', company: 'PC' }],
     tasks: [task(1, 'یادداشت‌های سناریو', 'done', 'agent', 'نویسنده'), task(2, 'متن گوینده', 'doing', 'agent', 'نویسنده', 'W-000341'), task(3, 'موشن‌گرافی و کاور', 'todo'), task(4, 'تأیید و انتشار', 'todo', 'owner')],
+    // ⟨1.0.3⟩ §58.1 `hq.e2e.ask=long`: the holder asks a long question that points at the newest output (the owner's «سوالش طولانی … میگه
+    // برو خروجی رو ببین»).
+    turn: flag('hq.e2e.ask') === 'long' ? {
+      question_fa: LONG_ASK_FA, at: ago41(6 * 60), by: { kind: 'employee', code: 'PC-MEDIA-MGR', display_fa: 'مدیر رسانه پرو-چارت' }, who_fa: 'مدیر رسانه پرو-چارت',
+    } : null,
   }, [
     ['owner', 'برای پرو-چارت یک ریلز درباره‌ی واگرایی در RSI بساز.', ago41(150 * 60)],
     ['media_director@PC', 'نویسنده یادداشت‌های سناریو را نوشت و حالا متن گوینده را مینویسد؛ کارگردان و موشن‌گرافی هنوز در جلسه نیستند.', ago41(12 * 60)],
   ]);
 }
+/** ⟨1.0.3⟩ §58.1 a question longer than three lines, as the owner met them. */
+const LONG_ASK_FA = 'نسخه‌ی سوم یادداشت‌های سناریو آماده است و پایینِ همین جلسه است؛ پیش از اینکه موشن‌گرافی را شروع کنیم، لطفاً خروجی را ببین. '
+  + 'در صحنه‌ی اول واگرایی را روی نمودار روزانه‌ی بیت‌کوین نشان میدهیم، در صحنه‌ی دوم همان را روی طلا، و در صحنه‌ی سوم توضیح میدهیم چرا واگرایی به‌تنهایی سیگنال خرید نیست. '
+  + 'گوینده متن را در سی‌وپنج ثانیه میخواند و جمله‌ی آخر با شعار پرو-چارت تمام میشود. '
+  + 'دو راه داریم: یا همین سه صحنه را نگه داریم و کاور را با نمودار بیت‌کوین بسازیم، یا صحنه‌ی طلا را برداریم و به‌جایش یک مثال از اشتباه رایج تازه‌کارها بگذاریم که بیشتر دیده میشود. '
+  + 'کدام را میخواهی، و آیا لحن گوینده همین‌طور آرام بماند؟';
 /** The eighteen steps of Pro-Chart's daily reels («با من»): two done, the third in hand. */
 const REELS_PLAN = [
   'استخدام سناریست و روش موضوع روزانه', 'متن گوینده و تنظیم یک‌بار صدا', 'پیش‌نویس متن ریلز اول با ChatGPT', 'خواندن متن با صدای گوینده',
@@ -409,7 +422,7 @@ function decorate(rep: any, s: S) {
   const state = s.closed_at ? (s.verdict === 'cancel' ? 'cancelled' : 'delivered') : rep.state;
   return {
     ...rep, state, pace: s.pace, talk_ref: s.conv, conversation_ref: s.conv, turn: s.turn,
-    session: { state: s.closed_at ? 'closed' : 'open', badge, reason_fa, closed_at: s.closed_at, hidden: s.hidden, source: sourceOf(s.ref) },
+    session: { state: s.closed_at ? 'closed' : 'open', badge, reason_fa, closed_at: s.closed_at, hidden: s.hidden, source: sourceOf(s.ref), ...(s.kept ? { playbook_kept: true } : {}) },
     memory_md: memoryOf(s.ref),
     brief: briefOf(rep, s), tasks: s.tasks, participants: s.participants,
     // ⟨1.18⟩ §36.3 the files of the owner's turns belong to the order, newest first
@@ -423,6 +436,7 @@ const card = (s: S, rep: any) => {
   return {
     ref: s.ref, conversation_ref: s.conv, title_fa: s.text_fa.slice(0, 80), holder: s.holder, badge, reason_fa, brief: briefOf(rep, s), pace: s.pace,
     participants: s.participants, tasks: counts(s), opened_at: s.opened_at, last_at: s.last_at, closed_at: s.closed_at, hidden: s.hidden, source: sourceOf(s.ref),
+    ...(s.kept ? { playbook: { ref: null, state: 'draft' } } : {}),
   };
 };
 
@@ -669,6 +683,10 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.headers.get('Idempotency-Key') ?? '')) return problem(422, 'validation_failed', 'کلید یکتا باید UUID باشد.');
     s.closed_at = NOW(); s.verdict = b.verdict; s.turn = null; touch();
     conversationClosed(s.conv, s.closed_at);
+    // ⟨1.0.3⟩ §58.2 a session with people beyond its holder, or one that made a reel or a post, leaves its working group's draft in the
+    // library (none when it was opened from one).
+    const rep58 = await reportOf(s.ref);
+    if (b.verdict === 'ok' && !sourceOf(s.ref) && (s.participants.some((x) => x.kind === 'person') || (rep58?.outputs ?? []).some((o: any) => ['reel', 'post', 'story'].includes(o.kind)))) s.kept = true;
     return json(await sync(s));
   }
   if (act === 'reopen' && m === 'POST') {

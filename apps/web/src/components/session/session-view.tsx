@@ -15,6 +15,9 @@
 // ⟨1.0.3⟩ §57 under the header, the row «تیم این جلسه»: one chip per person, each with a small side talk of his own (look/team.tsx);
 // the main thread stays the holder's. §57.6 an output that revises an earlier one takes its place: only the newest of a chain is in
 // the talk, with «نسخه‌ی n».
+// ⟨1.0.3⟩ §58.1 his turn never hides what he writes: the question card folds to its first line while the composer has the focus or his
+// words, and carries «خروجی آخر», which opens the newest output on the full screen over the session (closing it returns him to his
+// draft and cursor). §58.2 a closed session that left its working group in the library says so, in its end leaf and in the close's toast.
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -47,12 +50,13 @@ import { useDraftPlaybook } from '@/lib/api/v40';
 import { madeWith, type OrderGaps } from '@/lib/api/v47';
 import { DIRECT_FA, type DirectReport } from '@/lib/api/v55';
 import { newestOfChains, revisionOf } from '@/lib/api/v57';
+import { PLAYBOOK_KEPT_FA, playbookHref, playbookKept } from '@/lib/api/v58';
 import { Routines } from '@/components/v47/routines';
 import { SessionPublishes } from '@/components/v47/session-publishes';
 import { StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
 import { nudgeKey, useSessionActivity } from '@/lib/api/v41';
 import { DecisionBar, type DecisionState } from '@/components/look/decision-bar';
-import { FilesStrip, type StripFile } from '@/components/look/files';
+import { FilesStrip, Viewer, isPdf, type StripFile } from '@/components/look/files';
 import { useFillHeight } from '@/components/look/fill';
 import { faceOf, usageOf } from '@/components/look/output';
 import { PublishFor, PublishUnder, leadFile } from '@/components/look/publish';
@@ -130,6 +134,19 @@ function useShownOutputs(outs: SessionOutput[]): SessionOutput[] {
 const OUT_FA: Record<string, string> = { final: 'خروجی', part: 'بخشی از کار', partial: 'خروجی ناقص' };
 const outKindFa = (kind: string) => OUT_FA[kind] ?? OUTPUT_KIND_FA[kind as OutputKind] ?? 'خروجی';
 const outHref = (ref: string) => `/outputs?ref=${encodeURIComponent(ref)}&tab=all`;
+/** §58.2 what the close's toast says: closed and archived, and the working group it left in the library when it did. */
+const closedFa = (out: unknown) => {
+  const kept = playbookKept(out, (out as { session?: unknown } | null)?.session);
+  return kept ? `جلسه بسته و بایگانی شد؛ ${PLAYBOOK_KEPT_FA}.` : 'جلسه بسته و بایگانی شد.';
+};
+/** §58.1 the newest output that has a file to show, and the file the full screen opens with (its video, picture, PDF, else the first). */
+function latestOf(outs: SessionOutput[]): { o: SessionOutput; f: StripFile } | null {
+  const withFiles = outs.filter((o) => o.d?.created_at && o.d.attachments?.length).sort((a, b) => Date.parse(b.d!.created_at) - Date.parse(a.d!.created_at));
+  const o = withFiles[0];
+  if (!o) return null;
+  const files: StripFile[] = o.d!.attachments ?? [];
+  return { o, f: faceOf(files) ?? files.find(isPdf) ?? files[0]! };
+}
 
 /**
  * One output in the talk, where it arrived: a calm ticked line with its title, then its files as a strip of tiles (a video plays in
@@ -176,6 +193,10 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const [scrolled, setScrolled] = useState(false);
   const [asking, setAsking] = useState<{ output: string; file: string } | null>(null);
   const [closeState, setCloseState] = useState<DecisionState>('idle');
+  // §58.1 the composer's focus and words (the question card folds while either is there), and the newest output on the full screen.
+  const [composer, setComposer] = useState({ focused: false, text: false });
+  const onComposer = useCallback((c: { focused: boolean; text: boolean }) => setComposer((p) => (p.focused === c.focused && p.text === c.text ? p : c)), []);
+  const [viewing, setViewing] = useState(false);
   const closed = r.session.state === 'closed';
   const talk = sessionTalk(r);
   const conv = useConversation(talk);
@@ -233,6 +254,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const allOuts = useSessionOutputs(r.outputs);
   // §57.6 an older version of an output is not shown again where the newer one arrived (nor waited on, nor counted as made).
   const outs = useShownOutputs(allOuts);
+  const latest = useMemo(() => latestOf(outs), [outs]);
+  const kept = closed ? playbookKept(r, r.session) : null;
 
   // The ONE thing of the owner's above the composer, and where the page's one full gold is.
   const ready = badge === 'ready' && !closed;
@@ -245,7 +268,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const close = (verdict: 'ok') => {
     setCloseState('working');
     act.close.mutate({ verdict }, {
-      onSuccess: () => { setCloseState('done'); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); },
+      onSuccess: (out) => { setCloseState('done'); toast({ tone: 'ok', text: closedFa(out) }); },
       onError: (e) => { setCloseState('idle'); failed(e, 'بسته نشد؛ دوباره بزن.'); },
     });
   };
@@ -281,6 +304,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
       {closed ? null : <LiveTail a={activity} />}
       {closed ? (
         <EndLeaf r={r} used={used || null} outputs={r.outputs.length - (allOuts.length - outs.length)}
+          kept={kept ? <Link href={playbookHref(kept)} data-testid="playbook-kept" className="text-[12px] font-semibold text-silver-ink hover:text-ink hover:underline">{PLAYBOOK_KEPT_FA}</Link> : null}
           made={allFiles.length ? <FilesStrip files={allFiles} label="آنچه ساخته شد" /> : null}
           action={<Button variant="secondary" size="sm" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>} />
       ) : null}
@@ -318,11 +342,14 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         {talk ? (
           <ConversationPane
             variant="session" fill conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} onScrolled={setScrolled}
-            quietSend={bar || knot || (!!still && nudgeOn)} answer={asked ? reply : undefined}
+            quietSend={bar || knot || (!!still && nudgeOn)} answer={asked ? reply : undefined} onComposer={onComposer}
             above={(
               <>
                 {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} held={held} onHeld={(on) => setHeldAt(on ? Date.now() : null)} />}
-                {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : said && !closed ? <AnswerSent text={said} /> : null}
+                {asked ? (
+                  <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} composer={composer}
+                    latest={latest ? { title: latest.o.title_fa, onOpen: () => setViewing(true) } : null} />
+                ) : said && !closed ? <AnswerSent text={said} /> : null}
                 {closed ? null : <SessionCards cards={r.cards ?? []} />}
                 {knot ? <KnotCard refId={refId} stuckFa={blockers.length ? null : activity?.stuck_fa} blockers={blockers} company={company} run={runFix} lead={!bar} /> : null}
                 {still ? <StillCard refId={refId} still={still} now={minute} lead={!bar} canNudge={nudgeOn} /> : null}
@@ -405,7 +432,10 @@ function Session({ refId, r }: { refId: string; r: Full }) {
       </SpringSheet>
       <LiveSheet open={live} onOpenChange={setLive} a={activity} refId={refId} ready={ready} />
       <PersonSheet open={people} onOpenChange={setPeople} r={r} />
-      <CloseSheet open={closing} onOpenChange={setClosing} r={r} onAsk={(t) => { setClosing(false); void pane?.send(t); }} onClosed={() => { setClosing(false); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); }} />
+      <CloseSheet open={closing} onOpenChange={setClosing} r={r} onAsk={(t) => { setClosing(false); void pane?.send(t); }} onClosed={(out) => { setClosing(false); toast({ tone: 'ok', text: closedFa(out) }); }} />
+      {/* §58.1 the newest output, full screen over the session; closing it brings him back to his draft and its cursor. */}
+      <Viewer file={viewing && latest ? latest.f : null} title={latest ? <PlainText text={latest.o.title_fa} /> : undefined} testid="latest-output" onClose={() => setViewing(false)}
+        onCloseAutoFocus={(e) => { e.preventDefault(); pane?.focus(); }} />
       {asking ? <PublishFor output={asking.output} fileId={asking.file} onClose={() => setAsking(null)} /> : null}
     </>
   );
@@ -610,7 +640,7 @@ function FilesCard({ r }: { r: Full }) {
 
 // ================================================================================================ confirm and close ==
 /** «تأیید و بستن» with the rest that goes with a close: a working group or a production line first, a note, or cancelling the order. */
-function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean; onOpenChange: (v: boolean) => void; r: Full; onAsk: (text: string) => void; onClosed: () => void }) {
+function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean; onOpenChange: (v: boolean) => void; r: Full; onAsk: (text: string) => void; onClosed: (out: unknown) => void }) {
   const toast = useToast();
   const act = useSessionActions(r.ref);
   const draft = useDraftPlaybook(r.ref);

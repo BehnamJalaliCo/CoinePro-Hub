@@ -305,6 +305,13 @@ internal class OutputsDemo(
                 put("publish", p ?: JsonNull)
                 put("best", bestHour(co.orEmpty(), accounts.firstOrNull())?.takeIf { (it["enough"] as? JsonPrimitive)?.booleanOrNull == true } ?: JsonNull)
                 put("mode", if (group != null) JsonPrimitive("auto") else JsonNull); put("at", at ?: d.str("created_at"))
+                // ⟨1.36⟩ §58.4 a published package is filed to the archive at once; 72 hours on, the sweep frees the rest of its files (the
+                // closed session F-0093's reel stands for one the sweep has passed: its drafts and other renders, 142 MB)
+                if (state == "published") {
+                    put("archived", true)
+                    val out = p?.str("published_at")?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() }
+                    if (ref == "O-000968" || (out != null && out.isBefore(HqClock.now().minus(72, ChronoUnit.HOURS)))) put("freed_bytes", 148_897_792L)
+                }
             }
             when (val state = newest?.str("state")) {
                 null -> ready += card("ready", null, null)

@@ -48,7 +48,7 @@ import com.coinepro.hq.core.data.deskAt
 import com.coinepro.hq.core.data.deskDayFa
 import com.coinepro.hq.core.data.deskEmpty
 import com.coinepro.hq.core.data.deskLead
-import com.coinepro.hq.core.data.deskLineFa
+import com.coinepro.hq.core.data.deskHomeLineFa
 import com.coinepro.hq.core.data.deskQueueWordFa
 import com.coinepro.hq.core.data.deskRatio
 import com.coinepro.hq.core.data.deskSorted
@@ -135,14 +135,15 @@ fun DeskLine(modifier: Modifier = Modifier) {
     val desk = rememberPublishDesk().data ?: return
     val nav = LocalNav.current
     val c = Divan.colors
+    // ⟨1.36⟩ §58.5 one quiet line at the head of the office, never a block in its middle: «انتشار: ۲ آماده · ۱ در صف» → the desk.
     Row(
-        modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("desk-line").clip(RoundedCornerShape(12.dp)).background(c.card)
-            .clickable(role = Role.Button, onClickLabel = DESK_FA) { nav.go("publish-desk") }.padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier.fillMaxWidth().heightIn(min = 40.dp).testTag("desk-line").clip(RoundedCornerShape(10.dp))
+            .clickable(role = Role.Button, onClickLabel = DESK_FA) { nav.go("publish-desk") }.padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(DESK_FA, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1)
-        Text(remember(desk) { facts(*deskLineFa(desk).toTypedArray()) }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
+        DIcon(DivanIcon.SEND, size = 15.dp, tint = c.silverInk)
+        Text(remember(desk) { facts(*deskHomeLineFa(desk).split(" · ").toTypedArray()) }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        DIcon(DivanIcon.NEXT, size = 14.dp, tint = c.textMuted)
     }
 }
 
@@ -273,6 +274,13 @@ private fun DoneCard(k: DeskCard, index: Int, onAgain: () -> Unit) {
             }
         }
         if (k.state == "failed") p?.noteFa?.trim()?.ifBlank { null }?.let { Text(plain(it), style = Divan.type.caption, color = c.negative, modifier = Modifier.testTag("desk-note")) }
+        // ⟨1.36⟩ §58.4 its package kept in the archive, and what the sweep freed of the rest
+        com.coinepro.hq.core.data.deskArchivedFa(k)?.let { line ->
+            Row(Modifier.testTag("desk-archived"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DIcon(DivanIcon.DELIVERABLE, size = 13.dp, tint = c.textMuted)
+                Text(remember(line) { facts(*line.split(" · ").toTypedArray()) }, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -285,17 +293,33 @@ private fun SectionHead(title: String, count: Int) {
     }
 }
 
+/** ⟨1.36⟩ §58.5 the channels of the desk as tabs, each with how many wait in it ready. */
+@Composable
+private fun ChannelTabs(channels: List<String>, on: String, all: com.coinepro.hq.core.net.PublishDesk, onPick: (String) -> Unit) {
+    com.coinepro.hq.designsystem.ScrollRow(Modifier.testTag("desk-channels"), spacing = 8.dp) {
+        for (ch in channels) {
+            val ready = com.coinepro.hq.core.data.deskOf(all, ch).ready.size
+            com.coinepro.hq.designsystem.FilterChip(com.coinepro.hq.core.data.channelFa(ch), ch == on, { onPick(ch) }, count = ready.takeIf { it > 0 })
+        }
+    }
+}
+
 /** The desk itself. [company0]: only this company's (the hub filters). */
 @Composable
 fun PublishDeskScreen(company0: String? = null) {
     val c = Divan.colors
     val q = rememberPublishDesk(company0)
     val served = served(HubFeature.PUBLISH_DESK)
-    val desk = remember(q.data) { q.data?.let(::deskSorted) }
+    // ⟨1.36⟩ §58.5 a tab per channel the holding publishes to (today Instagram; YouTube and the rest come with their routes), each with
+    // what is ready, in the queue and published.
+    val all = remember(q.data) { q.data?.let(::deskSorted) }
+    val channels = remember(all) { all?.let { com.coinepro.hq.core.data.deskChannels(it) }.orEmpty() }
+    var channel by rememberSaveable { mutableStateOf("instagram") }
+    val desk = remember(all, channel) { all?.let { com.coinepro.hq.core.data.deskOf(it, channel) } }
     var asking by remember { mutableStateOf<DeskCard?>(null) }
     // While something is on its way the desk is read again often; while something waits for its hour, once a minute.
-    val moving = desk?.queue.orEmpty().any { k -> k.state == "publishing" || k.publish?.let(::cancelling) == true }
-    val waiting = desk?.queue.orEmpty().isNotEmpty()
+    val moving = all?.queue.orEmpty().any { k -> k.state == "publishing" || k.publish?.let(::cancelling) == true }
+    val waiting = all?.queue.orEmpty().isNotEmpty()
     LaunchedEffect(moving, waiting) {
         while (moving || waiting) { delay(if (moving) 5_000 else 60_000); q.refresh() }
     }
@@ -304,6 +328,7 @@ fun PublishDeskScreen(company0: String? = null) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PageHeader(DESK_FA, eyebrow = "هر خروجی آماده، یک جا")
                 OutputsTabs("publish-desk")
+                if (served && all != null) ChannelTabs(channels, channel, all) { channel = it }
             }
         }
         when {

@@ -62,6 +62,14 @@ class ArchiveActivities:
     async def archive_daily(self) -> dict[str, Any]:
         out: dict[str, Any] = {"retention": await RT.sweep(self.hub, self._tx)}
         out["reminders"] = await RM.run(self.hub, self._tx)
+        # ⟨1.36⟩ §58.4 a publication's package kept, the rest of its files gone after 72 h (their
+        # objects are destroyed by the queue just below)
+        from hq_api.domain import publish_keep as PK
+
+        try:
+            out["publish_sweep"] = await PK.sweep(self.hub, self._tx)
+        except Exception:  # noqa: BLE001 - the archive's own day goes on
+            log.warning("the publication sweep did not run")
         out["destroyed"] = await RT.destroy_queued(self.hub, self._tx)
         out["weekly_report"] = await weekly_report(self.hub, self._tx)
         return out

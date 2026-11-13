@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from hq_api.agents.runner import Runner
+from hq_api.domain import groups as GR
 from hq_api.domain import order_report as OR
 from hq_api.domain import order_turns as OT
 from hq_api.domain import players as PL
@@ -521,3 +522,75 @@ async def test_the_sessions_outputs_carry_the_revision_they_replace(
     outs = {o["ref"]: o for o in rep["outputs"]}
     assert outs[again["ref"]]["revision_of"] == first["ref"]
     assert outs[first["ref"]]["revision_of"] is None
+
+
+# ================================================== §58.2 the closed session's group ==
+async def test_a_closed_session_leaves_its_working_group_in_the_library(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    co = (await new_company())["code"]
+
+    async def close(ref: str) -> dict[str, Any]:
+        r = await client.post(f"/api/v1/orders/{ref}/close", headers={**owner, **idem()},
+                              json={"verdict": "ok"})  # fmt: skip
+        assert r.status_code == 200, r.text
+        out: dict[str, Any] = r.json()
+        return out
+
+    # the holder alone, no routine, no picture: nothing is kept
+    plain = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    rep = await close(plain["ref"])
+    assert rep["session"]["playbook_kept"] is None and rep["session"]["playbook_kept_fa"] is None
+    assert not await su.fetchval(
+        "SELECT 1 FROM owner.playbooks WHERE source ->> 'order' = $1", plain["ref"]
+    )
+    # a person beyond the holder: its working group stays in the library, a draft
+    out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    ref = out["ref"]
+    r = await client.post(f"/api/v1/orders/{ref}/participants", headers=owner,
+                          json={"kind": "person", "key": "advisor"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    rep = await close(ref)
+    kept = rep["session"]["playbook_kept"]
+    assert kept and kept.startswith("PB-")
+    assert rep["session"]["playbook_kept_fa"] == "کارگروه این جلسه در کتابخانه ماند"
+    assert any(s["what_fa"].startswith("کارگروه این جلسه در کتابخانه ماند") for s in rep["steps"])
+    pb = await su.fetchrow(
+        "SELECT state, source, note_fa FROM owner.playbooks WHERE ref = $1", kept
+    )
+    src = json.loads(pb["source"]) if isinstance(pb["source"], str) else pb["source"]
+    assert pb["state"] == "draft" and src["order"] == ref and "هنگام بستن جلسه" in pb["note_fa"]
+    # nothing of it runs: no working group is made before his seal
+    assert not await su.fetchval(
+        "SELECT 1 FROM growth.groups WHERE definition ->> 'playbook' = $1", kept
+    )
+    # the closed session's card says it too
+    r = await client.get("/api/v1/sessions", headers=owner, params={"state": "closed"})
+    card = next(c for c in r.json()["items"] if c["ref"] == ref)
+    assert card["playbook_kept"] == kept and card["playbook_kept_fa"]
+
+
+def test_the_groups_line_says_when_who_lets_it_out_and_where() -> None:
+    rule = "FREQ=DAILY;BYHOUR=9;BYMINUTE=30"
+    when = GR.when_fa(rule)
+    assert when and when.startswith("هر روز")
+    assert GR.when_fa("not a rule") is None
+    g = GR.Group(
+        key="pb_0001", title_fa="ریلز روزانه", purpose_fa="", seats=[], kpis=[],
+        routines=[GR.Routine(key="daily_reel", title_fa="ریلز روز", seat="lead", schedule=rule,
+                             brief_md="x", max_tokens=1000, when_fa=when)],
+        connections=["instagram"], eligible="chosen", state="on", lead="lead",
+    )  # fmt: skip
+    assert GR.flow_fa(g, GR.MemberPublish()) == f"{when}: ساخت → تأیید تو → اینستاگرام"
+    auto = GR.MemberPublish(mode="auto")
+    assert GR.flow_fa(g, auto) == f"{when}: ساخت → انتشار خودکار → اینستاگرام"
+    assert GR.flow_fa(g.model_copy(update={"connections": []}), auto) is None
+    row = {"key": g.key, "title_fa": g.title_fa, "purpose_fa": "", "state": "on", "version": 1,
+           "definition": {"routines": [{"key": "daily_reel", "title_fa": "ریلز روز",
+                                        "seat": "lead", "schedule": rule, "brief_md": "x",
+                                        "max_tokens": 1000}]}}  # fmt: skip
+    assert GR.render(row).routines[0].when_fa == when

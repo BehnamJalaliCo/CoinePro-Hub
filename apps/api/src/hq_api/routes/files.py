@@ -405,9 +405,20 @@ async def get_file(
     row is read under RLS before any byte is."""
     async with ctx.tx() as tx:
         f = await tx.one(
-            "SELECT id, name, mime, storage_key, sha256, size FROM files.files WHERE id = :id",
+            """SELECT id, name, mime, storage_key, sha256, size, company_id FROM files.files
+               WHERE id = :id""",
             id=id,
         )
+        if variant == "original":
+            # ⟨1.36⟩ §58.4 the owner opened it: a publication's sweep keeps it (written once an
+            # hour at most: a player's many byte ranges write nothing more)
+            await tx.exec(
+                """INSERT INTO files.opened (file_id, company_id) VALUES (:f, :co)
+                   ON CONFLICT (file_id) DO UPDATE SET opened_at = now()
+                   WHERE files.opened.opened_at < now() - interval '1 hour'""",
+                f=f["id"],
+                co=f["company_id"],
+            )
         if variant != "original":
             v = await tx.first(
                 """SELECT id, name, mime, storage_key, sha256, size FROM files.files

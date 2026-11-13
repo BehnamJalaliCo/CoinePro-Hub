@@ -7,10 +7,13 @@
 // last seven days: its link, a failure with its reason and a quiet «دوباره», a cancelled one as «لغو شد»). A company whose publishing
 // path is not set yet has no action and says the technical team sets it: never the owner's step. On a hub before §55 the page says so
 // and its entries are hidden.
+// ⟨1.0.3⟩ §58.5 the desk is its own page: the home keeps one line «انتشار: ۶ آماده | ۲ در صف»; the page has a tab per channel the cards
+// go out on (today «اینستاگرام»), each with its «آماده | در صف | منتشرشده». §58.4 a published card says what stayed and what went:
+// «بایگانی شد | 38 MB آزاد شد».
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useRef, useState, type TouchEvent } from 'react';
+import { useMemo, useRef, useState, type TouchEvent } from 'react';
 import { CompanyMark } from '@/components/brand/marks';
 import { Icon } from '@/components/icon';
 import { Arc } from '@/components/live/motion';
@@ -22,6 +25,8 @@ import { publishNote, useCancel } from '@/components/v47/cancel';
 import { KIND_FA } from '@/lib/api/v44';
 import { bestHourOf } from '@/lib/api/v47';
 import { deskDayFa, usePublishDesk, type DeskCard, type PublishDesk } from '@/lib/api/v55';
+import { ARCHIVED_FA, PUBLISH_FA, channelFa, channelOf, freedFa, sweptOf } from '@/lib/api/v58';
+import { fileSize } from '@/components/media/attachments';
 import { ago, cx } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { DESK_HREF } from '@/components/shell/nav';
@@ -59,16 +64,19 @@ export function OutputsTabs() {
   );
 }
 
-/** One line for the home: how many outputs are ready to go out, and the way to the desk. Nothing on a hub without the desk. */
+/**
+ * One line for the home: «انتشار: ۶ آماده | ۲ در صف», and the way to the desk (§58.5: the desk itself is never in the middle of the
+ * home). Nothing on a hub without the desk.
+ */
 export function DeskLine() {
   const desk = usePublishDesk(null);
   if (!desk.data) return null;
   const ready = desk.data.ready?.length ?? 0;
   const queue = desk.data.queue?.length ?? 0;
   return (
-    <Link href={DESK_HREF} data-testid="desk-line" className="flex min-h-11 items-center gap-2 rounded-[12px] px-3 text-[13px] text-sec hover:bg-hover hover:text-ink">
-      <span className="font-semibold text-ink">{DESK_FA}</span>
-      <span className="min-w-0 flex-1 truncate text-[12px]"><Facts>{ready ? `${faCount(ready)} خروجی آماده‌ی انتشار` : 'چیزی آماده نیست'}{queue ? `${faCount(queue)} در صف` : null}</Facts></span>
+    <Link href={DESK_HREF} data-testid="desk-line" aria-label={`${DESK_FA}: ${faCount(ready)} آماده، ${faCount(queue)} در صف`} className="flex min-h-11 items-center gap-2 rounded-[12px] px-3 text-[13px] text-sec hover:bg-hover hover:text-ink">
+      <span className="font-semibold text-ink">{PUBLISH_FA}:</span>
+      <span className="min-w-0 flex-1 truncate text-[13px]"><Facts>{`${faCount(ready)} آماده`}{`${faCount(queue)} در صف`}</Facts></span>
       <span className="flex-none text-muted"><Icon name="next" size={16} mirror /></span>
     </Link>
   );
@@ -85,7 +93,7 @@ function Who({ c }: { c: DeskCard }) {
       <CompanyMark code={c.company} height={14} mono />
       <Facts>
         <span className="font-semibold text-ink">{c.company_fa}</span>
-        اینستاگرام
+        {channelFa(channelOf(c))}
         {c.account ? <Ltr tabular={false}>@{c.account}</Ltr> : accounts.length > 1 ? `${faCount(accounts.length)} حساب` : null}
       </Facts>
     </span>
@@ -154,6 +162,8 @@ function QueueCard({ c, i }: { c: DeskCard; i: number }) {
 function DoneCard({ c, i, onAgain }: { c: DeskCard; i: number; onAgain: () => void }) {
   const p = c.publish ?? null;
   const when = p?.published_at ?? c.at;
+  // §58.4 only a publication that went out keeps its package (and frees the rest); a failed or cancelled one deleted nothing.
+  const swept = c.state === 'published' ? sweptOf(c, p) : null;
   const item = stagger(i);
   return (
     <li {...item} data-desk="done" data-output={c.output} data-state={c.state} className={cx('flex flex-col gap-1.5 rounded-[14px] bg-card p-3', item.className)}>
@@ -173,6 +183,11 @@ function DoneCard({ c, i, onAgain }: { c: DeskCard; i: number; onAgain: () => vo
         </span>
       </div>
       {c.state === 'failed' && p?.note_fa ? <span className="text-[12px] leading-5 text-neg" data-desk-note><FaText text={p.note_fa} /></span> : null}
+      {swept ? (
+        <span className="text-[11px] leading-5 text-muted" data-desk-swept>
+          <Facts>{swept.archived ? ARCHIVED_FA : null}{swept.freed ? freedFa(fileSize(swept.freed)) : null}</Facts>
+        </span>
+      ) : null}
     </li>
   );
 }
@@ -205,18 +220,52 @@ function usePull(refresh: () => Promise<unknown>) {
   };
 }
 
-const sections = (d: PublishDesk) => ({ ready: d.ready ?? [], queue: d.queue ?? [], done: d.done ?? [] });
+const sections = (d: PublishDesk, ch: string | null) => {
+  const mine = (l: DeskCard[] | undefined) => (l ?? []).filter((c) => !ch || channelOf(c) === ch);
+  return { ready: mine(d.ready), queue: mine(d.queue), done: mine(d.done) };
+};
+/** The channels the desk's cards go out on, in the order they first appear (Instagram today). */
+const channelsOf = (d: PublishDesk | null | undefined): string[] => {
+  const out: string[] = [];
+  for (const c of [...(d?.ready ?? []), ...(d?.queue ?? []), ...(d?.done ?? [])]) { const ch = channelOf(c); if (!out.includes(ch)) out.push(ch); }
+  return out;
+};
+
+/** §58.5 a tab per channel, each with its «آماده | در صف | منتشرشده». */
+function ChannelTabs({ d, channels, on, onPick }: { d: PublishDesk; channels: string[]; on: string; onPick: (ch: string) => void }) {
+  return (
+    <div role="tablist" aria-label="کانال‌های انتشار" data-testid="desk-channels" className="no-scrollbar flex gap-1.5 overflow-x-auto">
+      {channels.map((ch) => {
+        const n = sections(d, ch);
+        const sel = ch === on;
+        return (
+          <button key={ch} type="button" role="tab" aria-selected={sel} aria-controls="desk-channel-panel" data-channel={ch} onClick={() => onPick(ch)}
+            className={cx('flex min-w-0 flex-none flex-col items-start gap-0.5 rounded-[12px] px-3.5 py-2 text-start', sel ? 'bg-raised shadow-[inset_0_0_0_1px_var(--hq-silver-line)]' : 'bg-tile hover:bg-hover')}>
+            <span className={cx('text-[14px] leading-6', sel ? 'font-semibold text-ink' : 'text-sec')}>{channelFa(ch)}</span>
+            <span className="text-[11px] leading-4 text-muted" data-channel-counts>
+              <Facts>{`${faCount(n.ready.length)} آماده`}{`${faCount(n.queue.length)} در صف`}{`${faCount(n.done.length)} منتشرشده`}</Facts>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** The desk itself. */
 export function PublishDeskView() {
   const { company } = useScope();
   const q = usePublishDesk(company);
   const [asking, setAsking] = useState<DeskCard | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
   const p = usePull(() => q.refetch());
+  const channels = useMemo(() => channelsOf(q.data), [q.data]);
   if (q.isLoading) return <div className="flex flex-col gap-3"><Skeleton className="h-72 rounded-[16px]" /><Skeleton className="h-20 rounded-[14px]" /></div>;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return <Card><Empty icon="send" title="میز انتشار بعد از به‌روزرسانی ستاد می‌آید" body="تا آن وقت، هر خروجی را از صفحه‌ی خودش منتشر کن." /></Card>;
-  const { ready, queue, done } = sections(q.data);
+  // The channel he picked while it still has cards, else the first.
+  const channel = picked && channels.includes(picked) ? picked : channels[0] ?? null;
+  const { ready, queue, done } = sections(q.data, channel);
   const empty = !ready.length && !queue.length && !done.length;
   // Only the first card that can be published carries the full gold.
   const lead = ready.find((c) => c.route_ready !== false)?.output ?? null;
@@ -230,6 +279,8 @@ export function PublishDeskView() {
   return (
     <div className="mx-auto flex w-full max-w-[44rem] flex-col gap-6" data-testid="publish-desk" {...p.handlers}>
       {p.pull > 0 ? <div aria-hidden className="flex items-end justify-center" style={{ height: p.pull }}>{p.pull > 8 ? <Arc size={16} word="در حال خواندن" /> : null}</div> : null}
+      {channel ? <ChannelTabs d={q.data} channels={channels} on={channel} onPick={setPicked} /> : null}
+      <div id="desk-channel-panel" role={channel ? 'tabpanel' : undefined} aria-label={channel ? channelFa(channel) : undefined} className="flex flex-col gap-6">
       {empty ? <div className="flex flex-col gap-1"><div className="flex justify-end">{refresh}</div><Card><p className="px-5 py-10 text-center text-[14px] leading-7 text-sec" data-testid="desk-empty">{DESK_EMPTY_FA}</p></Card></div> : null}
       {ready.length ? (
         <Section title="آماده‌ی انتشار" count={ready.length} action={refresh}>
@@ -246,6 +297,7 @@ export function PublishDeskView() {
           <ul className="flex flex-col gap-2">{done.map((c, i) => <DoneCard key={`${c.output}-${c.publish?.job ?? c.file.id}`} c={c} i={i} onAgain={() => setAsking(c)} />)}</ul>
         </Section>
       ) : null}
+      </div>
       {asking ? <PublishFor output={asking.output} fileId={asking.file.id} seed={seedOf(asking)} onClose={() => setAsking(null)} /> : null}
     </div>
   );

@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from hq_api.db import Tx
 from hq_api.domain import best_hour as BH
 from hq_api.domain import order_report as OR
+from hq_api.domain import publish_keep as PK
 from hq_api.domain import session_publish as SPB
 from hq_api.domain.gov_common import owner_tz
 
@@ -85,6 +86,10 @@ class DeskCard(BaseModel):
     best: OR.BestHour | None = None
     mode: Literal["ask", "auto"] | None = None
     at: datetime
+    # ⟨1.36⟩ §58.4 a `published` card: its package filed to the archive; the bytes the sweep freed
+    # 72 hours after (null until then) — «بایگانی شد · {size} آزاد شد»
+    archived: bool = False
+    freed_bytes: int | None = None
 
 
 class PublishDesk(BaseModel):
@@ -206,4 +211,9 @@ async def desk(tx: Tx, hub: Any, company_id: UUID | None = None) -> PublishDesk:
     out.ready = out.ready[:SECTION]
     out.queue = sorted(out.queue, key=lambda c: c.at)[:SECTION]
     out.done = sorted(out.done, key=lambda c: c.at, reverse=True)[:SECTION]
+    kept = await PK.of_outputs(tx, [c.output for c in out.done if c.state == "published"])
+    out.done = [
+        c.model_copy(update=kept[c.output].model_dump()) if c.output in kept else c
+        for c in out.done
+    ]
     return out

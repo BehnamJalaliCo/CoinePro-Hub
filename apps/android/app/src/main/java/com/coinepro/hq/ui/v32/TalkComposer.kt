@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -155,6 +156,8 @@ fun TalkComposerView(
     quietMic: Boolean = false,
     /** ⟨1.0.1⟩ asks the words' field for the keyboard («اصلاح» of a session's decision bar). */
     focus: androidx.compose.ui.focus.FocusRequester? = null,
+    /** ⟨1.36⟩ §58.1 the words' field took or left the keyboard. */
+    onFocus: ((Boolean) -> Unit)? = null,
 ) {
     val c = Divan.colors
     val ready = text.isNotBlank() || hasFiles
@@ -189,6 +192,7 @@ fun TalkComposerView(
             text, { if (it.length <= 10_000) onText(it) },
             Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 10.dp).padding(top = 8.dp, bottom = 4.dp)
                 .then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
+                .then(if (onFocus != null) Modifier.onFocusChanged { onFocus(it.isFocused) } else Modifier)
                 .semantics { contentDescription = placeholder },
             textStyle = Divan.type.body.copy(color = c.textPrimary),
             cursorBrush = SolidColor(c.goldInk),
@@ -219,8 +223,18 @@ fun TalkComposerView(
     }
 }
 
-/** How many lines the composer grows to before its words scroll. */
-const val COMPOSER_LINES = 6
+/** How many lines the composer grows to before its words scroll (⟨1.36⟩ §58.1: five, so the question card and the thread keep room). */
+const val COMPOSER_LINES = 5
+
+/**
+ * ⟨1.36⟩ §58.1 The draft of each session's composer, kept in memory by its key while the app lives: leaving the session (the outputs, an
+ * output's page, another session) and coming back finds the words where they were. A turn that went clears it.
+ */
+object ComposerDrafts {
+    private val drafts = java.util.concurrent.ConcurrentHashMap<String, String>()
+    fun get(key: String): String? = drafts[key]
+    fun put(key: String, text: String) { if (text.isEmpty()) drafts.remove(key) else drafts[key] = text }
+}
 
 /** The hold-to-talk button: press, speak, release. It swells with the owner's voice while held. */
 @Composable
@@ -272,13 +286,21 @@ fun TalkComposer(
     quietMic: Boolean = false,
     placeholder: String? = null,
     focus: androidx.compose.ui.focus.FocusRequester? = null,
+    /** ⟨1.36⟩ §58.1 the key its draft is kept by across leaving the screen ([ComposerDrafts]); null: with the screen only. */
+    draftKey: String? = null,
+    /** ⟨1.36⟩ §58.1 the owner is writing (the field has the keyboard, or words): the question card folds to its first line. */
+    onWriting: ((Boolean) -> Unit)? = null,
 ) {
     val toasts = LocalToasts.current
     val scope = rememberCoroutineScope()
     val engines = rememberQuery("voice-engines", "voice", maxAgeMs = 30_000) { voiceEngines() }
     val patterns = keyPatterns(engines.data.orEmpty())
-    // The draft is saved with the screen; a key never is (it is taken out of the text before it is stored).
-    var text by rememberSaveable(session.conv?.ref) { mutableStateOf("") }
+    // The draft is saved with the screen (and by [draftKey] beyond it); a key never is (it is taken out of the text before it is stored).
+    var text by rememberSaveable(session.conv?.ref) { mutableStateOf(draftKey?.let(ComposerDrafts::get).orEmpty()) }
+    if (draftKey != null) androidx.compose.runtime.SideEffect { ComposerDrafts.put(draftKey, text) }
+    var focused by remember { mutableStateOf(false) }
+    val writing = focused || text.isNotEmpty()
+    if (onWriting != null) androidx.compose.runtime.LaunchedEffect(writing) { onWriting(writing) }
     // the draft is kept per conversation, so the seed is put in again once the conversation has loaded, and only then given back
     androidx.compose.runtime.LaunchedEffect(seed, session.conv?.ref) { if (seed != null) { text = seed; if (session.conv != null) onSeeded() } }
     var sending by remember { mutableStateOf(false) }
@@ -341,6 +363,7 @@ fun TalkComposer(
         filesBusy = files?.uploading == true,
         quietSend = quietSend, quietMic = quietMic,
         placeholder = placeholder ?: COMPOSER_PLACEHOLDER, focus = focus,
+        onFocus = { focused = it },
     )
 }
 

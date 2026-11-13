@@ -271,7 +271,9 @@ export function deskOf(company: string | null) {
     const state = cur?.state ?? null;
     if (!state || state === 'failed' || state === 'cancelled') ready.push({ ...base, state: 'ready', publish: null, at: o.at });
     if (cur && (state === 'scheduled' || state === 'publishing' || state === 'waiting_setup' || state === 'waiting_seal')) queue.push({ ...base, state, publish: publishView(cur), at: cur.scheduled_at ?? cur.at });
-    if (cur && (state === 'published' || state === 'failed' || state === 'cancelled') && Date.now() - Date.parse(cur.published_at ?? cur.at) < WEEK) done.push({ ...base, state, publish: publishView(cur), at: cur.published_at ?? cur.at });
+    // ⟨1.0.3⟩ §58.4 a package that went out a day ago is filed and the sweep freed the rest (the newer ones: filed, not swept yet).
+    const swept = state === 'published' ? { archived: true, ...(Date.now() - Date.parse(cur!.published_at ?? cur!.at) > 72 * 3_600_000 || ref === 'O-000065' ? { freed_bytes: 40_265_318 } : {}) } : {};
+    if (cur && (state === 'published' || state === 'failed' || state === 'cancelled') && Date.now() - Date.parse(cur.published_at ?? cur.at) < WEEK) done.push({ ...base, state, publish: publishView(cur), at: cur.published_at ?? cur.at, ...swept });
   }
   const newest = (a: { at: string }, b: { at: string }) => Date.parse(b.at) - Date.parse(a.at);
   return { ready: ready.sort(newest).slice(0, 30), queue: queue.sort((a, b) => -newest(a, b)).slice(0, 30), done: done.sort(newest).slice(0, 30) };

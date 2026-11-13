@@ -469,13 +469,19 @@ fun OrderSessionScreen(ref: String) {
                 haptics.seal()
                 closeState = DecisionState.DONE
                 q.set(out)
-                toasts.ok("جلسه بسته و بایگانی شد.")
+                toasts.ok(closedToastFa(out))
                 refreshAll()
             } catch (e: ApiException) { haptics.error(); closeState = DecisionState.IDLE; toasts.error(e.messageFa) }
         }
     }
     var asking by remember { mutableStateOf<Pair<String, String>?>(null) }
     val focus = remember { FocusRequester() }
+    // ⟨1.36⟩ §58.1 room to write: while he writes the question card is one line; the newest output opens over the session (the composer,
+    // its words and its cursor stay where they are), and the keyboard comes back to them when it closes.
+    var writing by remember(ref) { mutableStateOf(false) }
+    val latestOut = remember(entries) { entries.lastOrNull { it is SessionEntry.Output } as? SessionEntry.Output }?.output
+    var viewing by remember(ref) { mutableStateOf<String?>(null) }
+    var refocus by remember(ref) { mutableStateOf(false) }
     val allFiles = outs.flatMap { it.files }
     val used = outsAll.sumOf { so -> so.d?.let { usageOf(it).first } ?: 0L }
 
@@ -522,6 +528,9 @@ fun OrderSessionScreen(ref: String) {
                         cancelled = o.state == "cancelled", outputs = o.outputs.size, tookFa = tookFa(o.at, o.session?.closedAt), used = used.takeIf { it > 0 },
                         onReopen = if (sessionsOn) ({ reopen() }) else null, reopening = reopening.busy,
                         made = if (allFiles.isEmpty()) null else ({ FilesStrip(allFiles) }),
+                        // ⟨1.36⟩ §58.2 the working group it left in the library, one tap from here
+                        kept = o.session?.let { com.coinepro.hq.core.data.playbookKept(it.playbookKept, it.playbook) } == true,
+                        onKept = { nav.go("playbooks") },
                     )
                 }
                 // The steps of the work that is live, as thin lines at the end of the thread.
@@ -579,6 +588,8 @@ fun OrderSessionScreen(ref: String) {
                     whoFa = turn.whoFa.ifBlank { addresseeFa(null, participants) }, questionFa = turn.questionFa, askedAt = turn.at.ifBlank { null },
                     standingFa = standingTaskFa(o.tasks), answers = remember(turn.questionFa) { readyAnswers(turn.questionFa) }, busy = answering,
                     onAnswer = { answer(it) }, modifier = side,
+                    folded = writing, latest = latestOut?.let { com.coinepro.hq.core.data.latestOutputFa(it.titleFa) },
+                    onLatest = { refocus = writing; viewing = latestOut?.ref },
                 ) else said?.let { AnswerSent(it, side) }
                 // The session's cards that wait for a decision, answered here (never «برو پیدایش کن»).
                 SessionCards(o.cards, side) { scope.launch { q.refresh() } }
@@ -611,12 +622,22 @@ fun OrderSessionScreen(ref: String) {
                     seed = ComposerSeeds.peek(ref), onSeeded = { ComposerSeeds.take(ref) },
                     // The page's one gold is the decision bar's, the knot's action or the still card's; the send steps back beside them.
                     quietSend = bar || knot || (still != null && liveOn && sessionsOn), quietMic = true, placeholder = "به مسئول بگو چه بکند…", focus = focus,
+                    draftKey = "session:$ref", onWriting = { writing = it },
                 )
             } else if (closeState == DecisionState.IDLE) {
                 Text(CLOSED_FA, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).testTag("session-closed"))
             }
         }
     }
+    }
+
+    viewing?.let { r ->
+        val so = outs.firstOrNull { it.ref == r } ?: latestOut?.takeIf { it.ref == r }?.let { SessionOutput(it.ref, it.titleFa, it.kind, null, false, null) }
+        if (so == null) viewing = null
+        else OutputFull(so) {
+            viewing = null
+            if (refocus) runCatching { focus.requestFocus() }
+        }
     }
 
     asking?.let { (output, file) ->
@@ -757,6 +778,11 @@ private suspend fun addParticipant(env: com.coinepro.hq.core.Env, toasts: com.co
         toasts.error(e.messageFa)
     }
 }
+
+/** «جلسه بسته و بایگانی شد.», and ⟨1.36⟩ §58.2 the working group it left in the library when the hub says so. */
+internal fun closedToastFa(out: OrderReport): String =
+    if (out.session?.let { com.coinepro.hq.core.data.playbookKept(it.playbookKept, it.playbook) } == true) "جلسه بسته و بایگانی شد؛ ${com.coinepro.hq.core.data.PLAYBOOK_KEPT_FA}."
+    else "جلسه بسته و بایگانی شد."
 
 /** The company an order belongs to: the route's first, else its holder's. */
 internal fun companyOfOrder(o: OrderReport): String? =
@@ -1159,7 +1185,7 @@ private fun CloseSheet(o: OrderReport, company: String?, onDismiss: () -> Unit, 
                     ok.run {
                         val out = env.api.closeSession(o.ref, "ok", note.trim(), key)
                         haptics.seal()
-                        toasts.ok("جلسه بسته و بایگانی شد.")
+                        toasts.ok(closedToastFa(out))
                         onClosed(out)
                     }
                 },

@@ -114,7 +114,7 @@ class Look2ScreensTest(private val name: String, private val night: Boolean) {
             // The files of an output as a strip, and a video that will not play: one sentence and its download.
             "look2-session-video" to Scene(listOf("reel-stoploss.mp4", VIDEO_FAILED_FA, "دانلود")) { Files("O-000967") },
             // A closed session: what it made, how long it took, what it used; read from its top.
-            "look2-session-closed" to Scene(listOf("این جلسه تأیید و بایگانی شد", "دوباره باز کن", "ساخته شد", "1 ساعت و 51 دقیقه", "تمام", CLOSED_FA)) { OrderSessionScreen("F-0093") },
+            "look2-session-closed" to Scene(listOf("این جلسه تأیید و بایگانی شد", "دوباره باز کن", "ساخته شد", "1 ساعت و 51 دقیقه", "تمام", CLOSED_FA, com.coinepro.hq.core.data.PLAYBOOK_KEPT_FA)) { OrderSessionScreen("F-0093") },
             // ⟨2026-11-11⟩ The owner's 12-hour stall: nobody works and the hub said «آرام». The page says «ایستاده», one calm card with the
             // last thing done and when, and «ادامه بده» (the page's one gold; the send steps back).
             "look2-session-still" to Scene(
@@ -138,14 +138,14 @@ class Look2ScreensTest(private val name: String, private val night: Boolean) {
             "look2-desk-empty" to Scene(listOf(DESK_FA, DESK_EMPTY_FA), before = { LookDemo.desk = "empty" }) { PublishDeskScreen() },
             // A hub before §55: the page says so (its tab and the home's line are not there).
             "look2-desk-old-hub" to Scene(listOf("میز انتشار بعد از به‌روزرسانی ستاد می‌آید"), hides = listOf("آماده‌ی انتشار"), before = { LookDemo.desk = "old" }) { PublishDeskScreen() },
-            "look2-home-desk-line" to Scene(listOf(DESK_FA, "خروجی آماده‌ی انتشار", "در صف")) { com.coinepro.hq.ui.office.OfficeScreen() },
-            "look2-home-old-hub" to Scene(listOf("نوبت تو"), hides = listOf(DESK_FA), before = { LookDemo.desk = "old" }) { com.coinepro.hq.ui.office.OfficeScreen() },
+            "look2-home-desk-line" to Scene(listOf("انتشار:", "آماده", "در صف")) { com.coinepro.hq.ui.office.OfficeScreen() },
+            "look2-home-old-hub" to Scene(listOf("نوبت تو"), hides = listOf("انتشار:"), before = { LookDemo.desk = "old" }) { com.coinepro.hq.ui.office.OfficeScreen() },
             // ------------------------------------------------------------------ C3.3 output and «تأیید و انتشار»
             "look2-publish-sheet" to Scene(listOf(PUBLISH_SHEET_FA, PUBLISH_SHEET_SUB_FA, "reel-stoploss.mp4", "@tradeyar", "cover.png", "حد ضرر را کجا بگذاریم", "بهترین ساعت (", "انتشار", "همین حالا")) { Sheet("O-000967") },
             "look2-outputs" to Scene(listOf("خروجی‌ها", DESK_FA, "همه", "ریلز: حد ضرر را کجا بگذاریم")) { com.coinepro.hq.ui.outputs.OutputsScreen("all") },
             "look2-outputs-folded" to Scene(listOf("خروجی‌ها", "فیلترها"), then = Then.FOLD) { com.coinepro.hq.ui.outputs.OutputsScreen("all") },
             // ------------------------------------------------------------------ C3.4 the working group
-            "look2-group-tiles" to Scene(listOf("شرکت‌های عضو", "تریدیار", "آخرین نوبت", "نوبت بعد", "انتشار خودکار", "گوینده‌ی محتوا", "دفتر موضوع‌ها", "تنظیم")) { Members("PB-0001") },
+            "look2-group-tiles" to Scene(listOf("شرکت‌های عضو", "تریدیار", "آخرین نوبت", "نوبت بعد", "انتشار خودکار", "گوینده‌ی محتوا", "دفتر موضوع‌ها", "تنظیم", ": ساخت ←", "← اینستاگرام")) { Members("PB-0001") },
             // «تنظیم» opens the standing word in place: «استوری هم بشود», the hour, «بهترین ساعت، خودکار», «ذخیره».
             "look2-group-settings" to Scene(listOf("استوری هم بشود", "بهترین ساعت، خودکار", "ذخیره"), then = Then.SETTING) { Members("PB-0001") },
             // A member that stands still: why, in one line, and the quiet «راه بینداز».

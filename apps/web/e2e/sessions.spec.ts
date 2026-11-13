@@ -417,7 +417,7 @@ test('a session opens scrolled to its last turn; scrolled up it offers «↓» t
   });
 });
 
-test('the composer keeps the whole width for a long draft, grows to about six lines, then scrolls', async ({ page }) => {
+test('the composer keeps the whole width for a long draft, grows to five lines, then scrolls', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0007');
     const box = page.getByLabel('پیام', { exact: true });
@@ -434,7 +434,7 @@ test('the composer keeps the whole width for a long draft, grows to about six li
     expect(h1).toBeGreaterThan(60); // it grew
     await box.fill(Array.from({ length: 30 }, (_, i) => `خط ${i + 1}`).join('\n'));
     const h2 = (await box.boundingBox())!.height;
-    expect(h2, 'about six lines, then it scrolls').toBeLessThan(180);
+    expect(h2, 'five lines, then it scrolls').toBeLessThan(150);
     expect(await box.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
     expect(await wide()).toBeGreaterThan(0.9);
   });

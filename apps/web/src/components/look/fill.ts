@@ -13,14 +13,18 @@ export function useFillHeight<T extends HTMLElement = HTMLDivElement>(bottom: ()
     if (!el) return;
     const fit = () => {
       const top = el.getBoundingClientRect().top + window.scrollY;
-      const h = `${Math.max(min, Math.round(window.innerHeight - top - bottom()))}px`;
+      // ⟨1.0.3⟩ §58.1 the visible height: with the keyboard up, what is left above it (a browser that overlays the keyboard).
+      const vh = Math.min(window.innerHeight, window.visualViewport?.height ?? Number.POSITIVE_INFINITY);
+      // The floor never pushes the bottom under a keyboard: it is at most what is visible below the frame's top.
+      const h = `${Math.max(Math.min(min, Math.round(vh - top)), Math.round(vh - top - bottom()))}px`;
       if (el.style.height !== h) el.style.height = h;
     };
     fit();
     window.addEventListener('resize', fit);
+    window.visualViewport?.addEventListener('resize', fit);
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
     ro?.observe(document.body);
-    return () => { window.removeEventListener('resize', fit); ro?.disconnect(); };
+    return () => { window.removeEventListener('resize', fit); window.visualViewport?.removeEventListener('resize', fit); ro?.disconnect(); };
   }, [bottom, min]);
   return ref;
 }

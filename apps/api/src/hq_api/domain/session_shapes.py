@@ -55,6 +55,10 @@ class SessionState(BaseModel):
     hidden: bool = False
     # ⟨1.22⟩ §40.3 the playbook this session was opened from (PB-…), or null
     source: str | None = None
+    # ⟨1.36⟩ §58.2 a closed session: the playbook it left in the library (PB-…) and the one line
+    # «کارگروه این جلسه در کتابخانه ماند»; null while open or when it left none
+    playbook_kept: str | None = None
+    playbook_kept_fa: str | None = None
 
 
 class SessionCard(BaseModel):
@@ -74,3 +78,6 @@ class SessionCard(BaseModel):
     hidden: bool = False
     # ⟨1.22⟩ §40.3 the playbook this session was opened from (PB-…), or null
     source: str | None = None
+    # ⟨1.36⟩ §58.2 as SessionState's
+    playbook_kept: str | None = None
+    playbook_kept_fa: str | None = None

@@ -14,7 +14,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
 import { DecisionBar } from '@/components/look/decision-bar';
 import { GroupHeader, MemberHead, QUIET_ACTION, QuietLink, RunDots, SETTING_ROW, SealSummary, StateWord, WhenAt, nextRun } from '@/components/look/group';
@@ -37,6 +37,7 @@ import { CONNECTION_FA, useGroupActions } from '@/lib/api/v29';
 import { accountsNamed, clockOf, publishRule, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
 import { bestHourOf, useBestHour } from '@/lib/api/v47';
 import { useGroupRunsLook } from '@/lib/api/v55';
+import { AUTO_FA, dayFlow } from '@/lib/api/v58';
 import { BestHourChoice } from '@/components/v47/best-hour';
 import { LedgerRow } from '@/components/v47/ledger';
 import { NarratorRow } from '@/components/v47/narrator';
@@ -377,6 +378,21 @@ const soonest = (pb: Pick<Playbook, 'routines'>): string | null =>
   (pb.routines ?? []).map((r) => nextRun(r.schedule)).filter((x): x is string => !!x).sort()[0] ?? null;
 
 /** The member companies as tiles: state, last run, next run, the work line, and each one's settings as one grouped block. */
+/**
+ * ⟨1.0.3⟩ §58.3 a member's day as one line: «هر روز 07:00: ساخت ← انتشار خودکار ← اینستاگرام» (or «تأیید تو» while he taps each one).
+ * The routine runs on the hub's own scheduler; no automation of n8n's is made for it.
+ */
+function DayFlow({ pb, publish }: { pb: Playbook; publish: MemberPublish | undefined }) {
+  const f = dayFlow(pb.routines, pb.platform, publish);
+  if (!f) return null;
+  return (
+    <p className="text-[12px] leading-5 text-sec" data-day-flow data-mode={publish?.mode === 'auto' ? 'auto' : 'ask'}>
+      {f.every_fa}{f.hm ? <> <Ltr>{f.hm}</Ltr></> : null}:{' '}
+      {f.steps.map((x, i) => <Fragment key={x}>{i ? ' ← ' : ''}<span className={x === AUTO_FA ? 'font-semibold text-ink' : undefined}>{x}</span></Fragment>)}
+    </p>
+  );
+}
+
 function Members({ pb }: { pb: Playbook }) {
   const toast = useToast();
   const qc = useQueryClient();
@@ -402,6 +418,7 @@ function Members({ pb }: { pb: Playbook }) {
                 <MemberHead m={m} runs={sealed ? runs.data : undefined} next={m.state === 'on' ? next : null}
                   onStart={sealed ? () => start(m.company, m.name_fa) : undefined} starting={act.member.isPending && act.member.variables?.company === m.company}
                   action={m.order ? <QuietLink href={`/s/${encodeURIComponent(m.order)}`}>جلسه‌اش</QuietLink> : null} />
+                {sealed && publishes(pb) && m.state === 'on' ? <DayFlow pb={pb} publish={m.publish} /> : null}
                 {sealed ? (
                   // §45 his standing word, §48 who speaks for it, §47 what it already said: one block, each a row (nothing of a row the hub does not serve).
                   <div className="flex flex-col divide-y divide-[var(--hq-line-divider)] rounded-[12px] bg-tile px-3 empty:hidden" data-member-settings>

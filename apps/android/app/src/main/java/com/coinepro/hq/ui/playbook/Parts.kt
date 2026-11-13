@@ -566,6 +566,8 @@ fun MemberTiles(pb: Playbook, modifier: Modifier = Modifier) {
                     starting = starting == m.company,
                     action = m.order?.let { o -> { com.coinepro.hq.ui.look.QuietLink("جلسه‌اش", { nav.go("session/$o") }) } },
                 )
+                // ⟨1.36⟩ §58.3 its day in one line: the routine at its hour, then his OK or «انتشار خودکار», then Instagram (no n8n needed)
+                if (sealed) com.coinepro.hq.core.data.groupFlowFa(pb, said[m.company] ?: m.publish)?.let { FlowLine(it) }
                 // §45 his standing word, §48 who speaks for it, §47 what it already said: one block, each a row.
                 if (sealed && group != null) com.coinepro.hq.ui.look.SettingsBlock {
                     if (publishes(pb) && HubFeature.STANDING_PUBLISH !in gaps) StandingRow(group, m.company, said[m.company] ?: m.publish) { said[m.company] = it }
@@ -574,6 +576,16 @@ fun MemberTiles(pb: Playbook, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+/** ⟨1.36⟩ §58.3 «هر روز 09:00: ساخت ← انتشار خودکار ← اینستاگرام». */
+@Composable
+private fun FlowLine(line: String) {
+    val c = Divan.colors
+    Row(Modifier.fillMaxWidth().testTag("group-flow"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        com.coinepro.hq.designsystem.DIcon(DivanIcon.TIME, size = 14.dp, tint = c.silverInk)
+        Text(com.coinepro.hq.designsystem.timesFig(line), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
     }
 }
 

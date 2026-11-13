@@ -22,6 +22,8 @@ export type StripFile = {
 };
 export const isVideo = (f: Pick<StripFile, 'mime'>) => f.mime.startsWith('video/');
 export const isImage = (f: Pick<StripFile, 'mime'>) => f.mime.startsWith('image/');
+/** ⟨1.0.3⟩ §58.1 a PDF opens in the full screen too (the browser's own reader inside it). */
+export const isPdf = (f: Pick<StripFile, 'mime' | 'name'>) => f.mime === 'application/pdf' || /\.pdf$/i.test(f.name);
 const isText = (f: Pick<StripFile, 'mime' | 'name'>) => f.mime.startsWith('text/') || /\.(md|markdown|txt|srt|csv)$/i.test(f.name);
 const ext = (name: string) => (name.includes('.') ? name.split('.').pop()!.toUpperCase().slice(0, 4) : 'FILE');
 
@@ -153,15 +155,25 @@ function FullVideo({ f, at }: { f: StripFile; at: number }) {
   return <video ref={video} src={fileUrl(f.id)} controls playsInline onError={() => setFailed(true)} className="max-h-full max-w-full rounded-[8px] bg-black" />;
 }
 
-/** The full screen: a picture, a text file, or a video with its controls and sound from where the inline one was. */
-export function Viewer({ file, at = 0, onClose }: { file: StripFile | null; at?: number; onClose: () => void }) {
+/**
+ * The full screen: a picture, a text file, a PDF, or a video with its controls and sound from where the inline one was. ⟨1.0.3⟩
+ * [title]: what the bar names (an output's own title), the file's name under it; [onCloseAutoFocus]: where the focus goes back to.
+ */
+export function Viewer({ file, at = 0, onClose, title, onCloseAutoFocus, testid = 'file-viewer' }: {
+  file: StripFile | null; at?: number; onClose: () => void; title?: ReactNode; onCloseAutoFocus?: (e: Event) => void; testid?: string;
+}) {
   return (
     <D.Root open={!!file} onOpenChange={(v) => { if (!v) onClose(); }}>
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-[70] bg-black/90" />
-        <D.Content data-testid="file-viewer" className="fixed inset-0 z-[71] flex flex-col outline-none">
+        <D.Content data-testid={testid} onCloseAutoFocus={onCloseAutoFocus} className="fixed inset-0 z-[71] flex flex-col outline-none">
           <div className="flex items-center gap-2 px-3 py-2 text-white">
-            <D.Title className="min-w-0 flex-1 truncate text-[13px]"><bdi dir="ltr">{file?.name}</bdi></D.Title>
+            {title ? (
+              <span className="flex min-w-0 flex-1 flex-col">
+                <D.Title className="truncate text-[14px] font-semibold">{title}</D.Title>
+                <bdi dir="ltr" className="truncate text-start text-[11px] text-white/70">{file?.name}</bdi>
+              </span>
+            ) : <D.Title className="min-w-0 flex-1 truncate text-[13px]"><bdi dir="ltr">{file?.name}</bdi></D.Title>}
             <D.Description className="sr-only">نمایش فایل</D.Description>
             {file ? <a href={fileUrl(file.id)} download={file.name} aria-label="دانلود" className="flex size-10 items-center justify-center rounded-full hover:bg-white/10"><Icon name="download" size={20} /></a> : null}
             <D.Close className="flex size-10 items-center justify-center rounded-full hover:bg-white/10" aria-label="بستن"><Icon name="close" size={22} /></D.Close>
@@ -170,7 +182,7 @@ export function Viewer({ file, at = 0, onClose }: { file: StripFile | null; at?:
             {!file ? null : isVideo(file) ? <FullVideo key={file.id} f={file} at={at} /> : isImage(file) ? (
               // eslint-disable-next-line @next/next/no-img-element -- a file of the owner's, served by the API
               <img src={fileUrl(file.id)} alt={file.name} className="max-h-full max-w-full rounded-[8px] object-contain" />
-            ) : <TextBody f={file} />}
+            ) : isPdf(file) ? <iframe src={fileUrl(file.id)} title={file.name} data-pdf className="size-full max-w-[60rem] rounded-[8px] bg-white" /> : <TextBody f={file} />}
           </div>
         </D.Content>
       </D.Portal>

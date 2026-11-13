@@ -42,6 +42,8 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         val listed: Boolean = true,
         /** ⟨1.32⟩ §54 the holder does this session's work himself (a direct session). */
         val direct: Boolean = false,
+        /** ⟨1.36⟩ §58.2 closed, it left its working group in the library. */
+        var playbookKept: Boolean = false,
     ) {
         val cv: String get() = "CV-05" + ref.takeLast(2)
     }
@@ -134,7 +136,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         S(
             "F-0098", "کمپین نوروز برای همه‌ی شرکت‌ها.", "closed", "تأیید و بسته شد؛ خط تولید آن هنوز کار میکند.", "auto",
             Triple("ceo@TY", "مدیرعامل تریدیار", "TY"), mutableListOf(person("ceo@TY", "holder", "مدیرعامل تریدیار", "TY")), mutableListOf(),
-            null, Triple("کمپین اجرا شد.", "—", "—"), opened = 20000, last = 15000, closedAt = at(15000),
+            null, Triple("کمپین اجرا شد.", "—", "—"), opened = 20000, last = 15000, closedAt = at(15000), playbookKept = true,
         ),
         // ⟨0.19.0⟩ The owner's real session, as dense as his (F-0011, 2026-11-08): nine steps of his own, the media director's long notes,
         // two hires approved, many of the hub's own lines (one with a ref in it), two results together, a short budget; two at work now.
@@ -218,6 +220,23 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             opened = 3_016, last = 2_905, closedAt = at(2_905),
             outputs = listOf(jo("ref" to "O-000968", "title_fa" to "ریلز: سطوح کلیدی طلا", "kind" to "reel")),
             steps = mutableListOf(step(3_014, "منشی هلدینگ", "فرمان را به رسانه‌ی تریدیار سپرد."), step(2_921, "سامانه", "خروجی رسید: ریلز: سطوح کلیدی طلا")),
+            listed = false, playbookKept = true,
+        ),
+        // ⟨1.36⟩ §58.1 the owner's turn with a long question (the owner: «وقتی سوال میپرسه … نوشته هام دیده نمیشه»), its reel delivered
+        // just before it: the card shows three lines and «بیشتر», folds to one while he writes, and «خروجی آخر» opens the reel.
+        S(
+            "F-0096", "برای تریدیار ریلز «حد ضرر را کجا بگذاریم» را بساز؛ قدم به قدم با من.", "your_turn", "مدیر رسانه‌ی تریدیار میپرسد: شروع ریلز با سؤال باشد یا با عدد؟", "step",
+            Triple("media@TY", "مدیر رسانه‌ی تریدیار", "TY"),
+            mutableListOf(person("media@TY", "holder", "مدیر رسانه‌ی تریدیار", "TY")),
+            mutableListOf(task("l1", 1, "متن و صدای ریلز", "done", who = "نویسنده"), task("l2", 2, "نسخه‌ی اول ریلز", "done", who = "سازنده‌ی ریلز"), task("l3", 3, "کاور و کپشن", "doing"), task("l4", 4, "تأیید و انتشار", "todo")),
+            jo("question_fa" to LONG_QUESTION_FA, "at" to at(3), "by" to jo("code" to "TY-MEDIA-02", "kind" to "employee", "display_fa" to "مدیر رسانه‌ی تریدیار"), "who_fa" to "مدیر رسانه‌ی تریدیار"),
+            Triple("نسخه‌ی اول ریلز ساخته شد.", "کاور و کپشن منتظر جواب توست.", "بگو شروع ریلز با سؤال باشد یا با عدد."),
+            opened = 150, last = 3,
+            outputs = listOf(jo("ref" to "O-000967", "title_fa" to "ریلز: حد ضرر را کجا بگذاریم", "kind" to "reel")),
+            steps = mutableListOf(
+                step(148, "منشی هلدینگ", "فرمان را به رسانه‌ی تریدیار سپرد."), step(110, "نویسنده", "متن ریلز را نوشت."),
+                step(41, "سامانه", "خروجی رسید: ریلز: حد ضرر را کجا بگذاریم"), step(3, "مدیر رسانه‌ی تریدیار", "سؤال از تو: شروع ریلز با سؤال باشد یا با عدد؟"),
+            ),
             listed = false,
         ),
         // ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states: F-0094 while the
@@ -350,6 +369,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "badge" to s.badge, "reason_fa" to s.reason, "brief" to brief(s), "pace" to s.pace, "participants" to JsonArray(s.participants),
         "tasks" to jo("done" to s.tasks.count { it.str("state") == "done" }, "total" to s.tasks.count { it.str("state") != "dropped" }),
         "opened_at" to at(s.opened), "last_at" to at(s.last), "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source,
+        *(if (s.playbookKept) arrayOf("playbook_kept" to true) else emptyArray()),
     )
 
     private fun brief(s: S) = jo("done_fa" to s.brief.first, "now_fa" to s.brief.second, "need_fa" to s.brief.third)
@@ -366,7 +386,10 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "route" to jo("companies" to JsonArray(listOfNotNull(s.holder.third?.let { JsonPrimitive(it) })), "output_kind" to "other", "preview_fa" to "", "why_fa" to "", "kind" to "work"),
         "steps" to JsonArray(s.steps), "blockers" to JsonArray(s.blockers), "outputs" to JsonArray(s.outputs), "summary" to null, "updated_at" to at(s.last),
         "pace" to s.pace, "conversation_ref" to s.cv, "turn" to s.turn,
-        "session" to jo("state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source),
+        "session" to jo(
+            "state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source,
+            *(if (s.playbookKept) arrayOf("playbook_kept" to true) else emptyArray()),
+        ),
         "brief" to brief(s), "tasks" to JsonArray(s.tasks), "participants" to JsonArray(s.participants), "files" to JsonArray(s.files),
         "memory_md" to s.memory,
         // ⟨1.32⟩ §54 (a hub before it does not say the word)
@@ -536,6 +559,8 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             }
             action == "close" && method == "POST" -> {
                 s.closedAt = now.toString(); s.badge = "closed"; s.reason = if (body?.str("verdict") == "cancel") "لغو و بایگانی شد." else "تأیید و بسته شد."; s.turn = null
+                // ⟨1.36⟩ §58.2 people beyond the holder, or an output: its working group is drafted and stays in the library
+                if (s.participants.size > 1 || s.outputs.isNotEmpty()) s.playbookKept = true
                 return 200 to report(s)
             }
             action == "reopen" && method == "POST" -> { s.closedAt = null; s.badge = "moving"; s.reason = "دوباره باز شد؛ ${s.holder.second} خبر دارد."; return 200 to report(s) }
@@ -905,6 +930,12 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         const val STALLED_FA = "گام ۲ در جریان است. موضوع اول («معرفی ابزارهای ترسیم روی نمودار پرو-چارت») ثبت شد. گوینده‌ی ثابت پرو-چارت " +
             "(Kore، فارسی معیار و گرم) یک‌بار برای همیشه تنظیم شد. پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و " +
             "کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است."
+        /** ⟨1.36⟩ §58.1 a long question of the holder's (F-0096): more than three lines on a phone. */
+        const val LONG_QUESTION_FA = "نسخه‌ی اول ریلز «حد ضرر را کجا بگذاریم» آماده است و خودش را همین پایین میبینی. پیش از اینکه کاور و کپشن را نهایی کنم سه چیز را باید بدانم.\n" +
+            "یک: شروع ریلز با سؤال «حد ضرر تو کجاست؟» بماند یا با عدد «۸۰٪ معامله‌گرها حد ضرر را اشتباه میگذارند» شروع کنیم؟\n" +
+            "دو: زیرنویس فارسی کامل باشد یا فقط کلمه‌های کلیدی روی تصویر بیاید؟\n" +
+            "سه: آخر ریلز دعوت به کانال تلگرام باشد یا دعوت به دنبال کردن صفحه؟\n" +
+            "اگر روی صدای گوینده یا سرعت برش هم نظری داری همین‌جا بگو تا پیش از نسخه‌ی دوم اعمال کنم."
         const val DRAFT_ASKED_FA = "پیش‌نویس متن ریلز اول از ChatGPT خواسته شد و در صف است؛ تا جوابش برسد، کاور را آماده میکنم."
 
         /** The eighteen steps of Pro-Chart's daily reels («با من»). */

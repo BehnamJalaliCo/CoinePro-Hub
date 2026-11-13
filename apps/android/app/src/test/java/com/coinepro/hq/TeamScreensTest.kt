@@ -16,9 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
@@ -74,7 +76,7 @@ class TeamScreensTest(private val name: String, private val night: Boolean) {
             // the two empty media seats dashed.
             "team-session" to Scene(listOf(TEAM_FA, "مسئول جلسه", "نویسنده", "کارگردان", "موشن‌گرافی", "ChatGPT")) { OrderSessionScreen(REF) },
             // …run to its end: «گوینده» with the company's voice.
-            "team-session-narrator" to Scene(listOf(TEAM_FA, "گوینده:", "Kore"), then = Then.NARRATOR) { OrderSessionScreen(REF) },
+            "team-session-narrator" to Scene(listOf(TEAM_FA, "گوینده", "Kore"), then = Then.NARRATOR) { OrderSessionScreen(REF) },
             // A filled seat's side talk: half the screen, his lines and the owner's, the composer and close; nothing of the main thread.
             "team-side-talk" to Scene(
                 listOf("با سناریست پرو-چارت", "گفتگوی کوتاه", "زیر یک دقیقه", "کلمه‌ی کامنت «چارت» باشد", "پیش‌نویس تازه در صف", "به سناریست پرو-چارت بگو"),
@@ -158,7 +160,12 @@ class TeamScreensTest(private val name: String, private val night: Boolean) {
         settle(22)
         when (scene.then) {
             Then.NOTHING -> Unit
-            Then.NARRATOR -> compose.onNodeWithText("گوینده:", substring = true).performScrollTo()
+            Then.NARRATOR -> {
+                // found first without waiting (a missing chip fails here); the row is swiped to its end (in a right-to-left row the
+                // end is on the left), never scrolled by its semantics, which animates on a clock this test holds still
+                assertTrue("$name has the narrator's chip", compose.onAllNodesWithTag("team-narrator").fetchSemanticsNodes().size == 1)
+                compose.onNodeWithTag("session-team").performTouchInput { swipeRight(startX = width * 0.05f, endX = width * 0.75f, durationMillis = 300) }
+            }
         }
         if (scene.then != Then.NOTHING) settle(6)
         for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())

@@ -1275,8 +1275,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     and the company's audit trail keeps it. ⟨§46⟩ A publication IG-Hub holds for its time (or
     Meta is still preparing) is said once as «زمان‌بندی شد»; its end is said when a later
     question (follow_up) brings it."""
+    from hq_api.domain import publish_keep as PK
     from hq_api.domain.gov_common import owner_tz
 
+    kept: str | None = None
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await tx.first(
             f"SELECT {JOB_COLS} FROM infra.server_jobs j WHERE j.id = :id AND j.kind = 'publish'",  # noqa: S608
@@ -1336,6 +1338,13 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 )
             return
         ok = done.state == "published"
+        if ok:
+            # ⟨1.36⟩ §58.4 confirmed: its package is kept (filed below), the rest swept in 72 h
+            try:
+                async with tx.conn.begin_nested():
+                    kept = await PK.on_published(tx, j)
+            except Exception:  # noqa: BLE001 - the publication's end never fails on it
+                log.warning("the published package was not recorded", extra={"job": str(job_id)})
         company_id = await tx.scalar(
             "SELECT id FROM core.companies WHERE code = :c", c=str(s.get("company") or "")
         )
@@ -1393,6 +1402,8 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 summary=f"{args.get('kind')} to @{account} from {ref or s.get('output')}: "
                 f"{outcome}"[:500],
             )
+    if kept is not None:
+        await PK.after_published(hub, kept)
 
 
 async def cancel(

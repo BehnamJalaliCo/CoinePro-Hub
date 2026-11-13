@@ -173,7 +173,7 @@ private fun EmptySeatChip(s: SessionSeat, onClick: () -> Unit) {
 private fun NarratorChip(n: TeamNarrator, onClick: () -> Unit) {
     val c = Divan.colors
     Row(
-        Modifier.height(34.dp).clip(CircleShape).border(1.dp, c.lineDivider, CircleShape)
+        Modifier.height(34.dp).testTag("team-narrator").clip(CircleShape).border(1.dp, c.lineDivider, CircleShape)
             .clickable(role = Role.Button, onClickLabel = "گوینده‌ی محتوا", onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {

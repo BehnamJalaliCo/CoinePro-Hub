@@ -69,6 +69,7 @@ MAX_SEATS, MAX_ROUTINES, MAX_KPIS, MAX_RULES, MAX_CONNECTIONS = 12, 12, 12, 20, 
 LAST_TURNS = 30
 TURN_CHARS = 1_200
 NOT_FOUND_FA = "این کارگروه پیدا نشد."
+SYSTEM_FA = "سامانه"
 Platform = Literal["instagram", "youtube", "telegram", "site", "any"]
 State = Literal["draft", "sealed", "retired"]
 
@@ -626,11 +627,14 @@ async def material(tx: Tx, hub: Any, order_ref: str) -> Material:
     ) or OT._company_of(order)
     hires = await _hires(tx, conv, company)
     made = await _made_by_cards(tx, conv)
+    # the automations its cards made and ⟨1.36⟩ §58.2 the standing routines said in it (§50)
     automations = [
         {"ref": r["ref"], "sentence_fa": r["sentence_fa"], "rule": _j(r["rule"])}
         for r in await tx.all(
-            "SELECT ref, sentence_fa, rule FROM growth.automations WHERE ref = ANY(:refs)",
+            """SELECT ref, sentence_fa, rule FROM growth.automations
+               WHERE ref = ANY(:refs) OR source ->> 'order' = :o ORDER BY created_at""",
             refs=made.get("automation") or [],
+            o=order_ref,
         )
     ]
     turns: list[str] = []
@@ -786,6 +790,127 @@ async def store_draft(
                           {"card": str(card["id"]), "kind": "playbook", "state": "offered"})  # fmt: skip
     await _emit(tx, ref, "draft")
     return row
+
+
+# ------------------------------------------------------- ⟨1.36⟩ §58.2 kept on close --
+KEPT_FA = "کارگروه این جلسه در کتابخانه ماند"
+AUTO_FA = (
+    "این پیش‌نویس را کد هنگام بستن جلسه از روی آدم‌ها، روال‌ها و خروجی‌های آن ساخت؛ "
+    "تا مُهر تو چیزی از آن اجرا نمیشود."
+)
+
+
+async def kept_of(tx: Tx, order_ref: str) -> str | None:
+    """The playbook a session left in the library (its newest one not retired), or None."""
+    ref: str | None = await tx.scalar(
+        """SELECT ref FROM owner.playbooks WHERE source ->> 'order' = :o AND state <> 'retired'
+           ORDER BY created_at DESC LIMIT 1""",
+        o=order_ref,
+    )
+    return ref
+
+
+async def worth_keeping(tx: Tx, order_ref: str) -> bool:
+    """A session whose working group is worth keeping: people beyond its holder, a routine, or
+    an output with a video or a picture."""
+    rep = await tx.first(
+        "SELECT conversation_ref FROM owner.order_reports WHERE ref = :r", r=order_ref
+    )
+    if rep is None:
+        return False
+    if rep["conversation_ref"]:
+        conv = await tx.first(
+            "SELECT present, holder FROM talk.conversations WHERE ref = :r",
+            r=rep["conversation_ref"],
+        )
+        people = [
+            k for k in (conv or {}).get("present") or []
+            if k and k != (conv or {}).get("holder") and not str(k).startswith("player:")
+        ]  # fmt: skip
+        if people:
+            return True
+    if await tx.scalar(
+        "SELECT EXISTS (SELECT 1 FROM growth.automations WHERE source ->> 'order' = :o)",
+        o=order_ref,
+    ):
+        return True
+    order = await OR.load_order(tx, order_ref)
+    ids = [w["id"] for w in await OR.tree(tx, OR.root_refs(order or {}))]
+    return bool(ids) and bool(
+        await tx.scalar(
+            """SELECT EXISTS (SELECT 1 FROM cartable.deliverables d
+                 JOIN files.files f ON f.id = ANY(d.attachments)
+                 WHERE d.work_id = ANY(:ids)
+                   AND (f.mime LIKE 'video/%' OR f.mime LIKE 'image/%'))""",
+            ids=ids,
+        )
+    )
+
+
+async def keep_on_close(tx: Tx, hub: Any, order_ref: str) -> str | None:
+    """⟨1.36⟩ §58.2 the session closed: its working group drafted by itself into the library
+    (code's skeleton now; the holder's model refines it after the answer, refine_kept), when it
+    is worth keeping and no playbook was drafted from it yet. Nothing runs before the owner's
+    seal. Answers the playbook's ref, or None."""
+    if await tx.scalar(
+        "SELECT EXISTS (SELECT 1 FROM owner.playbooks WHERE source ->> 'order' = :o)",
+        o=order_ref,
+    ):
+        return None
+    if not await worth_keeping(tx, order_ref):
+        return None
+    m = await material(tx, hub, order_ref)
+    roles = await AU.company_roles(tx, hub, m.company) if m.company else None
+    notes: list[str] = []
+    d = normalise(m.skeleton, roles, hub.charters, notes)
+    rep = await OR.ensure(tx, order_ref)
+    assert rep is not None
+    holding = await OR._holding(tx)
+    row = await tx.one(
+        """INSERT INTO owner.playbooks (company_id, title_fa, purpose_fa, platform, definition, source,
+               parent, note_fa)
+           VALUES (:co, :t, :p, :pl, CAST(:d AS jsonb), CAST(:s AS jsonb), :parent, :note)
+           RETURNING ref""",
+        co=holding["id"],
+        t=d["title_fa"],
+        p=d["purpose_fa"],
+        pl=d["platform"],
+        d=definition_json(d),
+        s=json.dumps(
+            {"order": m.order, "company": m.company, "conversation": m.conversation},
+            ensure_ascii=False,
+        ),
+        parent=rep.get("source_playbook"),
+        note="\n".join([AUTO_FA, *notes])[:2000],
+    )
+    ref = str(row["ref"])
+    await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, f"{KEPT_FA}: {ref}")])
+    await _emit(tx, ref, "draft")
+    return ref
+
+
+async def refine_kept(hub: Any, order_ref: str, ref: str) -> None:
+    """After the close's answer: the holder's one model call over the session (as POST
+    /orders/{ref}/playbook) replaces the skeleton, while the draft is untouched (version 1).
+    Without the model the skeleton stays; never fails."""
+    from hq_api import workflows_client
+
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            m = await material(tx, hub, order_ref)
+        holding = await hub.companies.holding()
+        out = await workflows_client.model_call(hub, body_of(m, holding.code), timeout_s=120)
+        if not (isinstance(out, dict) and out.get("seats") is not None):
+            return
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            row = await row_of(tx, ref, lock=True)
+            if row["state"] != "draft" or int(row["version"]) != 1:
+                return  # the owner changed or sealed it meanwhile: his stays
+            given = {k: out.get(k) for k in ("title_fa", "purpose_fa", "platform", "seats",
+                                             "routines", "kpis", "connections", "rules_fa")}  # fmt: skip
+            await patch(tx, hub, ref, given)
+    except Exception:  # noqa: BLE001 - the skeleton stays a good draft
+        log.warning("the kept playbook was not refined", extra={"playbook": ref})
 
 
 async def _emit(tx: Tx, ref: str, state: str, **more: Any) -> None:

@@ -116,11 +116,7 @@ fun deskQueueWordFa(state: String): String? = when (state) {
     else -> null
 }
 
-/** «۳ خروجی آماده‌ی انتشار» / «چیزی آماده نیست», and «۲ در صف» when the queue holds any: the home's line to the desk. */
-fun deskLineFa(d: PublishDesk): List<String> = listOfNotNull(
-    if (d.ready.isNotEmpty()) "${d.ready.size} خروجی آماده‌ی انتشار" else "چیزی آماده نیست",
-    if (d.queue.isNotEmpty()) "${d.queue.size} در صف" else null,
-)
+// ⟨1.36⟩ §58.5 the home's line to the desk is [deskHomeLineFa] (Room.kt).
 
 /**
  * The day of a moment as the owner says it: «امروز», «امشب», «فردا», «فردا شب», «دیروز», «دیشب», else its date. The hour is written
