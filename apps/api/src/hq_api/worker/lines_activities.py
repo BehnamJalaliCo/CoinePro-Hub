@@ -65,4 +65,11 @@ class LinesActivities:
 
     @activity.defn(name="speech_make")
     async def speech_make(self, job: dict[str, Any]) -> dict[str, Any]:
-        return await SM.make(self.hub, job)
+        from hq_api.voice import transport
+
+        # ⟨2026-11-13⟩ the API's call is made right here (this is the worker), not through Temporal
+        token = transport.LOCAL.set(True)
+        try:
+            return await SM.make(self.hub, job)
+        finally:
+            transport.LOCAL.reset(token)

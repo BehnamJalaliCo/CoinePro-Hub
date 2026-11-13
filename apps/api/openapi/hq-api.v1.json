@@ -49762,8 +49762,11 @@
             "title": "Code"
           },
           "engine": {
-            "const": "aistudio",
             "default": "aistudio",
+            "enum": [
+              "aistudio",
+              "gemini_api"
+            ],
             "title": "Engine",
             "type": "string"
           },

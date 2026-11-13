@@ -50,7 +50,8 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
             for st in task.steps:
                 assert st.do != "screenshot"  # no step can take a picture of the page
                 if st.do == "fill":
-                    assert st.text in ("{prompt}", "{style}")
+                    # ⟨2026-11-13⟩ AI Studio's voice library is searched by the job's voice
+                    assert st.text in ("{prompt}", "{style}", "{voice}")
     assert set(got["chatgpt-web"].tasks) == {"text", "image", "cover"}
     assert set(got["gemini-web"].tasks) == {"text", "image", "video"}
     assert set(got["deepseek-web"].tasks) == {"text"}
@@ -523,7 +524,9 @@ def test_the_lines_recipes_are_read_only_or_type_only_what_the_job_gives() -> No
     assert set(ai.tasks) == {"tts"} and set(pin.tasks) == {"search"}
     assert ai.tasks["tts"].timeout_s <= RC.TASK_CAP_S["tts"]
     steps = ai.tasks["tts"].steps
-    assert [s.do for s in steps if s.do == "select"] == ["select"]
+    # ⟨2026-11-13⟩ the 2026-11 page: the voice searched by name and its card clicked
+    assert any(s.do == "fill" and s.text == "{voice}" for s in steps)
+    assert any(s.do == "click" and "{voice}" in (s.selector or "") for s in steps)
     assert steps[-1].do == "download_media" and steps[-1].selector == "audio"
     assert any(s.do == "fill" and s.text == "{style}" for s in steps)
     # Pinterest is read only: it searches and collects, it never clicks a pin or a button
@@ -543,7 +546,7 @@ def test_the_lines_recipes_are_read_only_or_type_only_what_the_job_gives() -> No
     [
         {"do": "select", "selector": "x", "text": "Puck"},
         {"do": "select", "selector": "x"},
-        {"do": "fill", "selector": "x", "text": "{voice}"},
+        {"do": "fill", "selector": "x", "text": "{secret}"},
         {"do": "attach"},
         {"do": "collect"},
     ],
@@ -577,3 +580,24 @@ def test_an_audio_download_is_typed_by_content() -> None:
     assert SW.sniff(b"ID3\x04\x00\x00\x00\x00\x00\x00abc") == "audio/mpeg"
     assert SW.sniff(b"OggS\x00\x02" + b"\x00" * 10) == "audio/ogg"
     assert SW.sniff(b"<html>not audio</html>") is None
+
+
+def test_a_selector_names_the_jobs_voice_and_style_quoted() -> None:
+    """⟨2026-11-13⟩ AI Studio's 2026-11 page: a speaker card and a style preset picked by name."""
+    pytest.importorskip("playwright")  # browser_web needs it (services/scripts/browser-test.sh)
+    from hq_egress import browser_web as BW
+    from hq_egress.browser_web import JobIn, Proxy
+
+    def job(voice: str | None, style: str | None) -> JobIn:
+        return JobIn(account="aistudio-web", recipe={}, prompt="x", timeout_s=10,
+                     proxy=Proxy(server="http://p:1"), voice=voice, style=style)  # fmt: skip
+
+    card = {"do": "click", "selector": "button[aria-label='{voice}']"}
+    assert BW._selector(card, job("Cruz", None)) == "button[aria-label='Cruz']"
+    preset = {"do": "click", "selector": "x:has-text('{style}')", "optional": True}
+    assert BW._selector(preset, job("Cruz", "it's")) == "x:has-text('it\\'s')"
+    with pytest.raises(BW.StepFailed):
+        BW._selector(card, job("Cruz'] , *[x", None))  # not a plain name
+    with pytest.raises(BW.StepFailed):
+        BW._selector(preset, job("Cruz", ""))  # no style: the optional step is skipped
+    assert BW._selector({"do": "click", "selector": "#run"}, job(None, None)) == "#run"

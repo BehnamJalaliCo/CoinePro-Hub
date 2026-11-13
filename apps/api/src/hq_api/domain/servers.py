@@ -1184,6 +1184,14 @@ async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[
     j = await load_job(tx, j["id"])
     if j["kind"] == "publish":  # its media item learns it (not 7 days later)
         await _apply_publish(tx, j, {}, False, code)
+    if j["kind"] == "claude" and (j.get("args") or {}).get("direct"):
+        # ⟨2026-11-13⟩ a direct turn's own run ends with its cancel. The runner's result of a
+        # cancelled job is refused (409 job_cancelled), so workspace.after_job never runs for it:
+        # the run stayed `running` until its token expired (up to RUN_TTL_S) and every word the
+        # owner said meanwhile only waited («مسئول هنوز روی نوبت قبلی است»), F-0018.
+        from hq_api.domain import direct as DR
+
+        await DR.close_run(tx, j)
     await audit.record(
         tx,
         audit.SYSTEM,

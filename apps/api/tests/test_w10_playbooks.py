@@ -184,7 +184,9 @@ async def test_the_session_remembers_by_code_and_a_small_model_folds_it(
     assert prompt["memory_so_far"] == memory and prompt["session"] == ref
     assert any("بودجه بده" in line for line in prompt["new_turns"])
     assert "مشاور کل" in prompt["present"]
-    assert seen[0]["json_schema"]["properties"]["memory_md"]["maxLength"] == MEM.MEMORY_CHARS
+    # ⟨2026-11-13⟩ no maxLength in the schema (one a little over it failed the whole answer); the
+    # memory is cut to MEMORY_CHARS here
+    assert "maxLength" not in seen[0]["json_schema"]["properties"]["memory_md"]
     assert await memory_of(su, ref) == (folded, turns)
     # a failure never blocks: the old memory stays
     route_answer(monkeypatch, None)
@@ -199,6 +201,17 @@ async def test_the_session_remembers_by_code_and_a_small_model_folds_it(
     got = await MEM.fold(hub, MEM.router_call(talk["router"]), ref)
     assert got["folded"] is False  # the fake router answers the summary's shape, not the memory's
     assert talk["router"].bodies[-1]["task_class"] == MEM.TASK_CLASS
+    # ⟨2026-11-13⟩ a chunk the model cannot fold is tried again on its first half
+    asked: list[int] = []
+
+    async def halves(body: dict[str, Any]) -> dict[str, Any] | None:
+        n = len(json.loads(body["prompt"])["new_turns"])
+        asked.append(n)
+        return {"memory_md": folded} if n <= MEM.FOLD_EVERY // 2 else None
+
+    got = await MEM.fold(hub, halves, ref, force=True)
+    half = MEM.FOLD_EVERY // 2
+    assert asked == [MEM.FOLD_EVERY, half] and got == {"folded": True, "upto": turns + half}
     # at close, the api folds once more in the background
     seen = route_answer(monkeypatch, model({"memory_md": folded + "\n## نکته‌های باز\n- بسته شد"}))
     r = await client.post(

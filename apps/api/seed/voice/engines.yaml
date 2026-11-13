@@ -83,6 +83,10 @@ engines:
 # `gender_fa` is the voice's documented gender; `trait_fa` its documented character.
 voices_as_of: "2026-11-04"
 gemini_voices:
+  # ⟨2026-11-13⟩ AI Studio's 2026-11 voice library (Gemini 3.8 Flash TTS): its "Professional"
+  # male voices; Cruz is the owner's narrator for Pro-Chart (session F-0018)
+  - {name: Cruz, gender_fa: مرد, trait_fa: آرام و حرفه‌ای، صدای بم}
+  - {name: Elio, gender_fa: مرد, trait_fa: آرام و دلگرم‌کننده}
   - {name: Zephyr, gender_fa: زن, trait_fa: روشن}
   - {name: Puck, gender_fa: مرد, trait_fa: سرزنده}
   - {name: Charon, gender_fa: مرد, trait_fa: اطلاع‌رسان}

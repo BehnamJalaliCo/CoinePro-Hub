@@ -1450,6 +1450,7 @@ WAKE_REASONS = (
     "session_idle:%", "owner_reply:%", "child_delivered:%", "child_failed:%", "child_cancelled:%",
     "joined:%", "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%",
     "owner_turn_over:%", "side_word:%",
+    "continue:%",  # ⟨2026-11-13⟩ the next turn at once (direct.go_on)
 )  # fmt: skip
 PRODUCTIVE_TOOLS = (
     "order.progress", "order.ack", "deliver", "work.delegate", "work.request", "work.split",

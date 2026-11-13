@@ -313,6 +313,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     from hq_api.domain import players as PL
 
     routine_delivered: UUID | None = None
+    direct_order: str | None = None  # ⟨2026-11-13⟩ its memory folded after the commit
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await SV.load_job(tx, job_id)
         if j["kind"] != "claude" or not (j.get("args") or {}).get("workspace"):
@@ -405,6 +406,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             if direct:
                 from hq_api.domain import direct as DR
 
+                # ⟨2026-11-13⟩ F-0018: every card read «خروجی جلسه: <the order's title>» and one
+                # video came three times: a card names what it holds, and a file whose content
+                # this work already delivered is not delivered again
+                files = await fresh_files(tx, w["id"], files)
                 if files and (w["status"] in W.OPEN or w["status"] == "delivered"):
                     # ⟨1.35⟩ §57.6 named by its files, never «خروجی جلسه: …»; a revision says so
                     title, revision_of = await named_output(tx, w, files)
@@ -430,6 +435,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                         close=False,
                     )
                 await DR.after_turn(tx, hub, j, w, answer=said, files=files)
+                direct_order = str((j.get("args") or {}).get("order") or "") or None
             elif (w["status"] in W.OPEN or w["status"] == "delivered") and answer:
                 await PL.deliver(  # a long answer goes whole into an attachment
                     tx,
@@ -505,6 +511,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
         await events.emit(tx, w["company"], "work.updated", w["ref"], {"workspace": ws["state"]})
+    if direct_order:
+        from hq_api.domain import direct as DR
+
+        DR.fold_soon(hub, direct_order)
     if routine_delivered is not None:
         # after the commit, as the agent's own deliver does (it never raises; the groups' tick
         # sweeps what this misses)
@@ -592,6 +602,30 @@ def wall_of(j: dict[str, Any]) -> tuple[str | None, str | None]:
         return None, None
     why = str(box.get("why") or "")[:300] if box["state"] == "off" else None
     return str(box["state"]), why
+
+
+async def fresh_files(tx: Tx, work_id: Any, files: list[str]) -> list[str]:
+    """⟨2026-11-13⟩ The files whose content (sha256) no earlier card of this work holds."""
+    if not files:
+        return []
+    old = await tx.all(
+        """SELECT DISTINCT f.sha256 FROM cartable.deliverables d
+           JOIN files.files f ON f.id = ANY(d.attachments)
+           WHERE d.work_id = :w""",
+        w=work_id,
+    )
+    seen = {r["sha256"] for r in old}
+    rows = await tx.all(
+        "SELECT id, sha256 FROM files.files WHERE id = ANY(CAST(:ids AS uuid[]))", ids=files
+    )
+    sha = {str(r["id"]): r["sha256"] for r in rows}
+    out: list[str] = []
+    for f in files:
+        if sha.get(f) in seen:
+            continue
+        seen.add(sha.get(f))
+        out.append(f)
+    return out
 
 
 async def made_files(tx: Tx, j: dict[str, Any], company_id: Any) -> list[str]:

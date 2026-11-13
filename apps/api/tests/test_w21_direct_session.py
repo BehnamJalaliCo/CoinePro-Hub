@@ -22,7 +22,7 @@ from hq_api import workflows_client
 from hq_api.domain import direct as DR
 from hq_api.hub import Hub
 
-from .conftest import idem
+from .conftest import agent_headers, idem
 from .test_p13a_media import mp4
 from .test_p17_runners import take
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
@@ -423,3 +423,317 @@ async def test_a_turn_that_fails_or_is_stopped_ends_its_run_and_is_never_silent(
         "AND work_id = $1",
         o["work_id"],
     ) == 0  # fmt: skip
+
+
+async def test_a_turn_the_owner_stops_ends_its_run_and_his_next_word_starts_a_turn(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018: the owner stopped a turn; its run stayed `running` (the runner's
+    result of a cancelled job is refused, so after_job never ran) and each word he said after it
+    only waited until the run's token expired."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+
+    r = await client.post(f"/api/v1/work/{o['work_id']}/stop", headers={**owner, **idem()})
+    assert r.status_code == 200 and r.json()["jobs_stopped"] == 1, r.text
+    d = await su.fetchrow("SELECT state, error_code, note FROM agents.runs WHERE id = $1::uuid",
+                          job["args"]["run"])  # fmt: skip
+    assert (d["state"], d["error_code"]) == ("failed", "workspace_stopped")
+    assert d["note"] == f"direct turn, job {job['id']}"
+    # the runner's late result of the cancelled job changes nothing
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 0, "summary_fa": "تمام شد.", "data": {"result_fa": "x"}},
+        headers=rn["h"],
+    )
+    assert r.status_code == 409, r.text
+
+    # his next word is a new turn on the same workspace, not «the last turn is still working»
+    await su.execute("UPDATE work.workspaces SET updated_at = now() - interval '1 minute' "
+                     "WHERE work_id = $1", o["work_id"])  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    assert note is not None and note.startswith("direct turn ") and note != DR.WAITING, note
+    await end_run(su, run, note)
+    nxt = await take(client, rn)
+    assert nxt["id"] != job["id"] and nxt["args"]["direct"] is True
+
+    # a turn the holder stops itself (workshop.stop) ends its run the same way
+    from hq_api.domain import hands as HANDS
+    from hq_api.domain import work as W
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        w = await W.load(tx, o["work_id"], lock=True)
+        out = await HANDS.stop_turn(tx, DR.principal(o["emp"]), w, "test")
+    assert out["stopped"] is True
+    assert await su.fetchval("SELECT state FROM agents.runs WHERE id = $1::uuid",
+                             nxt["args"]["run"]) == "failed"  # fmt: skip
+
+
+async def test_a_heavy_session_starts_afresh_from_its_memory_and_notes(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ The owner: never millions of tokens re-read per word, never a model that
+    forgot. A Claude session that carries more than ROTATE_TOKENS is ended between two turns,
+    its memory caught up first; the next turn is a fresh session in the same folder whose brief
+    sends it to NOTES.md, the memory and the session's state."""
+    from hq_api.domain import session_memory as MEM
+
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    assert "NOTES.md" in job["args"]["brief"]  # the rule is there from the first turn
+    # a light turn: the next one resumes the same Claude session
+    await result(client, rn, job["id"], "اولین نوبت تمام شد.",
+                 usage={"cache_write_tokens": 90_000, "cache_read_tokens": 400_000})  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    second = await take(client, rn)
+    assert second["args"].get("resume") and "ادامه‌ی جلسه" in second["args"]["brief"]
+    sess = await su.fetchval("SELECT session_id FROM work.workspaces WHERE work_id = $1",
+                             o["work_id"])  # fmt: skip
+
+    # a heavy one: the next word starts afresh, after the memory caught up
+    caught: list[str] = []
+
+    async def catch_up(hub_: Any, call: Any, ref: str) -> int:
+        caught.append(ref)
+        return 1
+
+    monkeypatch.setattr(MEM, "catch_up", catch_up)
+    await result(client, rn, second["id"], "دومین نوبت تمام شد.",
+                 usage={"cache_write_tokens": 200_000, "cache_read_tokens": 3_000_000})  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    assert note is not None and note.startswith("direct turn "), note
+    await end_run(su, run, note)
+    third = await take(client, rn)
+    assert caught == [o["ref"]]
+    assert await su.fetchval("SELECT state FROM workshop.sessions WHERE id = $1", sess) == "done"
+    assert not third["args"].get("resume")  # a fresh Claude session …
+    assert third["args"]["workspace"] == o["work_ref"]  # … in the same folder
+    brief = third["args"]["brief"]
+    assert "ادامه‌ی همین جلسه در نشستی تازه" in brief and "## وضع جلسه" in brief
+    assert await su.fetchval(
+        "SELECT count(*) FROM work.work_events WHERE work_id = $1 AND kind = 'session_rotated'",
+        o["work_id"],
+    ) == 1  # fmt: skip
+    # the fresh session carries little again: no second rotation on the next word
+    await result(client, rn, third["id"], "ادامه دادم.", usage={"cache_write_tokens": 80_000})
+    assert not await DR.rotate_if_heavy(hub, o["work_id"])
+
+
+def test_every_meta_key_the_hub_sends_is_one_the_router_takes() -> None:
+    """⟨2026-11-13⟩ A meta key llm-router does not allow fails the whole call (422): the session
+    memory sent `order` and never folded. The keys the api's model calls send, against the
+    router's own allow-list (services/llm-router/src/llm_router/schemas.py)."""
+    import ast
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "src" / "hq_api"
+    tail = "llm-router/src/llm_router/schemas.py"
+    here = Path(__file__).resolve()
+    roots = [*(parent / "services" for parent in here.parents), Path("/w")]
+    found = [r / tail for r in roots if (r / tail).exists()]
+    if not found:
+        pytest.skip("the router's source is not mounted here")
+    block = found[0].read_text().split("META_KEYS = frozenset(")[1].split("})")[0]
+    allowed = set(re.findall(r'^\s+"([a-z_]+)",', block, re.M))
+    sent: set[str] = set()
+    for f in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(f.read_text())):
+            if not isinstance(node, ast.Dict):
+                continue
+            keys = {k.value: v for k, v in zip(node.keys, node.values, strict=True)
+                    if isinstance(k, ast.Constant)}  # fmt: skip
+            meta = keys.get("meta")
+            if "task_class" in keys and isinstance(meta, ast.Dict):  # a router call's body
+                sent |= {str(x.value) for x in meta.keys if isinstance(x, ast.Constant)}
+    assert sent and sent <= allowed, sorted(sent - allowed)
+
+
+async def test_a_voice_the_session_made_reaches_its_next_turn_in_the_in_folder(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018: the raw voice speech.make made never reached the session's folder (only
+    the owner's files did), so its check, a sentence made again and the video's sound waited. A
+    file that names the session (meta order_id) goes into `in/` with the next turn."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    await result(client, rn, job["id"], "نوبت اول.")
+    order_id = await su.fetchval(
+        "SELECT order_id FROM owner.order_reports WHERE ref = $1", o["ref"]
+    )
+    fid = await su.fetchval(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code, kind, meta)
+           VALUES ($1, 'speech-abc.ogg', 'audio/ogg', 10, repeat('a', 64), gen_random_uuid()::text, 'agent', $2,
+                   'audio', jsonb_build_object('order_id', $3::text, 'made_by', 'speech.make'))
+           RETURNING id""",
+        o["emp"]["company_id"], o["holder"], str(order_id),
+    )  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    nxt = await take(client, rn)
+    names = {i["file_id"]: i["name"] for i in nxt["args"].get("inputs") or []}
+    assert str(fid) in names and names[str(fid)].endswith(".ogg")
+    assert "in/" in nxt["args"]["brief"]
+
+
+async def test_the_same_content_is_not_delivered_twice(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """⟨2026-11-13⟩ F-0018: one video came three times under three names (the card's name is §57.6's)."""
+    from hq_api.domain import workspace as WSX
+
+    co = await new_company()
+
+    async def a_file(name: str, sha: str) -> str:
+        return str(await su.fetchval(
+            """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                   created_by_kind, created_by_code, kind)
+               VALUES ($1, $2, 'video/mp4', 1, $3, gen_random_uuid()::text, 'agent', 'x', 'video')
+               RETURNING id""",
+            co["id"], name, sha * 64,
+        ))  # fmt: skip
+
+    v1, v2, cover = await a_file("ویدیو-۱۵-ثانیه.mp4", "a"), await a_file("پیش_نمایش.mp4", "a"), \
+        await a_file("کاور-ویدیوی-اول.jpg", "b")  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        # the same content twice in one turn: once
+        w = await su.fetchval(
+            """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code)
+               VALUES ($1, 'one_off', 'کار', 'service', 'test') RETURNING id""",
+            co["id"],
+        )
+        assert await WSX.fresh_files(tx, w, [v1, v2, cover]) == [v1, cover]
+    # once a card of the work holds it, it is not delivered again
+    emp = await su.fetchval("SELECT id FROM core.employees WHERE company_id = $1 LIMIT 1", co["id"])
+    await su.execute(
+        """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary,
+               attachments, produced_with, usage, evidence, category)
+           VALUES ($1, $2, $3, 't', 's', ARRAY[$4::uuid], '{}', '{}', '[]', 'report')""",
+        co["id"], w, emp, v1,
+    )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await WSX.fresh_files(tx, w, [v2, cover]) == [cover]
+
+
+async def test_a_turn_without_a_question_is_followed_at_once_while_the_plan_is_open(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018 sat idle 13 minutes after a turn that ended «فعلاً کاری با شما نیست»:
+    the next turn now starts at once while the plan has open tasks, at most CONTINUE_MAX times
+    since the owner's last word; a turn that asked him waits for him."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    r = await client.post(
+        f"/internal/v1/orders/{o['ref']}/ack",
+        headers=await agent_headers(o["holder"]),
+        json={"plan_fa": "دو قدم", "steps": ["صدا", "ویدیو"]},
+    )
+    assert r.status_code == 200, r.text
+    # the agent's own token holds a run of its own: ended, as its run would end
+    await su.execute(
+        "UPDATE agents.runs SET state = 'done', finished_at = now() "
+        "WHERE employee_id = $1 AND state = 'running'",
+        o["emp"]["id"],
+    )
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    await result(
+        client, rn, job["id"], "صدا را ساختم؛ نوبت بعد کنترلش میکنم. فعلاً کاری با شما نیست."
+    )
+    nxt = await su.fetchrow(
+        "SELECT reason FROM agents.runs WHERE work_id = $1 AND state = 'queued'", o["work_id"]
+    )
+    assert nxt is not None and nxt["reason"] == f"{DR.CONTINUE_REASON}{o['ref']}"
+    assert "قدم بعد برنامه" in DR.why_fa(nxt["reason"])
+    # capped: once CONTINUE_MAX turns went on by themselves since his last word, none more
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        from hq_api.domain import work as W
+
+        rep = await tx.first("SELECT * FROM owner.order_reports WHERE ref = :r", r=o["ref"])
+        w = await W.load(tx, o["work_id"])
+        went = await tx.scalar(
+            "SELECT count(*) FROM agents.runs WHERE work_id = :w AND reason = :r",
+            w=o["work_id"], r=f"{DR.CONTINUE_REASON}{o['ref']}",
+        )  # fmt: skip
+        assert went == 1
+        monkeypatch.setattr(DR, "CONTINUE_MAX", 1)
+        assert await DR.go_on(tx, dict(rep), w, o["ref"]) is False
+
+
+async def test_in_a_direct_session_a_word_with_a_question_mark_reaches_the_holder(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018: the owner's «این ویدیو نهاییه؟ … هر کلمه … موشنگرافی بشه» was read as a
+    question: no step, nobody woken. With the workshop holding direct turns, it is his word."""
+    from hq_api.domain import order_turns as OT
+
+    co = (await new_company())["code"]
+    await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    await su.execute(
+        "UPDATE agents.runs SET state = 'refused', error_code = 'test', finished_at = now() "
+        "WHERE work_id = $1 AND state IN ('queued', 'running')",
+        o["work_id"],
+    )
+    words_ = "این ویدیو نهاییه؟ قراره هر جمله موشنگرافی بشه."
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        out = await OT.owner_word(tx, o["ref"], words_, work_mode=True)
+    assert out["replied"] is True and out["woken"] == [o["work_ref"]]
+    rep = (await client.get(f"/api/v1/orders/{o['ref']}/report", headers=owner)).json()
+    assert any(s["who_fa"] == "مدیر کل" and "موشنگرافی" in s["what_fa"] for s in rep["steps"])
