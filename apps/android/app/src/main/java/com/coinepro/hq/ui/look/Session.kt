@@ -297,6 +297,8 @@ fun WaitingCard(
     var long by remember(questionFa) { mutableStateOf(false) }
     val style = Divan.type.small.copy(fontSize = 14.5.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
     val chip: (@Composable () -> Unit)? = if (latest != null && onLatest != null) ({ LatestChip(latest, onLatest) }) else null
+    // folded, the question's line keeps the room: the chip says only what it is
+    val shortChip: (@Composable () -> Unit)? = if (latest != null && onLatest != null) ({ LatestChip(latest.substringBefore(':').trim(), onLatest) }) else null
     EdgeCard("waiting-card", modifier.smoothSize()) {
         if (folded && !open) {
             Row(
@@ -307,7 +309,7 @@ fun WaitingCard(
                     remember(whoFa, questionFa) { facts("$whoFa میپرسد", com.coinepro.hq.core.data.questionFirstLine(questionFa)) },
                     style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                chip?.invoke()
+                shortChip?.invoke()
             }
             return@EdgeCard
         }

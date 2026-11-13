@@ -71,7 +71,7 @@ class RoomScreensTest(private val name: String, private val night: Boolean) {
                 OrderSessionScreen("F-0096")
             },
             "room-question-open" to Scene(listOf("کمتر", "اگر روی صدای گوینده", "خروجی آخر:"), then = Then.MORE) { OrderSessionScreen("F-0096") },
-            "room-writing" to Scene(listOf("مدیر رسانه‌ی تریدیار میپرسد", "خروجی آخر:", "برش‌ها را کمی تندتر کن"), hides = listOf("خودت تصمیم بگیر"), then = Then.WRITE) {
+            "room-writing" to Scene(listOf("مدیر رسانه‌ی تریدیار میپرسد", "خروجی آخر", "برش‌ها را کمی تندتر کن"), hides = listOf("خودت تصمیم بگیر", "خروجی آخر:"), then = Then.WRITE) {
                 OrderSessionScreen("F-0096")
             },
             "room-closed-kept" to Scene(listOf("این جلسه تأیید و بایگانی شد", PLAYBOOK_KEPT_FA)) { OrderSessionScreen("F-0093") },
