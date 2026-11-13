@@ -31,7 +31,9 @@ async def fill_policy(tx: Tx, company: str, policy: FS.ReplyPolicy | None) -> FS
     return policy or FS.ReplyPolicy()
 
 
-def link_for(links: FS.SiteLinks | None, section: str | None, path: str, flow: str, day: Any) -> str:
+def link_for(
+    links: FS.SiteLinks | None, section: str | None, path: str, flow: str, day: Any
+) -> str:
     """The reply's link: the section's url (else the site's) + utm_source, utm_medium (the path's),
     utm_campaign (`{flow}`), utm_content (YYYYMMDD); parameters already on the url are kept."""
     raise NotImplementedError

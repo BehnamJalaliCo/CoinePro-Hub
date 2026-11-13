@@ -364,7 +364,7 @@ async def _flow_items(
         nxt, _ = await next_of(tx, r, tz, now)
         out.append(
             BoardItem(
-                ref=r["ref"], kind="flow", title_fa=r["sentence_fa"], company=r["company_code"],
+                ref=r["ref"], kind="flow", title_fa=r.get("title_fa") or r["sentence_fa"], company=r["company_code"],
                 company_fa=r["company_fa"], playbook=r["playbook"], playbook_fa=r["playbook_fa"],
                 version=r["playbook_version"], when_fa=flow_when_fa(_obj(r["schedule"])),
                 state=r["state"], switchable=r["state"] != "proposed",
@@ -970,7 +970,7 @@ async def day_summary(tx: Tx, day: date | None = None) -> DaySummary:
             nxt, _ = await next_of(tx, row, tz, now)
             later = nxt if nxt is not None and nxt < b else None
         item = DayItem(
-            automation=row["ref"], title_fa=row["sentence_fa"], company_fa=row["company_fa"] or "",
+            automation=row["ref"], title_fa=(row.get("title_fa") or row["sentence_fa"]), company_fa=row["company_fa"] or "",
             state=last["state"] if last else ("planned" if later else row["state"]),
             published=published,
             comments=_sum([f.comments for f in figs]), dms_sent=_sum([f.dms_sent for f in figs]),
@@ -983,10 +983,10 @@ async def day_summary(tx: Tx, day: date | None = None) -> DaySummary:
             first = out_runs[-1]
             post, story = RR.main_entry(first["published"])
             kind = str((post or story or {}).get("kind") or "post")
-            title = topics.get(first["id"]) or row["sentence_fa"]
+            title = topics.get(first["id"]) or (row.get("title_fa") or row["sentence_fa"])
             clauses.append(_went_out(title, kind, item))
         else:
-            reasons.append(f"«{row['sentence_fa']}» {item.note_fa}")
+            reasons.append(f"«{row.get('title_fa') or row['sentence_fa']}» {item.note_fa}")
     if clauses:
         line = TODAY_FA.format(what="؛ ".join(clauses + reasons))
     elif reasons:
@@ -1071,7 +1071,7 @@ async def calendar(
             ran.add(at.astimezone(z).date())
             days.setdefault(at.astimezone(z).date(), []).append(
                 CalendarEntry(
-                    ref=row["ref"], at=at, title_fa=row["sentence_fa"],
+                    ref=row["ref"], at=at, title_fa=(row.get("title_fa") or row["sentence_fa"]),
                     company_fa=row["company_fa"] or "", topic_fa=topics.get(r["id"]),
                     state=CAL_STATE.get(r["state"], "done"),
                 )
@@ -1086,7 +1086,7 @@ async def calendar(
                 continue
             days.setdefault(local, []).append(
                 CalendarEntry(
-                    ref=row["ref"], at=t, title_fa=row["sentence_fa"],
+                    ref=row["ref"], at=t, title_fa=(row.get("title_fa") or row["sentence_fa"]),
                     company_fa=row["company_fa"] or "",
                     state="skipped" if local in skips else "planned",
                 )
