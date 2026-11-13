@@ -13,7 +13,9 @@
 - growth.automations: `kind` (`rule` as before; `routine` for a §50 routine's automation, read from
   `source.routine`; `flow` for §59.7), the flow's `playbook` and `playbook_version` (the contract's
   `.version`: that column already holds a rule's own version), `line`, `schedule`, `budget`,
-  `replies`, `mode`, `account`, `story`, `paused_until` and `skips`; `state` gains `paused`.
+  `replies`, `mode`, `account`, `story`, `paused_until` and `skips`; `state` gains `paused`;
+  `title_fa`, a flow's own title (its `sentence_fa` stays immutable: the title is written in both
+  at creation, a PATCH changes `title_fa` only, the apps read `coalesce(title_fa, sentence_fa)`).
 - growth.site_links: a company's own web links (§59.5); Pro-Chart's is seeded (https://pro-chart.com,
   no sections).
 - growth.memberships: `version` (the playbook version the member runs) and `automation` (its flow).
@@ -114,7 +116,8 @@ ALTER TABLE growth.automations
     ADD COLUMN account text CHECK (account IS NULL OR length(account) BETWEEN 1 AND 100),
     ADD COLUMN story boolean,
     ADD COLUMN paused_until timestamptz,
-    ADD COLUMN skips jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(skips) = 'array');
+    ADD COLUMN skips jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(skips) = 'array'),
+    ADD COLUMN title_fa text CHECK (title_fa IS NULL OR length(title_fa) BETWEEN 1 AND 200);
 UPDATE growth.automations SET kind = 'routine' WHERE source ? 'routine';
 ALTER TABLE growth.automations DROP CONSTRAINT automations_state_check;
 ALTER TABLE growth.automations ADD CONSTRAINT automations_state_check
@@ -124,7 +127,7 @@ ALTER TABLE growth.automations ADD CONSTRAINT automations_flow_check
                               AND line IS NOT NULL AND schedule IS NOT NULL));
 CREATE INDEX automations_kind ON growth.automations (kind, state);
 GRANT UPDATE (playbook_version, line, schedule, budget, replies, mode, account, story,
-              paused_until, skips, sentence_fa)
+              paused_until, skips, title_fa)
     ON growth.automations TO {APP_ROLES};
 
 -- ================================================== §59.5 a company's own links ==
@@ -222,7 +225,8 @@ ALTER TABLE growth.automations ADD CONSTRAINT automations_state_check
 ALTER TABLE growth.automations
     DROP COLUMN skips, DROP COLUMN paused_until, DROP COLUMN story, DROP COLUMN account,
     DROP COLUMN mode, DROP COLUMN replies, DROP COLUMN budget, DROP COLUMN schedule,
-    DROP COLUMN line, DROP COLUMN playbook_version, DROP COLUMN playbook, DROP COLUMN kind;
+    DROP COLUMN line, DROP COLUMN playbook_version, DROP COLUMN playbook, DROP COLUMN kind,
+    DROP COLUMN title_fa;
 DROP TABLE owner.playbook_versions;
 UPDATE owner.playbooks SET version = version + edits;
 ALTER TABLE owner.playbooks DROP COLUMN edits;

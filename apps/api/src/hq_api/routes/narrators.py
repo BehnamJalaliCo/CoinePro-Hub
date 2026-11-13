@@ -3,6 +3,8 @@
 GET  /companies/{code}/narrator        the company's narrator (or that it has none), AI Studio's
                                        voices, and whether the hub is signed in there
 PUT  /companies/{code}/narrator        {voice, style_fa?}: the owner sets it (a tap)
+POST /narrators/sample                 ⟨1.37⟩ §59.4 {voice, style_fa?, text_fa?} -> {file}: a voice
+                                       to hear (≤ 8 s), made once a day per voice, style and words
 POST /internal/v1/narrator             narrator.set (A1): an agent that works on the owner's own
                                        order sets it for that work's company, as he asked there
 """
@@ -15,6 +17,7 @@ from fastapi import APIRouter, Depends
 from pydantic import Field
 
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import flow_shapes as FS
 from hq_api.domain import hands as HANDS
 from hq_api.domain import narrator as NR
 from hq_api.domain import order_report as OR
@@ -65,6 +68,17 @@ async def put_narrator(code: str, body: NarratorIn, ctx: Ctx = Depends(owner_ctx
             summary=f"the narrator: {row['voice']}" + (" with a style" if row["style_fa"] else ""),
         )
         return await NR.render(tx, company)
+
+
+@router.post("/narrators/sample", response_model=NR.NarratorSample, responses={**E, 503: E[422]})
+async def narrator_sample(body: FS.NarratorSampleIn, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """⟨1.37⟩ §59.4 the use form's «بشنو»: the voice (AI Studio's prebuilt name; 422 else) in the
+    style says the hub's sample sentence or `text_fa`, cut to about 8 seconds. Gemini's API
+    first, then the AI Studio page; spent in the treasury as any speech; the same voice, style
+    and words answer the same file for a day. 503 when no voice could be made now."""
+    return await NR.sample(
+        ctx.hub, ctx.who, voice=body.voice, style_fa=body.style_fa, text_fa=body.text_fa
+    )
 
 
 @internal_router.post("/narrator", response_model=NR.Narrator, responses=E)

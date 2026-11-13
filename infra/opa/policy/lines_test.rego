@@ -52,3 +52,27 @@ test_a_missing_input_never_allows if {
 	not lines.allow with input as {}
 	not lines.allow with input as "x"
 }
+
+# ⟨1.37⟩ flow
+test_the_flows_controls_are_the_owners_taps if {
+	every op in {"flow.use", "flow.state", "flow.run", "flow.pause", "flow.skip", "flow.update"} {
+		lines.allow with input as {"principal": owner, "op": op, "target": {"automation": "AT-0001"}}
+	}
+	not lines.allow with input as {"principal": agent, "op": "flow.run", "target": {"automation": "AT-0001"}}
+}
+
+test_a_budget_past_the_envelope_needs_the_step_up if {
+	lines.allow with input as {
+		"principal": owner, "op": "flow.update",
+		"target": {"automation": "AT-0001", "budget_rise": true, "over_envelope": false},
+	}
+	not lines.allow with input as {
+		"principal": owner, "op": "flow.update",
+		"target": {"automation": "AT-0001", "budget_rise": true, "over_envelope": true},
+	}
+	lines.allow with input as {
+		"principal": owner, "op": "flow.update",
+		"target": {"automation": "AT-0001", "budget_rise": true, "over_envelope": true},
+		"context": {"step_up": true},
+	}
+}

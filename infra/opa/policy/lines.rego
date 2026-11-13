@@ -14,7 +14,7 @@ import rego.v1
 ops := {
 	"line.create", "line.update", "line.state", "line.mode", "line.run", "line.test",
 	"line.cancel", "library.write",
-}
+} | flow_ops
 
 p := lib.principal
 
@@ -46,5 +46,16 @@ deny_reasons contains "step_up_required" if {
 deny_reasons contains "step_up_required" if {
 	op == "line.update"
 	object.get(target, "caps_rise", false) == true
+	not stepped_up
+}
+
+# ⟨1.37⟩ flow (contract §59.4, §59.7): a working group's daily flow runs on a line; the use form
+# and the flow's controls are the owner's taps (no step-up), except a budget raised past the
+# company's month envelope: 🔏 automation.budget (the api consumed it and says so in step_up).
+flow_ops := {"flow.use", "flow.state", "flow.run", "flow.pause", "flow.skip", "flow.update"}
+
+deny_reasons contains "step_up_required" if {
+	op == "flow.update"
+	object.get(target, "over_envelope", false) == true
 	not stepped_up
 }
