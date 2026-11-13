@@ -34,8 +34,12 @@
 # 2026-11-04.1 (prompt 22, production lines): the `cover` task: the cover folder (the
 # job's files) goes into the composer's file input, the brief is sent, the generated
 # image comes back. Structural, not yet verified on the live site.
+# 2026-11-13.1 (F-0018): every cover and image job failed at 4:wait: ChatGPT answered «Image
+# generation is not available in this temporary chat. Open a regular ChatGPT chat» (its own
+# screenshot). The image and cover tasks open a regular new chat (one chat per job, as the
+# owner asked: «برای هر کار یه صفحه جدا»); the text task keeps the temporary chat.
 key: chatgpt-web
-version: "2026-11-04.1"
+version: "2026-11-13.1"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -96,7 +100,7 @@ tasks:
   image:
     timeout_s: 180
     steps:
-      - {do: goto, url: "{start_url}"}
+      - {do: goto, url: "https://chatgpt.com/"}
       - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
       - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
       - {do: click, selector: "[data-testid=send-button], button[aria-label*='ارسال']"}
@@ -106,7 +110,7 @@ tasks:
   cover:
     timeout_s: 270
     steps:
-      - {do: goto, url: "{start_url}"}
+      - {do: goto, url: "https://chatgpt.com/"}
       - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
       - {do: attach, selector: "input[type=file]"}
       - {do: pause, ms: 3000}
