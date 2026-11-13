@@ -1184,6 +1184,14 @@ async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[
     j = await load_job(tx, j["id"])
     if j["kind"] == "publish":  # its media item learns it (not 7 days later)
         await _apply_publish(tx, j, {}, False, code)
+    if j["kind"] == "claude" and (j.get("args") or {}).get("direct"):
+        # ⟨2026-11-13⟩ a direct turn's own run ends with its cancel. The runner's result of a
+        # cancelled job is refused (409 job_cancelled), so workspace.after_job never runs for it:
+        # the run stayed `running` until its token expired (up to RUN_TTL_S) and every word the
+        # owner said meanwhile only waited («مسئول هنوز روی نوبت قبلی است»), F-0018.
+        from hq_api.domain import direct as DR
+
+        await DR.close_run(tx, j)
     await audit.record(
         tx,
         audit.SYSTEM,
@@ -2297,6 +2305,32 @@ async def store_transcript(tx: Tx, hub: Any, j: dict[str, Any]) -> UUID | None:
     return fid
 
 
+async def turn_cost(tx: Tx, j: dict[str, Any], usage: dict[str, Any], usd: Decimal) -> Decimal:
+    """⟨2026-11-13 usage audit⟩ The job's own cost. The CLI's `total_cost_usd` is the running
+    total of its Claude session: a resumed session's turn reports every earlier turn again (the
+    token counts are the turn's own). F-0018's 71 direct turns were booked as $1,108 while they
+    spent about $131. A turn of a session costs what it adds to the highest total already booked
+    for the same Claude session on the same server; a total that went down (a CLI that counted
+    afresh) is the turn's own."""
+    sid = usage.get("session_id")
+    if not sid or usd <= 0 or j.get("server_id") is None:
+        return usd
+    before = await tx.scalar(
+        """SELECT max(CASE WHEN jsonb_typeof(usage -> 'cost_usd') = 'number'
+                           THEN (usage ->> 'cost_usd')::numeric END)
+           FROM infra.server_jobs
+           WHERE server_id = :srv AND kind = 'claude' AND id <> :id AND created_at < :at
+             AND usage ->> 'session_id' = :sid""",
+        srv=j["server_id"],
+        id=j["id"],
+        at=j["created_at"],
+        sid=str(sid),
+    )
+    if before is None or Decimal(before) > usd:
+        return usd
+    return usd - Decimal(before)
+
+
 async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None:
     """A `claude` job's usage into the Token Treasury at its equivalent cost (contract §26.3),
     and onto its session. ⟨2026-11-11⟩ Booked to the hub's account the job ran on (its
@@ -2318,6 +2352,7 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
         usd = Decimal(0)
     if usd < 0:
         usd = Decimal(0)
+    usd = await turn_cost(tx, j, usage, usd)
     if not (inp or out or cr or cw or think or usd):
         return
     account = str(_book(j).get("account") or "") or None

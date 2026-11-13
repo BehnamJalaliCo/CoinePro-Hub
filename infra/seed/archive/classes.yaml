@@ -185,6 +185,23 @@ classes:
       - {key: date, title_fa: تاریخ, type: date, searchable: true}
       - {key: deliverable, title_fa: خروجی, type: text, searchable: true}
       - {key: producer, title_fa: سازنده, type: text, searchable: true}
+  # ⟨prompt 37, 2026-11-13⟩ a published post's kept package (files.publish_keep): the video,
+  # the cover and caption.txt. Until now no class took a video, so each one stayed the
+  # archive's draft. Kept like a permanent document.
+  - key: publication
+    title_fa: انتشار
+    icon: globe
+    scopes: all
+    default_level: internal
+    required_files: 1
+    allowed_mime: [video/mp4, video/webm, video/quicktime, image/jpeg, image/png, image/webp, text/plain, text/markdown]
+    ocr: false
+    retention: permanent
+    fields:
+      - {key: published_at, title_fa: تاریخ انتشار, type: date, searchable: true}
+      - {key: channel, title_fa: کانال, type: text, searchable: true}
+      - {key: output, title_fa: خروجی, type: text, searchable: true}
+      - {key: permalink, title_fa: نشانی پست, type: text}
   - key: other
     title_fa: سایر
     icon: folder

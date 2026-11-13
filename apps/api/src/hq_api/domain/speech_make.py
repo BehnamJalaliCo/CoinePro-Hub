@@ -13,6 +13,12 @@ the job id, and the agent asks again with `{job}`. Without a worker (tests, a ba
 runs inline and the first answer is final. The file and the audit rows are in the database; the
 job's own answer lives with its workflow.
 
+⟨2026-11-13⟩ The owner: «اول API، و اگر نشد نسخه‌ی وب». A voice is first asked of Gemini's own
+API (the voice layer's engine `gemini-3.8-flash-tts`, contract §32.5: the worker's call through
+egress with the voice key the owner gives in the app, its usage and price on the voice meter), with
+the same speaker and the style as a reading instruction; only when that engine has no key, refuses
+or fails is it AI Studio's web page, as before. The answer names the engine that spoke.
+
 The sign-in state. Nothing records whether the `aistudio-web` profile is signed in: the owner's
 `make aistudio-web-login` reports the substitute players' profiles only (report-signin.sh exits
 for the lines' profiles), and egress has no state route. So `speech_state()` reads the last answer
@@ -25,7 +31,9 @@ new jobs back for SIGNED_OUT_HOLD, then they try again.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -212,12 +220,197 @@ async def _record(
             )
 
 
+# ⟨2026-11-13⟩ the API first (see the module's doc)
+API_ENGINE = "gemini-3.8-flash-tts"
+# ⟨2026-11-13⟩ a passing refusal of Google's (F-0018: one upstream_error between two good voices)
+# is tried once more before the web page, which may be signed out
+API_TRIES = 2
+API_RETRY_S = 3.0
+API_RETRY_CODES = frozenset(
+    {"upstream_error", "transport_down", "engine_crashed", "timeout", "rate_limited", "quota"}
+)
+# AI Studio's style presets (its 2026-11 page), as the API reads them: a reading instruction
+STYLE_PRESETS = {
+    "narration": "commanding, with rich vocal modulation and dramatic pauses",
+    "friendly": "warm and neutral, with micro-pauses",
+    "promote": "high energy, with elongated vowels",
+    "podcast": "calm and measured",
+    "whisper": "whispering quietly",
+}
+
+
+async def api_ready(hub: Any, tx: Tx) -> bool:
+    """Whether Gemini's API may be asked (its key given; a failing one is still tried)."""
+    from hq_api.voice import store as VS
+
+    holding = await hub.companies.holding()
+    st = (await VS.states(tx, holding.id)).get(API_ENGINE)
+    return st is not None and st["state"] != "missing"
+
+
+def api_text(text: str, style: str) -> str:
+    """The text as the API is asked to read it: a style is an instruction before it (Gemini speech
+    takes how to say it in the prompt, never as a setting)."""
+    s = " ".join(style.split())
+    if not s:
+        return text
+    how = STYLE_PRESETS.get(s.lower(), s)
+    return f"Read the following Persian text aloud, in this manner: {how}.\n\n{text}"
+
+
+# ⟨2026-11-13⟩ Gemini's speech refuses a long text in one request (F-0020: 844 characters were
+# `upstream_error` on every try, 517 went through in 40 s): a longer text is read in parts, cut
+# between its lines (then its sentences, then its words), and the parts are joined with a breath
+API_PART_CHARS = 480
+PART_PAUSE_S = 0.25
+SENTENCE_END = re.compile(r"(?<=[.!?؟؛…])\s+")
+
+
+def api_parts(text: str, limit: int = API_PART_CHARS) -> list[str]:
+    """The text in parts of at most `limit` characters, never cutting inside a word."""
+    units: list[str] = []
+    for line in (x.strip() for x in text.splitlines()):
+        if not line:
+            continue
+        if len(line) <= limit:
+            units.append(line)
+            continue
+        for piece in SENTENCE_END.split(line):
+            piece = piece.strip()
+            while len(piece) > limit:
+                cut = piece.rfind(" ", 0, limit)
+                cut = cut if cut > 0 else limit
+                units.append(piece[:cut].strip())
+                piece = piece[cut:].strip()
+            if piece:
+                units.append(piece)
+    parts: list[str] = []
+    cur = ""
+    for u in units:
+        if cur and len(cur) + 1 + len(u) > limit:
+            parts.append(cur)
+            cur = u
+        else:
+            cur = f"{cur}\n{u}" if cur else u
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+async def _pcm_of(data: bytes) -> bytes:
+    """Any audio file as the API's own PCM (16-bit mono, 24 kHz), by ffmpeg."""
+    import tempfile
+    from pathlib import Path
+
+    from hq_api import media as ME
+    from hq_api.voice import audio as AU
+
+    with tempfile.TemporaryDirectory(prefix="speech-") as tmp:
+        src, out = Path(tmp) / "in.audio", Path(tmp) / "out.pcm"
+        await asyncio.to_thread(src.write_bytes, data)
+        code, _, _ = await ME.run_tool(
+            "ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", str(src),
+            "-f", "s16le", "-ar", str(AU.PCM_RATE), "-ac", "1", str(out),
+            limit_s=AU.ENCODE_LIMIT_S,
+        )  # fmt: skip
+        if code != 0 or not out.is_file():
+            raise AU.EncodeFailed("ffmpeg")
+        return await asyncio.to_thread(out.read_bytes)
+
+
+async def join_audio(clips: list[bytes]) -> tuple[bytes, str]:
+    """The parts as one Ogg/Opus voice, a short breath between them."""
+    from hq_api.voice import audio as AU
+
+    pause = b"\x00\x00" * int(AU.PCM_RATE * PART_PAUSE_S)
+    pcms = [await _pcm_of(c) for c in clips]
+    return await AU.pcm_to_opus(pause.join(pcms)), AU.OGG
+
+
+async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
+    """The voice from Gemini's API: (audio, mime), or None when that engine has no key, is off or
+    fails (the web page is tried then). A long text is read in parts and joined. Never raises."""
+    name = f"speech-{str(job['job'])[:8]}"
+    parts = api_parts(str(job["text"]))
+    if len(parts) <= 1:
+        return await _api_text(hub, job, str(job["text"]), name)
+    clips: list[bytes] = []
+    for i, part in enumerate(parts, 1):
+        got = await _api_text(hub, job, part, f"{name}-{i}")
+        if got is None:
+            log.info("speech by the API: a part failed", extra={"job": str(job["job"]), "part": i})
+            return None
+        clips.append(got[0])
+    try:
+        return await join_audio(clips)
+    except Exception as exc:  # noqa: BLE001 - the web page is the fallback
+        log.warning(
+            "speech parts not joined", extra={"job": str(job["job"]), "error": type(exc).__name__}
+        )
+        return None
+
+
+async def _api_text(
+    hub: Any, job: dict[str, Any], text: str, name: str
+) -> tuple[bytes, str] | None:
+    """One text through the API, tried again after a passing refusal."""
+    from hq_api.voice import speaker as SP
+    from hq_api.voice.base import EngineFailed
+
+    for attempt in range(API_TRIES):
+        got, again = await _api_once(hub, job, name, SP, EngineFailed, text=text)
+        if got is not None or not again:
+            return got
+        if attempt < API_TRIES - 1:
+            await asyncio.sleep(API_RETRY_S)
+    return None
+
+
+async def _api_once(
+    hub: Any, job: dict[str, Any], name: str, SP: Any, EngineFailed: Any, *, text: str | None = None
+) -> tuple[tuple[bytes, str] | None, bool]:
+    """One try of the API: ((audio, mime) | None, whether another try may help)."""
+    try:
+        holding = await hub.companies.holding()
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            if not await api_ready(hub, tx):
+                return None, False  # no key given yet: the web page, as before
+        spoke = await SP.speak_one(
+            hub, API_ENGINE, api_text(text if text is not None else str(job["text"]),
+                                      str(job.get("style") or "")),
+            str(job["voice"]), 1.0, kind="speech", persona=f"speech.make {job['by']}"[:80],
+            conversation_ref=None, turn_id=None, seq=None, name=name,
+        )  # fmt: skip
+        async with hub.db.tx([holding.id]) as tx:
+            row = await tx.first(
+                "SELECT storage_key, mime FROM files.files WHERE id = CAST(:id AS uuid)",
+                id=spoke.out.file_id,
+            )
+        if row is None:
+            return None, False
+        data = await hub.storage.get(str(row["storage_key"]))
+        return (data, str(row["mime"] or "audio/ogg")), False
+    except EngineFailed as exc:
+        log.info("speech by the API failed", extra={"job": str(job["job"]), "code": exc.code})
+        return None, exc.code in API_RETRY_CODES
+    except Exception as exc:  # noqa: BLE001 - the web page is the fallback, never an error here
+        log.warning(
+            "speech by the API crashed", extra={"job": str(job["job"]), "error": type(exc).__name__}
+        )
+        return None, True
+
+
 async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
     """One job: `job` = {job, company_id, company, by, text, voice, style}. The audio as the
-    company's file, or a plain Persian refusal; both recorded."""
+    company's file, or a plain Persian refusal; both recorded. The API first, the web page after."""
     voice, style, text = str(job["voice"]), str(job.get("style") or ""), str(job["text"])
+    engine = "gemini_api"
+    got = await api_speak(hub, job)
     try:
-        data, mime = await tts.speak(hub, text, voice=voice, style=style, timeout_s=TIMEOUT_S)
+        if got is None:
+            engine = "aistudio"
+            got = await tts.speak(hub, text, voice=voice, style=style, timeout_s=TIMEOUT_S)
+        data, mime = got
     except StepFailed as e:
         code = CODES.get(e.code, "failed")
         hint = SIGNED_OUT_FA if code == "signed_out" else e.reason_fa
@@ -239,6 +432,10 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
             kind="audio",
             by_kind="agent",
             by_code=str(job["by"]),
+            # ⟨2026-11-13⟩ the session it was made for: the session's next turn gets it in `in/`
+            meta={"order_id": str(job["order_id"]), "made_by": "speech.make"}
+            if job.get("order_id")
+            else None,
         )
         await tx.exec(  # §17.1: the media worker's pass (length, transcript)
             """INSERT INTO files.processing (file_id, company_id, stt)
@@ -250,8 +447,10 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
     await _record(
         hub,
         job,
-        account="signed_in",
-        summary=f"done: AI Studio {voice}, {len(text)} chars",
+        # the API says nothing of the web page's sign-in
+        account="signed_in" if engine == "aistudio" else None,
+        summary=f"done: {'AI Studio' if engine == 'aistudio' else 'Gemini API'} {voice}, "
+        f"{len(text)} chars",
         file_id=fid,
     )
     await wake_caller(hub, job, done=True)
@@ -264,5 +463,5 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
         "voice": voice,
         "style": style,
         "narrator": bool(job.get("narrator")),
-        "engine": "aistudio",
+        "engine": engine,
     }

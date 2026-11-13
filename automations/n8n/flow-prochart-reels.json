@@ -1,0 +1,129 @@
+{
+  "id": "hqFlowProchartReels1",
+  "name": "پروچارت: ریلز روزانه",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Tehran"
+  },
+  "meta": {
+    "note": "2026-11-13, the owner's order: the daily reel, made the day before its hour (domain/flows.py)"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "id": "7b2f0000-0000-4000-8000-000000000001",
+      "name": "Every day 13:00 Tehran",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 13 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7b2f0000-0000-4000-8000-000000000004",
+      "name": "Run now (test, or a missed day)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "7b2f0000-0000-4000-8000-000000000002",
+      "name": "Tomorrow, signed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.HQ_SIGNING_SECRET || '';\nif (!secret) throw new Error('no signing secret');\n// tomorrow in Tehran: the day the post goes out (it is made today)\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 24 * 3600 * 1000));\nconst body = JSON.stringify({ day: parts });\nconst ts = Math.floor(Date.now() / 1000);\nconst mac = crypto.createHmac('sha256', secret).update(`${ts}.`).update(body).digest('hex');\n// the hub's Idempotency-Key is a UUID: one made from the flow and the day (the same on a retry)\nconst h = crypto.createHash('sha256').update(`flow:prochart_reels:${parts}`).digest('hex');\nconst key = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16], 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;\nreturn [{ json: { body, signature: `t=${ts},v1=${mac}`, key } }];"
+      }
+    },
+    {
+      "id": "7b2f0000-0000-4000-8000-000000000003",
+      "name": "Start the day on the hub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/internal/v1/flows/prochart_reels/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-HQ-Signature",
+              "value": "={{ $json.signature }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every day 13:00 Tehran": {
+      "main": [
+        [
+          {
+            "node": "Tomorrow, signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tomorrow, signed": {
+      "main": [
+        [
+          {
+            "node": "Start the day on the hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now (test, or a missed day)": {
+      "main": [
+        [
+          {
+            "node": "Tomorrow, signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

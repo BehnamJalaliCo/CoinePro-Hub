@@ -140,8 +140,10 @@ async def test_a_reel_is_set_for_a_time_with_its_own_comment_rule_and_followed_t
     job = await take(client, rn)
     meta = job["args"]["meta"]
     assert meta["scheduled_at"] == later.isoformat() and meta["first_comment"] == "#طلا"
+    public = meta["comment"].pop("public_replies")
     assert meta["comment"] == {
         "keywords": ["۷"], "reply": "این هم لینک:", "link": "https://pro-chart.com/x"}  # fmt: skip
+    assert len(set(public)) == 10  # one at random for each person (filled from the pool)
     assert [f.get("role") for f in job["args"]["files"]] == [None, "cover"]
 
     # IG-Hub holds it for its time: the session says «زمان‌بندی شد», nothing says «منتشر شد»
@@ -284,6 +286,7 @@ async def test_a_working_groups_package_goes_out_at_its_hour_with_the_days_own_c
     assert "at 23:58 (the owner's time)" in made["brief"] and "comment.txt" in made["brief"]
     [job] = await jobs_of(su, made["run"])
     meta = args_of(job)["meta"]
+    assert len(meta["comment"].pop("public_replies")) == 10
     assert meta["comment"] == {
         "keywords": ["۱۲"], "reply": "این هم لینک امروز", "link": "https://pro-chart.com/today"}  # fmt: skip
     # its hour today while that is still ahead (IG-Hub holds it till then); past it: now

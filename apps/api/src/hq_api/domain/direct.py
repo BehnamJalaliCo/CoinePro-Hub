@@ -70,6 +70,32 @@ WAITS_FA = (
 EMPTY_FA = "این نوبت بی‌جواب تمام شد؛ اگر چیزی لازم است همین‌جا بگو."
 SKILL_LIST = "skill_list"
 SKILL_READ = "skill_read"
+# ⟨2026-11-13⟩ The owner: «نه طوری باشه که مدل چیزی نفهمه و نه طوری باشه که هر بار فراخوانده بشه و
+# میلیون‌ها توکن مصرف بشه». Every model call of a turn re-reads what the Claude session carries; on
+# F-0018 it had grown to ~700K tokens, so a one-word «تأیید» re-read 2.2M. A session that carries
+# more than ROTATE_TOKENS (what its turns wrote to the cache, an upper bound) is ended between two
+# turns: the session's memory is caught up first, and the next turn is a fresh Claude session in
+# the same folder that starts from the memory, the folder's NOTES.md, the session's state and the
+# owner's last words.
+# ⟨2026-11-13⟩ 250K -> 150K: on F-0018 a fresh session's turns read 3.2M then 4.9M (9-11 min of
+# work) as it grew to 189K; a session's own base is ~50K (Claude Code, 74 hub tools ~22K, the
+# brief ~7K), so 150K keeps every step's re-read near half of what 250K allowed
+ROTATE_TOKENS = 150_000
+# ⟨2026-11-13 usage audit⟩ A prompt cache belongs to one account. When the account the session's
+# last turn ran on is full, the next turn runs on the other one and writes everything the session
+# carries again at the cache-write price (twice an input token): on F-0018, 01:39 to 01:40 and
+# 06:23, three turns wrote 1.53M tokens (~$12) for nothing. A session carrying more than this
+# starts afresh instead (a fresh one writes its ~36K base and a short look around).
+ROTATE_ON_SWITCH_TOKENS = 60_000
+NOTES_FILE = "NOTES.md"
+# ⟨2026-11-13⟩ The owner: «۱۳ دقیقه بیکار بود؛ نباید این اتفاق بیفتد … روند تا انتهای کارگروه باید
+# مرتب بره». A turn that ends without a question to the owner while the plan has open tasks is
+# followed at once by the next turn (not by the idle sweep ten minutes later), at most
+# CONTINUE_MAX times since the owner's last word: then the sweep's `stuck` and its one notice.
+CONTINUE_REASON = "continue:"
+CONTINUE_MAX = 6
+# ⟨2026-11-13⟩ a flow's day (domain/flows.py) has no owner's word between its steps
+FLOW_CONTINUE_MAX = 16
 
 RULES_FA = (
     "قاعده‌های این جلسه:",
@@ -93,6 +119,23 @@ RULES_FA = (
     "- حدود ۵۵ دقیقه وقت داری. اگر کار بزرگ است، اول یک نسخه‌ی کامل و دیدنی در out/ بگذار، بعد "
     "همان فایل را با همان نام بهتر کن (یک نسخه‌ی دیدنی، نه چند نسخه). فایل موقت را در همین پوشه "
     "یا $TMPDIR بگذار.",
+    f"- دفترچه‌ی جلسه: در پایان هر نوبت {NOTES_FILE} همین پوشه را به‌روز کن، حداکثر ۸۰ خط و ۶ هزار "
+    "نویسه: تصمیم‌ها و سلیقه‌ی مدیر کل (دقیق، با همان تنظیم‌ها)، چه ساخته شد و کجای پوشه است، کار "
+    "باز و قدم بعد. نشست بعدی ممکن است تازه باشد و فقط از همین دفترچه، حافظه‌ی جلسه و فایل‌ها ادامه "
+    "میدهد. دفترچه یکی است: پرونده‌ی وضعِ دیگری کنارش نساز (مثل STATE.md) و نوشته‌ی کهنه را از "
+    "دفترچه پاک کن، به آخرش اضافه نکن.",
+    "- حافظه‌ی کارگاه ۴ گیگ است (با خود Claude): رندر با حداکثر ۲ پردازش هم‌زمان (۲ مرورگر Chromium "
+    "یا ۲ کارگر)، هر مرورگر بعد از کارش بسته، فریم‌ها مستقیم به ffmpeg، و پیش از هر رندر پردازش‌های "
+    "جامانده‌ی Chromium بسته؛ بیشتر از این، نوبت از کار میافتد (کد ۱۳۴).",
+    "- هر چه میخوانی در حافظه‌ی نشست میماند و در هر قدم دوباره خوانده میشود: خروجی ابزار را کوتاه "
+    "بخواه (head، tail، grep، حالت بی‌صدا)، لاگ و فایل بلند را کامل چاپ نکن و فایلی را که خواندی "
+    "دوباره نخوان.",
+    # ⟨2026-11-13 usage audit⟩ F-0018: 58 polls of speech_make a few seconds apart, 43 tool
+    # loads, pictures read again; every step re-reads all the session carries
+    "- هر قدم (هر فراخوانی ابزار) یک بار همه‌ی نشست را دوباره میخواند، پس قدم کم بردار: ابزارهای "
+    "ستادی لازم را یک‌جا با یک ToolSearch بار کن؛ برای jobی که منتظرش هستی پیش از هر پرسش دوباره "
+    "در همان دستور Bash دست‌کم ۳۰ ثانیه sleep کن، نه پرسش پشت پرسش؛ تصویر را فقط وقتی بخوان که باید "
+    "ببینی‌اش.",
 )
 
 
@@ -155,6 +198,35 @@ def skills_of(lib: Any) -> list[dict[str, str]]:
     ]
 
 
+STATE_KEYS = (
+    "order", "pace", "state", "owner_turn", "plan", "plan_next", "step_rule", "steps",
+    "blockers", "outputs", "files", "failed_cards", "playbooks", "source_playbook",
+    "related_sessions",
+    # ⟨2026-11-11⟩ what still works for the order outside, what ended unanswered
+    "waiting_on", "ended_without_answer",
+)  # fmt: skip
+# ⟨2026-11-13 usage audit⟩ A later turn of the same Claude session already holds the first
+# turn's state: it gets what moves (the open tasks, the steps, the owner's turn, what waits
+# outside), not the session's outputs, files, playbooks and related sessions again. On F-0018
+# every later brief re-sent ~11K characters (27 tasks, 24 done; the same output title 20 times),
+# and its 9000-character cut fell inside `outputs`, so `waiting_on` never reached the session.
+LATER_SKIP = frozenset({"outputs", "files", "playbooks", "source_playbook", "related_sessions"})
+
+
+def state_of(brief: dict[str, Any], *, first: bool) -> dict[str, Any]:
+    """The session's state as a turn's brief carries it (see LATER_SKIP)."""
+    state = {k: brief[k] for k in STATE_KEYS if brief.get(k) and (first or k not in LATER_SKIP)}
+    if isinstance(state.get("outputs"), list):
+        state["outputs"] = list(dict.fromkeys(str(o) for o in state["outputs"]))
+    plan = state.get("plan")
+    if not first and isinstance(plan, list):
+        left = [t for t in plan if not (isinstance(t, dict) and t.get("state") == "done")]
+        state["plan"] = left
+        if len(left) < len(plan):
+            state["plan_done"] = len(plan) - len(left)
+    return state
+
+
 def compose(
     w: dict[str, Any],
     emp: dict[str, Any],
@@ -172,15 +244,7 @@ def compose(
     title = str(emp.get("title_fa") or emp["code"])
     company = str(emp.get("company_name_fa") or emp["company"])
     said = [str(x) for x in brief.get("owner_said") or []]
-    state = {
-        k: brief[k]
-        for k in ("order", "pace", "state", "owner_turn", "plan", "plan_next", "step_rule",
-                  "steps", "blockers", "outputs", "files", "failed_cards", "playbooks",
-                  "source_playbook", "related_sessions",
-                  # ⟨2026-11-11⟩ what still works for the order outside, what ended unanswered
-                  "waiting_on", "ended_without_answer")
-        if brief.get(k)
-    }  # fmt: skip
+    state = state_of(brief, first=first)
     lines: list[str] = []
     if first:
         lines += [
@@ -205,6 +269,14 @@ def compose(
         body = str(getattr(charter, "body", "") or "").strip()
         if body:
             lines += ["", "## راهنمای نقش تو", body[:CHARTER_CHARS]]
+        if brief.get("continued"):
+            lines += [
+                "",
+                "## ادامه‌ی همین جلسه در نشستی تازه",
+                f"این جلسه پیش از این نوبت‌هایی داشته است. اول {NOTES_FILE} همین پوشه را بخوان، "
+                "بعد «حافظه‌ی جلسه» و «وضع جلسه» پایین را؛ فایل‌های پوشه همان است. از همان‌جا که "
+                "مانده ادامه بده و چیزی را که تصمیمش گرفته شده دوباره نپرس.",
+            ]
         if brief.get("memory_md"):
             lines += ["", "## تا اینجا (حافظه‌ی جلسه)", str(brief["memory_md"])[:6000]]
         lines += ["", "## فرمان مدیر کل", str(brief.get("text") or "")[:1500]]
@@ -213,7 +285,8 @@ def compose(
             f"# ادامه‌ی جلسه‌ی {brief.get('order')} (همان نشست، همان پوشه)",
             "",
             "قاعده‌ها همان است: پاسخ نهایی کوتاه و فارسی برای مدیر کل؛ فایل تحویلی در out/؛ منتشر "
-            "نکن؛ هر چه از ستاد است از ابزارهای ستاد.",
+            "نکن؛ هر چه از ستاد است از ابزارهای ستاد؛ خروجی ابزار کوتاه؛ در پایان نوبت "
+            f"{NOTES_FILE} را به‌روز کن.",
         ]
     if brief.get("wake"):
         # ⟨2026-11-11⟩ the hub woke this turn because nothing of the order runs: read it first
@@ -246,6 +319,11 @@ def why_fa(reason: str) -> str:
             "برنامه را همین حالا خودت پیش ببر یا یک سؤال کوتاه با order_ask از مدیر کل بپرس؛ فقط "
             "گزارش ننویس."
         )
+    if reason.startswith(CONTINUE_REASON):
+        return (
+            "نوبت قبلی‌ات تمام شد و از مدیر کل سؤالی باز نیست؛ قدم بعد برنامه را همین حالا انجام "
+            "بده. اگر چیزی فقط با مدیر کل است، یک سؤال کوتاه با order_ask بپرس؛ فقط گزارش ننویس."
+        )
     if reason.startswith("speech_done:"):
         return "صدای گوینده‌ای که خواسته بودی آماده شد (speech_make با همان job)؛ با آن ادامه بده."
     if reason.startswith("speech_failed:"):
@@ -275,6 +353,15 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
 
     rows = await F.of_order(tx, rep["order_id"])
     ids = [str(f["id"]) for f in rows if f.get("id")]
+    # ⟨2026-11-13⟩ and what the session itself made for it (a voice of speech.make: its raw file
+    # is needed for the voice's check, a sentence made again, the video's sound), newest first
+    made = await tx.all(
+        """SELECT id FROM files.files WHERE meta->>'order_id' = :o AND variant = 'original'
+           ORDER BY created_at DESC LIMIT :l""",
+        o=str(rep["order_id"]),
+        l=HANDS.INPUTS_MAX,
+    )
+    ids += [str(r["id"]) for r in made if str(r["id"]) not in ids]
     if not ids:
         return []
     sent: set[str] = set()
@@ -309,6 +396,10 @@ async def hand_over(hub: Any, run: dict[str, Any], emp: dict[str, Any]) -> str |
     if OR.base_reason(reason).startswith(CLASSIC_REASONS):
         return None  # ⟨2026-11-11⟩ a re-queued one too (`requeue:workspace_failed:…`)
     try:
+        await rotate_if_heavy(hub, run["work_id"])
+    except Exception:  # a session that stays long costs more, it never stops the turn
+        log.exception("session rotation failed", extra={"run_id": str(run["id"])})
+    try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             return await _hand_over(tx, hub, run, emp, reason)
     except ApiError as exc:
@@ -330,6 +421,12 @@ async def _hand_over(
     order = await OR.load_order(tx, ref) if ref else None
     if ref is None or order is None or str(w["ref"]) not in OR.root_refs(order):
         return None  # only the order's own work is the session's thread
+    roots = OR.root_refs(order)
+    if len(roots) > 1 and str(w["ref"]) != roots[0]:
+        # ⟨2026-11-13⟩ one brain per session: the lead holder's turn is the workshop's; a
+        # colleague company's part of the same order is its classic run (it may still call
+        # workshop.run for what needs hands), not a second Opus session answering every word
+        return None
     rep = await OR.ensure(tx, ref)
     if rep is None or rep.get("ended_at") is not None:
         return None
@@ -356,6 +453,8 @@ async def _hand_over(
     if charter is None or charter.kind == "system":
         return None
     brief = await OT.talk_brief(tx, ref, work_id=w["id"], for_run=True) or {"order": ref}
+    if ws is not None:
+        brief["continued"] = True  # a fresh Claude session of a meeting that had turns
     rid = await tx.scalar(
         "SELECT agents.open_direct_run(:e, :w, :r, :ttl)",
         e=emp["id"], w=w["id"], r=f"{REASON}{ref}", ttl=RUN_TTL_S,
@@ -376,7 +475,7 @@ async def _hand_over(
                 tx, who, server, w, brief="", title=f"{ref}: {w['title']}",
                 files=files, direct={"direct": True, "tools": TOOLS, "run": str(rid),
                                      "order": ref},
-                text_of=text_of,
+                text_of=text_of, effort=await effort_of(tx, w),
             )  # fmt: skip
     except ApiError:
         await tx.scalar(
@@ -385,6 +484,117 @@ async def _hand_over(
         raise
     await events.emit(tx, str(emp["company"]), "order.updated", ref, {"direct": "working"})
     return HANDED.format(job=out.job)
+
+
+# ⟨2026-11-13⟩ the F-0018 usage audit (P1), the owner's word: «max» only where the video is made
+# (a flow's day, which is the build), «xhigh» for a session's talk and plan. One effort for a
+# whole session: changing it mid-session would throw the prompt cache away.
+DIRECT_EFFORT = "xhigh"
+BUILD_EFFORT = "max"
+
+
+async def effort_of(tx: Tx, w: dict[str, Any]) -> str:
+    flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
+    return BUILD_EFFORT if flow else DIRECT_EFFORT
+
+
+# ------------------------------------------------------- a lean session (2026-11-13) --
+async def carried_tokens(tx: Tx, session_id: Any) -> int:
+    """What a Claude session carries, at most: every token its turns wrote to the prompt cache
+    (a turn writes what it adds; a cache that expired is written again, so this only errs high)."""
+    n = await tx.scalar(
+        """SELECT COALESCE(SUM((usage->>'cache_write_tokens')::bigint), 0)
+           FROM infra.server_jobs
+           WHERE session_id = :s AND kind = 'claude'
+             AND usage->>'cache_write_tokens' IS NOT NULL""",
+        s=session_id,
+    )
+    return int(n or 0)
+
+
+async def account_moved(tx: Tx, session_id: Any) -> bool:
+    """⟨2026-11-13 usage audit⟩ Whether the session's next turn runs on another account than its
+    last one (whose prompt cache holds the session): that account is full now and another one
+    has room (SV.runner_claude_pick's rule, read without the tokens the worker does not hold)."""
+    last = await tx.first(
+        """SELECT usage FROM infra.server_jobs WHERE session_id = :s AND kind = 'claude'
+             AND usage ? 'account' ORDER BY created_at DESC LIMIT 1""",
+        s=session_id,
+    )
+    was = str(SV._book(dict(last)).get("account") or "") if last else ""
+    if not was:
+        return False
+    keys = [k for k, _ in SV.RUNNER_ACCOUNTS]
+    rows = {str(r["key"]): dict(r) for r in await tx.all(SV.ACCOUNTS_SQL, keys=keys)}
+    now = await tx.scalar("SELECT now()")
+    if not SV.account_full(rows.get(was), now):
+        return False
+    return any(
+        k != was
+        and (r := rows.get(k)) is not None
+        and r["connection_status"] in ("enabled", "ready")
+        and not SV.account_full(r, now)
+        for k in keys
+    )
+
+
+async def rotate_if_heavy(hub: Any, work_id: Any) -> bool:
+    """Between two turns: a Claude session that carries more than ROTATE_TOKENS is ended, after
+    the session's memory caught up with every turn, so the next turn starts a fresh session in
+    the same folder (HANDS.start opens one; its brief is the first one with `continued`).
+    ⟨2026-11-13⟩ So is one carrying more than ROTATE_ON_SWITCH_TOKENS whose next turn moves to
+    the other Claude account (account_moved). True when it ended one."""
+    from hq_api.domain import session_memory as MEM
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ws = await WS.of_work(tx, work_id)
+        if ws is None or ws.get("session_id") is None or ws["state"] in WS.ENDED:
+            return False
+        if await WS.busy_job(tx, ws) is not None:
+            return False
+        carried = await carried_tokens(tx, ws["session_id"])
+        if carried <= ROTATE_TOKENS and not (
+            carried > ROTATE_ON_SWITCH_TOKENS and await account_moved(tx, ws["session_id"])
+        ):
+            return False
+        ref = await OR.order_of_work(tx, work_id)
+    if ref:
+        await MEM.catch_up(hub, MEM.api_call(hub), ref)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ended = await tx.exec(
+            """UPDATE workshop.sessions SET state = 'done', finished_at = now()
+               WHERE id = :s AND state NOT IN ('done', 'failed', 'stopped')
+                 AND NOT EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.session_id = :s
+                                   AND j.state IN ('queued', 'running'))""",
+            s=ws["session_id"],
+        )
+        if not ended:
+            return False
+        w = await W.load(tx, work_id)
+        await W.event(tx, w, "session_rotated", OR.SERVICE,
+                      {"session": str(ws["session_id"]), "carried": carried})  # fmt: skip
+    log.info("session rotated", extra={"work": str(work_id), "carried": carried})
+    return True
+
+
+_FOLDS: set[Any] = set()
+
+
+def fold_soon(hub: Any, ref: str) -> None:
+    """After a direct turn (the api, after its commit): the session's memory folded in the
+    background when DIRECT_FOLD_EVERY turns came since the last fold. Without a worker (tests, a
+    bare api) there is no model to fold with."""
+    import asyncio
+
+    from hq_api.domain import session_memory as MEM
+
+    if getattr(hub, "temporal", None) is None:
+        return
+    task = asyncio.get_running_loop().create_task(
+        MEM.fold(hub, MEM.api_call(hub), ref, every=MEM.DIRECT_FOLD_EVERY)
+    )
+    _FOLDS.add(task)
+    task.add_done_callback(_FOLDS.discard)
 
 
 # ------------------------------------------------------------- the turn's end --
@@ -499,6 +709,48 @@ async def after_turn(
     await events.emit(tx, w["company"], "order.updated", ref, {"direct": "idle"})
     if ref and await pending_word(tx, ref, j):
         await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"owner_reply:{ref}")
+    elif ref and text and not asked:
+        await go_on(tx, dict(rep), w, ref)
+
+
+async def go_on(tx: Tx, rep: dict[str, Any], w: dict[str, Any], ref: str) -> bool:
+    """⟨2026-11-13⟩ The next turn at once, when the plan has open tasks and fewer than CONTINUE_MAX
+    turns went on by themselves since the owner's last word. True when one was queued."""
+    import contextlib
+    from datetime import datetime
+
+    from hq_api.domain import sessions as SE
+
+    open_tasks = [
+        t for t in await SE.tasks_of(tx, rep["order_id"]) if t["state"] not in ("done", "dropped")
+    ]
+    if not open_tasks:
+        return False
+    since = rep.get("created_at")
+    for s in reversed(OR._j(rep.get("steps")) or []):
+        if isinstance(s, dict) and s.get("who_fa") == "مدیر کل":
+            with contextlib.suppress(ValueError):
+                since = datetime.fromisoformat(str(s.get("at")))
+            break
+    went = await tx.scalar(
+        """SELECT count(*) FROM agents.runs WHERE work_id = :w AND reason = :r
+             AND created_at > :since""",
+        w=w["id"],
+        r=f"{CONTINUE_REASON}{ref}",
+        since=since,
+    )
+    flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
+    if int(went or 0) >= (FLOW_CONTINUE_MAX if flow else CONTINUE_MAX):
+        return False
+    if flow:
+        from hq_api.domain import flows as FL
+
+        if await FL.over_cap(tx, w["id"]):
+            return False  # the day's cap (P4): the owner was told
+    run = await tx.scalar(
+        "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{CONTINUE_REASON}{ref}"
+    )
+    return run is not None
 
 
 # ------------------------------------------------------------------ the tools --

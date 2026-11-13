@@ -374,22 +374,75 @@ COMMENT_KEYS = {
     "reply": ("reply", "message", "پاسخ", "جواب", "پیام"),
     "link": ("link", "url", "لینک"),
     "public": ("public", "public_reply", "عمومی", "پاسخ عمومی", "جواب عمومی"),
+    "match": ("match", "تطبیق"),
+    "button": ("button", "دکمه"),
 }
+# ⟨2026-11-13⟩ a word that means «every comment, whatever it says» (the owner: «به غیر از تنظیم
+# کلمه برای کامنت هوشمند باید یه گزینه هر کلمه ای بذاریم»)
+ANY_WORDS = frozenset(
+    {"*", "any", "all", "هر", "هر کلمه", "هر کلمه‌ای", "هر کامنت", "هر کامنتی", "همه"}
+)
+
+
+# ⟨2026-11-13⟩ the public replies under a comment, in turn (IG-Hub 1806b86: ten people in a row
+# get ten different ones): at least ten, each written warmly and with its emoji. The owner: «جواب برگشت کامنت ها
+# باید هر نفر متفاوت و رندوم باشد مثلا حداقل ۱۰ تا پیام مختلف داشته باشیم». A package's own
+# (`public:` lines of comment.txt) come first; this pool fills them up to ten.
+PUBLIC_POOL = (
+    "برو دایرکتت رو چک کن، فرستادم برات؛ موفق باشی 🤍",
+    "فرستادم! یه سر به دایرکتت بزن 🙌",
+    "دایرکتت رو ببین، همه‌چی اون‌جاست 💌",
+    "برات ارسال شد ✅ امیدوارم به کارت بیاد 🌱",
+    "توی دایرکت منتظرته 🎁 روز خوبی داشته باشی",
+    "ارسال شد 🚀 دایرکت رو چک کن",
+    "لینکش آماده‌ست، توی دایرکتته 🔗💛",
+    "حله! برات فرستادیم 😊 دایرکت رو ببین",
+    "جوابت رفت توی دایرکت 📬 ممنون که همراهمونی",
+    "دایرکتت رو باز کن، یه چیز خوب برات فرستادیم ✨",
+)
+PUBLIC_MIN = 10
+
+
+def with_public(rule: dict[str, Any]) -> dict[str, Any]:
+    """The comment rule with its public replies filled up to ten from the pool."""
+    own = [str(x) for x in rule.get("public_replies") or [] if str(x).strip()]
+    pool = [x for x in PUBLIC_POOL if x not in own]
+    return {**rule, "public_replies": (own + pool)[: max(PUBLIC_MIN, len(own))][:10]}
+
+
+def word_forms(words: Any) -> list[str]:
+    """⟨2026-11-13⟩ Each keyword and its joined forms (F-0018: the caption asked for «بازپخش», the
+    rule had «باز پخش»): spaces and half-spaces taken out as well, at most 10 words."""
+    out: list[str] = []
+    for w in words:
+        for form in (w, w.replace("\u200c", ""), w.replace(" ", "").replace("\u200c", "")):
+            form = " ".join(form.split())
+            if form and form not in out:
+                out.append(form)
+    return out[:10]
 
 
 def clean_comment(raw: Any) -> dict[str, Any] | None:
     """⟨§46⟩ A comment rule as IG-Hub takes it, or None when it has no word or no reply: up to
-    10 words, the private reply, an https link (anything else is left out), public replies."""
+    10 words, the private reply, an https link (anything else is left out), public replies.
+    ⟨2026-11-13⟩ `match: any` (or a word «*», «هر کامنتی»): every comment on the post is
+    answered, whatever it says; its other words are kept for the story's replies."""
     if not isinstance(raw, dict):
         return None
     words = raw.get("keywords") or raw.get("keyword") or []
     if isinstance(words, str):
         words = re.split(r"[,،]", words)
-    words = list(dict.fromkeys(str(w).strip()[:100] for w in words if str(w).strip()))[:10]
+    words = [str(w).strip()[:100] for w in words if str(w).strip()]
+    every = str(raw.get("match") or "").strip().lower() in ANY_WORDS | {"any"} or any(
+        w.lower() in ANY_WORDS for w in words
+    )
+    words = word_forms(w for w in words if w.lower() not in ANY_WORDS)
     reply = str(raw.get("reply") or raw.get("reply_text") or "").strip()[:1000]
-    if not words or not reply:
+    if not (words or every) or not reply:
         return None
     out: dict[str, Any] = {"keywords": words, "reply": reply}
+    if every:
+        out["match"] = "any"
     link = str(raw.get("link") or "").strip()
     if re.fullmatch(r"https://\S{3,1900}", link):
         out["link"] = link
@@ -614,7 +667,7 @@ async def _send(
     if scheduled_at is not None:
         meta["scheduled_at"] = scheduled_at.isoformat()
     if comment and what != "story":
-        meta["comment"] = comment
+        meta["comment"] = with_public(comment)
     if (first_comment or "").strip() and what != "story":
         meta["first_comment"] = str(first_comment).strip()[:CAPTION_MAX]
     j = await SV.create_job(
@@ -1259,7 +1312,13 @@ def brief_block(raw: Any) -> str:
         "at most 2200 characters): have the workshop turn (`workshop.run`) that builds the video leave "
         "exactly these in `out/`. When the reel asks viewers to comment a word or a number, add "
         "`comment.txt` with three lines, `keyword: <that word>`, `reply: <the private message>` "
-        "and `link: https://…`: whoever comments it on this post gets the reply with the link. "
+        "and `link: https://…`: whoever comments it on this post gets the reply with the link "
+        "(add `match: any` to answer every comment on it, whatever it says; `keyword` is still "
+        "the word the video says, and the story's replies are answered on it alone; a line "
+        "`public: …` for each reply under the comment, ten at most, warm and with an emoji: "
+        "those you leave out are filled from a pool), "
+        "and the story of the same work, when it goes out, answers its replies with the same "
+        "rule by itself. "
         "When that one turn leaves the whole package in `out/` (the video or the picture, and "
         "`caption.txt`), its end delivers this work by itself and the package goes out, so give "
         "that turn the whole package (its input files included); a turn that leaves less wakes "
@@ -1267,6 +1326,180 @@ def brief_block(raw: Any) -> str:
         "the owner to approve it. Without `caption.txt` nothing is published. A routine that "
         "makes nothing to publish (a report, an analysis) delivers as usual.)"
     )
+
+
+# ------------------------------------------- ⟨2026-11-13⟩ rules on a post that is out --
+# The owner (F-0018): «یجوری اصلاح کن که از داخل آپ این اتفاق بیفتد چون ما تمام مسیر هارو برای همه
+# شرکت ها باز کردیم». A comment rule on a published reel or post, and a story-reply rule, are made
+# by IG-Hub (its key API `POST /api/v1/rules`, IG-Hub prompt 3) from one `publish` job with meta
+# `rule` and no file; its command answers `rule:<id>`. A rule job carries `rule_for` (never
+# `session`), so it is no publication of its own.
+RULE_WHAT_FA = {"comment": "کامنت هوشمند", "story_reply": "جواب دایرکت استوری"}
+RULE_QUEUED_FA = "{what} برای @{account} به IG-Hub رفت: «{word}»"
+RULE_DONE_FA = "{what} روشن شد: «{word}» در @{account}"
+RULE_FAILED_FA = "{what} در @{account} ساخته نشد: {why}"
+RULE_NOT_OUT_FA = "این انتشار هنوز بیرون نرفته است؛ قاعده بعد از انتشار گذاشته میشود."
+RULE_NEEDS_FA = "برای قاعده یک کلمه و یک جواب لازم است."
+
+
+def rule_body(
+    trigger: str, rule: dict[str, Any], account: str, post_ids: list[str], key: str
+) -> dict[str, Any]:
+    """IG-Hub's rule (its `RuleIn`): the words in every joined form, the private reply, a link as
+    a button, the public replies; for one post when it names one."""
+    body: dict[str, Any] = {
+        "account": account.lstrip("@"),
+        "trigger": trigger,
+        "keywords": word_forms(rule.get("keywords") or []),
+        # every comment only on its own post; a DM or a story reply is answered on its words
+        "match": "any" if trigger == "comment" and rule.get("match") == "any" else "contains",
+        "reply_text": str(rule.get("reply") or "")[:1000],
+        # under a comment only: ten, in turn (ten people in a row, ten different replies)
+        "public_replies": with_public(rule)["public_replies"] if trigger == "comment" else [],
+        "post_ids": [p for p in post_ids if p.isdigit()],
+        "name": f"HQ {RULE_WHAT_FA.get(trigger, trigger)} @{account.lstrip('@')}"[:80],
+        "key": key[:200],
+    }
+    if rule.get("link"):
+        body["buttons"] = [{"title": str(rule.get("button") or "باز کردن")[:20],
+                            "url": str(rule["link"])}]  # fmt: skip
+    return body
+
+
+async def queue_rule(
+    tx: Tx, who: Principal, job_id: UUID, trigger: str, raw: Any, *,
+    request_id: str | None = None,
+) -> dict[str, Any]:  # fmt: skip
+    """One rule for a publication that is out: `comment` on its own post (a reel or a post),
+    `story_reply` for the account's story replies. Answers {job, trigger, keywords}."""
+    if trigger not in RULE_WHAT_FA:
+        raise ApiError(422, "validation_failed", fields={"trigger": "comment or story_reply"})
+    rule = clean_comment(raw)
+    if rule is None or (trigger != "comment" and not rule["keywords"]):
+        # a story reply (or a DM) is answered on its words alone
+        raise ApiError(422, "validation_failed", fields={"rule": "a word and a reply"},
+                       message_fa=RULE_NEEDS_FA)  # fmt: skip
+    first = await tx.first(
+        f"SELECT {JOB_COLS} FROM infra.server_jobs j WHERE j.id = :id AND j.kind = 'publish'"  # noqa: S608
+        " AND j.args ? 'session'",
+        id=job_id,
+    )
+    if first is None:
+        raise ApiError(404, "not_found", f"publication {job_id}")
+    a0 = OR._j(first["args"]) or {}
+    s0 = a0.get("session") or {}
+    row = await tx.first(
+        LAST_SQL, out=str(s0.get("output") or ""), f=str(s0.get("file_id") or ""),
+        a=str(a0.get("account") or ""), k=str(a0.get("kind") or ""),
+    )  # fmt: skip
+    j = dict(row or first)
+    now = view(j)
+    if now.state != "published":
+        raise ApiError(409, "validation_failed", f"it is {now.state}", message_fa=RULE_NOT_OUT_FA)
+    args = OR._j(j["args"]) or {}
+    s = args.get("session") or {}
+    account = str(args.get("account") or "")
+    ext = str((OR._j(j.get("result")) or {}).get("external_id") or "")
+    posts = [ext] if trigger == "comment" and ext.isdigit() else []
+    company_id = await tx.scalar(
+        "SELECT id FROM core.companies WHERE code = :c", c=str(s.get("company") or "")
+    )
+    if company_id is None:
+        raise ApiError(409, "validation_failed", "no company")
+    route = await _route(tx, company_id)
+    server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
+    key = f"rule:{trigger}:{ext or j['id']}:{','.join(rule['keywords'])}"
+    body = rule_body(trigger, rule, account, posts, key)
+    what = RULE_WHAT_FA[trigger]
+    made = await SV.create_job(
+        tx,
+        server=server,
+        kind="publish",
+        args={"account": account, "kind": str(args.get("kind") or ""), "caption": "", "files": [],
+              "command": args.get("command"), "placement": args.get("placement"),
+              "rule_for": {"order": s.get("order"), "output": s.get("output"),
+                           "company": s.get("company"), "trigger": trigger},
+              "meta": {"kind": "rule", "rule": body, "key": key, "account": account}},
+        actor_kind=who.kind,
+        actor_code=who.code,
+        work_ref=s.get("work"),
+        summary=f"{what} برای @{account}",
+        request_id=request_id,
+    )  # fmt: skip
+    word = body["keywords"][0] if body["keywords"] else ""
+    ref = str(s.get("order") or "")
+    rep = await OR.ensure(tx, ref) if ref else None
+    if rep is not None:
+        await OR._append_steps(tx, rep["id"], [_line(
+            SYSTEM_FA, RULE_QUEUED_FA.format(what=what, account=account, word=word))])  # fmt: skip
+    await audit.record(
+        tx, who, company_id=company_id, action="publish.rule", action_class="A2",
+        target_kind="order" if ref else "deliverable", target_ref=ref or str(s.get("output") or ""),
+        summary=f"{trigger} rule on @{account} ({', '.join(body['keywords'])}); job {made['id']}"[:500],
+        request_id=request_id,
+    )  # fmt: skip
+    return {"job": str(made["id"]), "trigger": trigger, "keywords": body["keywords"]}
+
+
+async def _rule_ended(tx: Tx, j: dict[str, Any], args: dict[str, Any]) -> None:
+    """A rule job ended: the session says it is on (IG-Hub's `rule:<id>`), or why not."""
+    rf = args.get("rule_for") or {}
+    rule = (args.get("meta") or {}).get("rule") or {}
+    what = RULE_WHAT_FA.get(str(rf.get("trigger")), "قاعده")
+    account = str(args.get("account") or "")
+    word = (rule.get("keywords") or [""])[0]
+    ext = str((OR._j(j.get("result")) or {}).get("external_id") or "")
+    ok = j["state"] == "done" and ext.startswith("rule:")
+    if ok:
+        say = RULE_DONE_FA.format(what=what, account=account, word=word)
+    else:
+        why = HZ.humanize(str(j.get("summary_fa") or "")) or "IG-Hub نپذیرفت"
+        say = RULE_FAILED_FA.format(what=what, account=account, why=why)
+    ref = str(rf.get("order") or "")
+    rep = await OR.ensure(tx, ref) if ref else None
+    if rep is not None:
+        await OR._append_steps(tx, rep["id"], [_line(SYSTEM_FA, say)])
+
+
+SAME_OUTPUT_SQL = f"""SELECT {JOB_COLS} FROM infra.server_jobs j
+    WHERE j.kind = 'publish' AND j.args -> 'session' ->> 'output' = :out
+      AND j.args ->> 'account' = :a AND j.args ->> 'kind' = ANY(CAST(:kinds AS text[]))
+    ORDER BY j.created_at DESC LIMIT 20"""  # noqa: S608 - constant columns
+RULE_MADE_SQL = """SELECT 1 FROM infra.server_jobs j
+    WHERE j.kind = 'publish' AND j.args -> 'rule_for' ->> 'output' = :out
+      AND j.args ->> 'account' = :a AND j.args -> 'rule_for' ->> 'trigger' = 'story_reply'
+      AND j.state IN ('queued', 'running', 'done') LIMIT 1"""
+
+
+async def _story_rule(tx: Tx, args: dict[str, Any]) -> None:
+    """⟨2026-11-13⟩ The comment rule of a reel or post is made for the account's story replies once
+    the story of the same output is out, whichever of the two went out first, with no one's
+    tap: the working group's own publish (n8n, a standing word: no order) as well as the
+    owner's. The owner: «بحث دکمه نیست باید اتوماتیک پشت صحنه انجام بشه». Once per output."""
+    out = str((args.get("session") or {}).get("output") or "")
+    account = str(args.get("account") or "")
+    if not out or not account:
+        return
+    if await tx.first(RULE_MADE_SQL, out=out, a=account) is not None:
+        return
+    rows = [
+        {**dict(r), "args": OR._j(r["args"]) or {}}
+        for r in await tx.all(
+            SAME_OUTPUT_SQL, out=out, a=account, kinds=["reel", "post", "carousel", "story"]
+        )
+    ]
+    comment = next(
+        (c for r in rows if r["args"].get("kind") != "story"
+         if (c := (r["args"].get("meta") or {}).get("comment"))),
+        None,
+    )  # fmt: skip
+    story = next(
+        (r for r in rows if r["args"].get("kind") == "story" and view(r).state == "published"),
+        None,
+    )
+    # a story reply is answered on its words alone: a rule for every comment has none to give
+    if comment and comment.get("keywords") and story is not None:
+        await queue_rule(tx, SERVICE, story["id"], "story_reply", {**comment, "match": "contains"})
 
 
 async def after_job(hub: Any, job_id: UUID) -> None:
@@ -1288,6 +1521,11 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             return
         j = dict(j)
         args = OR._j(j["args"]) or {}
+        if args.get("rule_for"):
+            # ⟨2026-11-13⟩ a rule's job, no publication of its own
+            if j["state"] not in LIVE:
+                await _rule_ended(tx, j, args)
+            return
         s = args.get("session") or {}
         meta = args.get("meta") or {}
         standing = args.get("standing") or {}
@@ -1338,6 +1576,20 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 )
             return
         ok = done.state == "published"
+        if ok and s.get("order"):
+            try:
+                async with tx.conn.begin_nested():
+                    from hq_api.domain import flows as FL
+
+                    await FL.on_published(tx, args, done)
+            except Exception:  # noqa: BLE001 - the post is out whatever its notice does
+                log.warning("the flow's notice was not sent", extra={"job": str(job_id)})
+        if ok and args.get("kind") in ("story", "reel", "post", "carousel"):
+            try:
+                async with tx.conn.begin_nested():
+                    await _story_rule(tx, args)
+            except Exception:  # noqa: BLE001 - the story is out whatever its rule does
+                log.warning("the story's reply rule was not queued", extra={"job": str(job_id)})
         if ok:
             # ⟨1.36⟩ §58.4 confirmed: its package is kept (filed below), the rest swept in 72 h
             try:

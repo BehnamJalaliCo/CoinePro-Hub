@@ -31,6 +31,7 @@ import base64
 import contextlib
 import logging
 import os
+import re
 import shutil
 import sys
 import time
@@ -322,6 +323,27 @@ def _fill(template: str | None, j: JobIn) -> str:
     return (template or "").replace("{start_url}", str(j.recipe.get("start_url") or ""))
 
 
+VOICE_NAME = re.compile(r"[A-Za-z][A-Za-z' -]{0,39}")
+
+
+def _selector(st: dict[str, Any], j: JobIn) -> str:
+    """⟨2026-11-13⟩ A step's selector, with `{voice}` and `{style}` as the job's own (AI Studio's
+    2026-11 page picks a speaker card and a style preset by name). A voice is a plain name; each
+    value is quoted for the CSS string it stands in. A selector that names an empty value fails
+    the step (an `optional` one is skipped: no style, no preset)."""
+    sel = str(st.get("selector") or "")
+    for key, value in (("{voice}", j.voice), ("{style}", j.style)):
+        if key not in sel:
+            continue
+        v = (value or "").strip()
+        if not v:
+            raise StepFailed(str(st.get("do")), f"the job names no {key.strip('{}')}")
+        if key == "{voice}" and not VOICE_NAME.fullmatch(v):
+            raise StepFailed(str(st.get("do")), "the voice is not a plain name")
+        sel = sel.replace(key, v.replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"'))
+    return sel
+
+
 async def run_recipe(
     page: Page, ctx: BrowserContext, j: JobIn, hosts: frozenset[str]
 ) -> dict[str, Any]:
@@ -392,7 +414,7 @@ async def _recipe_step(
     hosts: frozenset[str],
 ) -> str | dict[str, Any] | None:
     do = str(st.get("do"))
-    sel = str(st.get("selector") or "")
+    sel = _selector(st, j)
     if do == "goto":
         url = _fill(st.get("url"), j)
         host = (urlsplit(url).hostname or "").lower()
@@ -409,7 +431,8 @@ async def _recipe_step(
         if await page.locator(str(st.get("unless"))).count() == 0:
             await page.locator(sel).first.click(timeout=ms)
     elif do == "fill":
-        value = j.style or "" if st.get("text") == "{style}" else j.prompt
+        given = {"{style}": j.style or "", "{voice}": j.voice or ""}
+        value = given.get(str(st.get("text")), j.prompt)
         await page.locator(sel).first.fill(value, timeout=ms)
     elif do == "select":
         await _select(page, sel, j.voice, ms)

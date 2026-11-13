@@ -34,7 +34,7 @@ TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120
 
 
 # What a `fill` may type: the job's prompt or its style note (never a literal from the recipe).
-FILL_TEXTS = ("{prompt}", "{style}")
+FILL_TEXTS = ("{prompt}", "{style}", "{voice}")  # ⟨2026-11-13⟩ a voice typed into a search box
 
 
 class RStep(BaseModel):
@@ -85,7 +85,7 @@ class RStep(BaseModel):
         if self.do == "press" and not self.key:
             raise ValueError("press needs a key")
         if self.do == "fill" and self.text not in FILL_TEXTS:
-            raise ValueError("fill types the prompt or the style only")
+            raise ValueError("fill types the prompt, the style or the voice only")
         if self.do == "select" and self.text != "{voice}":
             raise ValueError("select chooses the job's voice only")
         if self.alt is not None and self.do != "read":

@@ -31,20 +31,30 @@ log = logging.getLogger("hq_api.session_memory")
 
 MEMORY_CHARS = 6_000
 FOLD_EVERY = 20
+# ⟨2026-11-13⟩ a direct session (domain/direct.py) folds sooner: a fresh Claude session of the same
+# meeting starts from this memory (the owner: never a model that forgot, never millions of tokens
+# re-read per word); at most FOLD_CHUNK turns go to the model at once, oldest first
+DIRECT_FOLD_EVERY = 8
+FOLD_CHUNK = 25
+MIN_CHUNK = 6  # the smallest chunk tried again in halves
+CATCH_UP_ROUNDS = 8
 TASK_CLASS = "session_memory"
 RELATED = 3
-TURN_CHARS = 1_500
+TURN_CHARS = 900  # ⟨2026-11-13⟩ was 1500: a turn's gist, not its whole text
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": ["memory_md"],
-    "properties": {"memory_md": {"type": "string", "maxLength": MEMORY_CHARS}},
+    # ⟨2026-11-13⟩ no maxLength: a memory a little over it failed the whole answer (Haiku on
+    # F-0018); the text is cut to MEMORY_CHARS here (_fit), oldest lines first
+    "properties": {"memory_md": {"type": "string"}},
 }
 SYSTEM = (
     "You keep the memory of one working session between a holding's owner (مدیر کل) and the people "
     "in it (the holder of the owner's order, the employees hired into it, outside helpers such as "
     "ChatGPT). Fold the new turns into the memory so far and answer the WHOLE memory again: plain "
-    "Persian, at most 6000 characters, short lines under these headings when there is something "
+    "Persian, at most 5000 characters (about 50 short lines; never longer), short lines under these "
+    "headings when there is something "
     "to say: «## تصمیم‌ها» (what was decided), «## چه کسی چه میکند» (each person present and their "
     "task), «## ابزارها و کمک‌ها» (the tools and helpers chosen, e.g. «موضوع روزانه را نویسنده با "
     "ChatGPT پیدا میکند»), «## نکته‌های باز» (what is still open). Keep refs (W-, F-, D-, PB-, CV-) "
@@ -114,7 +124,10 @@ def body_of(
         "system": SYSTEM,
         "prompt": prompt,
         "json_schema": SCHEMA,
-        "max_output_tokens": 2_500,
+        # ⟨2026-11-13⟩ was 2500: Persian runs about a token per 1.3 characters, so a memory past
+        # ~3000 characters was cut mid-answer (the CLI's cap, every attempt) and never saved; the
+        # owner: a longer answer from Sonnet is fine
+        "max_output_tokens": 8_000,
         "timeout_s": 60,
         "meta": {"purpose": "session_memory", "order": ref},
     }
@@ -133,18 +146,33 @@ async def due(tx: Tx, order_ref: str) -> bool:
     return row is not None and int(row["turns"]) - int(row["memory_upto"]) >= FOLD_EVERY
 
 
-async def fold(hub: Any, call: Any, ref: str, *, force: bool = False) -> dict[str, Any]:
-    """The turns since the last fold into the memory. `call(body) -> dict | None` is the model
-    (the worker's router, or the api's workflow). `force`: at close, whatever the count. Nothing
-    raised: a failure keeps the old memory and is logged."""
+async def fold(
+    hub: Any, call: Any, ref: str, *, force: bool = False, every: int = FOLD_EVERY
+) -> dict[str, Any]:
+    """The turns since the last fold into the memory (at most FOLD_CHUNK, oldest first). `call(body)
+    -> dict | None` is the model (the worker's router, or the api's workflow). `force`: whatever
+    the count; `every`: how many turns make it due. Nothing raised: a failure keeps the old memory
+    and is logged."""
     try:
-        return await _fold(hub, call, ref, force=force)
+        return await _fold(hub, call, ref, force=force, every=every)
     except Exception:  # the memory is best effort, the turn is not
         log.warning("session memory not folded", extra={"ref": ref}, exc_info=True)
         return {"folded": False, "why": "error"}
 
 
-async def _fold(hub: Any, call: Any, ref: str, *, force: bool) -> dict[str, Any]:
+async def catch_up(hub: Any, call: Any, ref: str) -> int:
+    """⟨2026-11-13⟩ Every turn not yet in the memory folded, chunk by chunk (before a fresh Claude
+    session of the meeting starts from it). Answers the chunks folded; never raises."""
+    n = 0
+    for _ in range(CATCH_UP_ROUNDS):
+        got = await fold(hub, call, ref, force=True)
+        if not got.get("folded"):
+            break
+        n += 1
+    return n
+
+
+async def _fold(hub: Any, call: Any, ref: str, *, force: bool, every: int) -> dict[str, Any]:
     from hq_api.domain import sessions as SE
 
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -170,17 +198,27 @@ async def _fold(hub: Any, call: Any, ref: str, *, force: bool) -> dict[str, Any]
                 u=upto,
             )
         ]
-        if not rows or (not force and len(rows) < FOLD_EVERY):
+        if not rows or (not force and len(rows) < every):
             return {"folded": False, "why": "not_due"}
+        rows = rows[:FOLD_CHUNK]
         keys = list(dict.fromkeys([str(conv.get("holder") or ""), *(conv.get("present") or [])]))
         titles = {k: (await SE.title_of(tx, k))[0] for k in keys if k}
         holding = await hub.companies.holding()
-    lines = [clean(_line(r, titles))[0][:TURN_CHARS] for r in rows]
-    body = body_of(holding.code, ref, rep["memory_md"], list(titles.values()), lines)
-    out = await call(body)
-    text = (
-        clean(str((out or {}).get("memory_md") or "").strip())[0] if isinstance(out, dict) else ""
-    )
+    text = ""
+    # ⟨2026-11-13⟩ a chunk the model cannot fold (it ran past its output cap on some turns of
+    # F-0018) is tried again on its first half, then its first quarter: the memory moves on
+    while rows:
+        lines = [clean(_line(r, titles))[0][:TURN_CHARS] for r in rows]
+        body = body_of(holding.code, ref, rep["memory_md"], list(titles.values()), lines)
+        out = await call(body)
+        text = (
+            clean(str((out or {}).get("memory_md") or "").strip())[0]
+            if isinstance(out, dict)
+            else ""
+        )
+        if text or len(rows) <= MIN_CHUNK:
+            break
+        rows = rows[: len(rows) // 2]
     if not text:
         log.info("session memory: the model gave nothing", extra={"ref": ref})
         return {"folded": False, "why": "no_answer"}
@@ -242,7 +280,7 @@ def api_call(hub: Any) -> Any:
 
 async def fold_after_close(hub: Any, ref: str) -> None:
     """At close (the api, after the response): the last turns folded, whatever their count."""
-    await fold(hub, api_call(hub), ref, force=True)
+    await catch_up(hub, api_call(hub), ref)
 
 
 # ------------------------------------------------------------ related sessions --

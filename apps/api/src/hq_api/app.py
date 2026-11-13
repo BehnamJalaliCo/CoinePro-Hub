@@ -76,6 +76,7 @@ from hq_api.routes import connections as connection_routes  # prompt 21 part 3: 
 from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
 from hq_api.routes import erase as erase_routes  # prompt 26: §37.2-§37.3 erasing for good
+from hq_api.routes import flows as flow_routes  # ⟨2026-11-13⟩ n8n's daily runs
 from hq_api.routes import grok as grok_routes  # prompt 24: §33.7, §33.10
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
@@ -338,6 +339,9 @@ def create_app(
     # ⟨1.12⟩ prompt 22 (contract §30.5, §31.1): production lines; n8n's signed callback
     app.include_router(line_routes.router, prefix="/api/v1")
     app.include_router(line_routes.internal_router, prefix="/internal/v1")
+    # ⟨2026-11-13⟩ a working group's daily run, started by n8n (domain/flows.py)
+    app.include_router(flow_routes.router, prefix="/api/v1")
+    app.include_router(flow_routes.internal_router, prefix="/internal/v1")
     # prompt 22 (contract §31.2): a ready company from one order
     app.include_router(kit_routes.router, prefix="/api/v1")
     # ⟨1.14⟩ prompt 23 (contract §32): the owner's talk (owner only)

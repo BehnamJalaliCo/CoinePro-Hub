@@ -25,6 +25,12 @@ META_KEYS = frozenset(
         "step",
         "trigger",
         "purpose",
+        # ⟨2026-11-13⟩ the session (order), the lead and the decision a hub call is about: the
+        # api sent them (session memory, playbook drafts, sales follow-ups, the DCEO's
+        # predictions) and every such call was refused 422, so a session's memory never folded
+        "order",
+        "lead",
+        "decision",
         # prompt 08 §6-§7: the sealed skill versions and teachings in the
         # system prompt (lists), and an academy eval's run, suite and case
         "skills",

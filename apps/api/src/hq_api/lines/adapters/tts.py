@@ -30,7 +30,14 @@ CACHE_S = 24 * 3600
 
 # AI Studio's documented prebuilt speakers (Gemini speech generation), used when no live list is
 # available: (name, gender, trait in Persian). A fallback, labelled as such in the list.
+# ⟨2026-11-13⟩ Since 2026-11 AI Studio (Gemini 3.8 Flash TTS) has a library of 2,000+ voices: the
+# male voices of its "Professional" use case (besides Schedar) come first, Cruz the owner's choice
+# for Pro-Chart (session F-0018: Masculine, Professional, Cruz, style Narration).
+LIBRARY = (
+    ("Cruz", "male", "آرام و حرفه‌ای، صدای بم"), ("Elio", "male", "آرام و دلگرم‌کننده"),
+)  # fmt: skip
 DOCUMENTED = (
+    *LIBRARY,
     ("Zephyr", "female", "روشن"), ("Puck", "male", "سرزنده"), ("Charon", "male", "اطلاع‌رسان"),
     ("Kore", "female", "محکم"), ("Fenrir", "male", "پرشور"), ("Leda", "female", "جوان"),
     ("Orus", "male", "محکم"), ("Aoede", "female", "نرم و هوایی"), ("Callirrhoe", "female", "راحت"),

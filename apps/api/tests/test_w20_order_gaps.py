@@ -348,6 +348,18 @@ async def test_the_holder_of_his_session_sets_the_narrator_when_he_asks(
     assert r.json()["voice"] == "Leda" and r.json()["company"] == code
     got = (await client.get(f"/api/v1/companies/{code}/narrator", headers=owner)).json()
     assert got["set"] is True and got["by"] == holder and got["style_fa"] == "جوان و پرانرژی"
+    # ⟨2026-11-13⟩ once the owner sets it himself, the holder cannot change it back
+    r = await client.put(f"/api/v1/companies/{code}/narrator", headers=owner,
+                         json={"voice": "Cruz", "style_fa": ""})  # fmt: skip
+    assert r.status_code == 200, r.text
+    r = await client.post(
+        "/internal/v1/narrator",
+        headers=await agent_headers(holder),
+        json={"work": work_ref, "voice": "Cruz", "style_fa": "حالت Narration"},
+    )
+    assert r.status_code == 409 and "مدیر کل خودش" in r.json()["message_fa"], r.text
+    got = (await client.get(f"/api/v1/companies/{code}/narrator", headers=owner)).json()
+    assert (got["voice"], got["style_fa"], got["by"]) == ("Cruz", "", "owner")
     # a work of no order of the owner's: not this way
     wid = await su.fetchval(
         """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code,

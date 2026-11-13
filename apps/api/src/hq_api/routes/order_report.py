@@ -152,6 +152,40 @@ async def cancel_publish(job: UUID, ctx: Ctx = Depends(owner_ctx)) -> OR.Session
         return await SPB.cancel(tx, ctx.who, job, request_id=ctx.request_id)
 
 
+class PublishRuleIn(Model):
+    """⟨2026-11-13⟩ A rule on a publication that is out (IG-Hub makes it)."""
+
+    trigger: Literal["comment", "story_reply"]
+    # `any` (a comment rule only): every comment on the post, whatever it says
+    match: Literal["contains", "any"] = "contains"
+    keywords: list[str] = Field(default_factory=list, max_length=10)
+    reply: str = Field(min_length=1, max_length=1000)
+    link: str | None = Field(default=None, max_length=1900)
+    button: str | None = Field(default=None, max_length=20)
+    public_replies: list[str] = Field(default_factory=list, max_length=10)
+
+
+class PublishRuleOut(BaseModel):
+    job: str
+    trigger: str
+    keywords: list[str]
+
+
+@router.post("/publishes/{job}/rules", response_model=PublishRuleOut, responses=E)
+async def publish_rule(job: UUID, body: PublishRuleIn, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """⟨2026-11-13⟩ A rule on a publication that is out: `comment` (the smart comment on its own
+    post: the words in every joined form, the private reply, a link as a button, public
+    replies) or `story_reply` (the account's story replies). IG-Hub makes it; the session says
+    when it is on. `409` for a publication not out yet, `422` without a word and a reply."""
+    from hq_api.domain import session_publish as SPB
+
+    async with ctx.tx() as tx:
+        out = await SPB.queue_rule(
+            tx, ctx.who, job, body.trigger, body.model_dump(), request_id=ctx.request_id
+        )
+    return PublishRuleOut(**out)
+
+
 class ReplyIn(Model):
     # ⟨2026-11-09⟩ as long as a talk turn (the owner's long replies in F-0013 and F-0014 got 422)
     text: str = Field(min_length=1, max_length=10000)
@@ -422,6 +456,35 @@ def _agent(ctx: Ctx) -> None:
         raise ApiError(403, "policy_denied", "agents only")
 
 
+async def _lead_only(tx: Any, ref: str, code: str) -> None:
+    """⟨2026-11-13⟩ One session, one plan: when an order went to several companies, the holder of
+    its first root work holds the plan. F-0018 went to Pro-Chart and IG; both sent a plan (14 and
+    15 tasks: «کار ۱۳ از ۲۹») and did the same steps twice. Another root's holder does its part
+    when the lead asks, and reports it with order.progress: 409 here."""
+    order = await OR.load_order(tx, ref)
+    roots = OR.root_refs(order) if order is not None else []
+    if len(roots) < 2:
+        return
+    rows = await tx.all(
+        """SELECT w.ref, e.code, e.title_fa FROM work.work w
+           JOIN core.employees e ON e.id = w.assignee_id WHERE w.ref = ANY(:roots)""",
+        roots=roots,
+    )
+    by_ref = {str(r["ref"]): r for r in rows}
+    lead = by_ref.get(roots[0])
+    others = {str(by_ref[x]["code"]) for x in roots[1:] if x in by_ref}
+    if lead is None or code == lead["code"] or code not in others:
+        return
+    raise ApiError(
+        409,
+        "validation_failed",
+        fields={"plan": "the session's lead holder holds its plan"},
+        message_fa=f"مسئول این جلسه {lead['title_fa']} است و برنامه‌ی جلسه با اوست. برنامه‌ی جدا "
+        "نساز و کار او را تکرار نکن: بخش خودت را وقتی او خواست انجام بده و نتیجه را با "
+        "order.progress بگو.",
+    )
+
+
 async def _session_open(tx: Any, ref: str) -> None:
     """⟨2026-11-10⟩ A closed session takes no plan, step or question (a run that was still going
     when the owner closed it): 409 `work_closed`, and the run ends with it."""
@@ -442,6 +505,7 @@ async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> 
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
         await _session_open(tx, ref)
+        await _lead_only(tx, ref, ctx.who.code)
         rep = await OR.acknowledge(
             tx,
             ctx.who,
