@@ -18,6 +18,8 @@
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
 > **v1.34 (۲۰۲۶-۱۱-۱۲، پرامپت ۳۶):** هیچ جلسه‌ای بی‌صدا نمی‌ایستد (§۵۶؛ جلسه‌ی ریلز پروچارت ۱۲ ساعت بعد از «از ChatGPT خواسته شد و در صف است» ایستاد): مهلت و خبر برای هر درخواست بازیکن ذخیره، کار در صف بیرونی «کار زنده» است، ریشه‌ی جلسه تا تمام شدن برنامه باز میماند، بیدارباش با سقف و بعد «گیر کرده»، اکانت پر و برگشت کار، راستی ایجنت درباره‌ی کار ردشده، مسیر انتشار از تنظیم هلدینگ، و «ایستاده» در اپ؛ همراه ممیزی سرور هاب ۲۰۲۶-۱۱-۱۱ (§۵۶.۸، migration `0063`، runner 0.3.6).
+
+> **v1.35 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** تیم جلسه، یک نفر در هر بار (§۵۷): ردیف «تیم این جلسه»، گفتگوی کوتاه کنار جلسه با هر نفر، استخدام یک‌ضربه‌ای صندلی خالی، گوینده از همان ردیف، و نام درست هر تحویل با نسخه‌ها در یک خط.
 >
 > **v1.33 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** آنچه ظاهر تازه‌ی اپ میخواند (§۵۵، پرامپت ۳۵): خط زنده‌ی کار و «چراغ حال» جلسه (`Worker.kind`، `cap_s`، `last_fa`، `SessionActivity.mood`)، «میز انتشار» (`GET /publish-desk`)، حلقه‌ی هر اکانت Claude و کنتور امروز (`GET /treasury/limits`)، و یک ردیف برای هر انتشار (کارهای پیگیری و لغو دیگر ردیف جدا نیستند). فقط خواندنی و افزودنی؛ migration ندارد.
 >
@@ -5223,3 +5225,78 @@ The hub server's audit (`docs/ops/reports/AUDIT_2026-11-11.md`) ships with this 
 - `GET /api/v1/egress/recent` pages with a cursor.
 - `POST /api/v1/revenue/affiliate-receipts` requires `Idempotency-Key` (no app calls it).
 - Runner **0.3.6**: the audit's runner fixes, compatible with 0.3.5; the hub raises no minimum.
+
+## 57. The session's team, one person at a time ⟨1.35⟩ (2026-11-13, prompt 37)
+The owner, 2026-11-13: «میخوام … مستقیم بزنم روی کارمند باهاش توی یه فضای کوچیک حرف بزنم و ببندم و اون ادامه بده
+کارشو ولی نمیخوام خیلی تو ابعاد گسترده باز باشه که انقدر بین اینا حرف بزنم گیج بشم». And of the line that came every few
+minutes: «دقیقا خروجیه چی تحویل شد؟» (a direct turn delivered its notes again as `…-v5.pdf`, `…-v6.pdf`, titled with the
+session's own words). The session keeps one main thread with its holder; each other person gets a small side talk.
+
+### 57.1 `GET /api/v1/orders/{ref}/team` (owner)
+```
+SessionTeam { seats: [Seat], narrator: TeamNarrator | null }
+Seat {
+  key: str,                 # the employee code when filled; "role:<role>" when empty
+  role: str | null,         # the charter role (scriptwriter, video_director, motion_designer, …)
+  role_fa: str,             # «مسئول جلسه» | «نویسنده» | «کارگردان» | «موشن‌گرافی» | the person's own title
+  holder: bool,             # the session's holder (no side talk: the main composer is his)
+  employee: { code, title_fa, company } | null,
+  state: "working" | "idle" | "empty",   # working: a run of theirs in this order is queued or running
+  last: { at, who: "owner"|"seat", text } | null,   # the side talk's last line (≤ 160 chars)
+  unread: int               # the seat's lines after the owner last read this side talk
+}
+TeamNarrator { company, voice, voice_fa, style_fa | null }   # §48's narrator of the order's company, if set
+```
+- Order: the holder first; then the **media seats** `scriptwriter` (نویسنده), `video_director` (کارگردان),
+  `motion_designer` (موشن‌گرافی), each filled by the person in the session with that role, else `empty`; then the
+  other people present in the session (`present`, §39), players excluded.
+- The media seats are shown only for a **content session**: a media role is already in it, or its order came from a
+  working group's routine, or the order's company has a narrator set. Otherwise only the holder and the people present.
+- `narrator` is the order's company narrator (§48), for the «گوینده» chip; null when none is set.
+
+### 57.2 `GET /api/v1/orders/{ref}/team/{code}/lines?limit=50&before=` (owner)
+`Page<SideLine>` newest last: `SideLine { id, at, who: "owner"|"seat", who_fa, text, work_ref | null }`. Reading the
+newest page marks the seat read (`unread` 0). A code that is not a seat of the session: 404.
+
+### 57.3 `POST /api/v1/orders/{ref}/team/{code}/say {text}` (owner, `Idempotency-Key`, no step-up)
+The owner's word to one person of the session → `{ line: SideLine, work_ref, woken: bool }`.
+- `code` must be a filled seat other than the holder (the holder's word is `/reply`): else 409 `validation_failed`
+  «با مسئول جلسه از همین جای نوشتن حرف بزن.» / 404. An ended session: 409 as `/reply`.
+- The word is a side line. If the person has an open work in the order's tree assigned to them, the word joins it
+  (its next step) and it runs again at once with the side talk's last lines in its brief; else a **side work** is made
+  under the order's root for them (as the session's «delegate» card does: `SE.add_task` by the owner), titled with the
+  words, its brief the words plus the side talk so far and «این گفتگوی کوتاه مدیر کل با توست در جلسه‌ی {ref}؛ جوابت را
+  با order.ask یا order.progress بده: به همین گفتگو میرسد. کار تحویلی را deliver کن.».
+- The main session gets **one** step per burst: «مدیر کل با {who_fa}: {first 80 chars}» only when this seat's previous
+  side line is older than 10 minutes. Nothing else of the side talk shows in the main timeline.
+- A person away from the session's company may be spoken to only if present (§39).
+
+### 57.4 The person's answers go to the side talk
+While a person works a **side work** of the order (or any work of theirs that a side word woke in the last hour),
+their `order.ask` and `order.progress` on that order become side lines (`who: "seat"`) instead of main steps or the
+owner's turn; their `deliver` reaches the session as any output (§56.6, §57.6). The main session gets one line per
+burst (same 10-minute rule): «{who_fa} جواب داد». No push notification; the seat's `unread` and the live stream
+(`session.team` event `{order, seat}`, §42) tell the apps.
+
+### 57.5 `POST /api/v1/orders/{ref}/team/hire {role}` (owner, `Idempotency-Key`, no step-up)
+An empty media seat filled at once: the owner's own hire in his session (§29.10's by-code path with `owner_order`,
+§39 join), the role's charter defaults (model, effort, 30 runs as the monthly estimate, §36.1). Answers `SessionTeam`.
+A hard check that refuses (envelope, the model, five a day) answers its own code with `message_fa`; nothing is made.
+
+### 57.6 What a direct turn delivers is named (§54)
+- The output's title names its files: «{name}» for one, «{name} و {n} فایل دیگر» for more (the name without its
+  extension), never «خروجی جلسه: …».
+- A file whose name differs only by a version mark (`-v6`, `_v2`, ` (3)`, «نسخه ۳») from a file this work delivered
+  before is a **revision**: `produced_with.revision_of` = that earlier deliverable's ref, title «نسخه‌ی تازه‌ی {base}».
+  The apps show only the newest of a chain in the timeline, with «نسخه‌ی n».
+- The direct session's rules say: notes, drafts and working files stay outside `out/`; `out/` holds only what the
+  owner should receive; a file is updated in place under the same name, never re-issued as `-vN`.
+
+### 57.7 The apps (1.0.3)
+- Under the session header, one row **«تیم این جلسه»**: a chip per seat (mark, `role_fa`, a ring while working, a
+  dashed «+ {role_fa}» when empty, an unread dot) and «گوینده: {voice_fa}» when `narrator` is set.
+- A filled seat opens a half-height sheet «با {who_fa}»: its side lines, a composer, close. While open it reads the
+  lines again every 4 s and on `session.team`. An empty seat asks once «{role_fa} استخدام شود؟» → `/team/hire`.
+  «گوینده» opens §48's narrator picker. The holder's chip scrolls to the composer.
+- The timeline shows only the newest deliverable of a revision chain, with «نسخه‌ی n».
+- A hub without `/team` (404 route missing): the row is hidden.
