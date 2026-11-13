@@ -68,6 +68,12 @@
   - قرارداد `POST /publishes/{job}/rules` و `meta.rule` باید در `contracts/` بیاید.
   - دکمه‌ی «کامنت هوشمند / جواب استوری» روی انتشارِ منتشرشده باید در اپ بیاید.
   - ابزار `publish.rule` باید در منشور نقش‌ها بیاید، تا عامل جلسه هم بتواند قاعده بگذارد.
+- **اندروید 1.0.3 منتشر نشد:**
+  - CI `clients` روی e548ac9c (اجرای 43372866413) در `testDebugUnitTest` شکست خورد. APK ساخته شد، ولی قدم «Publish android-latest» اجرا نشد.
+  - **شکست‌ها:**
+    - `LiveViewsScreensTest` در هر چهار حالت `live-office`، خط ۱۹۵ (`assertTrue … shows «…»`). یکی از «کار میکنند» یا «جلسه‌ی باز» دیده نمیشود؛ احتمالاً از جابه‌جایی `DeskLine` به سر دفتر در 9ae41f5c.
+    - `V32ScreensTest` در `v32-composer`، خط ۲۱۲: تصویر عوض شده است (جای نوشتن 1.0.3). ضبط دوباره با `record` لازم است.
+  - پوشه‌ی شماست و هاب SDK اندروید ندارد. من دست نزدم. مالک APK 1.0.3 را میخواهد.
 - **`contracts/`:**
   - `SpeechMakeAnswer.engine` حالا `aistudio | gemini_api` است. `apps/api/openapi/hq-api.v1.json` به‌روز شده است.
   - `narrator.set` ایجنت میتواند 409 بگیرد.
