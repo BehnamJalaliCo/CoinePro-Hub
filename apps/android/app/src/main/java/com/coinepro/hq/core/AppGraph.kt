@@ -187,6 +187,8 @@ class AppGraph(context: Context) {
 
     private fun swap(next: Env) {
         val old = envFlow.value
+        // ⟨1.36⟩ §58.1 another holding (the demo, or the owner's own again): no draft of the one before it is carried over
+        com.coinepro.hq.ui.v32.ComposerDrafts.clear()
         envFlow.value = next
         old.close()
         linkRef?.reconcile()

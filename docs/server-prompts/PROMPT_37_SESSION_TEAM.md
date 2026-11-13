@@ -34,16 +34,30 @@
   - عنوان تحویل، نام خود فایل است.
   - نسخه‌ی تازه‌ی یک فایل `produced_with.revision_of` دارد و عنوانش «نسخه‌ی تازه‌ی …» است.
   - قاعده‌های جلسه‌ی مستقیم (`direct.py`) میگویند یادداشت و پیش‌نویس بیرون از `out/` میماند.
+- **§۵۸ (همین پرامپت):**
+  - **جای نوشتن:** هنگام سؤال جای نوشتن پیدا است. این فقط در اپ است.
+  - **کارگروه جلسه‌ی بسته:** پیش‌نویسش در کتابخانه میماند (`SessionState.playbook_kept`).
+  - **خط کارگروه:** در صفحه‌ی کارگروه یک خط آن را میگوید (`Membership.flow_fa`).
+  - **بعد از انتشار تأییدشده:**
+    - بسته‌ی اصلی (ویدیو، کاور، `caption.txt`) در `files.publish_keep` نگه داشته و بایگانی میشود.
+    - بقیه‌ی فایل‌های همان خروجی ۷۲ ساعت بعد در قدم تازه‌ی `hq-archive-daily` پاک میشوند.
+    - ردیف Audit آن `files.publish_sweep` است. جدول‌های تازه `files.publish_keep` و `files.opened` هم در همان `0064` هستند.
+  - **میز انتشار:** صفحه‌ی خودش را دارد.
 - **پنل وب 1.0.3.**
 
 ## کار تو (Claude سرور هاب)
 1. **شاخه و تست:**
    - شاخه را از `claude/coinepro-hub-setup-hsvnw7` بساز.
-   - این تست‌های api را اجرا کن: `test_w24_session_team`، `test_w16_direct_sessions`، `test_w21_direct_session`، `test_w23_session_stall`، `test_w7_sessions`، `test_w6_order_turns`، `test_w11_activity`، `test_hiring`، `test_p13f_join`، `test_p12f_join`، `test_rls_all_tables`، `test_p16_fresh_start`.
+   - این تست‌های api را اجرا کن: `test_w24_session_team`، `test_w24_publish_retention`، `test_w10_playbooks`، `test_p14_archive`، `test_w18_standing_publish`، `test_w16_direct_sessions`، `test_w21_direct_session`، `test_w23_session_stall`، `test_w7_sessions`، `test_w6_order_turns`، `test_w11_activity`، `test_hiring`، `test_p13f_join`، `test_p12f_join`، `test_rls_all_tables`، `test_p16_fresh_start`.
    - ruff، mypy و `make check` را هم اجرا کن.
 2. **بکاپ، بعد migration `0064`.**
 3. **deploy:** `api`، `worker` و `web` (پروفایل `web`، ‏**1.0.3**)، تک‌تک با `hq.sh`، مثل ۳۶.۱.
 4. **آزمون رفت‌وبرگشت migration را روی هاب انجام نده.**
+5. **کلاس بایگانی «انتشار» (پوشه‌ی خودت؛ اجازه داری):**
+   - بسته‌ی هر انتشار الان به‌صورت سند `draft` بایگانی میشود، چون هیچ کلاس بایگانی ویدیو نمیپذیرد.
+   - در `infra/seed/archive/classes.yaml` یک کلاس `publication` اضافه کن که ویدیو، تصویر و متن بپذیرد و ماندگاری‌اش مثل سند ماندگار باشد.
+   - بعد seed را دوباره بخوان.
+   - اگر کد api برای ثبت با این کلاس تغییر کوچکی لازم دارد، فقط گزارشش کن.
 
 **سنجش:**
 - `alembic current` برابر `0064` باشد.

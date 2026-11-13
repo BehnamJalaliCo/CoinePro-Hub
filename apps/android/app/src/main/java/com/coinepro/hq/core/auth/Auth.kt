@@ -67,6 +67,8 @@ class Auth(private val api: Api, private val tokens: SessionTokens, private val 
 
     suspend fun signOut() {
         if (!demo) runCatching { api.logout() }
+        // ⟨1.36⟩ §58.1 the drafts the composers kept go with the session that wrote them
+        com.coinepro.hq.ui.v32.ComposerDrafts.clear()
         tokens.clear()
     }
 

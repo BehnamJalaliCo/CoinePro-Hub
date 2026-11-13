@@ -13,7 +13,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToKey
@@ -70,8 +70,8 @@ class RoomScreensTest(private val name: String, private val night: Boolean) {
             "room-question" to Scene(listOf("مدیر رسانه‌ی تریدیار میپرسد", "بیشتر", "خروجی آخر:", "حد ضرر را کجا بگذاریم", "خودت تصمیم بگیر"), hides = listOf("کمتر")) {
                 OrderSessionScreen("F-0096")
             },
-            "room-question-open" to Scene(listOf("کمتر", "اگر روی صدای گوینده", "خروجی آخر:"), hides = listOf("بیشتر"), then = Then.MORE) { OrderSessionScreen("F-0096") },
-            "room-writing" to Scene(listOf("مدیر رسانه‌ی تریدیار میپرسد", "خروجی آخر:", "برش‌ها را کمی تندتر کن"), hides = listOf("بیشتر", "خودت تصمیم بگیر"), then = Then.WRITE) {
+            "room-question-open" to Scene(listOf("کمتر", "اگر روی صدای گوینده", "خروجی آخر:"), then = Then.MORE) { OrderSessionScreen("F-0096") },
+            "room-writing" to Scene(listOf("مدیر رسانه‌ی تریدیار میپرسد", "خروجی آخر:", "برش‌ها را کمی تندتر کن"), hides = listOf("خودت تصمیم بگیر"), then = Then.WRITE) {
                 OrderSessionScreen("F-0096")
             },
             "room-closed-kept" to Scene(listOf("این جلسه تأیید و بایگانی شد", PLAYBOOK_KEPT_FA)) { OrderSessionScreen("F-0093") },
@@ -132,12 +132,22 @@ class RoomScreensTest(private val name: String, private val night: Boolean) {
         settle(22)
         when (scene.then) {
             Then.NOTHING -> Unit
-            Then.MORE -> compose.onNodeWithText("بیشتر").performClick()
+            Then.MORE -> compose.onNodeWithTag("question-more").performClick()
             Then.WRITE -> compose.onNode(hasSetTextAction()).performTextInput(DRAFT)
             Then.DONE -> compose.onNode(hasScrollToIndexAction()).performScrollToKey("h-done")
         }
         if (scene.then != Then.NOTHING) settle(8)
-        if (scene.then == Then.WRITE) assertTrue("$name: the card folds while he writes", compose.onAllNodesWithTag("waiting-folded").fetchSemanticsNodes().isNotEmpty())
+        // «بیشتر» is the card's own button (the word is in «بیشترین دقت» of an output too): by its tag
+        val more = compose.onAllNodesWithTag("question-more").fetchSemanticsNodes().size
+        when (scene.then) {
+            Then.NOTHING -> if (name == "room-question") assertTrue("$name offers «بیشتر»", more == 1)
+            Then.MORE -> assertTrue("$name offers «کمتر» in place of «بیشتر»", more == 1)
+            Then.WRITE -> {
+                assertTrue("$name: the card folds while he writes", compose.onAllNodesWithTag("waiting-folded").fetchSemanticsNodes().isNotEmpty())
+                assertTrue("$name: no «بیشتر» on the folded card", more == 0)
+            }
+            Then.DONE -> Unit
+        }
         for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())
         for (t in scene.hides) assertTrue("$name never shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isEmpty())
         compose.onRoot().captureRoboImage(

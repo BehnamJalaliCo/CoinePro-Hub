@@ -325,7 +325,7 @@ fun WaitingCard(
             if (long || open || chip != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (long || open) Text(
                     if (open) "کمتر" else "بیشتر",
-                    Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 4.dp, horizontal = 2.dp),
+                    Modifier.testTag("question-more").clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 4.dp, horizontal = 2.dp),
                     style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
                 )
                 Spacer(Modifier.weight(1f))

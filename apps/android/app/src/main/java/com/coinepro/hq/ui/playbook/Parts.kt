@@ -585,7 +585,8 @@ private fun FlowLine(line: String) {
     val c = Divan.colors
     Row(Modifier.fillMaxWidth().testTag("group-flow"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         com.coinepro.hq.designsystem.DIcon(DivanIcon.TIME, size = 14.dp, tint = c.silverInk)
-        Text(com.coinepro.hq.designsystem.timesFig(line), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
+        // the clock is a figure even with the line's colon right after it (a right-to-left mark keeps the colon with the words)
+        Text(com.coinepro.hq.designsystem.timesFig(line.replaceFirst(Regex("(\\d{1,2}:\\d{2}):"), "$1\u200F:")), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
     }
 }
 

@@ -234,6 +234,8 @@ object ComposerDrafts {
     private val drafts = java.util.concurrent.ConcurrentHashMap<String, String>()
     fun get(key: String): String? = drafts[key]
     fun put(key: String, text: String) { if (text.isEmpty()) drafts.remove(key) else drafts[key] = text }
+    /** Signing out, or another holding (the demo): every draft goes. */
+    fun clear() = drafts.clear()
 }
 
 /** The hold-to-talk button: press, speak, release. It swells with the owner's voice while held. */
