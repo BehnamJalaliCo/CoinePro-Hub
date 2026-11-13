@@ -31,6 +31,7 @@ new jobs back for SIGNED_OUT_HOLD, then they try again.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -220,6 +221,13 @@ async def _record(
 
 # ⟨2026-11-13⟩ the API first (see the module's doc)
 API_ENGINE = "gemini-3.8-flash-tts"
+# ⟨2026-11-13⟩ a passing refusal of Google's (F-0018: one upstream_error between two good voices)
+# is tried once more before the web page, which may be signed out
+API_TRIES = 2
+API_RETRY_S = 3.0
+API_RETRY_CODES = frozenset(
+    {"upstream_error", "transport_down", "engine_crashed", "timeout", "rate_limited", "quota"}
+)
 # AI Studio's style presets (its 2026-11 page), as the API reads them: a reading instruction
 STYLE_PRESETS = {
     "narration": "commanding, with rich vocal modulation and dramatic pauses",
@@ -256,11 +264,24 @@ async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
     from hq_api.voice.base import EngineFailed
 
     name = f"speech-{str(job['job'])[:8]}"
+    for attempt in range(API_TRIES):
+        got, again = await _api_once(hub, job, name, SP, EngineFailed)
+        if got is not None or not again:
+            return got
+        if attempt < API_TRIES - 1:
+            await asyncio.sleep(API_RETRY_S)
+    return None
+
+
+async def _api_once(
+    hub: Any, job: dict[str, Any], name: str, SP: Any, EngineFailed: Any
+) -> tuple[tuple[bytes, str] | None, bool]:
+    """One try of the API: ((audio, mime) | None, whether another try may help)."""
     try:
         holding = await hub.companies.holding()
         async with hub.db.tx(await hub.companies.ids()) as tx:
             if not await api_ready(hub, tx):
-                return None  # no key given yet: the web page, as before
+                return None, False  # no key given yet: the web page, as before
         spoke = await SP.speak_one(
             hub, API_ENGINE, api_text(str(job["text"]), str(job.get("style") or "")),
             str(job["voice"]), 1.0, kind="speech", persona=f"speech.make {job['by']}"[:80],
@@ -272,15 +293,17 @@ async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
                 id=spoke.out.file_id,
             )
         if row is None:
-            return None
-        return await hub.storage.get(str(row["storage_key"])), str(row["mime"] or "audio/ogg")
+            return None, False
+        data = await hub.storage.get(str(row["storage_key"]))
+        return (data, str(row["mime"] or "audio/ogg")), False
     except EngineFailed as exc:
         log.info("speech by the API failed", extra={"job": str(job["job"]), "code": exc.code})
+        return None, exc.code in API_RETRY_CODES
     except Exception as exc:  # noqa: BLE001 - the web page is the fallback, never an error here
         log.warning(
             "speech by the API crashed", extra={"job": str(job["job"]), "error": type(exc).__name__}
         )
-    return None
+        return None, True
 
 
 async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
@@ -315,6 +338,10 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
             kind="audio",
             by_kind="agent",
             by_code=str(job["by"]),
+            # ⟨2026-11-13⟩ the session it was made for: the session's next turn gets it in `in/`
+            meta={"order_id": str(job["order_id"]), "made_by": "speech.make"}
+            if job.get("order_id")
+            else None,
         )
         await tx.exec(  # §17.1: the media worker's pass (length, transcript)
             """INSERT INTO files.processing (file_id, company_id, stt)

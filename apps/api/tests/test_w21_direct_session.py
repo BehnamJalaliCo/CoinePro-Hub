@@ -573,3 +573,43 @@ def test_every_meta_key_the_hub_sends_is_one_the_router_takes() -> None:
             if "task_class" in keys and isinstance(meta, ast.Dict):  # a router call's body
                 sent |= {str(x.value) for x in meta.keys if isinstance(x, ast.Constant)}
     assert sent and sent <= allowed, sorted(sent - allowed)
+
+
+async def test_a_voice_the_session_made_reaches_its_next_turn_in_the_in_folder(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018: the raw voice speech.make made never reached the session's folder (only
+    the owner's files did), so its check, a sentence made again and the video's sound waited. A
+    file that names the session (meta order_id) goes into `in/` with the next turn."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    await result(client, rn, job["id"], "نوبت اول.")
+    order_id = await su.fetchval(
+        "SELECT order_id FROM owner.order_reports WHERE ref = $1", o["ref"]
+    )
+    fid = await su.fetchval(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code, kind, meta)
+           VALUES ($1, 'speech-abc.ogg', 'audio/ogg', 10, repeat('a', 64), 'k', 'agent', $2,
+                   'audio', jsonb_build_object('order_id', $3::text, 'made_by', 'speech.make'))
+           RETURNING id""",
+        o["emp"]["company_id"], o["holder"], str(order_id),
+    )  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    nxt = await take(client, rn)
+    names = {i["file_id"]: i["name"] for i in nxt["args"].get("inputs") or []}
+    assert str(fid) in names and names[str(fid)].endswith(".ogg")
+    assert "in/" in nxt["args"]["brief"]

@@ -294,6 +294,15 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
 
     rows = await F.of_order(tx, rep["order_id"])
     ids = [str(f["id"]) for f in rows if f.get("id")]
+    # ⟨2026-11-13⟩ and what the session itself made for it (a voice of speech.make: its raw file
+    # is needed for the voice's check, a sentence made again, the video's sound), newest first
+    made = await tx.all(
+        """SELECT id FROM files.files WHERE meta->>'order_id' = :o AND variant = 'original'
+           ORDER BY created_at DESC LIMIT :l""",
+        o=str(rep["order_id"]),
+        l=HANDS.INPUTS_MAX,
+    )
+    ids += [str(r["id"]) for r in made if str(r["id"]) not in ids]
     if not ids:
         return []
     sent: set[str] = set()

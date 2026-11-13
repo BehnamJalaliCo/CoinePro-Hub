@@ -414,3 +414,31 @@ def test_a_style_is_a_reading_instruction_for_the_api() -> None:
     assert SM.api_text("متن", "آرام و گرم").startswith(
         "Read the following Persian text aloud, in this manner: آرام و گرم."
     )
+
+
+async def test_a_passing_api_refusal_is_tried_again_before_the_web_page(
+    hub: Hub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨2026-11-13⟩ F-0018: one upstream_error between two good voices sent a job to the signed-out
+    web page. A refusal that may pass is tried once more; a lasting one (a bad key) is not."""
+    from hq_api.voice import speaker as SP
+    from hq_api.voice.base import EngineFailed
+
+    tries: list[str] = []
+
+    async def ready(hub_: Any, tx: Any) -> bool:
+        return True
+
+    async def flaky(*a: Any, **k: Any) -> Any:
+        tries.append("x")
+        raise EngineFailed("نه", state="failing", code=codes.pop(0))
+
+    monkeypatch.setattr(SM, "api_ready", ready)
+    monkeypatch.setattr(SP, "speak_one", flaky)
+    monkeypatch.setattr(SM, "API_RETRY_S", 0.0)
+    job = {"job": "j1", "by": "X", "text": "سلام", "voice": "Cruz", "style": ""}
+    codes = ["upstream_error", "upstream_error"]
+    assert await SM.api_speak(hub, job) is None and len(tries) == SM.API_TRIES
+    tries.clear()
+    codes = ["bad_key"]
+    assert await SM.api_speak(hub, job) is None and len(tries) == 1

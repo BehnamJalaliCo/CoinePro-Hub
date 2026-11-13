@@ -92,10 +92,13 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
     await allow(ctx, "speech.make", {"company": who.company, "charter": who.charter})
     # ⟨1.31⟩ §48 the narrator of the company the content is for (the run's work's company), set
     # once: its voice and style are used whatever the model asked for
+    from hq_api.domain import files as F
     from hq_api.domain import narrator as NR
 
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         _, fixed = await NR.for_work(tx, who)
+        # ⟨2026-11-13⟩ the session the voice is made for: its next turn finds the file in `in/`
+        order_id = await F.order_of_run(tx, who.run_id)
     voice, style = body.voice, body.style.strip()
     if fixed is not None:
         voice, style = str(fixed["voice"]), str(fixed["style_fa"] or "")
@@ -125,6 +128,7 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
         "voice": voice,
         "style": style,
         "narrator": fixed is not None,
+        **({"order_id": str(order_id)} if order_id else {}),
     }
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         idem = await idempotency.claim(tx, request, who, required=True)
