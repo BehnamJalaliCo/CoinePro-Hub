@@ -85,6 +85,10 @@ task_classes:
      description: "A session's memory folded from its last turns, the cheapest model that does it well (contract 40.1)"}
   - {key: playbook_draft, transferable: false,
      description: "A working group drafted by a session's holder from its memory, plan, hires and cards (contract 40.2)"}
+  # contract §59.2 (prompt 38): a flow's `topic` step: three candidates for the day's topic, the
+  # ledger claims the first it accepts (a Sonnet-class call; never on an alternative provider)
+  - {key: flow_topic, transferable: false,
+     description: "A flow's day topic: three candidates from the company's ledger and its last results (contract 59.2)"}
   - {key: journey_next, transferable: false, description: "The one line that says what the company does next, written when a stage changes (contract 33.8)"}
   - {key: persona_test, transferable: false,
      description: "A message tested against a company's personas, and the personas suggested from its knowledge (contract 33.9)"}

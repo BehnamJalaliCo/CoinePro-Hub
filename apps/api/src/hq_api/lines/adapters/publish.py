@@ -18,6 +18,16 @@ Settings: `kind` (reel | story | post | short | video | article | message), `med
 `privacy` (YouTube). Output `data.published` = {platform, kind, external_id, at, url} for the run.
 `insights(ctx, published)` reads the post's figures (Instagram, YouTube); `Publish.insights` is the
 engine's entry to it (learning.read_metrics, with the run's list of published entries).
+
+⟨1.37⟩ `settings.route = "standing"` (a flow line's publish step, §59.2): not the API above but
+§45's standing publish, the path the session's and the working group's publications take
+(session_publish._send: a `publish` job on IG-Hub's server with the company's own command). The
+package step's output (`package_from`, default `package`) holds the video, the story cut, the cover,
+the caption and the three rules (§59.6). The reel (and the story, when the flow's `story`) go to
+the flow's account (`account` overrides it), scheduled at the run's occurrence (its publish hour;
+now when that is past). The step then waits for its callback: when the hub hears the reel is out
+(session_publish._flow_after) it makes the rules and completes the step with the published
+entries; a refusal fails it. A dry run answers what would go out, without leaving.
 """
 
 from __future__ import annotations
@@ -126,6 +136,8 @@ class Publish:
     async def run(self, ctx: StepContext) -> StepOutput:
         platform = ctx.platform
         kind = str(C.setting(ctx, "kind", KIND_OF_PLATFORM.get(platform, "post")))
+        if C.setting(ctx, "route") == "standing":
+            return await self._standing(ctx, kind)
         at = when_of(ctx)
         if ctx.dry:
             return await self._dry(ctx, platform, kind, at)
@@ -158,6 +170,104 @@ class Publish:
         main = KIND_OF_PLATFORM.get(ctx.platform)
         entry = next((p for p in ids if p.get("kind") == main), ids[0] if ids else None)
         return await insights(ctx, entry) if entry is not None else {}
+
+    # ------------------------------------------------ ⟨1.37⟩ the standing path --
+    async def _standing(self, ctx: StepContext, kind: str) -> StepOutput:
+        from hq_api.domain import session_publish as SPB
+        from hq_api.lines.adapters import _flow as FW
+
+        pkg = ctx.inputs.get(str(C.setting(ctx, "package_from", "package"))) or next(
+            (o for o in reversed(list(ctx.inputs.values())) if (o.data or {}).get("video")), None
+        )
+        data = (pkg.data if pkg is not None else None) or {}
+        if not data.get("video"):
+            raise StepFailed("بسته‌ی انتشار (ویدیو و کپشن) از قدم بسته نرسید.", code="no_package")
+        co = await C.company_of(ctx)
+        hub = ctx.hub
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            flow = await FW.flow_of(tx, ctx) or {}
+            run = await FW.run_of(tx, ctx)
+            route = await SPB._route(tx, co.id)
+            account = str(C.setting(ctx, "account") or flow.get("account") or "").lstrip("@")
+            if not account and len(route["accounts"]) == 1:
+                account = route["accounts"][0]
+            story_on = C.setting(ctx, "story")
+            story = bool(flow.get("story", True) if story_on is None else story_on)
+            at = FW.when_of(run)
+            when = at if at is not None and at > C.now() + SPB.SOON else None
+            rules = dict(data.get("rules") or {})
+            if not story:
+                rules.pop("story_reply", None)
+            ids = [x for x in (data.get("video"), data.get("story"), data.get("cover")) if x]
+            if ctx.dry:
+                return StepOutput(
+                    text="آزمایشی: چیزی منتشر نشد.",
+                    via="dry",
+                    data={"dry": True, "would_publish": {
+                        "route": "standing", "kind": kind, "account": account or None,
+                        "story": story and bool(data.get("story") or data.get("video")),
+                        "at": (when or C.now()).isoformat(), "route_ready": bool(route["ready"]),
+                        "rules": sorted(rules), "caption_chars": len(str(data.get("caption") or "")),
+                    }},
+                )  # fmt: skip
+            if not route["ready"]:
+                raise StepFailed(SPB.WAIT_SETUP_FA, code="route_not_ready", retry=True)
+            if account not in route["accounts"]:
+                raise StepFailed(SPB.PICK_STANDING_FA, code="no_account")
+            rows = await tx.all(
+                """SELECT id, name, mime, size, storage_key FROM files.files
+                   WHERE id = ANY(CAST(:ids AS uuid[])) AND company_id = :co""",
+                ids=[str(x) for x in ids],
+                co=co.id,
+            )
+            files = {str(r["id"]): dict(r) for r in rows}
+            video = files.get(str(data["video"]))
+            if video is None:
+                raise StepFailed("ویدیوی بسته پیدا نشد.", code="file_missing")
+            story_f = files.get(str(data.get("story") or data["video"])) if story else None
+            cover = files.get(str(data.get("cover") or ""))
+            d = {"ref": ctx.run_ref, "company_id": co.id, "company": ctx.company, "work_ref": None,
+                 "title": str(data.get("topic") or flow.get("playbook_fa") or ctx.run_ref)}  # fmt: skip
+            back = {"run": ctx.run_ref, "step": ctx.step.get("key"), "automation": flow.get("ref"),
+                    "platform": ctx.platform, "rules": rules}  # fmt: skip
+            jobs: list[str] = []
+            done: list[dict[str, Any]] = []
+            pairs: tuple[tuple[SPB.Kind, dict[str, Any] | None], ...] = (
+                ("reel", video), ("story", story_f),
+            )  # fmt: skip
+            for what, f in pairs:
+                if f is None:
+                    continue
+                await SPB.lock_publication(tx, d["ref"], str(f["id"]), account, what)
+                last = await SPB.last_of(tx, d["ref"], str(f["id"]), account, what)
+                if last is not None:  # sent already (a step tried again): never twice
+                    jobs.append(str(last.job or ""))
+                    if last.state == "published":
+                        done.append({"platform": ctx.platform, "kind": what, "url": last.url,
+                                     "external_id": None, "at": C.now().isoformat()})  # fmt: skip
+                    continue
+                try:
+                    j = await SPB._send(
+                        tx, C.SERVICE, d, f, cover if what == "reel" else None, hub=hub,
+                        what=what, account=account,
+                        caption=str(data.get("caption") or "") if what == "reel" else "",
+                        route=route, order=None, scheduled_at=when, flow=back,
+                    )  # fmt: skip
+                except ValueError as exc:
+                    raise StepFailed(
+                        SPB.NOT_A_PICTURE_FA.format(name=str(exc)), code="not_a_picture"
+                    ) from exc
+                jobs.append(str(j["id"]))
+        out = {"jobs": jobs, "account": account, "at": (when or C.now()).isoformat(),
+               "route": "standing", "rules": sorted(rules)}  # fmt: skip
+        if any(p["kind"] == "reel" for p in done):  # the reel is out already
+            return StepOutput(text="منتشر شده بود.", via="ig-hub", data={**out, "published": done})
+        when_fa = "اکنون" if when is None else when.isoformat()
+        return StepOutput(
+            text=f"به IG-Hub رفت (@{account}، {when_fa})؛ وقتی منتشر شد، قاعده‌ها روشن میشوند.",
+            via="ig-hub",
+            data={**out, "wait": "callback"},
+        )
 
     # ---------------------------------------------------------------- dry --
     async def _dry(

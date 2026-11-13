@@ -311,7 +311,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     """A workspace turn ended (after the runner's result was committed): its answer is the work's
     deliverable; a failure sends the work back to the hub; a cancel is a stop."""
     from hq_api.domain import players as PL
+    from hq_api.lines.adapters import workshop as LW
 
+    if await LW.after_turn(hub, job_id):  # ⟨1.37⟩ §59.2 a flow line's `workshop` step
+        return
     routine_delivered: UUID | None = None
     flow_delivered: UUID | None = None
     direct_order: str | None = None  # ⟨2026-11-13⟩ its memory folded after the commit
