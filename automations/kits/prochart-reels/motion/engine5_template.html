@@ -1,0 +1,739 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+"use strict";
+const DATA=/*DATA*/;
+const FONTS=/*FONTS*/;
+const LOGO_SRC=/*LOGO*/;
+const C=document.getElementById('c'), X=C.getContext('2d');
+const W=1080,H=1920,M='#D4A64A',K='#000';
+const mA=a=>`rgba(212,166,74,${Math.max(0,Math.min(1,a)).toFixed(3)})`;
+const kA=a=>`rgba(0,0,0,${Math.max(0,Math.min(1,a)).toFixed(3)})`;
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,p)=>a+(b-a)*p;
+const P=(t,t0,d)=>clamp((t-t0)/d);
+const eo=p=>1-Math.pow(1-p,3);
+const eio=p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
+const eback=p=>{const c1=1.9,c3=c1+1;return 1+c3*Math.pow(p-1,3)+c1*Math.pow(p-1,2);};
+function rng(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/4294967296;};}
+const L={};DATA.lines.forEach(l=>L[l.n]=l.words);
+const s=(n,i)=>L[n][i].s, e=(n,i)=>L[n][i].e;
+const B=id=>DATA.beats[id];
+const END=DATA.end;
+const F=(px,w)=>`${px}px YK${w}`;
+let LOGO=null;
+window.READY=false;
+Promise.all(Object.entries(FONTS).map(([k,b64])=>{const f=new FontFace('YK'+k,`url(data:font/ttf;base64,${b64})`);return f.load().then(x=>document.fonts.add(x));}))
+ .then(()=>new Promise(r=>{LOGO=new Image();LOGO.onload=r;LOGO.src=LOGO_SRC;}))
+ .then(()=>{window.READY=true;});
+
+/* ---------- primitives ---------- */
+function rr(x,y,w,h,r){X.beginPath();X.roundRect(x,y,w,h,Math.max(0,Math.min(r,w/2,h/2)));}
+function T(str,x,y,px,wt,col,al='center',dir='rtl'){X.font=F(px,wt);X.fillStyle=col;X.textAlign=al;X.textBaseline='middle';X.direction=dir;X.fillText(str,x,y+px*0.06);}
+function TW(str,px,wt,dir='rtl'){X.font=F(px,wt);X.direction=dir;return X.measureText(str).width;}
+function line(x1,y1,x2,y2,lw,col,dash){X.save();X.strokeStyle=col;X.lineWidth=lw;if(dash)X.setLineDash(dash);X.beginPath();X.moveTo(x1,y1);X.lineTo(x2,y2);X.stroke();X.restore();}
+// pill / chip with right-to-left mask reveal
+function chip(t,t0,str,x,y,px,o={}){
+  const p=P(t,t0,o.dur||0.38); if(p<=0) return;
+  const out=o.out?P(t,o.out,0.3):0; if(out>=1) return;
+  const wt=o.wt||'8', dir=o.dir||'rtl';
+  const w=TW(str,px,wt,dir)+px*1.0, h=px*1.55;
+  X.save(); X.translate(x,y-out*40); X.rotate(o.rot||0);
+  const e=eback(p), sc=(o.pop??0.55)+(1-(o.pop??0.55))*e; X.scale(sc,sc);
+  X.globalAlpha*=clamp(p*3)*(1-out)*(o.alpha??1);
+  const rv=eo(clamp(p*1.4)); X.beginPath(); X.rect(w/2-w*rv-6,-h,w*rv+12,h*2); X.clip();
+  rr(-w/2,-h/2,w,h,o.r??h/2);
+  if(o.outline){X.fillStyle=K;X.fill();X.lineWidth=Math.max(3,px*0.07);X.strokeStyle=M;X.stroke();T(str,0,0,px,wt,M,'center',dir);}
+  else{X.fillStyle=M;X.fill();T(str,0,0,px,wt,K,'center',dir);}
+  X.restore();
+}
+// a row of words, RTL, each word rises out of a mask exactly at its time. words: [{w,s,st}] st: n|hl|ol
+function row(t,words,cx,y,px,wt,o={}){
+  X.font=F(px,wt);X.direction='rtl';
+  const wd=words.map(w=>{X.font=F(px,w.wt||wt);return X.measureText(w.w).width;});
+  const gp=i=>o.gap!=null?o.gap:px*0.27+((words[i].st==='hl'||(words[i+1]&&words[i+1].st==='hl'))?px*0.26:0);
+  let tot=wd.reduce((a,b)=>a+b,0);for(let i=0;i<words.length-1;i++)tot+=gp(i);
+  const sc=o.maxW&&tot>o.maxW?o.maxW/tot:1;
+  X.save();X.translate(cx,y);X.scale(sc,sc);
+  let xr=tot/2;
+  words.forEach((w,i)=>{
+    const xc=xr-wd[i]/2, p=P(t,w.s-(o.lead??0.06),o.dur??0.3);
+    if(p>0){
+      X.save();
+      const hb=w.st==='hl';
+      X.beginPath();X.rect(xc-wd[i]/2-px*0.45,-px*1.0,wd[i]+px*0.9,px*2.0);X.clip();
+      const yo=(1-eo(p))*px*0.85; X.translate(xc,yo); const k=0.86+0.14*eback(p); X.scale(k,k);
+      X.globalAlpha*=clamp(p*3)*(o.alpha??1)*(w.al??1);
+      if(hb){rr(-wd[i]/2-px*0.22,-px*0.66,wd[i]+px*0.44,px*1.32,px*0.2);X.fillStyle=M;X.fill();T(w.w,0,0,px,w.wt||wt,K);}
+      else if(w.st==='ol'){X.font=F(px,w.wt||wt);X.textAlign='center';X.textBaseline='middle';X.direction='rtl';X.lineWidth=Math.max(2,px*0.03);X.strokeStyle=M;X.strokeText(w.w,0,px*0.06);}
+      else T(w.w,0,0,px,w.wt||wt,M);
+      X.restore();
+    }
+    xr-=wd[i]+(i<words.length-1?gp(i):0);
+  });
+  X.restore();
+  return tot*sc;
+}
+const WL=(n,i0,i1,st={})=>L[n].slice(i0,i1+1).map((w,k)=>({w:w.w,s:w.s,st:st[i0+k]||'n'}));
+
+/* ---------- background: parallax grids, glow, particles ---------- */
+const PR=(()=>{const r=rng(7);return Array.from({length:130},()=>({x:r()*W,y:r()*H,z:0.2+r()*0.8,ph:r()*6.28,sp:0.5+r()}));})();
+function grid(step,a,cam,par,t,sp){
+  X.save();X.strokeStyle=mA(a);X.lineWidth=1.4;
+  const z=1+(cam.z-1)*par;X.translate(540,960);X.scale(z,z);X.translate(-540,-960);
+  const ox=(((-cam.x*par-t*sp)%step)+step)%step, oy=(((-cam.y*par-t*sp*0.6)%step)+step)%step;
+  X.beginPath();
+  for(let x=ox-step*3;x<W+step*3;x+=step){X.moveTo(x,-300);X.lineTo(x,H+300);}
+  for(let y=oy-step*3;y<H+step*3;y+=step){X.moveTo(-300,y);X.lineTo(W+300,y);}
+  X.stroke();X.restore();
+}
+function bg(t,cam){
+  X.fillStyle=K;X.fillRect(0,0,W,H);
+  const gx=540+Math.sin(t*0.37)*220-cam.x*0.2, gy=860+Math.cos(t*0.29)*180-cam.y*0.2;
+  const g=X.createRadialGradient(gx,gy,0,gx,gy,980);g.addColorStop(0,mA(0.16));g.addColorStop(0.55,mA(0.05));g.addColorStop(1,mA(0));
+  X.fillStyle=g;X.fillRect(0,0,W,H);
+  grid(36,0.035,cam,0.25,t,4);
+  grid(144,0.085,cam,0.55,t,9);
+  // sweeping scan line
+  const sy=((t*260)%2600)-340; const sg=X.createLinearGradient(0,sy-120,0,sy+4);sg.addColorStop(0,mA(0));sg.addColorStop(1,mA(0.07));
+  X.fillStyle=sg;X.fillRect(0,sy-120,W,124);
+  for(const p of PR){
+    const par=0.2+p.z*0.9;
+    let x=p.x+Math.sin(t*0.7*p.sp+p.ph)*34*p.z-cam.x*par, y=p.y-t*(16+46*p.z)*p.sp-cam.y*par;
+    x=((x%W)+W)%W;y=((y%H)+H)%H;
+    const r=0.8+2.6*p.z*p.z, a=(0.1+0.45*p.z)*(0.55+0.45*Math.sin(t*2.2*p.sp+p.ph));
+    X.fillStyle=mA(a);X.beginPath();X.arc(x,y,r,0,6.283);X.fill();
+  }
+}
+function vignette(){const g=X.createRadialGradient(540,900,500,540,900,1250);g.addColorStop(0,kA(0));g.addColorStop(1,kA(0.75));X.fillStyle=g;X.fillRect(0,0,W,H);}
+function burst(t,t0,cx,cy,o={}){
+  const life=o.life||0.8, dt=t-t0; if(dt<0||dt>life) return;
+  const r=rng(o.seed||3), n=o.n||34, sp=o.sp||820;
+  X.save();X.strokeStyle=M;X.lineCap='round';
+  for(let i=0;i<n;i++){const a=r()*6.283,v=sp*(0.35+0.65*r()),d=v*dt*(1-0.45*dt/life),x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d+220*dt*dt,al=1-dt/life,len=10+18*r();
+    X.globalAlpha=al;X.lineWidth=2+3*r();X.beginPath();X.moveTo(x,y);X.lineTo(x-Math.cos(a)*len*(1-dt/life),y-Math.sin(a)*len*(1-dt/life));X.stroke();}
+  // shock ring
+  X.globalAlpha=(1-dt/life)*0.9;X.lineWidth=6*(1-dt/life)+1;X.beginPath();X.arc(cx,cy,30+(o.ring||420)*eo(dt/life),0,6.283);X.stroke();
+  X.restore();
+}
+
+/* ---------- candles ---------- */
+const CD=(()=>{const r=rng(42);let v=100;const a=[];for(let i=0;i<160;i++){const o=v,d=(r()-0.46)*7+Math.sin(i/6)*2.2,c=o+d,h=Math.max(o,c)+0.5+r()*3.2,l=Math.min(o,c)-0.5-r()*3.2;a.push({o,c,h,l});v=c;}return a;})();
+function vrange(a,b){let lo=1e9,hi=-1e9;for(let i=Math.max(0,a);i<Math.min(CD.length,b);i++){lo=Math.min(lo,CD[i].l);hi=Math.max(hi,CD[i].h);}return [lo-(hi-lo)*0.08,hi+(hi-lo)*0.08];}
+function candle(x,d,g,map,bw,lw=3,al=1){
+  if(g<=0) return; g=clamp(g);
+  const c=d.o+(d.c-d.o)*g, hi=Math.max(d.o,c)+(d.h-Math.max(d.o,d.c))*g, lo=Math.min(d.o,c)-(Math.min(d.o,d.c)-d.l)*g;
+  const yo=map(d.o),yc=map(c),yh=map(hi),yl=map(lo),top=Math.min(yo,yc),bh=Math.max(3,Math.abs(yc-yo));
+  X.save();X.globalAlpha*=al;X.strokeStyle=M;X.fillStyle=M;X.lineWidth=lw;
+  X.beginPath();X.moveTo(x,yh);X.lineTo(x,top);X.moveTo(x,top+bh);X.lineTo(x,yl);X.stroke();
+  if(d.c>=d.o) X.fillRect(x-bw/2,top,bw,bh); else {X.fillStyle=K;X.fillRect(x-bw/2,top,bw,bh);X.strokeRect(x-bw/2+lw/2,top+lw/2,bw-lw,Math.max(1,bh-lw));}
+  X.restore();
+}
+// draw candles index i in [a, a+n) with growth for fractional tail; xOf(i) gives centre x
+function candles(a,n,xOf,map,bw,o={}){
+  const full=Math.floor(n), fr=n-full;
+  for(let k=0;k<=full;k++){const i=a+k;if(i<0||i>=CD.length)continue;const g=k<full?1:fr;if(g<=0)continue;const x=xOf(i);if(x<-60||x>W+60)continue;
+    candle(x,CD[i],o.grow?eo(g):1,map,bw,o.lw||3,(o.al??1)*(o.grow?1:clamp(g*1.5)));}
+}
+
+/* ---------- icons ---------- */
+function playMorph(x,y,s,m,col=K){ // m=0 play, 1 pause
+  const tri=[[[-.38,-.5],[.06,-.26],[.06,.26],[-.38,.5]],[[.06,-.26],[.5,0],[.5,0],[.06,.26]]];
+  const pau=[[[-.42,-.5],[-.12,-.5],[-.12,.5],[-.42,.5]],[[.12,-.5],[.42,-.5],[.42,.5],[.12,.5]]];
+  X.save();X.fillStyle=col;
+  for(let q=0;q<2;q++){X.beginPath();for(let v=0;v<4;v++){const px=lerp(tri[q][v][0],pau[q][v][0],m)*s,py=lerp(tri[q][v][1],pau[q][v][1],m)*s;v?X.lineTo(x+px,y+py):X.moveTo(x+px,y+py);}X.closePath();X.fill();}
+  X.restore();
+}
+function rewindIcon(x,y,s,col=M){X.save();X.fillStyle=col;for(const dx of [-.02,.46]){X.beginPath();X.moveTo(x+(dx-.48)*s,y);X.lineTo(x+dx*s,y-.42*s);X.lineTo(x+dx*s,y+.42*s);X.closePath();X.fill();}X.restore();}
+function stepIcon(x,y,s,col=M){X.save();X.fillStyle=col;X.beginPath();X.moveTo(x-.4*s,y-.42*s);X.lineTo(x+.25*s,y);X.lineTo(x-.4*s,y+.42*s);X.closePath();X.fill();X.fillRect(x+.28*s,y-.42*s,.14*s,.84*s);X.restore();}
+function replayArc(x,y,r,rot,lw=8,col=M){X.save();X.translate(x,y);X.rotate(rot);X.strokeStyle=col;X.lineWidth=lw;X.lineCap='round';X.beginPath();X.arc(0,0,r,0.35,5.6);X.stroke();
+  const a=5.6,ax=Math.cos(a)*r,ay=Math.sin(a)*r;X.fillStyle=col;X.beginPath();X.moveTo(ax+lw*1.6,ay-lw*0.2);X.lineTo(ax-lw*1.2,ay-lw*1.9);X.lineTo(ax-lw*1.0,ay+lw*1.5);X.closePath();X.fill();X.restore();}
+function lockIcon(x,y,s,closed,col=M){X.save();X.strokeStyle=col;X.fillStyle=col;X.lineWidth=s*0.12;const sh=(1-closed)*s*0.28;
+  X.beginPath();X.arc(x,y-s*0.15-sh,s*0.28,Math.PI,0);X.lineTo(x+s*0.28,y-s*0.05-sh*0.3);X.moveTo(x-s*0.28,y-s*0.15-sh);X.lineTo(x-s*0.28,y-s*0.05);X.stroke();
+  rr(x-s*0.42,y-s*0.05,s*0.84,s*0.62,s*0.1);X.fill();X.fillStyle=K;X.beginPath();X.arc(x,y+s*0.22,s*0.08,0,6.283);X.fill();X.restore();}
+function checkMark(x,y,s,p,col=K,lw=10){if(p<=0)return;X.save();X.strokeStyle=col;X.lineWidth=lw;X.lineCap='round';X.lineJoin='round';
+  const pts=[[-.32,0],[-.08,.24],[.36,-.24]],L1=Math.hypot(.24,.24),L2=Math.hypot(.44,.48),tot=L1+L2,d=p*tot;
+  X.beginPath();X.moveTo(x+pts[0][0]*s,y+pts[0][1]*s);
+  if(d<=L1){const q=d/L1;X.lineTo(x+lerp(pts[0][0],pts[1][0],q)*s,y+lerp(pts[0][1],pts[1][1],q)*s);}
+  else{X.lineTo(x+pts[1][0]*s,y+pts[1][1]*s);const q=(d-L1)/L2;X.lineTo(x+lerp(pts[1][0],pts[2][0],q)*s,y+lerp(pts[1][1],pts[2][1],q)*s);}
+  X.stroke();X.restore();}
+function qmark(x,y,px,al=1,glow=0){X.save();X.globalAlpha*=al;if(glow){X.shadowColor=mA(0.9);X.shadowBlur=glow;}T('؟',x,y,px,'X',M);X.restore();}
+function logo(x,y,sz,al=1){if(!LOGO)return;X.save();X.globalAlpha*=al;const r=LOGO.width/LOGO.height;X.drawImage(LOGO,x-sz*r/2,y-sz/2,sz*r,sz);X.restore();}
+function strokeProgress(pts,p){ // polyline drawn up to fraction p
+  let tot=0;const seg=[];for(let i=1;i<pts.length;i++){const l=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(l);tot+=l;}
+  let d=p*tot;X.beginPath();X.moveTo(pts[0][0],pts[0][1]);let last=pts[0];
+  for(let i=1;i<pts.length;i++){if(d<=0)break;const l=seg[i-1];const q=Math.min(1,d/l);last=[lerp(pts[i-1][0],pts[i][0],q),lerp(pts[i-1][1],pts[i][1],q)];X.lineTo(last[0],last[1]);d-=l;}
+  X.stroke();return last;}
+
+/* ---------- transitions ---------- */
+function wipe(t,tc){ // mustard diagonal band right->left, fully covering at tc
+  const a=t-(tc-0.3), b=t-tc; if(a<0||b>0.42) return;
+  const lead=eio(clamp(a/0.3)), trail=eio(clamp(b/0.42)), sl=520;
+  const xR=lerp(W+sl,-sl,trail), xL=lerp(W+sl,-sl,lead);
+  X.save();X.fillStyle=M;X.beginPath();X.moveTo(xL+sl/2,0);X.lineTo(xR+sl/2+40,0);X.lineTo(xR-sl/2+40,H);X.lineTo(xL-sl/2,H);X.closePath();X.fill();
+  X.fillStyle=kA(0.22);const m=(xL+xR)/2;X.beginPath();X.moveTo(m+sl/2-30,0);X.lineTo(m+sl/2+30,0);X.lineTo(m-sl/2+30,H);X.lineTo(m-sl/2-30,H);X.closePath();X.fill();
+  line(xL+sl/2-70,0,xL-sl/2-70,H,10,M);
+  X.restore();
+}
+
+/* ---------- camera ---------- */
+function camOf(t,t0,t1,o={}){
+  const ph=o.ph||0;let z=1+(o.zoom??0.05)*eio(P(t,t0,t1-t0)),x=Math.sin(t*0.8+ph)*(o.dx??12),y=Math.cos(t*0.63+ph)*(o.dy??10),r=Math.sin(t*0.45+ph)*(o.rot??0.006);
+  (o.steps||[]).forEach(([ts,dz,dx,dy,d])=>{const q=eio(P(t,ts,d||0.5));z+=dz*q;x+=(dx||0)*q;y+=(dy||0)*q;});
+  (o.punch||[]).forEach(([tp,a])=>{const q=t-tp;if(q>0)z+=a*Math.exp(-q*3.5)*(1-Math.exp(-q*28));});
+  (o.shake||[]).forEach(([ts,a])=>{const q=t-ts;if(q>0&&q<0.6){const k=a*Math.exp(-q*8);x+=Math.sin(q*95)*k;y+=Math.cos(q*71)*k;r+=Math.sin(q*60)*k*0.0012;}});
+  return {x,y,z,r};
+}
+function applyCam(c){X.translate(540,960);X.scale(c.z,c.z);X.rotate(c.r);X.translate(-540-c.x,-960-c.y);}
+
+/* ---------- player bar (replay UI) ---------- */
+function player(t,y,st){ // st: {al, head(0..1), play(0..1), pr: rewind pulse t, pp: play pulse t, ps: step pulse t, count}
+  const al=st.al??1; if(al<=0) return;
+  X.save();X.globalAlpha*=al;
+  rr(70,y-70,940,140,70);X.fillStyle=kA(0.88);X.fill();X.lineWidth=4;X.strokeStyle=M;X.stroke();
+  const pulse=(tp)=>{const q=t-tp;return q>0&&q<0.45?Math.sin(q/0.45*Math.PI):0;};
+  // buttons (RTL: play on the right)
+  const bx=[910,800,690];
+  // play button
+  let k=1+0.22*pulse(st.pp||-9);X.save();X.translate(bx[0],y);X.scale(k,k);X.beginPath();X.arc(0,0,46,0,6.283);X.fillStyle=M;X.fill();playMorph(4,0,46,st.play??0,K);X.restore();
+  // rewind
+  k=1+0.3*pulse(st.pr||-9);X.save();X.translate(bx[1],y);X.scale(k,k);X.beginPath();X.arc(0,0,40,0,6.283);X.lineWidth=4;X.strokeStyle=M;X.stroke();
+  if(pulse(st.pr||-9)>0){X.fillStyle=mA(0.35*pulse(st.pr));X.fill();}rewindIcon(-2,0,40);X.restore();
+  // step forward
+  k=1+0.3*pulse(st.ps||-9);X.save();X.translate(bx[2],y);X.scale(k,k);X.beginPath();X.arc(0,0,40,0,6.283);X.lineWidth=4;X.strokeStyle=M;X.stroke();
+  if(pulse(st.ps||-9)>0){X.fillStyle=mA(0.35*pulse(st.ps));X.fill();}stepIcon(0,0,36);X.restore();
+  // timeline (RTL: progress grows right->left)
+  const x1=610,x0=130,hd=lerp(x1,x0,clamp(st.head??0.5));
+  line(x0,y+18,x1,y+18,8,mA(0.3));line(hd,y+18,x1,y+18,8,M);
+  X.beginPath();X.arc(hd,y+18,15,0,6.283);X.fillStyle=M;X.fill();
+  // counter
+  if(st.count!=null) T(`کندل ${Math.round(st.count)}`,370,y-24,34,'7',M);
+  X.restore();
+}
+
+/* ---------- subtitles (screen space, safe zone) ---------- */
+const SUBS=DATA.subs.map((c,i,a)=>({...c,until:Math.min(i+1<a.length?a[i+1].words[0].s-0.04:c.end+0.6,c.end+0.7)}));
+function subtitles(t){
+  if(t<B('2a')||t>=B('10a')) return;
+  const c=SUBS.find(c=>t>=c.words[0].s-0.06&&t<c.until); if(!c) return;
+  const px=60, y=1452;
+  const words=c.words.map((w,i)=>{const nx=i+1<c.words.length?c.words[i+1].s:c.end+0.25;return {w:w.w,s:w.s,st:(t>=w.s&&t<nx)?'hl':'n'};});
+  X.font=F(px,'8');X.direction='rtl';
+  const tot=words.reduce((a,w)=>a+X.measureText(w.w).width,0)+px*0.52*(words.length-1);
+  const mw=800, sc=tot>mw?mw/tot:1, bw=Math.min(tot,mw)+90;
+  const pin=P(t,c.words[0].s-0.06,0.25);
+  X.save();X.globalAlpha*=eo(pin);
+  rr(520-bw/2,y-62,bw,124,30);X.fillStyle=kA(0.72);X.fill();X.lineWidth=2;X.strokeStyle=mA(0.35);X.stroke();
+  X.restore();
+  row(t,words,520,y,px,'8',{maxW:mw,dur:0.22,lead:0.04,gap:px*0.52});
+}
+
+/* ======================= SHOTS ======================= */
+const S1=B('2a'),S2=B('3a'),S3=B('5a'),S5=B('6a'),S6=B('7a'),S7=B('8a'),S8=B('9a'),S9=B('10a'),S10=B('11a');
+
+/* shot 1 — hook: hidden future «؟», «دوست داری یه روزِ بازار رو دوباره زندگی کنی؟» */
+function shot1(t,layer){
+  const cut=640, step=40, y0=700, hh=420;
+  if(layer==='cam') return camOf(t,0,S1,{zoom:0.07,punch:[[s(1,6),0.12],[s(1,8),0.1]],steps:[[s(1,6),0,-40,0,0.5]]});
+  if(layer==='scene'){
+    const fly=1-eo(P(t,0,0.75)), rw=eio(P(t,s(1,6)-0.04,0.5));
+    const fw=[0,1,2].reduce((a,k)=>a+eo(P(t,s(1,7)+k*0.22,0.2)),0);
+    const off=fly*30+rw*7-fw; // candles shift (in candle steps) to the right
+    const last=60, xOf=i=>cut-(last-i)*step-step/2+off*step;
+    const [lo,hi]=vrange(38,62); const map=v=>y0+hh*(1-(v-lo)/(hi-lo));
+    X.save();X.beginPath();X.rect(0,0,cut,H);X.clip();
+    candles(10,52,xOf,map,24,{lw:3});
+    X.restore();
+    // speed lines while the tape runs
+    const spd=Math.abs(fly>0.02?1-P(t,0,0.75):0)+Math.sin(Math.PI*P(t,s(1,6)-0.04,0.5));
+    if(spd>0.02){const r=rng(9);X.save();X.strokeStyle=mA(0.45*spd);for(let i=0;i<14;i++){const yy=y0+r()*hh,len=120+r()*260,xx=((r()*cut+t*1800*(i%2?1:-1))%cut+cut)%cut;X.lineWidth=2+r()*3;X.beginPath();X.moveTo(xx,yy);X.lineTo(xx+len*spd,yy);X.stroke();}X.restore();}
+    // curtain: the hidden future
+    X.save();X.fillStyle=kA(0.92);X.fillRect(cut,y0-80,W-cut+200,hh+160);
+    X.beginPath();X.rect(cut,y0-80,W-cut+200,hh+160);X.clip();X.strokeStyle=mA(0.1);X.lineWidth=3;
+    for(let k=-20;k<30;k++){const xx=cut+k*34+((t*30)%34);X.beginPath();X.moveTo(xx,y0-80);X.lineTo(xx+300,y0+hh+80);X.stroke();}
+    X.restore();
+    X.save();X.lineDashOffset=-t*60;line(cut,y0-140,cut,y0+hh+140,6,M,[22,14]);X.restore();
+    // «؟» on the future, pulsing from frame 0
+    const pq=1+0.06*Math.sin(t*7.5)+0.28*Math.exp(-Math.max(0,t-s(1,8))*5)*(t>s(1,8)?1:0);
+    X.save();X.translate(855,y0+hh/2);X.scale(pq,pq);qmark(0,0,330,1,40);X.restore();
+    // replay arc on top of the line at «دوباره»
+    const ra=P(t,s(1,6)-0.05,0.25);
+    if(ra>0){X.save();X.globalAlpha*=ra;X.beginPath();X.arc(cut,y0-140,62,0,6.283);X.fillStyle=K;X.fill();replayArc(cut,y0-140,40,-t*7*(1-0.8*P(t,s(1,6)+0.5,0.4)),8);X.restore();}
+    // big hollow «دوباره» drifting behind
+    const ho=P(t,s(1,6)-0.05,0.4);
+    if(ho>0){X.save();X.globalAlpha=0.32*ho;X.font=F(250,'X');X.textAlign='center';X.textBaseline='middle';X.direction='rtl';X.lineWidth=3;X.strokeStyle=M;X.strokeText('دوباره',560+(1-eo(ho))*300-(t-s(1,6))*60,1310);X.restore();}
+  }
+  if(layer==='hud'){
+    const outA=eio(P(t,s(1,5)-0.08,0.3));
+    X.save();X.translate(0,-outA*140);X.globalAlpha*=1-outA;
+    row(t,WL(1,0,1),540,380,96,'X');
+    row(t,WL(1,2,4,{4:'hl'}),540,510,104,'X');
+    X.restore();
+    row(t,WL(1,5,6,{6:'hl'}),540,380,112,'X');
+    row(t,WL(1,7,8),540,520,104,'X');
+  }
+}
+
+/* shot 2 — «تو پرو چارت این کار شدنیه، با «بازپخش».» */
+function shot2(t,layer){
+  const up=eio(P(t,s(2,3)-0.1,0.55)), zin=eio(P(t,S2-0.45,0.45));
+  if(layer==='cam'){const c=camOf(t,S1,S2,{zoom:0.04,ph:1});c.z+=zin*2.4;c.y+=zin*120;return c;}
+  if(layer==='scene'){
+    // logo with iris mask and orbit rings
+    const lp=P(t,s(2,1)-0.12,0.45), ly=lerp(640,410,up), ls=lerp(1,0.62,up);
+    if(lp>0){
+      X.save();X.translate(540,ly);X.scale(ls,ls);
+      X.save();X.beginPath();X.arc(0,0,230*eo(lp)+1,0,6.283);X.clip();logo(0,0,250);X.restore();
+      X.strokeStyle=M;X.lineWidth=5;X.globalAlpha*=eo(lp);
+      X.beginPath();X.arc(0,0,250,t*2.2,t*2.2+4.2*eo(lp));X.stroke();
+      X.lineWidth=2;X.beginPath();X.arc(0,0,285,-t*1.4,-t*1.4+3.0*eo(lp));X.stroke();
+      X.restore();
+    }
+    // brand name
+    X.save();X.translate(540,lerp(930,600,up));X.scale(lerp(1,0.7,up),lerp(1,0.7,up));
+    row(t,WL(2,1,2),0,0,128,'X');X.restore();
+    // phone with chart rising
+    if(up>0){
+      const py=lerp(1500,1010,up);
+      X.save();X.translate(0,py-1010);
+      rr(300,650,480,720,56);X.fillStyle=kA(0.95);X.fill();X.lineWidth=6;X.strokeStyle=M;X.stroke();
+      rr(470,672,140,16,8);X.fillStyle=mA(0.6);X.fill();
+      const [lo,hi]=vrange(20,36),map=v=>720+380*(1-(v-lo)/(hi-lo));
+      X.save();X.beginPath();X.rect(310,700,460,420);X.clip();
+      candles(20,16*P(t,s(2,3),0.8)+0.001,i=>340+(i-20)*27,map,15,{grow:true,lw:2});X.restore();
+      // check badge on «شدنیه»
+      const cp=P(t,s(2,5)-0.05,0.3);
+      if(cp>0){X.save();X.translate(760,680);X.scale(eback(cp),eback(cp));X.beginPath();X.arc(0,0,52,0,6.283);X.fillStyle=M;X.fill();checkMark(0,2,70,P(t,s(2,5)+0.05,0.3),K,10);X.restore();}
+      // play button -> morphs into the «بازپخش» pill
+      const bp=P(t,s(2,6)-0.08,0.3), mp=eio(P(t,s(2,7)-0.06,0.38));
+      if(bp>0){
+        const w=lerp(110,380,mp), h=110, cx=540, cy=1240;
+        X.save();X.translate(cx,cy);const k=eback(bp)*(1+0.08*Math.sin(Math.max(0,t-s(2,7))*9)*Math.exp(-Math.max(0,t-s(2,7))*3));X.scale(k,k);
+        rr(-w/2,-h/2,w,h,h/2);X.fillStyle=M;X.fill();
+        if(mp<0.5) playMorph(6,0,54*(1-mp*2),0,K);
+        else{X.save();X.globalAlpha*=eo((mp-0.5)*2);rewindIcon(w/2-62,0,40,K);
+          X.beginPath();X.rect(-w/2,-h/2,w-90,h);X.clip();T('بازپخش',-30,0,62,'X',K);X.restore();}
+        X.restore();
+        // burst ring
+        burst(t,s(2,7),cx,cy,{n:24,sp:600,ring:260,seed:5,life:0.6});
+      }
+      X.restore();
+    }
+  }
+}
+
+/* shots 3+4 — the chart story: rewind, the replay line, candle by candle, the hidden future, you, the eye, the script */
+const C3={x0:70,y0:440,h:560,step:40,bw:24,F:6};
+function story(t){ // shared state for shots 3-4
+  const reveal=24*eo(P(t,s(3,0)-0.15,0.6));            // «نمودار»
+  const back=10*eio(P(t,s(3,2)-0.05,e(3,2)-s(3,2)+0.1)); // «برمی‌گردونی»
+  const d=(e(3,9)-s(3,9))/3, kt=[s(3,9),s(3,9)+d,s(3,9)+2*d];
+  const fwd=kt.reduce((a,k)=>a+eo(P(t,k-0.03,0.28)),0);    // «کندل‌به‌کندل»
+  const n=Math.max(0,reveal-back)+fwd;                       // candles shown (after F)
+  const lineIdx=C3.F+14+fwd;
+  return {n,back,kt,lineIdx,fwd};
+}
+function shot34(t,layer){
+  const st=story(t), xOf=i=>C3.x0+(i-C3.F)*C3.step+C3.step/2;
+  const lx=C3.x0+(st.lineIdx-C3.F)*C3.step;
+  if(layer==='cam'){
+    const c=camOf(t,S2,S3,{zoom:0.04,ph:2,steps:[[s(3,10),0,30,0,0.6],[s(4,0)-0.1,0.16,90,40,0.5],[s(4,7)-0.1,-0.16,-90,-40,0.6]],punch:[[s(4,4),0.06],[s(4,16),0.05]]});
+    c.z+=0.35*(1-eo(P(t,S2,0.45)));return c;
+  }
+  const [lo,hi]=vrange(C3.F,C3.F+26), map=v=>C3.y0+C3.h*(1-(v-lo)/(hi-lo));
+  if(layer==='scene'){
+    const dim=1-0.55*eio(P(t,s(4,7)-0.1,0.5));
+    // ghost future candles (exist, but hidden)
+    const gh=P(t,s(4,3)-0.5,0.4)*(1-P(t,s(4,3)+0.4,0.3));
+    if(gh>0){X.save();X.globalAlpha*=0.35*gh;candles(Math.floor(st.lineIdx),9,xOf,map,C3.bw,{lw:2});X.restore();}
+    X.save();X.globalAlpha*=dim;
+    X.save();X.beginPath();X.rect(0,0,lx,H);X.clip();
+    candles(C3.F,Math.min(st.n,26),xOf,map,C3.bw,{grow:true});
+    X.restore();
+    // rewind streaks
+    const rs=Math.sin(Math.PI*P(t,s(3,2)-0.05,0.75));
+    if(rs>0.02){const r=rng(4);X.save();X.strokeStyle=mA(0.5*rs);for(let i=0;i<16;i++){const yy=C3.y0+r()*C3.h,len=100+r()*300,xx=((r()*1080+t*2200)%1180)-100;X.lineWidth=2+r()*3;X.beginPath();X.moveTo(xx,yy);X.lineTo(xx+len*rs,yy);X.stroke();}X.restore();}
+    X.restore();
+    // replay line drops on «لحظه»
+    const lp=eo(P(t,s(3,5)-0.12,0.35));
+    if(lp>0){X.save();X.lineDashOffset=-t*50;line(lx,C3.y0-70,lx,C3.y0-70+(C3.h+140)*lp,6,M,[22,14]);X.restore();
+      X.beginPath();X.arc(lx,C3.y0-70,14,0,6.283);X.fillStyle=M;X.fill();}
+    // curtain over the future
+    const cu=eio(P(t,s(4,3)-0.06,0.5)), base=lp>0?0.55:0;
+    if(lp>0){X.save();const cx=lerp(W+40,lx,cu);X.fillStyle=kA(base);X.fillRect(lx,C3.y0-80,W,C3.h+160);
+      X.fillStyle=K;X.fillRect(cx,C3.y0-80,W,C3.h+160);
+      if(cu>0){X.beginPath();X.rect(cx,C3.y0-80,W,C3.h+160);X.clip();X.strokeStyle=mA(0.12);X.lineWidth=3;for(let k=-20;k<30;k++){const xx=cx+k*34+((t*30)%34);X.beginPath();X.moveTo(xx,C3.y0-80);X.lineTo(xx+300,C3.y0+C3.h+80);X.stroke();}}
+      X.restore(); if(cu>0&&cu<1) line(cx,C3.y0-80,cx,C3.y0+C3.h+80,8,M);}
+    // big «؟» lands on «بعدی», pulses on «نمی‌بینی»
+    const qp=P(t,s(4,4)-0.08,0.4);
+    if(qp>0){const pul=1+0.05*Math.sin(t*6)+0.25*Math.exp(-Math.max(0,t-s(4,16))*5)*(t>s(4,16)?1:0);
+      X.save();X.translate((lx+W)/2+30,C3.y0+C3.h/2);const k=lerp(2.2,1,eback(qp))*pul;X.scale(k,k);qmark(0,0,280,clamp(qp*2),30);X.restore();}
+    // lock on «عمداً»
+    const lk=P(t,s(4,5)-0.05,0.3);
+    if(lk>0){X.save();X.translate(lx,C3.y0+C3.h/2);X.scale(eback(lk),eback(lk));X.beginPath();X.arc(0,0,56,0,6.283);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();lockIcon(0,-4,60,eo(P(t,s(4,5)+0.12,0.2)));X.restore();}
+    // counter tags «+1 +2 +3» on candle by candle
+    st.kt.forEach((k,j)=>{const q=P(t,k-0.03,0.8);if(q>0&&q<1){X.save();X.globalAlpha*=1-q;T(`+${j+1}`,xOf(C3.F+14+j),C3.y0-30-q*90,54,'X',M,'center','ltr');X.restore();}});
+    // «تو» marker at the replay line
+    const yp=P(t,s(4,8)-0.08,0.35);
+    if(yp>0){X.save();X.translate(lx-70,C3.y0+C3.h-40);X.scale(eback(yp),eback(yp));X.beginPath();X.arc(0,-34,26,0,6.283);X.fillStyle=M;X.fill();X.beginPath();X.arc(0,30,46,Math.PI,0);X.fill();X.restore();}
+    // the player bar
+    const pa=eo(P(t,S2+0.1,0.45))*(1-eio(P(t,s(4,7)-0.1,0.4)));
+    player(t,1205,{al:pa,head:clamp(st.n/34),play:t<s(3,2)?0:1,pr:s(3,2),ps:t<st.kt[1]-0.03?st.kt[0]:t<st.kt[2]-0.03?st.kt[1]:st.kt[2],pp:s(3,0),count:C3.F+st.n});
+  }
+  if(layer==='hud'){
+    // «یه لحظه از گذشته» callout
+    chip(t,s(3,7)-0.1,'یه لحظه از گذشته',Math.max(250,lx-170),C3.y0-150,46,{outline:true,out:s(3,9)-0.2});
+    // «نکته‌ی اصلی» tab
+    chip(t,s(4,0)-0.08,'نکته‌ی اصلی',540,330,64,{out:s(4,3)-0.2,wt:'X'});
+    // «کندل‌های بعدی: پنهان» card
+    chip(t,s(4,6)-0.06,'کندل‌های بعدی: پنهان',540,330,56,{out:s(4,7)-0.15});
+    // calendar flipping back to «همون روز»
+    const ca=P(t,s(4,10)-0.12,0.35), co=P(t,s(4,14)-0.15,0.3);
+    if(ca>0&&co<1){
+      X.save();X.translate(300,650);X.scale(eback(ca)*(1-co*0.4),eback(ca)*(1-co*0.4));X.globalAlpha*=1-co;
+      rr(-170,-190,340,380,30);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();
+      rr(-170,-190,340,92,30);X.fillStyle=M;X.fill();X.fillStyle=K;X.fillRect(-90,-215,16,50);X.fillRect(74,-215,16,50);X.fillStyle=M;X.fillRect(-90,-215,16,26);X.fillRect(74,-215,16,26);
+      const fp=P(t,s(4,10),s(4,12)-s(4,10)), day=Math.round(lerp(28,12,eo(fp))), land=P(t,s(4,12)-0.06,0.3);
+      T('روز',0,-144,44,'X',K);
+      const ph=(fp*16)%1, sy=fp<1?Math.abs(Math.cos(ph*Math.PI)):1;
+      X.save();X.translate(0,45);X.scale(1,sy);T(String(day),0,0,150,'X',M,'center','ltr');X.restore();
+      if(land>0){X.save();X.globalAlpha*=eo(land);rr(-150,-96,300,260,20);X.fillStyle=K;X.fill();T('همون',0,-10,64,'X',M);T('روز',0,80,64,'X',M);X.restore();}
+      X.restore();
+    }
+    // the eye: «آینده رو نمی‌بینی»
+    const ea=P(t,s(4,14)-0.1,0.3), eoff=P(t,s(4,17)-0.1,0.3);
+    if(ea>0&&eoff<1){
+      X.save();X.translate(lx-250,650);X.scale(eback(ea),eback(ea));X.globalAlpha*=1-eoff;
+      X.beginPath();X.arc(0,0,150,0,6.283);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();
+      const open=eo(P(t,s(4,14)-0.05,0.3))*(1-0.85*eo(P(t,s(4,16)+0.15,0.3)));
+      X.beginPath();X.moveTo(-105,0);X.quadraticCurveTo(0,-110*open,105,0);X.quadraticCurveTo(0,110*open,-105,0);X.lineWidth=8;X.stroke();
+      if(open>0.15){X.save();X.clip();X.beginPath();X.arc(26*eo(P(t,s(4,14),0.4)),0,36,0,6.283);X.fillStyle=M;X.fill();X.restore();}
+      const sl=eo(P(t,s(4,16)-0.04,0.25));if(sl>0) line(-110,-110,lerp(-110,110,sl),lerp(-110,110,sl),12,M);
+      X.restore();
+      // sight cone hits the curtain
+      if(open>0.2){X.save();const g=X.createLinearGradient(lx-250,0,lx,0);g.addColorStop(0,mA(0.0));g.addColorStop(1,mA(0.35*open));X.fillStyle=g;X.beginPath();X.moveTo(lx-150,650);X.lineTo(lx,520);X.lineTo(lx,780);X.closePath();X.fill();X.restore();}
+    }
+    // the script card: «حتی اسکریپت‌هات هم آینده رو نمی‌بینن»
+    const sa=P(t,s(4,18)-0.1,0.4), so=P(t,S3-0.25,0.25);
+    if(sa>0&&so<1){
+      X.save();X.translate(lerp(-300,0,eo(sa)),0);X.globalAlpha*=1-so;
+      const shk=t>s(4,22)?Math.sin((t-s(4,22))*70)*10*Math.exp(-(t-s(4,22))*7):0;X.translate(shk,0);
+      rr(90,470,420,330,28);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();
+      rr(90,470,420,62,28);X.fillStyle=mA(0.9);X.fill();X.fillStyle=K;[0,1,2].forEach(k=>{X.beginPath();X.arc(130+k*34,501,9,0,6.283);X.fill();});
+      T('script.pine',400,501,30,'8',K,'center','ltr');
+      const code=['if close > open','    buy()','next = ?'], tp=P(t,s(4,18),0.9);
+      code.forEach((ln,k)=>{const q=clamp(tp*3-k);if(q>0){X.save();X.beginPath();X.rect(110,560+k*70,380*q,64);X.clip();T(ln,115,592+k*70,40,'7',k==2?M:mA(0.85),'left','ltr');X.restore();}});
+      X.restore();
+      // scan beam to the future, blocked on «نمی‌بینن»
+      const bm=P(t,s(4,20)-0.05,0.35), hit=t>s(4,22)-0.03;
+      if(bm>0&&so<1){X.save();X.globalAlpha*=(1-so)*(hit?0.4+0.6*Math.abs(Math.sin((t-s(4,22))*30))*Math.exp(-(t-s(4,22))*3):1);
+        const g=X.createLinearGradient(510,0,lx,0);g.addColorStop(0,mA(0.55));g.addColorStop(1,mA(0.15));X.fillStyle=g;
+        X.beginPath();X.moveTo(510,620);X.lineTo(lerp(510,lx,eo(bm)),560);X.lineTo(lerp(510,lx,eo(bm)),700);X.lineTo(510,660);X.closePath();X.fill();X.restore();}
+      burst(t,s(4,22)-0.02,lx,630,{n:30,sp:700,ring:200,seed:8,life:0.7});
+    }
+  }
+}
+
+/* shot 5 — «حالا تصمیم با خودته. با دو تا کلید میان‌بر، خرید یا فروش تمرینی بزن، حد ضرر و حد سود بذار، و یه کندل برو جلو.» */
+const C5={x0:60,y0:640,h:420,step:40,bw:24,F:30,N:14};
+function shot5(t,layer){
+  const nw=eo(P(t,s(5,22)-0.05,0.4)), mv=eo(P(t,s(5,24)-0.05,0.3));
+  const xOf=i=>C5.x0+(i-C5.F)*C5.step+C5.step/2, lidx=C5.F+C5.N+mv, lx=C5.x0+(lidx-C5.F)*C5.step;
+  const [lo,hi]=vrange(C5.F,C5.F+C5.N+2), map=v=>C5.y0+C5.h*(1-(v-lo)/(hi-lo));
+  const last=CD[C5.F+C5.N-1], entry=map(last.c), sl=entry+150, tp=entry-170;
+  if(layer==='cam') return camOf(t,S3,S5,{zoom:0.06,ph:3,punch:[[s(5,1),0.06],[s(5,9),0.05],[s(5,15),0.04],[s(5,18),0.04]]});
+  if(layer==='scene'){
+    X.save();X.beginPath();X.rect(0,0,lx,H);X.clip();
+    candles(C5.F-2,C5.N+2,xOf,map,C5.bw);
+    if(nw>0) candle(xOf(C5.F+C5.N),{o:last.c,c:last.c-(tp-entry)/C5.h*(hi-lo)*0.55,h:last.c-(tp-entry)/C5.h*(hi-lo)*0.62,l:last.c-4},nw,map,C5.bw);
+    X.restore();
+    X.fillStyle=kA(0.9);X.fillRect(lx,C5.y0-60,W,C5.h+120);
+    X.save();X.lineDashOffset=-t*50;line(lx,C5.y0-80,lx,C5.y0+C5.h+80,6,M,[22,14]);X.restore();
+    qmark((lx+W)/2+40,C5.y0+C5.h/2,150,0.35+0.1*Math.sin(t*5));
+    // SL / TP lines
+    const sp=eo(P(t,s(5,15)-0.08,0.4)), tpp=eo(P(t,s(5,18)-0.08,0.4)), lockF=P(t,s(5,19)-0.05,0.3);
+    const ex=xOf(C5.F+C5.N-1);
+    if(sp>0){X.fillStyle=mA(0.1*sp);X.fillRect(ex,entry,(W-80-ex)*sp,sl-entry);X.save();X.lineDashOffset=-t*30;line(ex,sl,lerp(ex,W-80,sp),sl,5,M,[4,12]);X.restore();chip(t,s(5,15)-0.05,'حد ضرر',W-190,sl+50,36,{outline:true});}
+    if(tpp>0){X.fillStyle=mA(0.18*tpp);X.fillRect(ex,tp,(W-80-ex)*tpp,entry-tp);X.save();X.lineDashOffset=-t*30;line(ex,tp,lerp(ex,W-80,tpp),tp,5,M,[22,12]);X.restore();chip(t,s(5,18)-0.05,'حد سود',W-190,tp-50,36,{});}
+    if(lockF>0&&lockF<1){X.save();X.globalAlpha*=1-lockF;line(ex,sl,W-80,sl,12,M);line(ex,tp,W-80,tp,12,M);X.restore();}
+    // buy marker, ghost sell, practice badge
+    const bu=P(t,s(5,9)-0.06,0.35);
+    if(bu>0){X.save();X.translate(ex,map(last.l)+60+(1-eback(bu))*-120);X.globalAlpha*=clamp(bu*3);X.fillStyle=M;X.beginPath();X.moveTo(0,-30);X.lineTo(28,18);X.lineTo(-28,18);X.closePath();X.fill();X.restore();
+      chip(t,s(5,9)-0.04,'خرید',ex-10,map(last.l)+130,34,{});}
+    const se=P(t,s(5,11)-0.06,0.3)*(1-P(t,s(5,12),0.3));
+    if(se>0){X.save();X.globalAlpha*=se;X.translate(ex,map(last.h)-60);X.strokeStyle=M;X.lineWidth=4;X.setLineDash([8,6]);X.beginPath();X.moveTo(0,30);X.lineTo(28,-18);X.lineTo(-28,-18);X.closePath();X.stroke();X.restore();}
+    chip(t,s(5,12)-0.06,'تمرینی',ex-175,map(last.l)+132,40,{rot:-0.08,pop:1.6,dur:0.25,wt:'X'});
+    const pa=eo(P(t,S3+0.1,0.4));
+    player(t,1225,{al:pa,head:0.62+0.03*mv,play:1,ps:s(5,23),pp:s(5,9),count:C5.F+C5.N+mv});
+    // «+1» on step
+    const q=P(t,s(5,24)-0.03,0.8);if(q>0&&q<1){X.save();X.globalAlpha*=1-q;T('+1',xOf(C5.F+C5.N),C5.y0-40-q*90,56,'X',M,'center','ltr');X.restore();}
+    // mouse cursor gliding to the last candle
+    const ma=P(t,s(5,3)-0.1,0.3);
+    if(ma>0){const ct=eio(P(t,s(5,3),1.6)),cx=lerp(860,ex+30,ct),cy=lerp(1100,entry+20,ct);X.save();X.translate(cx,cy);X.globalAlpha*=ma;X.fillStyle=M;X.strokeStyle=K;X.lineWidth=3;X.beginPath();X.moveTo(0,0);X.lineTo(0,58);X.lineTo(15,44);X.lineTo(27,70);X.lineTo(37,65);X.lineTo(25,40);X.lineTo(44,40);X.closePath();X.fill();X.stroke();X.restore();}
+  }
+  if(layer==='hud'){
+    // «تصمیم» jumps big, then gives way to the keys
+    const dj=P(t,s(5,1)-0.08,0.35), dout=P(t,s(5,4)-0.15,0.3);
+    if(dj>0&&dout<1){X.save();X.translate(540,400-dout*60);const k=lerp(0.3,1,eback(dj));X.scale(k,k);X.globalAlpha*=1-dout;
+      T('تصمیم',0,0,190,'X',M);X.restore();
+      chip(t,s(5,2)-0.05,'با خودته',540,540-dout*60,48,{alpha:1-dout});}
+    // two keys (RTL: Shift+B on the right)
+    const ka=P(t,s(5,4)-0.06,0.35), kout=P(t,s(5,14)-0.2,0.3);
+    if(ka>0&&kout<1){
+      const keys=[{x:770,lab:'Shift + B',tag:'خرید',press:[s(5,5),s(5,9)]},{x:310,lab:'Shift + S',tag:'فروش',press:[s(5,7),s(5,11)]}];
+      keys.forEach((k,j)=>{
+        const a=eback(P(t,s(5,4)-0.06+j*0.08,0.35));if(a<=0)return;
+        let dep=16;k.press.forEach(tp=>{const q=t-tp;if(q>-0.02&&q<0.32)dep=16-13*Math.sin(clamp((q+0.02)/0.34)*Math.PI);});
+        X.save();X.translate(k.x,400+(1-a)*80-kout*60);X.scale(a,a);X.globalAlpha*=1-kout;
+        rr(-180,-58+16,360,124,26);X.fillStyle=mA(0.55);X.fill();
+        rr(-180,-58+16-dep,360,124,26);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();
+        if(dep<10){rr(-180,-58+16-dep,360,124,26);X.fillStyle=mA(0.25);X.fill();}
+        T(k.lab,0,4+16-dep,52,'8',M,'center','ltr');
+        X.restore();
+        chip(t,k.press[1]-0.05,k.tag,k.x,520-kout*60,38,{alpha:1-kout});
+      });
+      // underline swoosh on «میان‌بر»
+      const sw=P(t,s(5,8)-0.05,0.35);if(sw>0){X.save();X.globalAlpha*=1-kout;X.strokeStyle=M;X.lineWidth=6;X.lineCap='round';strokeProgress([[930,500],[540,520],[150,500]],eo(sw));X.restore();}
+    }
+    // «حد ضرر و حد سود» label row while lines draw is in the scene; top shows the step instruction
+    chip(t,s(5,21)-0.08,'یه کندل جلو',540,360,56,{wt:'X'});
+  }
+}
+
+/* shot 6 — report: «آخر جلسه، گزارش همون تمرین جلوته: نرخ برد، ضریب سود و منحنی سرمایه.» */
+function shot6(t,layer){
+  if(layer==='cam') return camOf(t,S5,S6,{zoom:0.05,ph:4,rot:0.01,punch:[[s(6,6),0.04],[s(6,8),0.04],[s(6,11),0.04]]});
+  if(layer==='scene'){
+    const rp=P(t,s(6,0)-0.1,0.6), mo=eio(P(t,s(6,2)-0.08,0.55));
+    // session ring that completes on «جلسه», then morphs into the report card
+    const cw=lerp(250,900,mo), ch=lerp(250,960,mo), cy=lerp(600,820,mo), cr=lerp(125,40,mo);
+    X.save();X.translate(540,cy);
+    rr(-cw/2,-ch/2,cw,ch,cr);X.fillStyle=kA(0.9);X.fill();X.lineWidth=5;X.strokeStyle=mA(0.35);X.stroke();
+    if(mo<1){X.save();X.globalAlpha*=1-mo;X.lineWidth=14;X.strokeStyle=M;X.lineCap='round';X.beginPath();X.arc(0,0,110,-Math.PI/2,-Math.PI/2+6.283*lerp(0.7,1,eo(rp)));X.stroke();
+      T('جلسه',0,-18,44,'X',M);T(`کندل ${Math.round(lerp(34,48,eo(rp)))}`,0,40,32,'7',mA(0.8));X.restore();
+      burst(t,s(6,1)+0.05,0,0,{n:20,sp:500,ring:200,seed:11,life:0.5});}
+    if(mo>0){X.lineWidth=5;X.strokeStyle=mA(mo);rr(-cw/2,-ch/2,cw,ch,cr);X.stroke();}
+    X.restore();
+    if(mo>0.6){
+      const al=P(t,s(6,2)+0.2,0.3);X.save();X.globalAlpha*=al;
+      // header with typed title and trade counter
+      X.save();X.beginPath();const hp=eo(P(t,s(6,3)-0.05,0.8));X.rect(990-900*hp,380,900*hp,90);X.clip();T('گزارش همین تمرین',540,425,62,'X',M);X.restore();
+      const cnt=Math.round(12*eo(P(t,s(6,4),0.7)));
+      T(`معامله‌ها: ${cnt}`,540,500,38,'7',mA(0.85));
+      line(140,545,940,545,2,mA(0.4));
+      X.restore();
+      // rows
+      const rows=[{lab:'نرخ برد',t:s(6,6),y:640},{lab:'ضریب سود',t:s(6,8),y:790}];
+      rows.forEach((r,j)=>{const p=P(t,r.t-0.08,0.4);if(p<=0)return;X.save();X.translate((1-eo(p))*200,0);X.globalAlpha*=clamp(p*2);
+        T(r.lab,900,r.y,54,'X',M,'right');
+        if(j===0){const g=eo(P(t,r.t,0.8));X.lineWidth=16;X.strokeStyle=mA(0.25);X.beginPath();X.arc(260,r.y,52,0,6.283);X.stroke();X.strokeStyle=M;X.lineCap='round';X.beginPath();X.arc(260,r.y,52,-Math.PI/2,-Math.PI/2+6.283*0.62*g);X.stroke();}
+        else{const hs=[0.4,0.7,0.5,0.9,0.65,1.0];hs.forEach((h,k)=>{const g=eo(P(t,r.t+k*0.06,0.4));X.fillStyle=k%2?M:mA(0.6);X.fillRect(160+k*44,r.y+50-100*h*g,30,100*h*g);});}
+        line(140,r.y+75,940,r.y+75,2,mA(0.25));X.restore();});
+      // equity curve on «منحنی سرمایه»
+      const ep=P(t,s(6,11)-0.08,e(6,12)-s(6,11)+0.25);
+      if(ep>0){T('منحنی سرمایه',900,925,54,'X',M,'right');
+        const r=rng(21);let v=0;const pts=[];for(let k=0;k<=40;k++){v+=(r()-0.38)*20;pts.push([150+k*19.5,1220-60-k*3.2-v]);}
+        X.save();X.strokeStyle=M;X.lineWidth=8;X.lineJoin='round';const head=strokeProgress(pts,eo(ep));
+        X.lineTo(head[0],1250);X.lineTo(150,1250);X.closePath();const g=X.createLinearGradient(0,980,0,1250);g.addColorStop(0,mA(0.35));g.addColorStop(1,mA(0));X.fillStyle=g;X.fill();
+        X.beginPath();X.arc(head[0],head[1],14+4*Math.sin(t*12),0,6.283);X.fillStyle=M;X.shadowColor=mA(1);X.shadowBlur=24;X.fill();X.restore();}
+    }
+  }
+}
+
+/* shot 7 — strict: «تازه اگه یه کندل هم به حد ضرر خورده باشه هم به حد سود، پرو چارت سخت‌گیرانه ضرر حسابش می‌کنه.» */
+function shot7(t,layer){
+  const TP=480,SL=1160,cx=540,bt=770,bb=880;
+  if(layer==='cam') return camOf(t,S6,S7,{zoom:0.1,ph:5,punch:[[s(7,7),0.05],[s(7,13),0.05]],shake:[[s(7,17),30]]});
+  if(layer==='scene'){
+    const la=eo(P(t,S6+0.05,0.5));
+    const slOn=P(t,s(7,7)-0.05,0.2), tpOn=P(t,s(7,13)-0.05,0.2);
+    const blink=t>s(7,13)+0.15&&t<s(7,14)?(Math.sin((t-s(7,13))*30)>0?1:0.4):1;
+    X.save();X.lineDashOffset=-t*30;
+    line(lerp(cx,90,la),SL,lerp(cx,990,la),SL,slOn>0?7:4,mA((0.35+0.65*slOn)*(t>s(7,13)+0.15&&t<s(7,14)?blink:1)),[5,12]);
+    line(lerp(cx,90,la),TP,lerp(cx,990,la),TP,tpOn>0?7:4,mA((0.35+0.65*tpOn)*(t>s(7,13)+0.15&&t<s(7,14)?(1.4-blink):1)),[24,12]);X.restore();
+    chip(t,s(7,7)-0.05,'حد ضرر',220,SL+60,40,{outline:true});
+    chip(t,s(7,13)-0.05,'حد سود',220,TP-60,40,{});
+    if(t>s(7,17)-0.05){X.save();X.globalAlpha*=eo(P(t,s(7,18)-0.1,0.3));line(130,TP-60,310,TP-60,6,M);X.restore();}
+    // the candle
+    const cp=eback(P(t,s(7,3)-0.1,0.45)), lw=eo(P(t,s(7,7)-0.4,0.42)), uw=eo(P(t,s(7,13)-0.4,0.42));
+    if(cp>0){X.save();X.strokeStyle=M;X.lineWidth=10;
+      X.beginPath();X.moveTo(cx,bt);X.lineTo(cx,lerp(bt,TP,uw));X.moveTo(cx,bb);X.lineTo(cx,lerp(bb,SL,lw));X.stroke();
+      const h=(bb-bt)*cp;X.fillStyle=M;X.fillRect(cx-70,bb-h,140,h);X.restore();}
+    burst(t,s(7,7),cx,SL,{seed:2,ring:300});burst(t,s(7,13),cx,TP,{seed:6,ring:300});
+    // magnifier with a zoomed view (mask)
+    const mg=P(t,s(7,14)-0.12,0.5);
+    if(mg>0){const mx=lerp(1200,cx+150,eo(mg)),my=lerp(500,700,eo(mg)),R=150;
+      X.save();X.beginPath();X.arc(mx,my,R,0,6.283);X.fillStyle=K;X.fill();X.clip();
+      X.translate(mx,my);X.scale(1.9,1.9);X.translate(-mx,-my);
+      X.strokeStyle=M;X.lineWidth=10;X.beginPath();X.moveTo(cx,TP);X.lineTo(cx,SL);X.stroke();X.fillStyle=M;X.fillRect(cx-70,bt,140,bb-bt);
+      X.restore();
+      X.save();X.strokeStyle=M;X.lineWidth=12;X.beginPath();X.arc(mx,my,R,0,6.283);X.stroke();X.lineCap='round';X.lineWidth=26;X.beginPath();X.moveTo(mx+R*0.72,my+R*0.72);X.lineTo(mx+R*1.35,my+R*1.35);X.stroke();X.restore();
+      logo(mx-R-70,my-R+10,90,eo(P(t,s(7,14)-0.05,0.3)));}
+    // stamp «ضرر»
+    const sp=P(t,s(7,17)-0.06,0.2);
+    if(sp>0){X.save();X.translate(cx-20,820);X.rotate(-0.16);const k=lerp(2.6,1,eo(sp));X.scale(k,k);X.globalAlpha*=clamp(sp*2);
+      rr(-190,-95,380,190,26);X.fillStyle=kA(0.85);X.fill();X.lineWidth=12;X.strokeStyle=M;X.stroke();rr(-170,-75,340,150,16);X.lineWidth=3;X.stroke();T('ضرر',0,0,130,'X',M);X.restore();
+      burst(t,s(7,17)+0.1,cx-20,820,{n:44,sp:1100,ring:520,seed:13,life:0.9});}
+  }
+  if(layer==='hud'){
+    chip(t,s(7,16)-0.06,'سخت‌گیرانه',540,1320,54,{wt:'X',out:s(7,17)-0.1});
+    chip(t,s(7,18)-0.06,'نتیجه: ضرر',540,1320,54,{wt:'X'});
+  }
+}
+
+/* shot 8 — split: «این‌جوری اشتباه رو روی گذشته تجربه می‌کنی، نه با پول واقعی.» */
+function shot8(t,layer){
+  if(layer==='cam') return camOf(t,S7,S8,{zoom:0.06,ph:6});
+  if(layer==='scene'){
+    const dv=eo(P(t,s(8,0)-0.1,0.45));
+    line(540,330,540,330+970*dv,5,M);
+    // right half: the past (practice)
+    const rp=eo(P(t,s(8,1)-0.1,0.45));
+    if(rp>0){X.save();X.translate((1-rp)*500,0);
+      rr(570,380,420,860,36);X.fillStyle=kA(0.85);X.fill();X.lineWidth=4;X.strokeStyle=M;X.stroke();
+      const [lo,hi]=vrange(70,82),map=v=>560+380*(1-(v-lo)/(hi-lo));candles(70,10*P(t,s(8,1)-0.1,0.6),i=>600+(i-70)*36+18,map,20,{grow:true,lw:2});
+      // mistake mark on «اشتباه»
+      const mk=P(t,s(8,1),0.3);if(mk>0){X.save();X.translate(880,640);X.scale(eback(mk),eback(mk));X.lineWidth=12;X.lineCap='round';X.strokeStyle=M;line(-32,-32,32,32,12,M);line(32,-32,-32,32,12,M);X.restore();}
+      X.restore();
+      const gp=P(t,s(8,4)-0.08,0.35);if(gp>0){X.save();X.translate(780,450);X.scale(eback(gp),eback(gp));T('گذشته',30,0,60,'X',M);rewindIcon(-110,0,40);X.restore();}
+      chip(t,s(8,5)-0.06,'تمرین',780,1060,52,{wt:'X',rot:-0.06,pop:1.5});
+      const ck=P(t,s(8,6)-0.05,0.3);if(ck>0){X.save();X.translate(780,1170);X.scale(eback(ck),eback(ck));X.beginPath();X.arc(0,0,44,0,6.283);X.fillStyle=M;X.fill();checkMark(0,2,62,P(t,s(8,6),0.3),K,9);X.restore();}
+    }
+    // left half: real money (no)
+    const lp=eo(P(t,s(8,7)-0.1,0.4));
+    if(lp>0){X.save();X.translate(-(1-lp)*500,0);X.globalAlpha*=1-0.55*eo(P(t,s(8,10)+0.35,0.4));
+      rr(90,380,420,860,36);X.fillStyle=kA(0.85);X.fill();X.lineWidth=4;X.strokeStyle=mA(0.6);X.stroke();
+      const wp=P(t,s(8,9)-0.08,0.35);
+      if(wp>0){X.save();X.translate(300,760);X.scale(eback(wp),eback(wp));
+        rr(-130,-90,260,180,26);X.lineWidth=10;X.strokeStyle=M;X.stroke();rr(30,-40,120,80,18);X.fillStyle=K;X.fill();X.stroke();X.beginPath();X.arc(70,0,14,0,6.283);X.fillStyle=M;X.fill();
+        X.beginPath();X.moveTo(-110,-90);X.lineTo(60,-150);X.lineTo(90,-90);X.stroke();X.restore();
+        T('پول واقعی',300,500,60,'X',M);}
+      X.restore();
+      const st=eo(P(t,s(8,10)-0.04,0.3));
+      if(st>0){X.save();X.lineCap='round';X.strokeStyle=M;X.lineWidth=16;X.beginPath();X.moveTo(110,1140);X.lineTo(lerp(110,490,st),lerp(1140,420,st));X.stroke();X.restore();}
+      chip(t,s(8,7)-0.06,'نه',300,1110,64,{wt:'X'});
+    }
+  }
+}
+
+/* shot 9 — CTA: «کلمه‌ی «بازپخش» رو کامنت کن تا لینکش رو برات بفرستیم.» */
+function shot9(t,layer){
+  if(layer==='cam') return camOf(t,S8,S9,{zoom:0.05,ph:7,punch:[[s(9,4),0.05]]});
+  if(layer==='scene'){
+    const bx=eo(P(t,s(9,0)-0.1,0.45)), sent=P(t,s(9,4)-0.02,0.4);
+    // posted comment bubble (morph from the input)
+    if(sent>0){const y=lerp(830,600,eio(sent));X.save();X.globalAlpha*=clamp(sent*3);
+      rr(300,y-60,580,120,60);X.fillStyle=M;X.fill();T('بازپخش',600,y,64,'X',K);X.beginPath();X.arc(830,y,34,0,6.283);X.fillStyle=K;X.fill();logo(830,y,34);X.restore();}
+    // input box
+    X.save();X.translate(0,(1-bx)*500);X.globalAlpha*=bx;
+    rr(110,770,860,120,60);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();
+    const word='بازپخش', d=(e(9,1)-s(9,1))/word.length, nch=sent>0?0:Math.min(word.length,Math.max(0,Math.floor((t-s(9,1)+0.02)/d)+1)*(t>=s(9,1)-0.02?1:0));
+    const typed=word.slice(0,nch);
+    if(typed){T(typed,890,830,62,'X',M,'right');}
+    const cw=typed?TW(typed,62,'X'):0, car=Math.floor(t*3)%2===0;
+    if(sent<=0&&car) X.fillStyle=M,X.fillRect(880-cw-8,800,5,62);
+    if(!typed&&sent<=0) T('یه کامنت بنویس…',890,830,44,'6',mA(0.45),'right');
+    // send button
+    const pul=t>s(9,4)-0.05&&t<s(9,4)+0.4?1+0.25*Math.sin((t-s(9,4)+0.05)/0.45*Math.PI):1;
+    X.save();X.translate(180,830);X.scale(pul,pul);X.beginPath();X.arc(0,0,42,0,6.283);X.fillStyle=M;X.fill();
+    X.fillStyle=K;X.beginPath();X.moveTo(-20,-18);X.lineTo(24,0);X.lineTo(-20,18);X.lineTo(-12,0);X.closePath();X.fill();X.restore();
+    X.restore();
+    // reply bubble with the link on «لینکش»
+    const rp=P(t,s(9,6)-0.1,0.45);
+    if(rp>0){X.save();X.translate(-(1-eback(rp))*600,0);rr(110,960,600,130,40);X.fillStyle=mA(0.16);X.fill();X.lineWidth=4;X.strokeStyle=M;X.stroke();
+      // chain-link icon
+      X.save();X.translate(190,1025);X.rotate(-0.6);X.lineWidth=9;X.strokeStyle=M;rr(-46,-16,52,32,16);X.stroke();rr(-6,-16,52,32,16);X.stroke();X.restore();
+      T('pro-chart.com',460,1025,48,'8',M,'center','ltr');X.restore();}
+    // paper plane flies on «بفرستیم»
+    const pf=P(t,s(9,9)-0.12,0.7);
+    if(pf>0&&pf<1){const px=lerp(700,1010,eio(pf)),py=lerp(1000,420,eio(pf));X.save();X.setLineDash([10,12]);X.strokeStyle=mA(0.7);X.lineWidth=4;X.beginPath();X.moveTo(700,1000);X.quadraticCurveTo(980,1000,px,py);X.stroke();X.restore();
+      X.save();X.translate(px,py);X.rotate(-1.1);X.fillStyle=M;X.beginPath();X.moveTo(-30,-24);X.lineTo(36,0);X.lineTo(-30,24);X.lineTo(-18,0);X.closePath();X.fill();X.restore();}
+    // bouncing arrow towards the comments
+    const ar=P(t,s(9,5)-0.1,0.3);if(ar>0){const by=1200+Math.abs(Math.sin(t*5))*26;X.save();X.globalAlpha*=ar;X.strokeStyle=M;X.lineWidth=12;X.lineCap='round';X.lineJoin='round';X.beginPath();X.moveTo(540,by-80);X.lineTo(540,by);X.moveTo(500,by-36);X.lineTo(540,by);X.lineTo(580,by-36);X.stroke();X.restore();}
+  }
+  if(layer==='hud'){chip(t,s(9,3)-0.08,'کامنت کن',540,420,64,{wt:'X'});}
+}
+
+/* shot 10 — the warning, calm: «یادت باشه، معامله ریسک داره و نتیجه‌ی گذشته، تضمین آینده نیست.» */
+function shot10(t,layer){
+  if(layer==='cam') return camOf(t,S9,S10,{zoom:0.05,ph:8,dx:6,dy:6,rot:0.003});
+  if(layer==='scene'){
+    // faint candles drifting slowly
+    X.save();X.globalAlpha*=0.22;const [lo,hi]=vrange(90,130),map=v=>1080+260*(1-(v-lo)/(hi-lo));candles(90,40,i=>(i-90)*34-((t-S9)*24),map,18,{lw:2});X.restore();
+    const fr=eo(P(t,s(10,0)-0.15,0.9));
+    X.save();X.strokeStyle=M;X.lineWidth=4;const pts=[[540,420],[980,420],[980,1010],[100,1010],[100,420],[540,420]];strokeProgress(pts,fr);X.restore();
+    const tr=P(t,s(10,0)-0.1,0.4);if(tr>0){X.save();X.translate(540,420);X.scale(eback(tr),eback(tr));X.beginPath();X.arc(0,0,60,0,6.283);X.fillStyle=K;X.fill();
+      X.strokeStyle=M;X.lineWidth=7;X.lineJoin='round';X.beginPath();X.moveTo(0,-34);X.lineTo(36,28);X.lineTo(-36,28);X.closePath();X.stroke();X.fillStyle=M;X.fillRect(-3.5,-12,7,22);X.beginPath();X.arc(0,19,4.5,0,6.283);X.fill();X.restore();}
+    const qa=P(t,s(10,9)-0.1,0.5);if(qa>0) qmark(880,880,230,0.28*eo(qa)+0.05*Math.sin(t*4));
+  }
+  if(layer==='hud'){
+    row(t,WL(10,0,1),540,540,58,'7');
+    row(t,WL(10,2,4,{3:'hl'}),540,670,88,'X');
+    row(t,WL(10,5,7),540,800,88,'X');
+    row(t,WL(10,8,10,{10:'hl'}),540,930,88,'X');
+  }
+}
+
+/* shot 11 — end card: «اول نمودار، بعد تصمیم… پرو چارت.» + «کامنت: بازپخش» */
+function shot11(t,layer){
+  if(layer==='cam') return camOf(t,S10,END,{zoom:0.06,ph:9,dx:5,dy:5,rot:0.002});
+  if(layer==='scene'){
+    // three small candles grow on «نمودار»
+    [0,1,2].forEach(k=>{const g=eo(P(t,s(11,1)-0.05+k*0.12,0.35));if(g<=0)return;const h=[70,110,150][k]*g;X.fillStyle=M;X.fillRect(470+k*50,520-h,30,h);line(485+k*50,520-h-22*g,485+k*50,520,4,M);});
+    // mustard block for «بعد تصمیم»
+    const bp=eio(P(t,s(11,2)-0.1,0.4));
+    if(bp>0){X.fillStyle=M;rr(980-860*bp,735,860*bp,150,24);X.fill();}
+    // logo + ring
+    const lp=P(t,s(11,4)-0.12,0.45);
+    if(lp>0){X.save();X.translate(540,1015);const k=eback(lp);X.scale(k,k);logo(0,0,130);X.restore();burst(t,s(11,4),540,1015,{n:26,sp:600,ring:260,seed:17,life:0.7});
+      X.save();X.strokeStyle=mA(0.8);X.lineWidth=4;X.beginPath();X.arc(540,1015,110,t*1.6,t*1.6+4.5*eo(lp));X.stroke();X.restore();}
+    // CTA pill «کامنت کن: بازپخش»
+    const cp=P(t,B('11c')-0.05,0.45);
+    if(cp>0){X.save();X.translate(540,1300);const k=eback(cp);X.scale(k,k);
+      rr(-330,-62,660,124,62);X.fillStyle=K;X.fill();X.lineWidth=5;X.strokeStyle=M;X.stroke();
+      T('کامنت کن:',150,0,50,'X',M);rr(-300,-46,330,92,46);X.fillStyle=M;X.fill();T('بازپخش',-135,0,56,'X',K);
+      const q=((t-B('11c'))%0.9)/0.9;X.globalAlpha*=(1-q)*0.8;X.lineWidth=4;X.strokeStyle=M;rr(-330-q*50,-62-q*30,660+q*100,124+q*60,62+q*30);X.stroke();X.restore();}
+  }
+  if(layer==='hud'){
+    row(t,WL(11,0,1),540,640,128,'X');
+    X.save();X.beginPath();X.rect(0,735,W,150);X.clip();row(t,WL(11,2,3).map(w=>({...w,st:'n'})),540,810,118,'X',{});X.restore();
+    // black text on the mustard block
+    const bp=eio(P(t,s(11,2)-0.1,0.4));
+    if(bp>0){X.save();X.beginPath();X.rect(980-860*bp,735,860*bp,150);X.clip();
+      const wds=WL(11,2,3);X.font=F(118,'X');const w0=X.measureText(wds[0].w).width,w1=X.measureText(wds[1].w).width,gap=118*0.27,tot=w0+w1+gap;
+      const x0=540+tot/2-w0/2, x1=540+tot/2-w0-gap-w1/2;
+      [[wds[0],x0],[wds[1],x1]].forEach(([w,x])=>{const p=P(t,w.s-0.06,0.3);if(p>0){X.save();X.translate(x,810+(1-eo(p))*90);X.globalAlpha*=clamp(p*3);T(w.w,0,0,118,'X',K);X.restore();}});
+      X.restore();}
+    row(t,WL(11,4,5),540,1160,96,'X');
+  }
+}
+
+const SHOTS=[[0,S1,shot1],[S1,S2,shot2],[S2,S3,shot34],[S3,S5,shot5],[S5,S6,shot6],[S6,S7,shot7],[S7,S8,shot8],[S8,S9,shot9],[S9,S10,shot10],[S10,999,shot11]];
+const WIPES=[S1,S5,S6,S7,S8,S9,S10];
+function drawShot(t,sh){
+  const cam=sh[2](t,'cam');
+  bg(t,cam);
+  X.save();applyCam(cam);sh[2](t,'scene');X.restore();
+  vignette();
+  // HUD gets a softer share of the camera (parallax)
+  X.save();const hc={x:cam.x*0.45,y:cam.y*0.45,z:1+(cam.z-1)*0.35,r:cam.r*0.5};applyCam(hc);sh[2](t,'hud');X.restore();
+}
+function draw(t){
+  X.setTransform(1,0,0,1,0,0);X.globalAlpha=1;X.setLineDash([]);
+  const k=SHOTS.findIndex(sh=>t>=sh[0]&&t<sh[1]);const sh=SHOTS[Math.max(0,k)];
+  drawShot(t,sh);
+  // iris transition from the chart story into the decision shot
+  if(sh[2]===shot5&&t<S3+0.45){
+    const r=eio(P(t,S3,0.45))*1250;
+    X.save();X.beginPath();X.rect(0,0,W,H);X.arc(540,860,r,0,6.283,true);X.clip();drawShot(t,SHOTS[2]);X.restore();
+    X.save();X.strokeStyle=M;X.lineWidth=14;X.beginPath();X.arc(540,860,r,0,6.283);X.stroke();X.restore();
+  }
+  subtitles(t);
+  WIPES.forEach(tc=>wipe(t,tc));
+  // closing fade on the last 0.25 s
+  const fo=P(t,END-0.25,0.25);if(fo>0){X.fillStyle=kA(fo*0.6);X.fillRect(0,0,W,H);}
+}
+window.frame=function(t){draw(t);return C.toDataURL('image/jpeg',0.93);};
+window.draw=draw;
+</script></body></html>
