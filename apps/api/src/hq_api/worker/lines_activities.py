@@ -5,7 +5,10 @@ line_advance    one step of a run (the step's own timeout inside; a heartbeat
                 every 20 s, so a worker that stops is noticed in two minutes)
 lines_tick      every 5 minutes (hq-lines-tick): the schedules due, open runs
                 no workflow moves, the 24h / 7d reads; only with HQ_LINES=on
-                and nothing while the holding is locked
+                and nothing while the holding is locked. ⟨1.37⟩ First, whatever
+                HQ_LINES says, the flows' fallback (§59.7): when n8n's signed
+                tick has not come for ten minutes, the hub starts the flows due
+                itself (domain/flow_auto.fallback)
 line_step_test  the owner's «آزمودن» of one step (nothing kept)
 speech_make     ⟨2026-11-06⟩ a media role's `speech.make`: one voice from AI Studio through the
                 tts adapter's own call (domain/speech_make.py), outside any line
@@ -53,6 +56,9 @@ class LinesActivities:
 
     @activity.defn(name="lines_tick")
     async def lines_tick(self) -> dict[str, Any]:
+        from hq_api.domain import flow_auto
+
+        await flow_auto.fallback(self.hub)  # ⟨1.37⟩ the owner made each flow himself
         if not self.hub.settings.lines:  # HQ_LINES=off: no schedule runs yet (prompt 22)
             return {"skipped": "lines_off"}
         return await engine.tick(self.hub)

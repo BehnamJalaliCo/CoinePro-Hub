@@ -4,9 +4,12 @@ POST /automations/compile        {sentence_fa, company?} -> {rule, preview_fa, r
                                  router call (task class automation_compile), checked by code
 POST /automations                {rule, sentence_fa, company?}: `proposed` (re-checked by code)
 POST /automations/{ref}/seal     🔏 automation.seal (target = ref): from now it runs
-POST /automations/{ref}/state    {state: on|off}
-GET  /automations                the list, newest first
-GET  /automations/{ref}          one, with its runs
+POST /automations/{ref}/state    {state: on|off}; ⟨1.37⟩ every kind of the board (§59.10): a
+                                 flow's own switch (its FlowAutomation), the board's kinds
+                                 (domain/automation_board.switch), else a §31.7 rule as before
+GET  /automations                the list, newest first (⟨1.37⟩ the rules and routines: a flow
+                                 is on the board, §59.10)
+GET  /automations/{ref}          one, with its runs; ⟨1.37⟩ a flow's FlowAutomation (§59.7)
 /internal/v1/automations/propose  ⟨2026-11-06⟩ automation.propose (A1): a CEO or a manager proposes
                                  one sentence; the same compile and checks; `proposed`, the owner
                                  seals it (the owner: «به مدیر میگم اتوماسیون طراحی کن، نمیدونه کجاست»)
@@ -24,7 +27,10 @@ from pydantic import Field
 
 from hq_api import idempotency
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import automation_board as BOARD
 from hq_api.domain import automations as AU
+from hq_api.domain import flow_auto as FA
+from hq_api.domain import flow_shapes as FS
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model
 from hq_api.security import stepup
@@ -48,6 +54,13 @@ class AutomationIn(Model):
 
 
 class AutomationStateIn(Model):
+    state: Literal["on", "off"]
+
+
+class Switched(Model):
+    """⟨1.37⟩ §59.10 a board item of another kind switched (the app reads the answer loosely)."""
+
+    ref: str
     state: Literal["on", "off"]
 
 
@@ -157,14 +170,25 @@ async def seal_automation(
         return AU.render(row, a["company_code"], AU.role_titles(ctx.hub.charters))
 
 
-@router.post("/automations/{ref}/state", response_model=AU.Automation, responses=E)
+@router.post(
+    "/automations/{ref}/state",
+    response_model=AU.Automation | FS.FlowAutomation | Switched,
+    responses=E,
+)
 async def set_automation_state(
     ref: str, body: AutomationStateIn, ctx: Ctx = Depends(owner_ctx)
-) -> AU.Automation:
+) -> AU.Automation | FS.FlowAutomation | Switched:
     """⟨1.13⟩ §31.7 switch a sealed automation on or off (no step-up: the seal
     already covers exactly what runs). Switching it on again clears its failure
-    count. 409 while it is still `proposed`."""
+    count. 409 while it is still `proposed`. ⟨1.37⟩ §59.10 one switch for every
+    kind of the board: a flow (its FlowAutomation; `on` ends a pause too), a
+    standing publish (`SP:<group>:<company>`), a line, an archive rule or a
+    routine (`{ref, state}`), else a rule as before."""
     async with ctx.tx() as tx:
+        if await FA.kind_of(tx, ref) == "flow":
+            return await FA.set_state(ctx, tx, ref, body.state)
+        if await BOARD.switch(tx, ctx.hub, ref, body.state, ctx.who):
+            return Switched(ref=ref, state=body.state)
         a = await AU.row_of(tx, ref, lock=True)
         if a["state"] == "proposed":
             raise ApiError(409, "validation_failed", f"{ref} is not sealed yet")
@@ -202,7 +226,7 @@ async def list_automations(
         rows = await tx.all(
             """SELECT a.*, c.code AS company_code FROM growth.automations a
                JOIN core.companies c ON c.id = a.company_id
-               WHERE (CAST(:st AS text) IS NULL OR a.state = :st)
+               WHERE (CAST(:st AS text) IS NULL OR a.state = :st) AND a.kind <> 'flow'
                  AND (CAST(:co AS text) IS NULL OR (a.scope = 'company' AND c.code = :co))
                ORDER BY a.created_at DESC LIMIT 200""",
             st=state,
@@ -212,11 +236,18 @@ async def list_automations(
     return [AU.render(r, r["company_code"], titles) for r in rows]
 
 
-@router.get("/automations/{ref}", response_model=AU.AutomationDetail, responses=E)
-async def get_automation(ref: str, ctx: Ctx = Depends(owner_ctx)) -> AU.AutomationDetail:
+@router.get(
+    "/automations/{ref}", response_model=AU.AutomationDetail | FS.FlowAutomation, responses=E
+)
+async def get_automation(
+    ref: str, ctx: Ctx = Depends(owner_ctx)
+) -> AU.AutomationDetail | FS.FlowAutomation:
     """⟨1.13⟩ §31.7 one automation with its last 50 runs (what fired it, each
-    action's result in plain Persian)."""
+    action's result in plain Persian). ⟨1.37⟩ §59.7 a flow: its FlowAutomation
+    (schedule, next and upcoming occurrences, budget, last run, n8n's clock)."""
     async with ctx.tx() as tx:
+        if await FA.kind_of(tx, ref) == "flow":
+            return await FA.render(tx, await FA.load(tx, ref))
         a = await AU.row_of(tx, ref)
         runs = await tx.all(
             "SELECT * FROM growth.automation_runs WHERE automation_id = :a ORDER BY at DESC LIMIT 50",

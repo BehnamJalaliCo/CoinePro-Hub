@@ -77,7 +77,8 @@ Schedule ids:
                               progress, the morning's lines; rule-only, no outside call)
     hq-lines-tick             every 5 min   LinesTick (prompt 22, §30.3: a run for each line's
                               schedule due, open runs started again, the 24h / 7d reads;
-                              only with HQ_LINES=on, nothing while the holding is locked)
+                              only with HQ_LINES=on, nothing while the holding is locked;
+                              ⟨1.37⟩ and the flows' fallback when n8n's tick is silent, §59.7)
     hq-money-read             every 120 min  MoneyRead (prompt 24, §33.2: each payment source one
                               step: the chain through egress, the ledger's runner job; rule-only)
     hq-money-reconcile        daily 06:40 Asia/Tehran  MoneyReconcile (§33.2: the reconcile and

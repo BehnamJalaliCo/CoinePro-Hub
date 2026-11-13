@@ -1126,7 +1126,8 @@ async def fire(
         auto = await tx.first(
             """SELECT a.*, c.code AS company_code FROM growth.automations a
                JOIN core.companies c ON c.id = a.company_id
-               WHERE a.id = :id AND a.state = 'on' FOR UPDATE OF a SKIP LOCKED""",
+               WHERE a.id = :id AND a.state = 'on' AND a.kind <> 'flow'
+               FOR UPDATE OF a SKIP LOCKED""",
             id=auto_id,
         )
         if auto is None:
@@ -1296,7 +1297,9 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
             """SELECT a.id, a.ref, a.company_id, a.scope, a.rule, a.sealed_at, a.event_cursor,
                       c.code AS company_code
                FROM growth.automations a JOIN core.companies c ON c.id = a.company_id
-               WHERE a.state = 'on' AND c.status = 'active' ORDER BY a.created_at"""
+               WHERE a.state = 'on' AND c.status = 'active'
+                 AND a.kind <> 'flow'  -- ⟨1.37⟩ a flow is n8n's (§59.7), it has no rule
+               ORDER BY a.created_at"""
         )
         for a in autos:
             if await gate.automation_lock(tx, a["company_id"]) is not None:

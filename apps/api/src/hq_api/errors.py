@@ -124,6 +124,8 @@ CODES: dict[str, tuple[int, str, str]] = {
         "Budget exceeded",
         "بودجه‌ی این کار از باقیمانده‌ی کار بالادستی بیشتر است.",
     ),
+    # ⟨1.37⟩ §59.11 a flow's run-now past the day's cap
+    "budget_reached": (409, "Budget reached", "به سقف بودجه‌ی امروز رسید."),
     "company_locked": (423, "Company locked", "این شرکت فعلاً قفل است (کلید توقف یا توقف deploy)."),
     "decision_not_pending": (409, "Decision not pending", "این تصمیم قبلاً گرفته شده است."),
     "policy_denied": (403, "Policy denied", "طبق سیاست‌های هلدینگ این کار مجاز نیست."),
