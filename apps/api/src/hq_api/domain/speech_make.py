@@ -13,6 +13,12 @@ the job id, and the agent asks again with `{job}`. Without a worker (tests, a ba
 runs inline and the first answer is final. The file and the audit rows are in the database; the
 job's own answer lives with its workflow.
 
+⟨2026-11-13⟩ The owner: «اول API، و اگر نشد نسخه‌ی وب». A voice is first asked of Gemini's own
+API (the voice layer's engine `gemini-3.8-flash-tts`, contract §32.5: the worker's call through
+egress with the voice key the owner gives in the app, its usage and price on the voice meter), with
+the same speaker and the style as a reading instruction; only when that engine has no key, refuses
+or fails is it AI Studio's web page, as before. The answer names the engine that spoke.
+
 The sign-in state. Nothing records whether the `aistudio-web` profile is signed in: the owner's
 `make aistudio-web-login` reports the substitute players' profiles only (report-signin.sh exits
 for the lines' profiles), and egress has no state route. So `speech_state()` reads the last answer
@@ -212,12 +218,82 @@ async def _record(
             )
 
 
+# ⟨2026-11-13⟩ the API first (see the module's doc)
+API_ENGINE = "gemini-3.8-flash-tts"
+# AI Studio's style presets (its 2026-11 page), as the API reads them: a reading instruction
+STYLE_PRESETS = {
+    "narration": "commanding, with rich vocal modulation and dramatic pauses",
+    "friendly": "warm and neutral, with micro-pauses",
+    "promote": "high energy, with elongated vowels",
+    "podcast": "calm and measured",
+    "whisper": "whispering quietly",
+}
+
+
+async def api_ready(hub: Any, tx: Tx) -> bool:
+    """Whether Gemini's API may be asked (its key given; a failing one is still tried)."""
+    from hq_api.voice import store as VS
+
+    holding = await hub.companies.holding()
+    st = (await VS.states(tx, holding.id)).get(API_ENGINE)
+    return st is not None and st["state"] != "missing"
+
+
+def api_text(text: str, style: str) -> str:
+    """The text as the API is asked to read it: a style is an instruction before it (Gemini speech
+    takes how to say it in the prompt, never as a setting)."""
+    s = " ".join(style.split())
+    if not s:
+        return text
+    how = STYLE_PRESETS.get(s.lower(), s)
+    return f"Read the following Persian text aloud, in this manner: {how}.\n\n{text}"
+
+
+async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
+    """The voice from Gemini's API: (audio, mime), or None when that engine has no key, is off or
+    fails (the web page is tried then). Never raises."""
+    from hq_api.voice import speaker as SP
+    from hq_api.voice.base import EngineFailed
+
+    name = f"speech-{str(job['job'])[:8]}"
+    try:
+        holding = await hub.companies.holding()
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            if not await api_ready(hub, tx):
+                return None  # no key given yet: the web page, as before
+        spoke = await SP.speak_one(
+            hub, API_ENGINE, api_text(str(job["text"]), str(job.get("style") or "")),
+            str(job["voice"]), 1.0, kind="speech", persona=f"speech.make {job['by']}"[:80],
+            conversation_ref=None, turn_id=None, seq=None, name=name,
+        )  # fmt: skip
+        async with hub.db.tx([holding.id]) as tx:
+            row = await tx.first(
+                "SELECT storage_key, mime FROM files.files WHERE id = CAST(:id AS uuid)",
+                id=spoke.out.file_id,
+            )
+        if row is None:
+            return None
+        return await hub.storage.get(str(row["storage_key"])), str(row["mime"] or "audio/ogg")
+    except EngineFailed as exc:
+        log.info("speech by the API failed", extra={"job": str(job["job"]), "code": exc.code})
+    except Exception as exc:  # noqa: BLE001 - the web page is the fallback, never an error here
+        log.warning(
+            "speech by the API crashed", extra={"job": str(job["job"]), "error": type(exc).__name__}
+        )
+    return None
+
+
 async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
     """One job: `job` = {job, company_id, company, by, text, voice, style}. The audio as the
-    company's file, or a plain Persian refusal; both recorded."""
+    company's file, or a plain Persian refusal; both recorded. The API first, the web page after."""
     voice, style, text = str(job["voice"]), str(job.get("style") or ""), str(job["text"])
+    engine = "gemini_api"
+    got = await api_speak(hub, job)
     try:
-        data, mime = await tts.speak(hub, text, voice=voice, style=style, timeout_s=TIMEOUT_S)
+        if got is None:
+            engine = "aistudio"
+            got = await tts.speak(hub, text, voice=voice, style=style, timeout_s=TIMEOUT_S)
+        data, mime = got
     except StepFailed as e:
         code = CODES.get(e.code, "failed")
         hint = SIGNED_OUT_FA if code == "signed_out" else e.reason_fa
@@ -250,8 +326,10 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
     await _record(
         hub,
         job,
-        account="signed_in",
-        summary=f"done: AI Studio {voice}, {len(text)} chars",
+        # the API says nothing of the web page's sign-in
+        account="signed_in" if engine == "aistudio" else None,
+        summary=f"done: {'AI Studio' if engine == 'aistudio' else 'Gemini API'} {voice}, "
+        f"{len(text)} chars",
         file_id=fid,
     )
     await wake_caller(hub, job, done=True)
@@ -264,5 +342,5 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
         "voice": voice,
         "style": style,
         "narrator": bool(job.get("narrator")),
-        "engine": "aistudio",
+        "engine": engine,
     }

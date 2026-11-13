@@ -429,7 +429,8 @@ async def test_tts_refuses_an_empty_or_too_long_text_and_waits_out_a_busy_profil
 
 async def test_the_voices_list_is_documented_cached_and_labelled() -> None:
     rows = await tts.voices(now=1000.0)
-    assert len(rows) == 30 and {r["source"] for r in rows} == {"documented"}
+    # ⟨2026-11-13⟩ 30 prebuilt voices + AI Studio's library voices Cruz and Elio
+    assert len(rows) == 32 and {r["source"] for r in rows} == {"documented"}
     assert {"name", "title_fa", "gender", "sample_file"} <= set(rows[0])
     assert {"Kore", "Puck", "Charon"} <= {r["name"] for r in rows}
     rows[0]["name"] = "changed"

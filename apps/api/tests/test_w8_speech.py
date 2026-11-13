@@ -311,3 +311,106 @@ async def test_with_the_worker_the_answer_is_read_by_the_job_of_ones_own_company
     # without a worker there is nothing to ask for
     r = await client.get(f"/internal/v1/speech/make/{job}", headers=await agent_headers(producer))
     assert r.status_code == 404
+
+
+# ---------------------------------------------- ⟨2026-11-13⟩ the API first --
+async def test_the_api_speaks_first_and_the_web_page_only_when_it_cannot(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    su: Any,
+    new_company: Callable[..., Any],
+    web: FakeWeb,
+    clean: None,
+) -> None:
+    """The owner, 2026-11-13: «اول API، و اگر نشد نسخه‌ی وب». Gemini's API (the voice layer's
+    engine, with its key) is asked first, with the style as a reading instruction; no key, or a
+    refusal, and it is AI Studio's web page as before."""
+    from hq_api.voice import audio
+    from hq_api.voice import engines as voice_engines
+    from hq_api.voice.base import EngineAudio, EngineFailed
+
+    class FakeApi:
+        key = SM.API_ENGINE
+
+        def __init__(self) -> None:
+            self.spoken: list[tuple[str, str]] = []
+            self.fail = False
+
+        async def speak(self, hub_: Any, text: str, voice: str, rate: float) -> EngineAudio:
+            if self.fail:
+                raise EngineFailed("نه", state="failing", code="bad_request")
+            self.spoken.append((text, voice))
+            holding = await hub_.companies.holding()
+            fid = await audio.store(
+                hub_, holding.id, b"OggS-api", name="api.ogg", mime="audio/ogg", seconds=2
+            )
+            return EngineAudio(str(fid), "audio/ogg", 2.0, 50, 10)
+
+        async def check(self, hub_: Any) -> tuple[str, str | None]:
+            return "ok", None
+
+    async def key_state(state_: str) -> None:
+        holding = await hub.companies.holding()
+        async with hub.db.tx([holding.id]) as tx:
+            from hq_api.voice import store as VS
+
+            await VS.states(tx, holding.id)  # the rows exist
+        await su.execute(
+            "UPDATE talk.engine_state SET state = $2 WHERE engine = $1", SM.API_ENGINE, state_
+        )
+
+    co = await new_company()
+    producer = await hire(su, co, "voice_producer")
+    api = FakeApi()
+    voice_engines.OVERRIDE[SM.API_ENGINE] = api  # type: ignore[assignment]
+    try:
+        # no key given: the web page, as before
+        await key_state("missing")
+        r = await make(client, producer, {"text_fa": "سلام", "voice": "Cruz", "style": "Narration"})
+        assert r.status_code == 202 and r.json()["engine"] == "aistudio", r.text
+        assert api.spoken == [] and web.sent[-1]["voice"] == "Cruz"
+
+        # with the key: the API speaks, the web page is not asked
+        await key_state("ok")
+        n = len(web.sent)
+        r = await make(
+            client, producer, {"text_fa": "با پروچارت", "voice": "Cruz", "style": "Narration"}
+        )
+        got = r.json()
+        assert r.status_code == 202 and got["engine"] == "gemini_api", r.text
+        assert (got["voice"], got["style"], got["mime"]) == ("Cruz", "Narration", "audio/ogg")
+        assert len(web.sent) == n
+        text, voice = api.spoken[-1]
+        assert voice == "Cruz" and text.endswith("با پروچارت")
+        assert "dramatic pauses" in text  # the preset, as a reading instruction
+        f = await su.fetchrow("SELECT * FROM files.files WHERE id = $1::uuid", got["file_id"])
+        assert f["company_id"] == co["id"] and f["size"] == len(b"OggS-api")
+        made = await su.fetchval(
+            "SELECT summary FROM audit.entries WHERE company_id = $1 AND action = 'speech.made' "
+            "ORDER BY seq DESC LIMIT 1",
+            co["id"],
+        )
+        assert "Gemini API Cruz" in made
+        assert await su.fetchval(
+            "SELECT count(*) FROM talk.voice_usage WHERE engine = $1 AND persona = $2",
+            SM.API_ENGINE, f"speech.make {producer}",
+        ) == 1  # fmt: skip
+
+        # the API refuses: the web page, in the same job
+        api.fail = True
+        r = await make(client, producer, {"text_fa": "دوباره", "voice": "Cruz"})
+        assert r.status_code == 202 and r.json()["engine"] == "aistudio", r.text
+        assert web.sent[-1]["prompt"] == "دوباره"
+    finally:
+        voice_engines.OVERRIDE.pop(SM.API_ENGINE, None)
+        await su.execute(
+            "UPDATE talk.engine_state SET state = 'missing' WHERE engine = $1", SM.API_ENGINE
+        )
+
+
+def test_a_style_is_a_reading_instruction_for_the_api() -> None:
+    assert SM.api_text("متن", "") == "متن"
+    assert "dramatic pauses" in SM.api_text("متن", "narration")
+    assert SM.api_text("متن", "آرام و گرم").startswith(
+        "Read the following Persian text aloud, in this manner: آرام و گرم."
+    )
