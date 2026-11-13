@@ -199,6 +199,12 @@ COMMENT ON TABLE growth.flow_clock IS
 GRANT SELECT, INSERT ON growth.flow_clock TO {APP_ROLES};
 GRANT UPDATE (last_tick_at, last_fallback_at, ticks, updated_at) ON growth.flow_clock TO {APP_ROLES};
 
+-- §59.2 a flow's `topic` step: its task class (the router's seed holds the same row)
+INSERT INTO llm.task_classes (key, transferable, description)
+VALUES ('flow_topic', false,
+        'A flow''s day topic: three candidates from the company''s ledger and its last results (contract 59.2)')
+ON CONFLICT (key) DO NOTHING;
+
 -- ======================================================= §59.2 the new step kinds ==
 ALTER TABLE lines.step_runs DROP CONSTRAINT step_runs_kind_check;
 ALTER TABLE lines.step_runs ADD CONSTRAINT step_runs_kind_check CHECK (kind IN ({NEW_KINDS}));

@@ -62,8 +62,12 @@ DAY_FA = {"SA": "شنبه", "SU": "یکشنبه", "MO": "دوشنبه", "TU": "�
           "TH": "پنجشنبه", "FR": "جمعه"}  # fmt: skip
 HELPER_FA = {"gpt": "با ChatGPT", "gemini": "با جمینای", "aistudio": "با ای‌آی استودیو",
              "workshop": "در کارگاه", "code": "با کد", "ighub": "با IG-Hub", "model": "با مدل"}  # fmt: skip
-TIMEOUTS = {"workshop": 3600, "tts": 900, "voice_check": 600, "gpt_text": 900, "cover": 900,
-            "publish": 1800, "topic": 600, "inspire": 600, "package": 300, "report": 300}  # fmt: skip
+# ⟨1.37⟩ a parked step's wait: a workshop turn up to its 60 minutes and the runner's sweep; the
+# standing publish until IG-Hub says it is out (its hour, which a run-now may put a day ahead,
+# then the hub's follow-up questions for up to 6 hours)
+TIMEOUTS = {"workshop": 3900, "tts": 900, "voice_check": 600, "gpt_text": 900, "cover": 900,
+            "publish": 36 * 3600, "topic": 600, "inspire": 600, "package": 300,
+            "report": 300}  # fmt: skip
 FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
 NOT_FOUND_FA = "این اتوماسیون پیدا نشد."

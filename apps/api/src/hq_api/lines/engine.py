@@ -1004,6 +1004,23 @@ async def free_topics(tx: Tx, run: dict[str, Any]) -> int:
     )
 
 
+PARKING = ("n8n", "workshop", "publish")  # ⟨1.37⟩ steps that wait for an answer from outside
+
+
+def _int(v: Any) -> int:
+    try:
+        return max(0, int(v or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _usd(v: Any) -> Decimal:
+    try:
+        return max(Decimal(0), Decimal(str(v or 0)))
+    except ArithmeticError:
+        return Decimal(0)
+
+
 async def on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any]:
     """n8n's signed answer to a waiting `n8n` step: done with its output, or
     failed (then the step's attempts and `optional` decide, as for any step).
@@ -1034,7 +1051,8 @@ async def _on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
             cur is not None
             and run["state"] == "running"
             and cur["state"] == "running"
-            and step_def(bdy, cur["key"])["kind"] == "n8n"
+            # ⟨1.37⟩ §59.2 a workshop turn or a standing publish can end before it is parked too
+            and step_def(bdy, cur["key"])["kind"] in PARKING
         ):
             return None  # the webhook was sent, the engine parks the step in a moment
         if run["state"] != "waiting" or cur is None or cur["state"] != "waiting" or cur["gate"]:
@@ -1056,12 +1074,17 @@ async def _on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
                     "wait": None,
                     "waiting": False,
                 },
-                via="n8n",
+                # ⟨1.37⟩ who answered and what it cost (a workshop turn's tokens, its usd)
+                via=str(body.get("via") or "n8n")[:40],
+                tokens=_int(body.get("tokens")),
+                usd_equiv=_usd(body.get("usd_equiv")),
             )
             state = await _done(tx, hub, run, cur, sdef, out)
         else:
             steps = await store.step_rows(tx, run["id"])
-            err = StepFailed(str(body.get("error_fa") or "گردش کار n8n نشد."), retry=False)
+            err = StepFailed(
+                str(body.get("error_fa") or "گردش کار n8n نشد."), retry=bool(body.get("retry"))
+            )
             state = await _failed(tx, run, cur, sdef, err, steps)
     await wake(hub, run["ref"])
     return {"run": run["ref"], "step": cur["key"], "state": state}

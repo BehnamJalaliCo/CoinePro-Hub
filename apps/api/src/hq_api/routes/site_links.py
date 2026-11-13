@@ -82,33 +82,6 @@ def _j(raw: Any) -> Any:
     return json.loads(raw) if isinstance(raw, str) else raw
 
 
-def render_flow(row: dict[str, Any]) -> FS.FlowAutomation:
-    """A minimal FlowAutomation from its row (the flow module's renderer fills the rest: its steps,
-    the next occurrences, the last run and today's figures)."""
-    schedule = _j(row.get("schedule")) or {}
-    budget = _j(row.get("budget")) or {}
-    state = row["state"] if row["state"] in ("on", "off", "paused") else "off"
-    return FS.FlowAutomation(
-        ref=row["ref"],
-        company=row["company"],
-        company_fa=str(row.get("company_fa") or ""),
-        playbook=str(row.get("playbook") or ""),
-        playbook_fa=str(row.get("playbook_fa") or ""),
-        version=int(row.get("playbook_version") or 1),
-        line=str(row.get("line") or ""),
-        title_fa=str(row.get("sentence_fa") or row.get("playbook_fa") or row["ref"])[:200],
-        state=state,
-        paused_until=row.get("paused_until"),
-        schedule=FS.FlowSchedule.model_validate(schedule),
-        account=row.get("account"),
-        story=bool(row["story"]) if row.get("story") is not None else True,
-        mode=row.get("mode") or "auto",
-        budget=FS.FlowBudget.model_validate(budget) if budget else FS.FlowBudget(),
-        replies=SL.lenient(row.get("replies")),
-        created_at=row["created_at"],
-    )
-
-
 @router.put("/automations/{ref}/replies", response_model=FS.FlowAutomation, responses=E)
 async def put_replies(
     ref: str, body: FS.ReplyPolicy, ctx: Ctx = Depends(owner_ctx)
@@ -143,8 +116,11 @@ async def put_replies(
                 {"before": _brief(before), "after": _brief(after)}, ensure_ascii=False
             )[:500],
         )
-        row["replies"] = policy.model_dump()
-        return render_flow(row)
+        from hq_api.domain import flow_auto as FA
+
+        # the flow as every other route shows it, its pool filled as it will go out
+        out = await FA.render(tx, await FA.load(tx, ref))
+        return out.model_copy(update={"replies": policy})
 
 
 def _brief(p: dict[str, Any]) -> dict[str, Any]:
