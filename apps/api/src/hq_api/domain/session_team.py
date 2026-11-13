@@ -92,19 +92,19 @@ LINE_COLS = "id, created_at, who, who_fa, text, work_ref"
 
 
 # ------------------------------------------------------------------ shapes --
-class SeatEmployee(BaseModel):
+class TeamSeatEmployee(BaseModel):
     code: str
     title_fa: str
     company: str
 
 
-class SideLast(BaseModel):
+class TeamSideLast(BaseModel):
     at: datetime
     who: Literal["owner", "seat"]
     text: str
 
 
-class Seat(BaseModel):
+class TeamSeat(BaseModel):
     """One chip of «تیم این جلسه»: `key` is the employee code when filled, `role:<role>` when
     empty; `holder`: the session's holder (no side talk: the main composer is his)."""
 
@@ -112,9 +112,9 @@ class Seat(BaseModel):
     role: str | None = None
     role_fa: str
     holder: bool = False
-    employee: SeatEmployee | None = None
+    employee: TeamSeatEmployee | None = None
     state: Literal["working", "idle", "empty"]
-    last: SideLast | None = None
+    last: TeamSideLast | None = None
     unread: int = 0
 
 
@@ -128,7 +128,7 @@ class TeamNarrator(BaseModel):
 
 
 class SessionTeam(BaseModel):
-    seats: list[Seat]
+    seats: list[TeamSeat]
     narrator: TeamNarrator | None = None
 
 
@@ -416,23 +416,25 @@ async def team(tx: Tx, ref: str) -> SessionTeam:
             o=order_id,
         )
     }
-    seats: list[Seat] = []
+    seats: list[TeamSeat] = []
     for m in members:
         p = m["person"]
         if p is None:
-            seats.append(Seat(key=m["key"], role=m["role"], role_fa=m["role_fa"], state="empty"))
+            seats.append(
+                TeamSeat(key=m["key"], role=m["role"], role_fa=m["role_fa"], state="empty")
+            )
             continue
         code = str(p["code"])
         side = None if m["holder"] else last.get(code)
         seats.append(
-            Seat(
+            TeamSeat(
                 key=code,
                 role=m["role"],
                 role_fa=m["role_fa"],
                 holder=m["holder"],
-                employee=SeatEmployee(code=code, title_fa=p["title_fa"], company=p["company"]),
+                employee=TeamSeatEmployee(code=code, title_fa=p["title_fa"], company=p["company"]),
                 state="working" if code in working else "idle",
-                last=SideLast(
+                last=TeamSideLast(
                     at=side["created_at"],
                     who=side["who"],
                     text=" ".join(str(side["text"]).split())[:LAST_CHARS],
@@ -624,6 +626,14 @@ async def side_work_of(tx: Tx, ref: str, who: Principal) -> dict[str, Any] | Non
     else (a run without a work) its open side work. None: its words go to the main thread."""
     if not who.is_agent:
         return None
+    if not await tx.scalar(
+        """SELECT EXISTS (SELECT 1 FROM owner.session_side_lines l
+             JOIN owner.order_reports r ON r.order_id = l.order_id
+             WHERE r.ref = :r AND l.seat_code = :c AND l.who = 'owner')""",
+        r=ref,
+        c=who.code,
+    ):
+        return None  # nobody spoke to them aside in this session: the main thread
     rep = await tx.first("SELECT order_id FROM owner.order_reports WHERE ref = :r", r=ref)
     order = await OR.load_order(tx, ref) if rep is not None else None
     if rep is None or order is None:

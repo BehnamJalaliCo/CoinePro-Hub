@@ -31,11 +31,11 @@ router = APIRouter(tags=["orders"])
 E = responses(401, 403, 404, 409, 422, 423, 429)
 
 
-class SayIn(Model):
+class TeamSayIn(Model):
     text: str = Field(min_length=1, max_length=ST.TEXT_MAX)
 
 
-class HireIn(Model):
+class TeamHireIn(Model):
     role: Literal["scriptwriter", "video_director", "motion_designer"]
 
 
@@ -70,7 +70,7 @@ async def session_team_lines(
 
 @router.post("/orders/{ref}/team/{code}/say", response_model=ST.SayOut, responses=E)
 async def session_team_say(
-    ref: str, code: str, body: SayIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str, code: str, body: TeamSayIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """⟨1.35⟩ §57.3 The owner's word to one person of the session (a filled seat other than the
     holder: the holder's word is `/reply`, 409). It joins the person's open work of this order
@@ -110,7 +110,7 @@ async def session_team_say(
 
 @router.post("/orders/{ref}/team/hire", response_model=ST.SessionTeam, responses=E)
 async def session_team_hire(
-    ref: str, body: HireIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str, body: TeamHireIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """⟨1.35⟩ §57.5 An empty media seat filled at once: the owner's own hire in his session (by
     code, his approval's hard checks: the model offered, the estimate, the hires a day; no month

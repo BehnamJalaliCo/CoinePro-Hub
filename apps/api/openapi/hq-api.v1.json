@@ -33679,6 +33679,17 @@
             "title": "Ref",
             "type": "string"
           },
+          "revision_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Of"
+          },
           "title_fa": {
             "title": "Title Fa",
             "type": "string"
@@ -35899,6 +35910,33 @@
           "items"
         ],
         "title": "Page[SessionEvent]",
+        "type": "object"
+      },
+      "Page_SideLine_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SideLine"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[SideLine]",
         "type": "object"
       },
       "Page_Snapshot_": {
@@ -45859,6 +45897,28 @@
         "title": "SalesReceiptIn",
         "type": "object"
       },
+      "SayOut": {
+        "properties": {
+          "line": {
+            "$ref": "#/components/schemas/SideLine"
+          },
+          "woken": {
+            "title": "Woken",
+            "type": "boolean"
+          },
+          "work_ref": {
+            "title": "Work Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "work_ref",
+          "woken"
+        ],
+        "title": "SayOut",
+        "type": "object"
+      },
       "Schedule": {
         "properties": {
           "next_at": {
@@ -48576,6 +48636,32 @@
         "title": "SessionTask",
         "type": "object"
       },
+      "SessionTeam": {
+        "properties": {
+          "narrator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamNarrator"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seats": {
+            "items": {
+              "$ref": "#/components/schemas/TeamSeat"
+            },
+            "title": "Seats",
+            "type": "array"
+          }
+        },
+        "required": [
+          "seats"
+        ],
+        "title": "SessionTeam",
+        "type": "object"
+      },
       "ShadowDisagreement": {
         "properties": {
           "case": {
@@ -48726,6 +48812,56 @@
           "state"
         ],
         "title": "ShadowReport",
+        "type": "object"
+      },
+      "SideLine": {
+        "description": "One line of a side talk, newest last in a page.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "who": {
+            "enum": [
+              "owner",
+              "seat"
+            ],
+            "title": "Who",
+            "type": "string"
+          },
+          "who_fa": {
+            "title": "Who Fa",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "who",
+          "who_fa",
+          "text"
+        ],
+        "title": "SideLine",
         "type": "object"
       },
       "SignedInIn": {
@@ -53887,6 +54023,60 @@
         "title": "TeachingEval",
         "type": "object"
       },
+      "TeamHireIn": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "scriptwriter",
+              "video_director",
+              "motion_designer"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "TeamHireIn",
+        "type": "object"
+      },
+      "TeamNarrator": {
+        "description": "§48's narrator of the order's company (the «گوینده» chip).",
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "style_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Fa"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          },
+          "voice_fa": {
+            "title": "Voice Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "voice",
+          "voice_fa"
+        ],
+        "title": "TeamNarrator",
+        "type": "object"
+      },
       "TeamRole": {
         "properties": {
           "first": {
@@ -53913,6 +54103,143 @@
           "first"
         ],
         "title": "TeamRole",
+        "type": "object"
+      },
+      "TeamSayIn": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TeamSayIn",
+        "type": "object"
+      },
+      "TeamSeat": {
+        "description": "One chip of «تیم این جلسه»: `key` is the employee code when filled, `role:<role>` when\nempty; `holder`: the session's holder (no side talk: the main composer is his).",
+        "properties": {
+          "employee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamSeatEmployee"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holder": {
+            "default": false,
+            "title": "Holder",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamSideLast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "role_fa": {
+            "title": "Role Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "working",
+              "idle",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unread": {
+            "default": 0,
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "role_fa",
+          "state"
+        ],
+        "title": "TeamSeat",
+        "type": "object"
+      },
+      "TeamSeatEmployee": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title_fa",
+          "company"
+        ],
+        "title": "TeamSeatEmployee",
+        "type": "object"
+      },
+      "TeamSideLast": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "who": {
+            "enum": [
+              "owner",
+              "seat"
+            ],
+            "title": "Who",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "who",
+          "text"
+        ],
+        "title": "TeamSideLast",
         "type": "object"
       },
       "Template": {
@@ -114999,6 +115326,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -115599,6 +115927,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -115994,6 +116323,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -116512,6 +116842,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -116910,6 +117241,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -117303,6 +117635,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -117998,6 +118331,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -118395,6 +118729,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -118790,6 +119125,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -119366,6 +119702,600 @@
         ]
       }
     },
+    "/api/v1/orders/{ref}/team": {
+      "get": {
+        "description": "⟨1.35⟩ §57.1 The session's team, in order: the holder (`holder: true`, no side talk); the\nmedia seats `scriptwriter` «نویسنده», `video_director` «کارگردان» and `motion_designer`\n«موشن‌گرافی» of a content session (a media role in it, an order from a working group, or a\ncompany with a narrator), each filled by the person of the session with that role, else\n`state: empty` and `key: role:<role>`; then the other people present (players excluded).\n`state: working` while a run of theirs in this order is queued or running. `last`: the side\ntalk's last line (≤ 160 chars); `unread`: the person's lines the owner has not read.\n`narrator`: §48's narrator of the order's company, or null.",
+        "operationId": "session_team",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "narrator": {
+                    "company": "TY",
+                    "style_fa": "x",
+                    "voice": "x",
+                    "voice_fa": "x"
+                  },
+                  "seats": [
+                    {
+                      "employee": {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      },
+                      "holder": false,
+                      "key": "x",
+                      "last": {
+                        "at": "2026-10-17T05:42:00Z",
+                        "text": "x",
+                        "who": "owner"
+                      },
+                      "role": "x",
+                      "role_fa": "x",
+                      "state": "working",
+                      "unread": 1
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTeam"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Session Team",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/team/hire": {
+      "post": {
+        "description": "⟨1.35⟩ §57.5 An empty media seat filled at once: the owner's own hire in his session (by\ncode, his approval's hard checks: the model offered, the estimate, the hires a day; no month\nenvelope required), with the role's charter defaults (model, effort, 30 runs as the monthly\nestimate); the newcomer joins the session (§39). An active employee of that role in the\ncompany who is not in the session yet joins it instead (nobody new is hired). A hard check\nthat refuses answers its own code with `message_fa`; nothing is made. A filled seat: 409.\nRequires `Idempotency-Key`; no step-up.",
+        "operationId": "session_team_hire",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "role": "scriptwriter"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TeamHireIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "narrator": {
+                    "company": "TY",
+                    "style_fa": "x",
+                    "voice": "x",
+                    "voice_fa": "x"
+                  },
+                  "seats": [
+                    {
+                      "employee": {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      },
+                      "holder": false,
+                      "key": "x",
+                      "last": {
+                        "at": "2026-10-17T05:42:00Z",
+                        "text": "x",
+                        "who": "owner"
+                      },
+                      "role": "x",
+                      "role_fa": "x",
+                      "state": "working",
+                      "unread": 1
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTeam"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Session Team Hire",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/team/{code}/lines": {
+      "get": {
+        "description": "⟨1.35⟩ §57.2 The side talk with one person of the session, newest last; `next_cursor`\n(as `before`) reads older lines. Reading the newest page marks the seat read (`unread` 0). A\ncode that is not a seat of the session (and never had a side talk in it): 404.",
+        "operationId": "session_team_lines",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "id": 1,
+                      "text": "x",
+                      "who": "owner",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SideLine_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Session Team Lines",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/team/{code}/say": {
+      "post": {
+        "description": "⟨1.35⟩ §57.3 The owner's word to one person of the session (a filled seat other than the\nholder: the holder's word is `/reply`, 409). It joins the person's open work of this order\n(which runs again now with the side talk in its brief), else a side work is made for them\nunder the order's root, with a plan task of the owner's. The main session gets one step per\nburst («مدیر کل: با …»). An ended session: 409; a code not in the team: 404. Requires\n`Idempotency-Key`; no step-up.",
+        "operationId": "session_team_say",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "text": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TeamSayIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "line": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "id": 1,
+                    "text": "x",
+                    "who": "owner",
+                    "who_fa": "x",
+                    "work_ref": "x"
+                  },
+                  "woken": false,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SayOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Session Team Say",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{ref}/unhide": {
       "post": {
         "description": "Back on the lists.",
@@ -119519,6 +120449,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -165807,6 +166738,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -166215,6 +167147,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
@@ -166626,6 +167559,7 @@
                     {
                       "kind": "final",
                       "ref": "W-000789",
+                      "revision_of": "x",
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],

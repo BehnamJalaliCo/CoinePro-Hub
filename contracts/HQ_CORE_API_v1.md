@@ -5234,8 +5234,8 @@ session's own words). The session keeps one main thread with its holder; each ot
 
 ### 57.1 `GET /api/v1/orders/{ref}/team` (owner)
 ```
-SessionTeam { seats: [Seat], narrator: TeamNarrator | null }
-Seat {
+SessionTeam { seats: [TeamSeat], narrator: TeamNarrator | null }
+TeamSeat {
   key: str,                 # the employee code when filled; "role:<role>" when empty
   role: str | null,         # the charter role (scriptwriter, video_director, motion_designer, …)
   role_fa: str,             # «مسئول جلسه» | «نویسنده» | «کارگردان» | «موشن‌گرافی» | the person's own title
@@ -5255,7 +5255,7 @@ TeamNarrator { company, voice, voice_fa, style_fa | null }   # §48's narrator o
 - `narrator` is the order's company narrator (§48), for the «گوینده» chip; null when none is set.
 
 ### 57.2 `GET /api/v1/orders/{ref}/team/{code}/lines?limit=50&before=` (owner)
-`Page<SideLine>` newest last: `SideLine { id, at, who: "owner"|"seat", who_fa, text, work_ref | null }`. Reading the
+`Page<SideLine>` newest last (`next_cursor` is passed back as `before`): `SideLine { id: int, at, who: "owner"|"seat", who_fa, text, work_ref | null }`. Reading the
 newest page marks the seat read (`unread` 0). A code that is not a seat of the session: 404.
 
 ### 57.3 `POST /api/v1/orders/{ref}/team/{code}/say {text}` (owner, `Idempotency-Key`, no step-up)
@@ -5264,22 +5264,24 @@ The owner's word to one person of the session → `{ line: SideLine, work_ref, w
   «با مسئول جلسه از همین جای نوشتن حرف بزن.» / 404. An ended session: 409 as `/reply`.
 - The word is a side line. If the person has an open work in the order's tree assigned to them, the word joins it
   (its next step) and it runs again at once with the side talk's last lines in its brief; else a **side work** is made
-  under the order's root for them (as the session's «delegate» card does: `SE.add_task` by the owner), titled with the
-  words, its brief the words plus the side talk so far and «این گفتگوی کوتاه مدیر کل با توست در جلسه‌ی {ref}؛ جوابت را
+  under the order's root for them (as the session's «delegate» card does, but with **no plan task** and the root not
+  set waiting: a side work never blocks the session's delivery), titled with the words, its brief the words plus the side talk so far and «این گفتگوی کوتاه مدیر کل با توست در جلسه‌ی {ref}؛ جوابت را
   با order.ask یا order.progress بده: به همین گفتگو میرسد. کار تحویلی را deliver کن.».
-- The main session gets **one** step per burst: «مدیر کل با {who_fa}: {first 80 chars}» only when this seat's previous
-  side line is older than 10 minutes. Nothing else of the side talk shows in the main timeline.
+- The main session gets **one** step per burst: «مدیر کل با {who_fa}: {first 80 chars}» only when the owner's previous
+  side line to this seat is older than 10 minutes (each direction keeps its own 10 minutes, §57.4). Nothing else of the side talk shows in the main timeline.
 - A person away from the session's company may be spoken to only if present (§39).
 
 ### 57.4 The person's answers go to the side talk
 While a person works a **side work** of the order (or any work of theirs that a side word woke in the last hour),
 their `order.ask` and `order.progress` on that order become side lines (`who: "seat"`) instead of main steps or the
 owner's turn; their `deliver` reaches the session as any output (§56.6, §57.6). The main session gets one line per
-burst (same 10-minute rule): «{who_fa} جواب داد». No push notification; the seat's `unread` and the live stream
+burst (the person's own 10 minutes): «{who_fa} جواب داد». A side work whose run ends done with nothing left
+(no question open) is closed by itself («گفتگو جواب گرفت»); what it delivered stays in the session. No push notification; the seat's `unread` and the live stream
 (`session.team` event `{order, seat}`, §42) tell the apps.
 
 ### 57.5 `POST /api/v1/orders/{ref}/team/hire {role}` (owner, `Idempotency-Key`, no step-up)
-An empty media seat filled at once: the owner's own hire in his session (§29.10's by-code path with `owner_order`,
+An empty media seat filled at once; if the company already has an active employee in that role, that person joins
+the session instead of a second hire. Otherwise the owner's own hire in his session (§29.10's by-code path with `owner_order`,
 §39 join), the role's charter defaults (model, effort, 30 runs as the monthly estimate, §36.1). Answers `SessionTeam`.
 A hard check that refuses (envelope, the model, five a day) answers its own code with `message_fa`; nothing is made.
 

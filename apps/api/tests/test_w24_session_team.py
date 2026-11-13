@@ -186,6 +186,19 @@ async def test_an_empty_seat_is_hired_at_once_and_a_refusal_makes_nothing(
     # the seat is filled now
     r = await client.post(url, headers={**owner, **idem()}, json={"role": "scriptwriter"})
     assert r.status_code == 409 and r.json()["message_fa"] == ST.SEAT_FULL_FA
+    # another session of the company: its scriptwriter comes in, nobody new is hired
+    again = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    r = await client.post(
+        f"/api/v1/orders/{again['ref']}/team/hire",
+        headers={**owner, **idem()},
+        json={"role": "scriptwriter"},
+    )
+    assert r.status_code == 200, r.text
+    assert next(s for s in r.json()["seats"] if s["role"] == "scriptwriter")["key"] == code
+    assert await su.fetchval(
+        "SELECT count(*) FROM core.employees WHERE company_id = $1 AND role = 'scriptwriter'",
+        company["id"],
+    ) == 1  # fmt: skip
 
 
 # ================================================================ C. a side talk ==
