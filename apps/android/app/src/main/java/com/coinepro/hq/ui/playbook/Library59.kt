@@ -438,7 +438,7 @@ internal fun PlaybookActs(pb: Playbook, onCopy: () -> Unit, onAdapt: () -> Unit,
     val toasts = LocalToasts.current
     val context = LocalContext.current
     val c = Divan.colors
-    val library = served(HubFeature.LIBRARY)
+    val library = served(HubFeature.LIBRARY) && pb.versioned
     val export = rememberAction()
     HqCard(Modifier.fillMaxWidth().testTag("playbook-acts"), padding = PaddingValues(vertical = 4.dp)) {
         if (library) ActRow(DivanIcon.ADD, "کپی برای پلتفرم دیگر", "یوتیوب یا تلگرام از روی همین روند", onClick = onCopy)

@@ -149,11 +149,11 @@ fun UseScreen(ref: String) {
     val start = rememberAction()
     val key = remember(form.company, form.version) { UUID.randomUUID().toString() }
     val draft = form.draft()
-    val library = served(HubFeature.LIBRARY)
+    val library = served(HubFeature.LIBRARY) && pb?.versioned != false
     val siteLinksOn = served(HubFeature.SITE_LINKS)
     val missing = if (pb == null) emptyList() else useMissingFa(draft, publishes(pb))
 
-    DecisionPage(bar = if (pb != null && served(HubFeature.LIBRARY)) ({
+    DecisionPage(bar = if (pb != null && library) ({
         DecisionBar(
             "پیش‌نمایش", {
                 look.run(onError = { e -> namedAccounts(e)?.let { form.accountsNamed = it }; toasts.error(e.messageFa) }) {

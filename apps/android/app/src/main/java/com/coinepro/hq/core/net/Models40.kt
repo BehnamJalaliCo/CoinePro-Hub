@@ -92,6 +92,8 @@ data class Playbook(
     val companiesFa: List<String> = emptyList(),
 ) {
     val draft: Boolean get() = state == "draft"
+    /** ⟨1.37⟩ A hub of §59 sends every playbook's versions; one before it sends none (its new routes are then not offered). */
+    val versioned: Boolean get() = versions.isNotEmpty()
     val sealed: Boolean get() = state == "sealed"
     val retired: Boolean get() = state == "retired"
 }

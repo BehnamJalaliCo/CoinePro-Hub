@@ -126,7 +126,7 @@ fun PlaybooksScreen() {
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item(key = "head") {
             PageHeader("کتابخانه‌ی کارگروه‌ها", eyebrow = "هر کارگروه آزموده، نسخه‌دار؛ با یک فرم در هر شرکتی به کار میرود") {
-                if (library) IconBtn(DivanIcon.ATTACH, "درون‌آوری فایل", importFile)
+                if (library && q.data.orEmpty().any { it.versioned }) IconBtn(DivanIcon.ATTACH, "درون‌آوری فایل", importFile)
             }
         }
         item(key = "search") {
@@ -248,7 +248,7 @@ fun PlaybookScreen(ref: String, version: Int? = null) {
                 },
                 actions = {
                     if (pb.source.order.isNotBlank()) QuietLink("جلسه‌ای که از آن ساخته شد", { nav.go("session/${pb.source.order}") })
-                    if (pb.sealed && served(HubFeature.LIBRARY)) {
+                    if (pb.sealed && library && pb.versioned) {
                         // ⟨1.37⟩ §59.4 the page's act: one form for another company; adapting it in a session and retiring are in «کارها»
                         HqButton("در شرکت دیگر به کار ببر", { nav.go("playbook/${pb.ref}/use") }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
                     } else if (pb.sealed) {
@@ -307,7 +307,7 @@ fun PlaybookScreen(ref: String, version: Int? = null) {
                                 item(key = "versions") {
                                     VersionsSection(pb, here = pb.version, onOpen = { v -> nav.go("playbook/${pb.ref}/v/$v") }, onCompare = { sheet = PbSheet.COMPARE }) { v -> pickedVersion = v; sheet = PbSheet.USE_VERSION }
                                 }
-                                if (library || pb.sealed) item(key = "acts") {
+                                if ((library && pb.versioned) || pb.sealed) item(key = "acts") {
                                     PlaybookActs(pb, onCopy = { sheet = PbSheet.COPY }, onAdapt = { sheet = PbSheet.APPLY }, onRetire = { sheet = PbSheet.RETIRE })
                                 }
                                 if (pb.retired) item(key = "retired") {

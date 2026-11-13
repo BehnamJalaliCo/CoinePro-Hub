@@ -436,7 +436,7 @@ fun SessionPlaybooks(order: String, onDrafted: (Playbook) -> Unit) {
     val lib = rememberPlaybooks()
     val mine = playbooksOf(order, lib.data.orEmpty())
     // ⟨1.37⟩ §59.3 a session whose working group is sealed makes its next version, not a second working group
-    val sealed = mine.firstOrNull { it.sealed && it.draftVersion == null }
+    val sealed = mine.firstOrNull { it.sealed && it.versioned && it.draftVersion == null }
     val draft = rememberAction()
     var key by remember(order) { mutableStateOf(UUID.randomUUID().toString()) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
