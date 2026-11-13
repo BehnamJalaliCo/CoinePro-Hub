@@ -401,6 +401,8 @@ PUBLIC_POOL = (
     "دایرکتت رو باز کن، یه چیز خوب برات فرستادیم ✨",
 )
 PUBLIC_MIN = 10
+# ⟨1.37⟩ §59.6 a comment.txt (a flow's package) may carry up to 30, in the order they go out
+PUBLIC_MAX = 30
 
 
 def with_public(rule: dict[str, Any]) -> dict[str, Any]:
@@ -463,7 +465,7 @@ def clean_comment(raw: Any) -> dict[str, Any] | None:
     public = raw.get("public_replies") or []
     if isinstance(public, str):
         public = [public]
-    public = [str(x).strip()[:300] for x in public if str(x).strip()][:10]
+    public = [str(x).strip()[:300] for x in public if str(x).strip()][:PUBLIC_MAX]
     if public:
         out["public_replies"] = public
     return out
@@ -647,10 +649,14 @@ async def _send(
     scheduled_at: datetime | None = None,
     comment: dict[str, Any] | None = None,
     first_comment: str | None = None,
+    flow: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One `publish` job on IG-Hub's server: the file (a reel's cover, a carousel's other
     files), the caption, the company's own command. ⟨§46⟩ `scheduled_at`: IG-Hub holds it for
-    that time; `comment`: the rule made for this post alone when it is out."""
+    that time; `comment`: the rule made for this post alone when it is out. ⟨1.37⟩ `flow`: a
+    flow line's publish step (§59.2) whose run waits for it ({run, step, automation, platform,
+    rules}); its rules are made when the hub hears it is out (`d` is then the run: its ref, no
+    work)."""
 
     def item(x: dict[str, Any], role: str | None = None) -> dict[str, Any]:
         mime = str(x["mime"])
@@ -667,7 +673,7 @@ async def _send(
     if cover is not None:
         files.append(item(await as_jpeg(tx, hub, cover, d["company_id"]), "cover"))
     server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
-    where = f"جلسه‌ی {order}" if order else f"خروجی {d['ref']}"
+    where = f"جلسه‌ی {order}" if order else f"اجرای {d['ref']}" if flow else f"خروجی {d['ref']}"
     meta: dict[str, Any] = {
         "channel": "instagram",
         "kind": what,
@@ -701,6 +707,7 @@ async def _send(
                 "files": 1 + len(more or []),
             },
             **({"standing": standing} if standing else {}),
+            **({"flow": flow} if flow else {}),
             "kind": what,
             "placement": f"instagram_{what}",
             "account": account,
@@ -712,8 +719,8 @@ async def _send(
         },
         actor_kind=who.kind,
         actor_code=who.code,
-        work_ref=str(d["work_ref"]),
-        summary=f"انتشار {'خودکار ' if standing else ''}{KIND_FA[what]} در @{account} از {where}",
+        work_ref=str(d["work_ref"]) if d.get("work_ref") else None,
+        summary=f"انتشار {'خودکار ' if standing or flow else ''}{KIND_FA[what]} در @{account} از {where}",
         timeout_s=TIMEOUT_S,
         request_id=request_id,
     )
@@ -1348,7 +1355,10 @@ def brief_block(raw: Any) -> str:
 # by IG-Hub (its key API `POST /api/v1/rules`, IG-Hub prompt 3) from one `publish` job with meta
 # `rule` and no file; its command answers `rule:<id>`. A rule job carries `rule_for` (never
 # `session`), so it is no publication of its own.
-RULE_WHAT_FA = {"comment": "کامنت هوشمند", "story_reply": "جواب دایرکت استوری"}
+RULE_WHAT_FA = {
+    "comment": "کامنت هوشمند", "story_reply": "جواب دایرکت استوری", "dm": "جواب دایرکت",
+}  # fmt: skip
+SESSION_TRIGGERS = ("comment", "story_reply")  # what the owner's own rule route takes
 RULE_QUEUED_FA = "{what} برای @{account} به IG-Hub رفت: «{word}»"
 RULE_DONE_FA = "{what} روشن شد: «{word}» در @{account}"
 RULE_FAILED_FA = "{what} در @{account} ساخته نشد: {why}"
@@ -1360,7 +1370,17 @@ def rule_body(
     trigger: str, rule: dict[str, Any], account: str, post_ids: list[str], key: str
 ) -> dict[str, Any]:
     """IG-Hub's rule (its `RuleIn`): the words in every joined form, the private reply, a link as
-    a button, the public replies; for one post when it names one."""
+    a button, the public replies; for one post when it names one.
+
+    ⟨1.37⟩ §59.6 a flow's rule (site_links.flow_rules) carries its own: `public_pool` (every
+    public reply, filled and in the order they go out, up to 30), `buttons` (up to three, each
+    with its path's UTM link) and `cooldown_days` (365, or N: one answer per person per rule)."""
+    pool = rule.get("public_pool")
+    public = (
+        [str(x) for x in pool][:PUBLIC_MAX]
+        if isinstance(pool, list) and pool
+        else with_public(rule)["public_replies"]
+    )
     body: dict[str, Any] = {
         "account": account.lstrip("@"),
         "trigger": trigger,
@@ -1369,14 +1389,23 @@ def rule_body(
         "match": "any" if trigger == "comment" and rule.get("match") == "any" else "contains",
         "reply_text": reply_lines(str(rule.get("reply") or ""))[:1000],
         # under a comment only: ten, in turn (ten people in a row, ten different replies)
-        "public_replies": with_public(rule)["public_replies"] if trigger == "comment" else [],
+        "public_replies": public if trigger == "comment" else [],
         "post_ids": [p for p in post_ids if p.isdigit()],
         "name": f"HQ {RULE_WHAT_FA.get(trigger, trigger)} @{account.lstrip('@')}"[:80],
         "key": key[:200],
     }
-    if rule.get("link"):
+    buttons = [
+        {"title": str(b.get("title") or "باز کردن")[:20], "url": str(b["url"])}
+        for b in rule.get("buttons") or []
+        if isinstance(b, dict) and re.fullmatch(r"https://\S{3,1900}", str(b.get("url") or ""))
+    ][:3]
+    if buttons:
+        body["buttons"] = buttons
+    elif rule.get("link"):
         body["buttons"] = [{"title": str(rule.get("button") or "باز کردن")[:20],
                             "url": str(rule["link"])}]  # fmt: skip
+    if rule.get("cooldown_days"):
+        body["cooldown_days"] = max(1, min(365, int(rule["cooldown_days"])))
     return body
 
 
@@ -1386,7 +1415,7 @@ async def queue_rule(
 ) -> dict[str, Any]:  # fmt: skip
     """One rule for a publication that is out: `comment` on its own post (a reel or a post),
     `story_reply` for the account's story replies. Answers {job, trigger, keywords}."""
-    if trigger not in RULE_WHAT_FA:
+    if trigger not in SESSION_TRIGGERS:
         raise ApiError(422, "validation_failed", fields={"trigger": "comment or story_reply"})
     rule = clean_comment(raw)
     if rule is None or (trigger != "comment" and not rule["keywords"]):
@@ -1516,6 +1545,234 @@ async def _story_rule(tx: Tx, args: dict[str, Any]) -> None:
         await queue_rule(tx, SERVICE, story["id"], "story_reply", {**comment, "match": "contains"})
 
 
+# ---------------------------------------------- ⟨1.37⟩ §59.6 a flow's three rules --
+# A flow line's publish step (lines/adapters/publish.py, `route: standing`) sends the reel and the
+# story with `flow` = {run, step, automation, platform, rules}. When the hub hears the reel is out
+# it makes the post's `comment` rule and the account's `dm` rule, when the story is out its
+# `story_reply` rule; each once per output, each with its own UTM (site_links.flow_rules), and the
+# step waiting for the reel completes (the engine's callback). A rule IG-Hub refuses is tried once
+# more the way IG-Hub took rules before IGHUB_04 (ten public replies, no `cooldown_days`), then told
+# once in the run's note; never dropped silently.
+FLOW_RULE_MADE_SQL = """SELECT 1 FROM infra.server_jobs j
+    WHERE j.kind = 'publish' AND j.args -> 'rule_for' ->> 'output' = :out
+      AND j.args ->> 'account' = :a AND j.args -> 'rule_for' ->> 'trigger' = :t
+      AND j.state IN ('queued', 'running', 'done') LIMIT 1"""
+COMPAT_PUBLIC = 10  # what IG-Hub takes before IGHUB_04
+RULE_COMPAT_FA = (
+    "{what} در @{account} با ده جواب عمومی و بی فاصله‌ی تکرار ساخته شد (IG-Hub هنوز بیشتر نمیگیرد)."
+)
+RULE_NO_POST_FA = "{what} ساخته نشد: شناسه‌ی پست از IG-Hub نرسید."
+FLOW_STORY_FAILED_FA = "استوری در @{account} منتشر نشد: {why}"
+FLOW_CANCELLED_FA = "لغو شد"
+FLOW_OUT_FA = "منتشر شد: {kind} در @{account}"
+
+
+async def flow_note(tx: Tx, run_ref: str, say: str) -> None:
+    """Told once in the run: the line run's note gains the sentence unless it holds it already."""
+    if not run_ref or not say:
+        return
+    await tx.exec(
+        """UPDATE lines.runs SET note_fa = left(CASE
+               WHEN coalesce(note_fa, '') = '' THEN CAST(:n AS text)
+               WHEN position(CAST(:n AS text) in note_fa) > 0 THEN note_fa
+               ELSE note_fa || ' · ' || CAST(:n AS text) END, 1000), updated_at = now()
+           WHERE ref = :r""",
+        r=run_ref,
+        n=say[:500],
+    )
+
+
+async def _flow_rule_job(
+    tx: Tx, args: dict[str, Any], rule_for: dict[str, Any], body: dict[str, Any], key: str,
+    *, compat: bool = False,
+) -> None:  # fmt: skip
+    """One rule job of a flow on IG-Hub's server (as queue_rule makes one), audited on its run."""
+    company_id = await tx.scalar(
+        "SELECT id FROM core.companies WHERE code = :c", c=str(rule_for.get("company") or "")
+    )
+    if company_id is None:
+        return
+    account = str(args.get("account") or "")
+    trigger = str(rule_for.get("trigger") or "")
+    route = await _route(tx, company_id)
+    server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
+    meta: dict[str, Any] = {"kind": "rule", "rule": body, "key": key, "account": account}
+    if compat:
+        meta["compat"] = True
+    made = await SV.create_job(
+        tx,
+        server=server,
+        kind="publish",
+        args={"account": account, "kind": str(args.get("kind") or ""), "caption": "", "files": [],
+              "command": args.get("command"), "placement": args.get("placement"),
+              "rule_for": rule_for, "meta": meta},
+        actor_kind=SERVICE.kind,
+        actor_code=SERVICE.code,
+        summary=f"{RULE_WHAT_FA.get(trigger, 'قاعده')} برای @{account}",
+    )  # fmt: skip
+    await audit.record(
+        tx, SERVICE, company_id=company_id, action="publish.rule", action_class="A2",
+        target_kind="line_run", target_ref=str(rule_for.get("run") or "")[:64],
+        summary=f"{trigger} rule on @{account} ({', '.join(body.get('keywords') or []) or 'any'})"
+        f"{' again, as IG-Hub took rules before' if compat else ''}; job {made['id']}"[:500],
+    )  # fmt: skip
+
+
+async def queue_flow_rule(tx: Tx, j: dict[str, Any], args: dict[str, Any], trigger: str) -> None:
+    """The flow's `trigger` rule for the output that is out, once (its key: the run, the trigger
+    and the account). A comment rule needs the post's id: never one for every post."""
+    flow = args.get("flow") or {}
+    rule = (flow.get("rules") or {}).get(trigger)
+    if not isinstance(rule, dict):
+        return
+    s = args.get("session") or {}
+    out, account = str(s.get("output") or ""), str(args.get("account") or "")
+    if await tx.first(FLOW_RULE_MADE_SQL, out=out, a=account, t=trigger) is not None:
+        return
+    ext = str((OR._j(j.get("result")) or {}).get("external_id") or "")
+    posts = [ext] if trigger == "comment" and ext.isdigit() else []
+    if trigger == "comment" and not posts:
+        await flow_note(tx, str(flow.get("run") or ""),
+                        RULE_NO_POST_FA.format(what=RULE_WHAT_FA[trigger]))  # fmt: skip
+        return
+    key = f"flow:{trigger}:{out}:{account.lstrip('@')}"
+    rule_for = {"run": flow.get("run"), "step": flow.get("step"), "output": out,
+                "company": s.get("company"), "trigger": trigger,
+                "automation": flow.get("automation")}  # fmt: skip
+    await _flow_rule_job(tx, args, rule_for, rule_body(trigger, rule, account, posts, key), key)
+
+
+async def _flow_rule_ended(tx: Tx, j: dict[str, Any], args: dict[str, Any]) -> None:
+    """A flow's rule job ended: on, or tried once more as IG-Hub took rules before IGHUB_04, or
+    told once in the run."""
+    rf = args.get("rule_for") or {}
+    meta = args.get("meta") or {}
+    body = meta.get("rule") or {}
+    what = RULE_WHAT_FA.get(str(rf.get("trigger")), "قاعده")
+    account = str(args.get("account") or "")
+    ext = str((OR._j(j.get("result")) or {}).get("external_id") or "")
+    ok = j["state"] == "done" and ext.startswith("rule:")
+    newer = len(body.get("public_replies") or []) > COMPAT_PUBLIC or "cooldown_days" in body
+    if not ok and not meta.get("compat") and newer:
+        older = {**body, "public_replies": list(body.get("public_replies") or [])[:COMPAT_PUBLIC]}
+        older.pop("cooldown_days", None)
+        await _flow_rule_job(tx, args, rf, older, str(meta.get("key") or ""), compat=True)
+        return
+    if ok and not meta.get("compat"):
+        return
+    if ok:
+        say = RULE_COMPAT_FA.format(what=what, account=account)
+    else:
+        why = HZ.humanize(str(j.get("summary_fa") or "")) or "IG-Hub نپذیرفت"
+        say = RULE_FAILED_FA.format(what=what, account=account, why=why)
+    await flow_note(tx, str(rf.get("run") or ""), say)
+
+
+def _flow_entry(
+    flow: dict[str, Any], kind: str, j: dict[str, Any], done: SessionPublish
+) -> dict[str, Any]:
+    ext = str((OR._j(j.get("result")) or {}).get("external_id") or "")
+    at = done.published_at or datetime.now(UTC)
+    return {"platform": str(flow.get("platform") or "instagram_reel"), "kind": kind,
+            "external_id": ext if ext.isdigit() else None, "url": done.url,
+            "at": at.isoformat()}  # fmt: skip
+
+
+async def _flow_after(
+    tx: Tx, j: dict[str, Any], args: dict[str, Any], done: SessionPublish
+) -> dict[str, Any] | None:
+    """A flow's publication ended (or answered): its rules once it is out; the reel's end is the
+    publish step's (the engine's callback body), a story's failure is told in the run."""
+    flow = args.get("flow") or {}
+    kind = str(args.get("kind") or "")
+    account = str(args.get("account") or "")
+    run_ref = str(flow.get("run") or "")
+    if done.state in ("scheduled", "publishing"):
+        return None  # IG-Hub holds it: its end comes with a later question (follow_up)
+    ok = done.state == "published"
+    if ok:
+        for trigger in ("story_reply",) if kind == "story" else ("comment", "dm"):
+            try:
+                async with tx.conn.begin_nested():
+                    await queue_flow_rule(tx, j, args, trigger)
+            except Exception:  # noqa: BLE001 - the post is out whatever its rule does
+                log.warning("a flow rule was not queued", extra={"job": str(j["id"])})
+                await flow_note(tx, run_ref, RULE_FAILED_FA.format(
+                    what=RULE_WHAT_FA[trigger], account=account, why="خطای هاب"))  # fmt: skip
+    why = FLOW_CANCELLED_FA if done.state == "cancelled" else (done.note_fa or "-")
+    if kind == "story":
+        if not ok:
+            await flow_note(tx, run_ref, FLOW_STORY_FAILED_FA.format(account=account, why=why))
+        return None
+    kind_fa = KIND_FA.get(kind, "پست")
+    if not ok:
+        return {"run": run_ref, "step": flow.get("step"), "ok": False,
+                "error_fa": FAILED_FA.format(kind=kind_fa, account=account, why=why)[:900]}  # fmt: skip
+    published = [_flow_entry(flow, kind, j, done)]
+    s = args.get("session") or {}
+    for r in await tx.all(SAME_OUTPUT_SQL, out=str(s.get("output") or ""), a=account,
+                          kinds=["story"]):  # fmt: skip
+        row = {**dict(r), "args": OR._j(r["args"]) or {}}
+        if (v := view(row)).state == "published":
+            published.append(_flow_entry(flow, "story", row, v))
+            break
+    text = FLOW_OUT_FA.format(kind=kind_fa, account=account) + (
+        f" · {done.url}" if done.url else ""
+    )
+    return {"run": run_ref, "step": flow.get("step"), "ok": True, "text": text,
+            "data": {"published": published, "account": account}}  # fmt: skip
+
+
+async def _flow_job_ended(hub: Any, job_id: UUID) -> bool:
+    """A job of a flow (its publication or one of its rules): handled here, True; else False."""
+    back: dict[str, Any] | None = None
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        row = await tx.first(
+            f"SELECT {JOB_COLS} FROM infra.server_jobs j WHERE j.id = :id AND j.kind = 'publish'",  # noqa: S608
+            id=job_id,
+        )
+        if row is None:
+            return False
+        j = dict(row)
+        args = OR._j(j["args"]) or {}
+        if (args.get("rule_for") or {}).get("run"):
+            if j["state"] not in LIVE:
+                await _flow_rule_ended(tx, j, args)
+            return True
+        flow = args.get("flow") or {}
+        if not flow:
+            return False
+        if j["state"] in LIVE:
+            return True
+        done = view(j)
+        back = await _flow_after(tx, j, args, done)
+        if back is not None:
+            company_id = await tx.scalar(
+                "SELECT id FROM core.companies WHERE code = :c",
+                c=str((args.get("session") or {}).get("company") or ""),
+            )
+            if company_id is not None:
+                await audit.record(
+                    tx, SERVICE, company_id=company_id,
+                    action="publish.flow_done" if back["ok"] else "publish.flow_failed",
+                    action_class="A1", target_kind="line_run",
+                    target_ref=str(flow.get("run") or "")[:64],
+                    summary=f"{args.get('kind')} to @{args.get('account')} for "
+                    f"{flow.get('automation') or flow.get('run')}: "
+                    f"{done.url or ''}{'' if back['ok'] else done.note_fa or done.state}"[:500],
+                )  # fmt: skip
+    if back is not None:
+        from hq_api.lines import engine as LE
+
+        try:
+            await LE.on_callback(hub, back)
+        except ApiError:
+            log.info("the flow's publish step was not waiting", extra={"job": str(job_id)})
+        except Exception:  # noqa: BLE001 - the publication's end never fails on it
+            log.warning("the flow's publish step was not completed", extra={"job": str(job_id)})
+    return True
+
+
 async def after_job(hub: Any, job_id: UUID) -> None:
     """The publish job of a session (or ⟨§45⟩ of a standing word) ended, after its result was
     committed: the session says so (the run's note does, and a failure is told to the owner),
@@ -1525,6 +1782,8 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     from hq_api.domain import publish_keep as PK
     from hq_api.domain.gov_common import owner_tz
 
+    if await _flow_job_ended(hub, job_id):  # ⟨1.37⟩ §59.2 a flow line's publication or rule
+        return
     kept: str | None = None
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await tx.first(
