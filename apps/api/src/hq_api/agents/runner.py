@@ -400,7 +400,9 @@ class Runner:
                         refuse = "talk_loop"  # ⟨21⟩ §29.2: its order talked without output
                     if refuse is None and await OR.held_for_owner(tx, run):
                         # ⟨2026-11-09⟩ «با من»: the order waits for the owner's answer; this run
-                        # comes back when he answers (OR.resume_held)
+                        # comes back when he answers (OR.resume_held). The run his answer woke
+                        # passes here (nothing waits then); a question asked after it started
+                        # holds the work's next run, not this one (_steps, F-0018 P3).
                         refuse = "owner_turn"
             if refuse is None and await tx.scalar(
                 # a talk run (contract §32) reads beside the employee's work; it never makes it busy (0045)
@@ -747,17 +749,22 @@ class Runner:
                 return ("refused", "work_closed", "the work was cancelled during the run")
             waiting = await self._owner_turn(rc)
             if waiting is not None:
-                # ⟨2026-11-09⟩ «با من»: the session began to wait for the owner during this run.
-                # Whoever asked has finished its step; anyone else stops here and goes on once
-                # he answers (OR.resume_held).
+                # ⟨2026-11-09⟩ «با من»: the session waits for the owner. Whoever asked has finished
+                # its step; anyone else is held before its first model step and goes on once he
+                # answers (OR.resume_held).
                 if rc.emp["code"] in waiting["askers"]:
                     asked = True  # its step ended with the question: a finished run, not a cut one
                     break
-                return (
-                    "refused",
-                    "owner_turn",
-                    "the step-by-step order waits for the owner's answer",
-                )
+                if n == 0:
+                    return (
+                        "refused",
+                        "owner_turn",
+                        "the step-by-step order waits for the owner's answer",
+                    )
+                # ⟨2026-11-13⟩ F-0018 P3: a run that has started goes on to its end; the
+                # question holds its work's next run (claim), never this one half way. Cut here,
+                # W-000381 was woken by each answer and cut by the next question 12 times in 27
+                # minutes, each time from its first step.
             left = token_cap - rc.used_tokens
             if left < min(per_step, token_cap) // 4 or left <= 0:
                 rc.stop = "budget"

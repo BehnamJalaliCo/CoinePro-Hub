@@ -3826,8 +3826,10 @@ the owner reply. This section is the base of §35 (every order a session).
 
 - ⟨2026-11-09⟩ **A step order holds while it waits for the owner** (the owner: «دکمه با من رو زدم و شروع کرده برای خودش کار
   رو جلو بردن»). While a `step` order's turn is open (§34.3, the session not ended), nothing of the order runs: a `work` run of any
-  of its works (the holder's or a colleague's it handed a part to) is refused at its claim with `owner_turn`, and a run already
-  under way stops before its next step (the asker itself ends `done`; anyone else `refused`, `owner_turn`). A run the owner's own
+  of its works (the holder's or a colleague's it handed a part to) is refused at its claim with `owner_turn`, and so is a run
+  already claimed that has not made its first model step (the asker itself ends `done`). ⟨2026-11-13⟩ F-0018 P3: a run that has
+  made a model step goes on to its end; the question holds its work's next run (W-000381, woken by each answer and cut by the
+  next question, ran its first steps 12 times in 27 minutes). A run the owner's own
   word started (`owner_reply:`, `nudge:`, `pace:`, `owner_turn_over:`, `session_reopened:`) and a `talk` run are never held.
   The held runs come back (reason `owner_turn_over:<ref>`) the moment he answers (`reply`), says «ادامه بده» (`nudge`, which now
   clears the open question too) or makes the order `auto`; the requeue sweep is the net. The activity line of a held run reads

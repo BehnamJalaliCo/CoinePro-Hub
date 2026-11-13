@@ -312,3 +312,93 @@ async def test_the_owners_numbered_steps_are_the_plan_in_his_order(
         (1, "done"),
         *[(n, "todo") for n in range(2, 7)],
     ]
+
+
+def _step(summary: str, *, done: bool) -> dict[str, Any]:
+    return {"summary_fa": summary, "actions": [], "done": done}
+
+
+async def test_a_run_his_answer_woke_is_not_cut_by_the_next_question(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+    monkeypatch: Any,
+) -> None:
+    """⟨2026-11-13⟩ F-0018 P3: in a «با من» session the holder asked the owner after nearly every
+    turn. Each answer woke the colleague's held part (`owner_turn_over:`), its run made one to six
+    model steps, and the holder's next question cut it (`owner_turn`) mid-way: W-000381 was woken
+    and cut 12 times in 27 minutes, each time from its first step. Now a question holds a run
+    only before its first model step; one that has started goes on to its end, and the question
+    holds the work's next run."""
+    co = (await new_company())["code"]
+    out = await post_order(
+        client, owner, f"برای {co} {words()} وضع کامل شرکت را بررسی کن و گزارش بده", pace="step"
+    )
+    ref = out["ref"]
+    [route] = out["routes"]
+    holder, colleague = route["to"], f"{co}-TECH-MGR"
+    root = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", route["work_ref"])
+    r = await client.post(
+        f"/internal/v1/work/{root}/delegate",
+        headers=await agent_headers(holder),
+        json={"to": colleague, "title": "خواندن عددهای روزانه"},
+    )
+    assert r.status_code == 201, r.text
+    child = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", r.json()["ref"])
+    part = await queued_of(su, child)
+
+    # the holder asks; the part is held at its claim; his answer wakes it
+    await ask(client, ref, holder, "گام ۲ تمام شد؛ گام ۳ را شروع کنم؟")
+    assert (await agents.runner.claim(str(part["id"]))).code == "owner_turn"
+    r = await client.post(
+        f"/api/v1/orders/{ref}/reply", headers={**owner, **idem()}, json={"text": "بله"}
+    )
+    assert r.status_code == 200, r.text
+    woken = await queued_of(su, child)
+    assert woken["reason"] == f"{OR.OWNER_TURN_REASON}{ref}"
+    assert (await agents.runner.claim(str(woken["id"]))).state == "running"
+
+    # the holder asks again after the part's first model step (its next direct turn)
+    real_step = agents.runner._model_step
+    asked: list[int] = []
+
+    async def step_then_ask(rc: Any, system: str, n: int, **kw: Any) -> Any:
+        call = await real_step(rc, system, n, **kw)
+        if not asked:
+            asked.append(n)
+            await ask(client, ref, holder, "گام ۳ هم تمام شد؛ گام ۴؟")
+        return call
+
+    monkeypatch.setattr(agents.runner, "_model_step", step_then_ask)
+    agents.fake.enqueue(
+        colleague,
+        _step("قدم یک", done=False),
+        _step("قدم دو", done=False),
+        _step("تمام", done=True),
+    )
+    out = await agents.runner.execute(str(woken["id"]))
+    assert asked == [1]
+    assert out == {"state": "done", "code": None}, out  # before: refused, owner_turn, after 1 step
+    assert await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", woken["id"]) == 3
+
+    # the question holds the work's NEXT run, at its claim
+    nxt = await su.fetchval("SELECT work.wake_assignee($1, $2)", child, "child_delivered:x")
+    assert (await agents.runner.claim(str(nxt))).code == "owner_turn"
+
+    # a question between the claim and the first model step: refused, no model call made
+    r = await client.post(
+        f"/api/v1/orders/{ref}/reply", headers={**owner, **idem()}, json={"text": "بله"}
+    )
+    assert r.status_code == 200, r.text
+    again = await queued_of(su, child)
+    assert again["reason"] == f"{OR.OWNER_TURN_REASON}{ref}"
+    assert (await agents.runner.claim(str(again["id"]))).state == "running"
+    await ask(client, ref, holder, "گام ۵؟")
+    calls = sum(1 for c in agents.fake.calls if c.actor_ref == colleague)
+    out = await agents.runner.execute(str(again["id"]))
+    assert out == {"state": "refused", "code": "owner_turn"}, out
+    assert await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", again["id"]) == 0
+    assert sum(1 for c in agents.fake.calls if c.actor_ref == colleague) == calls
