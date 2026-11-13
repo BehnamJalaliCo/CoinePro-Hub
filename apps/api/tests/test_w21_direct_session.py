@@ -478,3 +478,68 @@ async def test_a_turn_the_owner_stops_ends_its_run_and_his_next_word_starts_a_tu
     assert out["stopped"] is True
     assert await su.fetchval("SELECT state FROM agents.runs WHERE id = $1::uuid",
                              nxt["args"]["run"]) == "failed"  # fmt: skip
+
+
+async def test_a_heavy_session_starts_afresh_from_its_memory_and_notes(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ The owner: never millions of tokens re-read per word, never a model that
+    forgot. A Claude session that carries more than ROTATE_TOKENS is ended between two turns,
+    its memory caught up first; the next turn is a fresh session in the same folder whose brief
+    sends it to NOTES.md, the memory and the session's state."""
+    from hq_api.domain import session_memory as MEM
+
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    assert "NOTES.md" in job["args"]["brief"]  # the rule is there from the first turn
+    # a light turn: the next one resumes the same Claude session
+    await result(client, rn, job["id"], "اولین نوبت تمام شد.",
+                 usage={"cache_write_tokens": 90_000, "cache_read_tokens": 400_000})  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    second = await take(client, rn)
+    assert second["args"].get("resume") and "ادامه‌ی جلسه" in second["args"]["brief"]
+    sess = await su.fetchval("SELECT session_id FROM work.workspaces WHERE work_id = $1",
+                             o["work_id"])  # fmt: skip
+
+    # a heavy one: the next word starts afresh, after the memory caught up
+    caught: list[str] = []
+
+    async def catch_up(hub_: Any, call: Any, ref: str) -> int:
+        caught.append(ref)
+        return 1
+
+    monkeypatch.setattr(MEM, "catch_up", catch_up)
+    await result(client, rn, second["id"], "دومین نوبت تمام شد.",
+                 usage={"cache_write_tokens": 200_000, "cache_read_tokens": 3_000_000})  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    assert note is not None and note.startswith("direct turn "), note
+    await end_run(su, run, note)
+    third = await take(client, rn)
+    assert caught == [o["ref"]]
+    assert await su.fetchval("SELECT state FROM workshop.sessions WHERE id = $1", sess) == "done"
+    assert not third["args"].get("resume")  # a fresh Claude session …
+    assert third["args"]["workspace"] == o["work_ref"]  # … in the same folder
+    brief = third["args"]["brief"]
+    assert "ادامه‌ی همین جلسه در نشستی تازه" in brief and "## وضع جلسه" in brief
+    assert await su.fetchval(
+        "SELECT count(*) FROM work.work_events WHERE work_id = $1 AND kind = 'session_rotated'",
+        o["work_id"],
+    ) == 1  # fmt: skip
+    # the fresh session carries little again: no second rotation on the next word
+    await result(client, rn, third["id"], "ادامه دادم.", usage={"cache_write_tokens": 80_000})
+    assert not await DR.rotate_if_heavy(hub, o["work_id"])

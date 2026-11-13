@@ -70,6 +70,15 @@ WAITS_FA = (
 EMPTY_FA = "این نوبت بی‌جواب تمام شد؛ اگر چیزی لازم است همین‌جا بگو."
 SKILL_LIST = "skill_list"
 SKILL_READ = "skill_read"
+# ⟨2026-11-13⟩ The owner: «نه طوری باشه که مدل چیزی نفهمه و نه طوری باشه که هر بار فراخوانده بشه و
+# میلیون‌ها توکن مصرف بشه». Every model call of a turn re-reads what the Claude session carries; on
+# F-0018 it had grown to ~700K tokens, so a one-word «تأیید» re-read 2.2M. A session that carries
+# more than ROTATE_TOKENS (what its turns wrote to the cache, an upper bound) is ended between two
+# turns: the session's memory is caught up first, and the next turn is a fresh Claude session in
+# the same folder that starts from the memory, the folder's NOTES.md, the session's state and the
+# owner's last words.
+ROTATE_TOKENS = 250_000
+NOTES_FILE = "NOTES.md"
 
 RULES_FA = (
     "قاعده‌های این جلسه:",
@@ -88,6 +97,12 @@ RULES_FA = (
     "- هیچ رمز و کلیدی را چاپ نکن. هر دستور ویرانگر منتظر مُهر مدیر کل میماند؛ دورش نزن.",
     "- حدود ۵۵ دقیقه وقت داری. اگر کار بزرگ است، اول نسخه‌ای کامل و دیدنی در out/ بگذار، بعد "
     "بهترش کن. فایل موقت را در همین پوشه یا $TMPDIR بگذار.",
+    f"- دفترچه‌ی جلسه: در پایان هر نوبت {NOTES_FILE} همین پوشه را به‌روز کن، حداکثر ۸۰ خط: "
+    "تصمیم‌ها و سلیقه‌ی مدیر کل (دقیق، با همان تنظیم‌ها)، چه ساخته شد و کجای پوشه است، کار باز و "
+    "قدم بعد. نشست بعدی ممکن است تازه باشد و فقط از همین دفترچه، حافظه‌ی جلسه و فایل‌ها ادامه میدهد.",
+    "- هر چه میخوانی در حافظه‌ی نشست میماند و در هر قدم دوباره خوانده میشود: خروجی ابزار را کوتاه "
+    "بخواه (head، tail، grep، حالت بی‌صدا)، لاگ و فایل بلند را کامل چاپ نکن و فایلی را که خواندی "
+    "دوباره نخوان.",
 )
 
 
@@ -200,6 +215,14 @@ def compose(
         body = str(getattr(charter, "body", "") or "").strip()
         if body:
             lines += ["", "## راهنمای نقش تو", body[:CHARTER_CHARS]]
+        if brief.get("continued"):
+            lines += [
+                "",
+                "## ادامه‌ی همین جلسه در نشستی تازه",
+                f"این جلسه پیش از این نوبت‌هایی داشته است. اول {NOTES_FILE} همین پوشه را بخوان، "
+                "بعد «حافظه‌ی جلسه» و «وضع جلسه» پایین را؛ فایل‌های پوشه همان است. از همان‌جا که "
+                "مانده ادامه بده و چیزی را که تصمیمش گرفته شده دوباره نپرس.",
+            ]
         if brief.get("memory_md"):
             lines += ["", "## تا اینجا (حافظه‌ی جلسه)", str(brief["memory_md"])[:6000]]
         lines += ["", "## فرمان مدیر کل", str(brief.get("text") or "")[:1500]]
@@ -208,7 +231,8 @@ def compose(
             f"# ادامه‌ی جلسه‌ی {brief.get('order')} (همان نشست، همان پوشه)",
             "",
             "قاعده‌ها همان است: پاسخ نهایی کوتاه و فارسی برای مدیر کل؛ فایل تحویلی در out/؛ منتشر "
-            "نکن؛ هر چه از ستاد است از ابزارهای ستاد.",
+            "نکن؛ هر چه از ستاد است از ابزارهای ستاد؛ خروجی ابزار کوتاه؛ در پایان نوبت "
+            f"{NOTES_FILE} را به‌روز کن.",
         ]
     if brief.get("wake"):
         # ⟨2026-11-11⟩ the hub woke this turn because nothing of the order runs: read it first
@@ -304,6 +328,10 @@ async def hand_over(hub: Any, run: dict[str, Any], emp: dict[str, Any]) -> str |
     if OR.base_reason(reason).startswith(CLASSIC_REASONS):
         return None  # ⟨2026-11-11⟩ a re-queued one too (`requeue:workspace_failed:…`)
     try:
+        await rotate_if_heavy(hub, run["work_id"])
+    except Exception:  # a session that stays long costs more, it never stops the turn
+        log.exception("session rotation failed", extra={"run_id": str(run["id"])})
+    try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             return await _hand_over(tx, hub, run, emp, reason)
     except ApiError as exc:
@@ -325,6 +353,12 @@ async def _hand_over(
     order = await OR.load_order(tx, ref) if ref else None
     if ref is None or order is None or str(w["ref"]) not in OR.root_refs(order):
         return None  # only the order's own work is the session's thread
+    roots = OR.root_refs(order)
+    if len(roots) > 1 and str(w["ref"]) != roots[0]:
+        # ⟨2026-11-13⟩ one brain per session: the lead holder's turn is the workshop's; a
+        # colleague company's part of the same order is its classic run (it may still call
+        # workshop.run for what needs hands), not a second Opus session answering every word
+        return None
     rep = await OR.ensure(tx, ref)
     if rep is None or rep.get("ended_at") is not None:
         return None
@@ -351,6 +385,8 @@ async def _hand_over(
     if charter is None or charter.kind == "system":
         return None
     brief = await OT.talk_brief(tx, ref, work_id=w["id"], for_run=True) or {"order": ref}
+    if ws is not None:
+        brief["continued"] = True  # a fresh Claude session of a meeting that had turns
     rid = await tx.scalar(
         "SELECT agents.open_direct_run(:e, :w, :r, :ttl)",
         e=emp["id"], w=w["id"], r=f"{REASON}{ref}", ttl=RUN_TTL_S,
@@ -380,6 +416,76 @@ async def _hand_over(
         raise
     await events.emit(tx, str(emp["company"]), "order.updated", ref, {"direct": "working"})
     return HANDED.format(job=out.job)
+
+
+# ------------------------------------------------------- a lean session (2026-11-13) --
+async def carried_tokens(tx: Tx, session_id: Any) -> int:
+    """What a Claude session carries, at most: every token its turns wrote to the prompt cache
+    (a turn writes what it adds; a cache that expired is written again, so this only errs high)."""
+    n = await tx.scalar(
+        """SELECT COALESCE(SUM((usage->>'cache_write_tokens')::bigint), 0)
+           FROM infra.server_jobs
+           WHERE session_id = :s AND kind = 'claude'
+             AND usage->>'cache_write_tokens' IS NOT NULL""",
+        s=session_id,
+    )
+    return int(n or 0)
+
+
+async def rotate_if_heavy(hub: Any, work_id: Any) -> bool:
+    """Between two turns: a Claude session that carries more than ROTATE_TOKENS is ended, after
+    the session's memory caught up with every turn, so the next turn starts a fresh session in
+    the same folder (HANDS.start opens one; its brief is the first one with `continued`).
+    True when it ended one."""
+    from hq_api.domain import session_memory as MEM
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ws = await WS.of_work(tx, work_id)
+        if ws is None or ws.get("session_id") is None or ws["state"] in WS.ENDED:
+            return False
+        if await WS.busy_job(tx, ws) is not None:
+            return False
+        carried = await carried_tokens(tx, ws["session_id"])
+        if carried <= ROTATE_TOKENS:
+            return False
+        ref = await OR.order_of_work(tx, work_id)
+    if ref:
+        await MEM.catch_up(hub, MEM.api_call(hub), ref)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ended = await tx.exec(
+            """UPDATE workshop.sessions SET state = 'done', finished_at = now()
+               WHERE id = :s AND state NOT IN ('done', 'failed', 'stopped')
+                 AND NOT EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.session_id = :s
+                                   AND j.state IN ('queued', 'running'))""",
+            s=ws["session_id"],
+        )
+        if not ended:
+            return False
+        w = await W.load(tx, work_id)
+        await W.event(tx, w, "session_rotated", OR.SERVICE,
+                      {"session": str(ws["session_id"]), "carried": carried})  # fmt: skip
+    log.info("session rotated", extra={"work": str(work_id), "carried": carried})
+    return True
+
+
+_FOLDS: set[Any] = set()
+
+
+def fold_soon(hub: Any, ref: str) -> None:
+    """After a direct turn (the api, after its commit): the session's memory folded in the
+    background when DIRECT_FOLD_EVERY turns came since the last fold. Without a worker (tests, a
+    bare api) there is no model to fold with."""
+    import asyncio
+
+    from hq_api.domain import session_memory as MEM
+
+    if getattr(hub, "temporal", None) is None:
+        return
+    task = asyncio.get_running_loop().create_task(
+        MEM.fold(hub, MEM.api_call(hub), ref, every=MEM.DIRECT_FOLD_EVERY)
+    )
+    _FOLDS.add(task)
+    task.add_done_callback(_FOLDS.discard)
 
 
 # ------------------------------------------------------------- the turn's end --

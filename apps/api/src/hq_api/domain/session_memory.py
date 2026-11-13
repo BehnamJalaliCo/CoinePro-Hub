@@ -31,6 +31,12 @@ log = logging.getLogger("hq_api.session_memory")
 
 MEMORY_CHARS = 6_000
 FOLD_EVERY = 20
+# ⟨2026-11-13⟩ a direct session (domain/direct.py) folds sooner: a fresh Claude session of the same
+# meeting starts from this memory (the owner: never a model that forgot, never millions of tokens
+# re-read per word); at most FOLD_CHUNK turns go to the model at once, oldest first
+DIRECT_FOLD_EVERY = 8
+FOLD_CHUNK = 40
+CATCH_UP_ROUNDS = 8
 TASK_CLASS = "session_memory"
 RELATED = 3
 TURN_CHARS = 1_500
@@ -133,18 +139,33 @@ async def due(tx: Tx, order_ref: str) -> bool:
     return row is not None and int(row["turns"]) - int(row["memory_upto"]) >= FOLD_EVERY
 
 
-async def fold(hub: Any, call: Any, ref: str, *, force: bool = False) -> dict[str, Any]:
-    """The turns since the last fold into the memory. `call(body) -> dict | None` is the model
-    (the worker's router, or the api's workflow). `force`: at close, whatever the count. Nothing
-    raised: a failure keeps the old memory and is logged."""
+async def fold(
+    hub: Any, call: Any, ref: str, *, force: bool = False, every: int = FOLD_EVERY
+) -> dict[str, Any]:
+    """The turns since the last fold into the memory (at most FOLD_CHUNK, oldest first). `call(body)
+    -> dict | None` is the model (the worker's router, or the api's workflow). `force`: whatever
+    the count; `every`: how many turns make it due. Nothing raised: a failure keeps the old memory
+    and is logged."""
     try:
-        return await _fold(hub, call, ref, force=force)
+        return await _fold(hub, call, ref, force=force, every=every)
     except Exception:  # the memory is best effort, the turn is not
         log.warning("session memory not folded", extra={"ref": ref}, exc_info=True)
         return {"folded": False, "why": "error"}
 
 
-async def _fold(hub: Any, call: Any, ref: str, *, force: bool) -> dict[str, Any]:
+async def catch_up(hub: Any, call: Any, ref: str) -> int:
+    """⟨2026-11-13⟩ Every turn not yet in the memory folded, chunk by chunk (before a fresh Claude
+    session of the meeting starts from it). Answers the chunks folded; never raises."""
+    n = 0
+    for _ in range(CATCH_UP_ROUNDS):
+        got = await fold(hub, call, ref, force=True)
+        if not got.get("folded"):
+            break
+        n += 1
+    return n
+
+
+async def _fold(hub: Any, call: Any, ref: str, *, force: bool, every: int) -> dict[str, Any]:
     from hq_api.domain import sessions as SE
 
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -170,8 +191,9 @@ async def _fold(hub: Any, call: Any, ref: str, *, force: bool) -> dict[str, Any]
                 u=upto,
             )
         ]
-        if not rows or (not force and len(rows) < FOLD_EVERY):
+        if not rows or (not force and len(rows) < every):
             return {"folded": False, "why": "not_due"}
+        rows = rows[:FOLD_CHUNK]
         keys = list(dict.fromkeys([str(conv.get("holder") or ""), *(conv.get("present") or [])]))
         titles = {k: (await SE.title_of(tx, k))[0] for k in keys if k}
         holding = await hub.companies.holding()
@@ -242,7 +264,7 @@ def api_call(hub: Any) -> Any:
 
 async def fold_after_close(hub: Any, ref: str) -> None:
     """At close (the api, after the response): the last turns folded, whatever their count."""
-    await fold(hub, api_call(hub), ref, force=True)
+    await catch_up(hub, api_call(hub), ref)
 
 
 # ------------------------------------------------------------ related sessions --
