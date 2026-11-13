@@ -21,7 +21,7 @@ from hq_api.domain import session_activity as SA
 
 from .conftest import agent_headers, idem
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
-from .test_w15_step_hold import queued_of
+from .test_w15_step_hold import off_the_day, queued_of  # noqa: F401 - the fixture
 
 
 def _step(summary: str) -> dict[str, Any]:
@@ -37,13 +37,15 @@ def _last_run_block(text: str) -> str | None:
     return block[: block.find("\n\n")] if "\n\n" in block else block
 
 
-async def _capped_run(su: Any, agents: Any, run_id: Any, who: str, tag: str) -> list[str]:
-    """Claims and runs `run_id` with a 2-step cap and steps that never end; answers the text of
-    each model call the run made."""
+async def _capped_run(
+    su: Any, agents: Any, run_id: Any, who: str, tag: str, steps: int = 1
+) -> list[str]:
+    """Claims and runs `run_id` with a cap of `steps` steps and steps that never end; answers the
+    text of each model call the run made."""
     claim = await agents.runner.claim(str(run_id))
     assert claim.state == "running", claim
-    await su.execute("UPDATE agents.runs SET steps_cap = 2 WHERE id = $1", run_id)
-    agents.fake.enqueue(who, _step(f"{tag} قدم یک"), _step(f"{tag} قدم دو"))
+    await su.execute("UPDATE agents.runs SET steps_cap = $2 WHERE id = $1", run_id, steps)
+    agents.fake.enqueue(who, *[_step(f"{tag} قدم {n}") for n in ("یک", "دو")[:steps]])
     before = len(agents.fake.calls)
     out = await agents.runner.execute(str(run_id))
     assert out == {"state": "done", "code": "limit_reached"}, out
@@ -62,6 +64,7 @@ async def test_a_part_that_reached_its_cap_goes_on_in_its_own_next_run(
     agents: Any,
     no_model: list[Any],  # noqa: F811
     new_company: Callable[..., Any],
+    off_the_day: None,  # noqa: F811
     shape: str,
 ) -> None:
     """`requested`: F-0018's own shape (the holder asked another company's people with
@@ -102,7 +105,7 @@ async def test_a_part_that_reached_its_cap_goes_on_in_its_own_next_run(
 
     # 1. the first run stops at its cap: its next run is queued, the holder is not woken
     first = await queued_of(su, child)
-    texts = await _capped_run(su, agents, first["id"], colleague, "اول")
+    texts = await _capped_run(su, agents, first["id"], colleague, "اول", steps=2)
     assert texts and _last_run_block(texts[0]) is None  # nothing before it to go on from
     nxt = await queued_of(su, child)
     assert nxt is not None and nxt["reason"] == f"{R.CAPPED_REASON}{child_ref}", nxt
@@ -159,6 +162,7 @@ async def test_the_holders_own_work_and_a_work_of_no_session_are_not_continued(
     agents: Any,
     no_model: list[Any],  # noqa: F811
     new_company: Callable[..., Any],
+    off_the_day: None,  # noqa: F811
 ) -> None:
     co = (await new_company())["code"]
     out = await post_order(

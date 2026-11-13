@@ -10,10 +10,11 @@ or makes the order «خودکار». A general order («خودکار») is never
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.domain import order_report as OR
 from hq_api.hub import Hub
@@ -27,6 +28,18 @@ async def queued_of(su: Any, work_id: Any) -> Any:
         """SELECT id, reason FROM agents.runs WHERE work_id = $1 AND state = 'queued'
            ORDER BY queued_at DESC LIMIT 1""",
         work_id,
+    )
+
+
+@pytest.fixture
+async def off_the_day(su: Any) -> AsyncIterator[None]:
+    """The hub's daily cap (runner._spent_today) counts every call of the day that has a run id,
+    every test's too: the fake steps of a test that uses this leave that count when it ends."""
+    since = await su.fetchval("SELECT clock_timestamp()")
+    yield
+    await su.execute(
+        "UPDATE llm.calls SET meta = meta - 'run_id' WHERE started_at >= $1 AND meta ? 'run_id'",
+        since,
     )
 
 
@@ -326,6 +339,7 @@ async def test_a_run_his_answer_woke_is_not_cut_by_the_next_question(
     no_model: list[Any],  # noqa: F811
     new_company: Callable[..., Any],
     monkeypatch: Any,
+    off_the_day: None,
 ) -> None:
     """⟨2026-11-13⟩ F-0018 P3: in a «با من» session the holder asked the owner after nearly every
     turn. Each answer woke the colleague's held part (`owner_turn_over:`), its run made one to six
