@@ -70,6 +70,7 @@ from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import automation_board as board_routes  # ⟨1.37⟩ §59.9-§59.10 board, day
 from hq_api.routes import automations as automation_routes  # prompt 22 part 3: §31.7
 from hq_api.routes import campaigns as campaign_routes  # prompt 22 part 3: §31.5
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
@@ -97,7 +98,6 @@ from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: �
 from hq_api.routes import office as office_routes  # prompt 25: §35.5 the owner's office
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import playbooks as playbook_routes  # ⟨1.22⟩ §40 a session's playbook
-from hq_api.routes import site_links as site_link_routes  # ⟨1.37⟩ §59.5-§59.6 links, replies
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import routines as routine_routes  # ⟨1.31⟩ §50 a routine from one sentence
@@ -107,6 +107,7 @@ from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import session_team as session_team_routes  # ⟨1.35⟩ §57 the session's team
 from hq_api.routes import sessions as session_routes  # prompt 25: §35.1-§35.3 every order a session
+from hq_api.routes import site_links as site_link_routes  # ⟨1.37⟩ §59.5-§59.6 links, replies
 from hq_api.routes import speech as speech_routes  # ⟨2026-11-06⟩ speech.make: AI Studio's voices
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import talk as talk_routes  # prompt 23: §32 the owner's talk
@@ -338,6 +339,8 @@ def create_app(
     # a company's links and a flow's replies; n8n's tick and summary
     app.include_router(flow_auto_routes.router, prefix="/api/v1")
     app.include_router(flow_auto_routes.internal_router, prefix="/internal/v1")
+    app.include_router(board_routes.router, prefix="/api/v1")
+    app.include_router(board_routes.internal_router, prefix="/internal/v1")
     app.include_router(site_link_routes.router, prefix="/api/v1")
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")
