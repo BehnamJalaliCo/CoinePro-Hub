@@ -5265,7 +5265,8 @@ The owner's word to one person of the session → `{ line: SideLine, work_ref, w
 - The word is a side line. If the person has an open work in the order's tree assigned to them, the word joins it
   (its next step) and it runs again at once with the side talk's last lines in its brief; else a **side work** is made
   under the order's root for them (as the session's «delegate» card does, but with **no plan task** and the root not
-  set waiting: a side work never blocks the session's delivery), titled with the words, its brief the words plus the side talk so far and «این گفتگوی کوتاه مدیر کل با توست در جلسه‌ی {ref}؛ جوابت را
+  set waiting: a side work never blocks the session's delivery), titled with the words, its brief the words plus the side talk so far (built: a work **requested by** the root, not its child, so it stays in the
+  order's tree and its outputs reach the session) and «این گفتگوی کوتاه مدیر کل با توست در جلسه‌ی {ref}؛ جوابت را
   با order.ask یا order.progress بده: به همین گفتگو میرسد. کار تحویلی را deliver کن.».
 - The main session gets **one** step per burst: «مدیر کل با {who_fa}: {first 80 chars}» only when the owner's previous
   side line to this seat is older than 10 minutes (each direction keeps its own 10 minutes, §57.4). Nothing else of the side talk shows in the main timeline.
