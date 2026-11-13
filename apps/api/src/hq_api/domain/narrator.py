@@ -8,10 +8,16 @@ A company with no narrator set speaks as before (the model's choice, else AI Stu
 
 Who sets it: the owner (the company's page, or the working group's), and an agent that works on
 the owner's own order in his session (`narrator.set`: he says «گوینده را … بگذار» there).
+
+⟨1.37⟩ §59.4 the use form's «بشنو»: `sample()` speaks a short sentence (at most about eight
+seconds) in a voice and style before the owner chooses; Gemini's API first, as every speech
+(domain/speech_make.py: on the voice meter, the treasury), the AI Studio page second; the same
+voice, style and words are made once a day (the file is kept on the holding).
 """
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -24,6 +30,10 @@ from hq_api.lines.adapters import tts
 from hq_api.principal import Principal
 
 STYLE_MAX = 500
+SAMPLE_FA = "سلام! این نمونه‌ی کوتاهی از صدای گوینده است؛ ببین به کار این شرکت میآید یا نه."
+SAMPLE_CHARS = 100  # about eight seconds of Persian speech
+SAMPLE_WEB_S = 120  # the AI Studio page, when the API does not speak
+SAMPLE_FAILED_FA = "نمونه‌ی صدا الان ساخته نشد؛ کمی بعد دوباره امتحان کن."
 
 
 class VoiceOption(BaseModel):
@@ -125,3 +135,79 @@ async def for_work(tx: Tx, who: Principal) -> tuple[UUID | None, dict[str, Any] 
     if company_id is None:
         return None, None
     return company_id, await of(tx, company_id)
+
+
+# ------------------------------------------------------------- §59.4 a sample --
+class SampleFile(BaseModel):
+    id: str
+    name: str
+    mime: str
+    size: int
+
+
+class NarratorSample(BaseModel):
+    file: SampleFile
+
+
+def sample_text(text_fa: str | None) -> str:
+    """The words of a sample: the owner's (else the hub's sentence), cut to about 8 seconds."""
+    text = " ".join((text_fa or "").split()) or SAMPLE_FA
+    if len(text) <= SAMPLE_CHARS:
+        return text
+    cut = text.rfind(" ", 0, SAMPLE_CHARS)
+    return text[: cut if cut > 0 else SAMPLE_CHARS].strip()
+
+
+def sample_key(voice: str, style: str, text: str) -> str:
+    return hashlib.sha256(f"{voice}\n{style}\n{text}".encode()).hexdigest()
+
+
+async def sample(
+    hub: Any, who: Principal, *, voice: str, style_fa: str | None, text_fa: str | None
+) -> NarratorSample:
+    """`POST /narrators/sample`: a short voice to hear, made once a day per (voice, style, words)."""
+    from hq_api import audit
+    from hq_api.domain import files as F
+    from hq_api.domain import speech_make as SM
+    from hq_api.lines.base import StepFailed
+
+    name = canonical(voice)
+    style = " ".join((style_fa or "").split())[:STYLE_MAX]
+    text = sample_text(text_fa)
+    key = sample_key(name, style, text)
+    holding = await hub.companies.holding()
+    q = """SELECT id, name, mime, size FROM files.files
+           WHERE company_id = :co AND meta ->> 'narrator_sample' = :k
+             AND created_at > now() - interval '1 day' ORDER BY created_at DESC LIMIT 1"""
+    async with hub.db.tx([holding.id]) as tx:
+        hit = await tx.first(q, co=holding.id, k=key)
+    if hit is not None:
+        return NarratorSample(file=SampleFile(
+            id=str(hit["id"]), name=hit["name"], mime=hit["mime"], size=int(hit["size"]),
+        ))  # fmt: skip
+    job = {"job": key[:16], "company_id": holding.id, "company": holding.code,
+           "by": who.code, "text": text, "voice": name, "style": style}  # fmt: skip
+    got = await SM.api_speak(hub, job)
+    if got is None:
+        try:
+            got = await tts.speak(hub, text, voice=name, style=style, timeout_s=SAMPLE_WEB_S)
+        except StepFailed as exc:
+            raise ApiError(
+                503, "channel_not_configured", f"no voice: {exc.code}", message_fa=SAMPLE_FAILED_FA
+            ) from exc
+    data, mime = got
+    storage_key, sha = await hub.storage.put(data)
+    async with hub.db.tx([holding.id]) as tx:
+        fid = await F.insert(
+            tx, company_id=holding.id, name=f"narrator-{name.lower()}.{tts.ext(mime)}", mime=mime,
+            size=len(data), sha256=sha, storage_key=storage_key, kind="audio",
+            by_kind="owner" if who.kind == "owner" else "service", by_code=str(who.code)[:64],
+            meta={"narrator_sample": key, "voice": name},
+        )  # fmt: skip
+        await audit.record(
+            tx, who, company_id=holding.id, action="narrator.sample", action_class="A1",
+            target_kind="file", target_ref=str(fid),
+            summary=f"a sample of {name}" + (" with a style" if style else "") + f", {len(text)} chars",
+        )  # fmt: skip
+    return NarratorSample(file=SampleFile(id=str(fid), name=f"narrator-{name.lower()}.{tts.ext(mime)}",
+                                          mime=mime, size=len(data)))  # fmt: skip
