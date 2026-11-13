@@ -114,6 +114,27 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
         "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id WHERE w.ref = $1",
         work_ref,
     )
+    # a turn the API refused for a moment: the day's own session goes on (a direct turn), never
+    # a classic run that has no workshop and gives the work up
+    await refuse_queued(su, str(w["id"]))
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "بسته‌ی امروز"})
+    assert r.status_code == 201, r.text
+    job = await take(client, ws)
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 1, "summary_fa": "نشست Claude با کد خروج 1 تمام شد."},
+        headers=ws["h"],
+    )
+    assert r.status_code == 200, r.text
+    assert (
+        await su.fetchval(
+            "SELECT reason FROM agents.runs WHERE work_id = $1 ORDER BY created_at DESC LIMIT 1",
+            w["id"],
+        )
+        == f"continue:{order}"
+    )
+    assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", w["id"]) != "failed"
+    await refuse_queued(su, str(w["id"]))
     r = await run_ask(client, holder, {"work": work_ref, "brief": "بسته‌ی امروز"})
     assert r.status_code == 201, r.text
     job = await take(client, ws)
