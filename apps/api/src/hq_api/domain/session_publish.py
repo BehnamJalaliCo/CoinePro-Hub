@@ -383,8 +383,8 @@ ANY_WORDS = frozenset(
 )
 
 
-# ⟨2026-11-13⟩ the public replies under a comment, one of them at random for each person (IG-Hub
-# picks): at least ten, each written warmly and with its emoji. The owner: «جواب برگشت کامنت ها
+# ⟨2026-11-13⟩ the public replies under a comment, in turn (IG-Hub 1806b86: ten people in a row
+# get ten different ones): at least ten, each written warmly and with its emoji. The owner: «جواب برگشت کامنت ها
 # باید هر نفر متفاوت و رندوم باشد مثلا حداقل ۱۰ تا پیام مختلف داشته باشیم». A package's own
 # (`public:` lines of comment.txt) come first; this pool fills them up to ten.
 PUBLIC_POOL = (
@@ -1353,7 +1353,7 @@ def rule_body(
         # every comment only on its own post; a DM or a story reply is answered on its words
         "match": "any" if trigger == "comment" and rule.get("match") == "any" else "contains",
         "reply_text": str(rule.get("reply") or "")[:1000],
-        # under a comment only: one of ten at random for each person
+        # under a comment only: ten, in turn (ten people in a row, ten different replies)
         "public_replies": with_public(rule)["public_replies"] if trigger == "comment" else [],
         "post_ids": [p for p in post_ids if p.isdigit()],
         "name": f"HQ {RULE_WHAT_FA.get(trigger, trigger)} @{account.lstrip('@')}"[:80],
