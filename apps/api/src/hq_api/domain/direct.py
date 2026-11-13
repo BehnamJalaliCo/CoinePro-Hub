@@ -68,6 +68,29 @@ WAITS_FA = (
     "مسئول هنوز روی نوبت قبلی است؛ حرفت بعد از آن خوانده میشود. برای قطع کردنش «توقف» را بزن."
 )
 EMPTY_FA = "این نوبت بی‌جواب تمام شد؛ اگر چیزی لازم است همین‌جا بگو."
+# ⟨1.37⟩ §59.12 the conversational turn: the classic run's tools, at most TALK_MAX, in this order
+TALK_MAX = 15
+TALK_TOOLS = (
+    "order.progress", "order.ask", "order.ack", "message.owner", "work.get", "memory.read",
+    "memory.write", "files.read", "workshop.read", "workshop.run", "knowledge.search",
+    "company.state", "treasury.usage", "deliver", "web.search",
+)  # fmt: skip
+# a word with any of these asks for a build, a change or a file: the workshop's turn as before
+BUILD_WORDS = (
+    "بساز", "ساخت", "درست کن", "درستش", "عوض", "تغییر", "اضافه", "حذف", "پاک", "بنویس",
+    "رندر", "اجرا", "انجام", "ادامه", "شروع", "منتشر", "انتشار", "بفرست", "بذار", "بگذار",
+    "آپلود", "ویدیو", "ویدئو", "کاور", "فایل", "خروجی", "صدا", "موشن", "اصلاح", "ویرایش",
+    "دوباره", "نسخه", "تصویر", "عکس", "لوگو", "زیرنویس", "کپشن", "سناریو", "طراحی", "بکش",
+    "تست", "بررسی کن", "چک کن", "نگاه کن", "ببین", "دانلود", "لینک", "بزن", "کن ",
+)  # fmt: skip
+QUESTION_WORDS = (
+    "چرا", "چطور", "چطوری", "چگونه", "چه", "چی", "چیه", "کی", "کجا", "آیا", "کدام", "کدوم",
+    "چند", "چقدر", "مگه", "یعنی",
+)  # fmt: skip
+ACK_WORDS = ("باشه", "مرسی", "ممنون", "اوکی", "عالی", "خوبه", "دمت گرم", "حله", "آفرین", "سلام")
+TALK_CHARS = 280
+# the runs this process routed to the classic turn (the runner reads and drops its own id)
+TALK_RUNS: set[str] = set()
 SKILL_LIST = "skill_list"
 SKILL_READ = "skill_read"
 # ⟨2026-11-13⟩ The owner: «نه طوری باشه که مدل چیزی نفهمه و نه طوری باشه که هر بار فراخوانده بشه و
@@ -376,6 +399,55 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
     return [i for i in ids if i not in sent][: HANDS.INPUTS_MAX]
 
 
+def _plain(text: str) -> str:
+    """Lower case, Arabic letters as Persian, half-spaces as spaces, spaces folded."""
+    t = (text or "").replace("\u200c", " ").replace("ي", "ی").replace("ك", "ک").lower()
+    return " ".join(t.split())
+
+
+def talk_only(text: str) -> bool:
+    """⟨1.37⟩ §59.12 the owner's word asks for no build and no file: a question, or a short
+    acknowledgement, with none of BUILD_WORDS. In doubt: False (the workshop's turn, as before)."""
+    t = _plain(text)
+    if not t or len(t) > TALK_CHARS or any(w in f"{t} " for w in BUILD_WORDS):
+        return False
+    first = t.split()[0].strip("،,.!؟?")
+    question = t.endswith(("?", "؟")) or first in QUESTION_WORDS
+    ack = len(t) <= 40 and any(w in t for w in ACK_WORDS)
+    return question or ack
+
+
+def last_owner_word(rep: dict[str, Any]) -> str:
+    from hq_api.domain.order_turns import OWNER_FA
+
+    for st in reversed(OR._j(rep.get("steps")) or []):
+        if isinstance(st, dict) and st.get("who_fa") == OWNER_FA:
+            return str(st.get("what_fa") or "")
+    return ""
+
+
+def _is_flow(w: dict[str, Any]) -> bool:
+    meta = w.get("run_meta")
+    meta = OR._j(meta) if isinstance(meta, str) else meta
+    return isinstance(meta, dict) and "flow" in meta
+
+
+def take_talk(run_id: Any) -> bool:
+    """The runner's question: did hand_over route this run to the conversational turn?"""
+    key = str(run_id)
+    if key in TALK_RUNS:
+        TALK_RUNS.discard(key)
+        return True
+    return False
+
+
+def talk_tools(tools: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """The conversational turn's tools: TALK_TOOLS the role has, in that order, at most
+    TALK_MAX."""
+    have = set(tools)
+    return tuple(t for t in TALK_TOOLS if t in have)[:TALK_MAX]
+
+
 async def _say_once(tx: Tx, rep: dict[str, Any], text: str) -> None:
     steps = OR._j(rep.get("steps")) or []
     last = steps[-1] if steps else {}
@@ -448,6 +520,17 @@ async def _hand_over(
         if owner_word:
             await _say_once(tx, dict(rep), WAITS_FA)
         return WAITING
+    if (
+        reason.startswith("owner_reply:")
+        and not _is_flow(w)
+        and talk_only(last_owner_word(rep))
+        and not await _new_files(tx, dict(rep), ws)
+    ):
+        # ⟨1.37⟩ §59.12 a word that asks for no build and no file is answered by the classic
+        # run (a Sonnet-class model, at most TALK_MAX tools, workshop.run among them for what
+        # needs hands after all), not by an Opus turn on the workshop
+        TALK_RUNS.add(str(run["id"]))
+        return None
     lib = await library_for(tx, hub, emp)
     charter = lib.get(emp["role"]) if lib is not None else None
     if charter is None or charter.kind == "system":

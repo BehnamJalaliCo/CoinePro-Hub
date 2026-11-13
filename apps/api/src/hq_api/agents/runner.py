@@ -659,6 +659,10 @@ class Runner:
         handed = await DR.hand_over(self.hub, run, emp)
         if handed is not None:
             return await self.finish(run_id, "done", None, note=handed)
+        if DR.take_talk(run["id"]):
+            # ⟨1.37⟩ §59.12 a word that asks for no build: this classic turn carries only the
+            # conversation's tools (workshop.run among them), at most DR.TALK_MAX
+            rc.charter = dataclasses.replace(rc.charter, tools=DR.talk_tools(rc.charter.tools))
         # ⟨audit 2026-11-11⟩ the last step starts early enough to end (its actions and a partial
         # deliverable too) while the token and the activity still live
         now = time.monotonic()
