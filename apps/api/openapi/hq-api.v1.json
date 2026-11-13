@@ -37929,7 +37929,7 @@
           "publish": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PublishRuleIn"
+                "$ref": "#/components/schemas/hq_api__domain__playbooks__PublishRuleIn"
               },
               {
                 "type": "null"
@@ -39815,6 +39815,21 @@
             ],
             "title": "Link"
           },
+          "match": {
+            "anyOf": [
+              {
+                "enum": [
+                  "contains",
+                  "any"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match"
+          },
           "public_replies": {
             "items": {
               "type": "string"
@@ -40099,57 +40114,30 @@
         "title": "PublishPanel",
         "type": "object"
       },
-      "PublishRuleIn": {
-        "additionalProperties": false,
-        "description": "⟨§45⟩ The owner's standing word on publishing for one company in the working group.",
+      "PublishRuleOut": {
         "properties": {
-          "account": {
-            "anyOf": [
-              {
-                "maxLength": 65,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Account"
-          },
-          "at": {
-            "anyOf": [
-              {
-                "maxLength": 5,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "At"
-          },
-          "best": {
-            "default": false,
-            "title": "Best",
-            "type": "boolean"
-          },
-          "mode": {
-            "enum": [
-              "ask",
-              "auto"
-            ],
-            "title": "Mode",
+          "job": {
+            "title": "Job",
             "type": "string"
           },
-          "story": {
-            "default": false,
-            "title": "Story",
-            "type": "boolean"
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
           }
         },
         "required": [
-          "mode"
+          "job",
+          "trigger",
+          "keywords"
         ],
-        "title": "PublishRuleIn",
+        "title": "PublishRuleOut",
         "type": "object"
       },
       "Published": {
@@ -60666,6 +60654,59 @@
         "title": "Evidence",
         "type": "object"
       },
+      "hq_api__domain__playbooks__PublishRuleIn": {
+        "additionalProperties": false,
+        "description": "⟨§45⟩ The owner's standing word on publishing for one company in the working group.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "maxLength": 65,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "best": {
+            "default": false,
+            "title": "Best",
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "ask",
+              "auto"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "story": {
+            "default": false,
+            "title": "Story",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "PublishRuleIn",
+        "type": "object"
+      },
       "hq_api__domain__readiness__Check": {
         "properties": {
           "detail_fa": {
@@ -61882,6 +61923,81 @@
         "title": "BudgetIn",
         "type": "object"
       },
+      "hq_api__routes__order_report__PublishRuleIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-13⟩ A rule on a publication that is out (IG-Hub makes it).",
+        "properties": {
+          "button": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Button"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Keywords",
+            "type": "array"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "maxLength": 1900,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "match": {
+            "default": "contains",
+            "enum": [
+              "contains",
+              "any"
+            ],
+            "title": "Match",
+            "type": "string"
+          },
+          "public_replies": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Public Replies",
+            "type": "array"
+          },
+          "reply": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reply",
+            "type": "string"
+          },
+          "trigger": {
+            "enum": [
+              "comment",
+              "story_reply"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trigger",
+          "reply"
+        ],
+        "title": "PublishRuleIn",
+        "type": "object"
+      },
       "hq_api__routes__orders__OrderIn": {
         "additionalProperties": false,
         "description": "⟨1.9⟩ contract §27.3: a voice order whose phone recogniser was not\navailable comes with its audio (`file_id`) and no text: the hub\ntranscribes it (nothing leaves the hub).",
@@ -62098,7 +62214,7 @@
           "publish": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PublishRuleIn"
+                "$ref": "#/components/schemas/hq_api__domain__playbooks__PublishRuleIn"
               },
               {
                 "type": "null"
@@ -89195,6 +89311,7 @@
                       "x"
                     ],
                     "link": "x",
+                    "match": "contains",
                     "public_replies": [
                       "x"
                     ],
@@ -89322,6 +89439,7 @@
                     "x"
                   ],
                   "link": "x",
+                  "match": "contains",
                   "public_replies": [
                     "x"
                   ],
@@ -118158,6 +118276,7 @@
                     "x"
                   ],
                   "link": "x",
+                  "match": "contains",
                   "public_replies": [
                     "x"
                   ],
@@ -127658,6 +127777,136 @@
           }
         },
         "summary": "Cancel Publish",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/publishes/{job}/rules": {
+      "post": {
+        "description": "⟨2026-11-13⟩ A rule on a publication that is out: `comment` (the smart comment on its own\npost: the words in every joined form, the private reply, a link as a button, public\nreplies) or `story_reply` (the account's story replies). IG-Hub makes it; the session says\nwhen it is on. `409` for a publication not out yet, `422` without a word and a reply.",
+        "operationId": "publish_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "button": "x",
+                "keywords": [
+                  "x"
+                ],
+                "link": "x",
+                "match": "contains",
+                "public_replies": [
+                  "x"
+                ],
+                "reply": "x",
+                "trigger": "comment"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__order_report__PublishRuleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "job": "x",
+                  "keywords": [
+                    "x"
+                  ],
+                  "trigger": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublishRuleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publish Rule",
         "tags": [
           "orders"
         ]

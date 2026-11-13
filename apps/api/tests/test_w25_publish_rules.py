@@ -34,6 +34,21 @@ RULE = {"keywords": ["باز پخش"], "reply": "لینک سایت", "link": "ht
         "button": "نمودار"}  # fmt: skip
 
 
+def test_a_comment_rule_may_answer_every_comment_and_a_story_only_its_words() -> None:
+    """The owner: «به غیر از تنظیم کلمه برای کامنت هوشمند باید یه گزینه هر کلمه ای بذاریم» and
+    «جواب دایرکت فقط باید کلمه براش ست بشه»."""
+    text = "keyword: بازپخش\nmatch: any\nreply: لینک\nlink: https://pro-chart.com/next/"
+    rule = SPB.parse_comment(text)
+    assert rule is not None and rule["match"] == "any" and rule["keywords"] == ["بازپخش"]
+    every = SPB.parse_comment("keyword: *\nreply: لینک")
+    assert every == {"keywords": [], "reply": "لینک", "match": "any"}
+    assert SPB.clean_comment({"keywords": ["هر کامنتی"], "reply": "x"})["match"] == "any"
+    assert "match" not in SPB.parse_comment("keyword: ۷\nreply: x")
+    assert SPB.rule_body("comment", rule, "a", ["1"], "k")["match"] == "any"
+    # a story reply keeps to its words, whatever the comment rule says
+    assert SPB.rule_body("story_reply", rule, "a", [], "k")["match"] == "contains"
+
+
 def test_a_word_is_taken_in_its_joined_forms() -> None:
     assert SPB.word_forms(["باز پخش"]) == ["باز پخش", "بازپخش"]
     assert SPB.word_forms(["باز‌پخش", "۷"]) == ["باز‌پخش", "بازپخش", "۷"]

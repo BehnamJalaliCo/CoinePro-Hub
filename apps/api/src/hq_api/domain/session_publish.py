@@ -374,7 +374,13 @@ COMMENT_KEYS = {
     "reply": ("reply", "message", "پاسخ", "جواب", "پیام"),
     "link": ("link", "url", "لینک"),
     "public": ("public", "public_reply", "عمومی", "پاسخ عمومی", "جواب عمومی"),
+    "match": ("match", "تطبیق"),
 }
+# ⟨2026-11-13⟩ a word that means «every comment, whatever it says» (the owner: «به غیر از تنظیم
+# کلمه برای کامنت هوشمند باید یه گزینه هر کلمه ای بذاریم»)
+ANY_WORDS = frozenset(
+    {"*", "any", "all", "هر", "هر کلمه", "هر کلمه‌ای", "هر کامنت", "هر کامنتی", "همه"}
+)
 
 
 def word_forms(words: Any) -> list[str]:
@@ -391,17 +397,25 @@ def word_forms(words: Any) -> list[str]:
 
 def clean_comment(raw: Any) -> dict[str, Any] | None:
     """⟨§46⟩ A comment rule as IG-Hub takes it, or None when it has no word or no reply: up to
-    10 words, the private reply, an https link (anything else is left out), public replies."""
+    10 words, the private reply, an https link (anything else is left out), public replies.
+    ⟨2026-11-13⟩ `match: any` (or a word «*», «هر کامنتی»): every comment on the post is
+    answered, whatever it says; its other words are kept for the story's replies."""
     if not isinstance(raw, dict):
         return None
     words = raw.get("keywords") or raw.get("keyword") or []
     if isinstance(words, str):
         words = re.split(r"[,،]", words)
-    words = word_forms(str(w).strip()[:100] for w in words if str(w).strip())
+    words = [str(w).strip()[:100] for w in words if str(w).strip()]
+    every = str(raw.get("match") or "").strip().lower() in ANY_WORDS | {"any"} or any(
+        w.lower() in ANY_WORDS for w in words
+    )
+    words = word_forms(w for w in words if w.lower() not in ANY_WORDS)
     reply = str(raw.get("reply") or raw.get("reply_text") or "").strip()[:1000]
-    if not words or not reply:
+    if not (words or every) or not reply:
         return None
     out: dict[str, Any] = {"keywords": words, "reply": reply}
+    if every:
+        out["match"] = "any"
     link = str(raw.get("link") or "").strip()
     if re.fullmatch(r"https://\S{3,1900}", link):
         out["link"] = link
@@ -1271,7 +1285,8 @@ def brief_block(raw: Any) -> str:
         "at most 2200 characters): have the workshop turn (`workshop.run`) that builds the video leave "
         "exactly these in `out/`. When the reel asks viewers to comment a word or a number, add "
         "`comment.txt` with three lines, `keyword: <that word>`, `reply: <the private message>` "
-        "and `link: https://…`: whoever comments it on this post gets the reply with the link, "
+        "and `link: https://…`: whoever comments it on this post gets the reply with the link "
+        "(add `match: any` to answer every comment on it, whatever it says), "
         "and the story of the same work, when it goes out, answers its replies with the same "
         "rule by itself. "
         "When that one turn leaves the whole package in `out/` (the video or the picture, and "
@@ -1306,7 +1321,8 @@ def rule_body(
         "account": account.lstrip("@"),
         "trigger": trigger,
         "keywords": word_forms(rule.get("keywords") or []),
-        "match": "contains",
+        # every comment only on its own post; a DM or a story reply is answered on its words
+        "match": "any" if trigger == "comment" and rule.get("match") == "any" else "contains",
         "reply_text": str(rule.get("reply") or "")[:1000],
         "public_replies": list(rule.get("public_replies") or [])[:10],
         "post_ids": [p for p in post_ids if p.isdigit()],
@@ -1328,7 +1344,8 @@ async def queue_rule(
     if trigger not in RULE_WHAT_FA:
         raise ApiError(422, "validation_failed", fields={"trigger": "comment or story_reply"})
     rule = clean_comment(raw)
-    if rule is None:
+    if rule is None or (trigger != "comment" and not rule["keywords"]):
+        # a story reply (or a DM) is answered on its words alone
         raise ApiError(422, "validation_failed", fields={"rule": "a word and a reply"},
                        message_fa=RULE_NEEDS_FA)  # fmt: skip
     first = await tx.first(
@@ -1449,8 +1466,9 @@ async def _story_rule(tx: Tx, args: dict[str, Any]) -> None:
         (r for r in rows if r["args"].get("kind") == "story" and view(r).state == "published"),
         None,
     )
-    if comment and story is not None:
-        await queue_rule(tx, SERVICE, story["id"], "story_reply", comment)
+    # a story reply is answered on its words alone: a rule for every comment has none to give
+    if comment and comment.get("keywords") and story is not None:
+        await queue_rule(tx, SERVICE, story["id"], "story_reply", {**comment, "match": "contains"})
 
 
 async def after_job(hub: Any, job_id: UUID) -> None:

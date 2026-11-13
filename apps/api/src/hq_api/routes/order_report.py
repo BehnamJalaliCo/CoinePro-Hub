@@ -156,7 +156,9 @@ class PublishRuleIn(Model):
     """⟨2026-11-13⟩ A rule on a publication that is out (IG-Hub makes it)."""
 
     trigger: Literal["comment", "story_reply"]
-    keywords: list[str] = Field(min_length=1, max_length=10)
+    # `any` (a comment rule only): every comment on the post, whatever it says
+    match: Literal["contains", "any"] = "contains"
+    keywords: list[str] = Field(default_factory=list, max_length=10)
     reply: str = Field(min_length=1, max_length=1000)
     link: str | None = Field(default=None, max_length=1900)
     button: str | None = Field(default=None, max_length=20)

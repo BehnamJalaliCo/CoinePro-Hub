@@ -275,6 +275,8 @@ class PublishComment(BaseModel):
     link: str | None = None
     button: str | None = None
     public_replies: list[str] = Field(default_factory=list)
+    # ⟨2026-11-13⟩ `any`: every comment on the post is answered, whatever it says
+    match: Literal["contains", "any"] | None = None
 
 
 class SessionRoutine(BaseModel):
