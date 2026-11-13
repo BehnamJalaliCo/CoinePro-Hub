@@ -2,7 +2,11 @@
 
 Gemini takes no audio file (the fault log's item 20), so this is no model: the hub's own speech to
 text (§17, the worker's `Transcribe`) hears the voice, and code compares. It passes when
-- the words match: at least 0.85 of the script's words are heard, in order;
+- the words match: at least 0.85 of the script is heard, in order, measured on its sounds letter by
+  letter (the letters Persian says alike as one: س ص ث، ت ط، ق غ، ز ذ ض ظ، ه ح، ا ع; spaces and
+  half-spaces out), so the hub's small speech model writing «سگنال» for «سیگنال» or «بش نسی» for
+  «بشناسی» is still the same voice, while a missing sentence is not (2026-11-13, the first dry run:
+  a whole 70 s voice was heard at 0.64 word by word, 0.92 this way; a quarter cut off is 0.69);
 - the length is within ±25% of the script's estimate (`estimate_s`, else its words at
   `words_per_min`, default 150);
 - no silence is longer than 2 s (between the heard segments, at the start or at the end).
@@ -48,12 +52,22 @@ def words(text: str) -> list[str]:
     return WORD.findall(t)
 
 
+SOUNDS = str.maketrans({"ص": "س", "ث": "س", "ط": "ت", "غ": "ق", "ظ": "ز", "ض": "ز", "ذ": "ز",
+                        "ح": "ه", "ع": "ا", "ء": None})  # fmt: skip
+
+
+def sounds(script: list[str]) -> str:
+    """The words as one run of sounds: the letters said alike made one, no spaces between."""
+    return "".join(script).translate(SOUNDS)
+
+
 def match_ratio(script: list[str], heard: list[str]) -> float:
-    """The share of the script's words heard, in order."""
-    if not script:
+    """The share of the script heard, in order: its sounds, letter by letter."""
+    a, b = sounds(script), sounds(heard)
+    if not a:
         return 0.0
-    blocks = SequenceMatcher(None, script, heard, autojunk=False).get_matching_blocks()
-    return sum(b.size for b in blocks) / len(script)
+    blocks = SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks()
+    return sum(x.size for x in blocks) / len(a)
 
 
 def longest_silence(transcript: dict[str, Any]) -> float | None:
@@ -127,7 +141,7 @@ class VoiceCheck:
         max_silence = float(C.setting(ctx, "max_silence_s", MAX_SILENCE_S))
         problems: list[str] = []
         if ratio < float(C.setting(ctx, "min_match", MIN_MATCH)):
-            problems.append(f"فقط {_n(ratio * 100)}٪ کلمه‌های سناریو شنیده شد")
+            problems.append(f"فقط {_n(ratio * 100)}٪ سناریو شنیده شد")
         if duration and abs(duration - estimate) > tolerance * estimate:
             problems.append(f"طول صدا {_n(duration)} ثانیه است، نه حدود {_n(estimate)} ثانیه")
         if silence is not None and silence > max_silence:
@@ -141,7 +155,7 @@ class VoiceCheck:
                 retry=True,
             )
         return StepOutput(
-            text=f"صدا با سناریو خواند ({_n(ratio * 100)}٪ کلمه‌ها، {_n(duration)} ثانیه).",
+            text=f"صدا با سناریو خواند ({_n(ratio * 100)}٪ سناریو، {_n(duration)} ثانیه).",
             file_id=str(voice.file_id),
             files=(str(voice.file_id),),
             via="stt",

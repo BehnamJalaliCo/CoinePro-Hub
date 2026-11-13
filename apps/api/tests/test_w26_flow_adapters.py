@@ -167,10 +167,20 @@ async def test_voice_check_passes_a_voice_that_says_the_script(
     assert res.data["match"] >= 0.85 and res.file_id == "F1"
 
 
+def test_voice_check_hears_persian_sounds_not_spellings() -> None:
+    # 2026-11-13, the first dry run: the hub's small speech model wrote the letters Persian says
+    # alike the other way and split words; the voice was whole. A sentence left out still fails.
+    script = voice_check.words("سیگنال اشباع سرعت تغییرات صفر تا صده؛ باید محدودیت‌ها رو بشناسی")
+    heard = voice_check.words("سگنال اشبای سورات تقییرات سفتا سده؛ باید محدودیتا رو بش نسی")
+    assert voice_check.match_ratio(script, heard) >= 0.85
+    cut = voice_check.words("سگنال اشبای سورات تقییرات")
+    assert voice_check.match_ratio(script, cut) < 0.85
+
+
 @pytest.mark.parametrize(
     ("said", "duration", "gaps", "word"),
     [
-        ("سلام دوستان امروز", 5.6, (), "کلمه"),  # words missing
+        ("سلام دوستان امروز", 5.6, (), "سناریو شنیده"),  # words missing
         (SCRIPT, 12.0, (), "طول"),  # far longer than the script's estimate
         (SCRIPT, 5.6, (2.5,), "سکوت"),  # a silence over two seconds
     ],
