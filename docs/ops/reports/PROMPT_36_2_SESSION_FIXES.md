@@ -47,7 +47,27 @@
 - **«ادامه بده» به نام مالک:** دو بار (`session.nudge`). یک پیام مالک هم در جلسه گذاشته شد (`order.reply`، انتخاب نمونه‌ی ۲).
 - **کلید API جمینای:** خود مالک از اپ داد (`voice.secret`).
 
+## ۳۷.۱: قاعده‌ی پستِ منتشرشده از اپ (live = `server/p37-1-publish-rules` 47ef869e)
+- **مالک:** «یجوری اصلاح کن که از داخل آپ این اتفاق بیفتد چون ما تمام مسیر هارو برای همه شرکت ها باز کردیم».
+- **IG-Hub (aea6025، deploy و push شده، main و `claude/coinepro-hub-setup-hsvnw7`):**
+  - `POST /api/v1/rules` با کلید؛ یک قاعده برای هر `key`.
+  - `hq_publish.py` با `meta.rule`.
+  - یک تست تاریخ‌دار (`test_read_now_asks_the_worker`) هم درست شد.
+  - پرامپت `docs/ops/ighub/IGHUB_03_RULES_API.md` به این شکل انجام شد.
+- **هاب:**
+  - `POST /api/v1/publishes/{job}/rules` (مالک).
+  - کار `publish` با `meta.rule` و `rule_for` (بی `session`، پس انتشار جدا حساب نمیشود).
+  - استوری قاعده‌ی کامنت ریلزش را خودکار میگیرد.
+  - کلمه با شکل‌های چسبیده میرود.
+  - Audit: `publish.rule`.
+  - تست: `test_w25_publish_rules.py`.
+- **بکاپ IG-Hub:** `~/backups/ighub-pre-013-20261113T0749Z.dump`. هاب migration نداشت.
+
 ## برای سشن مشورت (پوشه‌های شما؛ من دست نزدم)
+- **۳۷.۱:**
+  - قرارداد `POST /publishes/{job}/rules` و `meta.rule` باید در `contracts/` بیاید.
+  - دکمه‌ی «کامنت هوشمند / جواب استوری» روی انتشارِ منتشرشده باید در اپ بیاید.
+  - ابزار `publish.rule` باید در منشور نقش‌ها بیاید، تا عامل جلسه هم بتواند قاعده بگذارد.
 - **`contracts/`:**
   - `SpeechMakeAnswer.engine` حالا `aistudio | gemini_api` است. `apps/api/openapi/hq-api.v1.json` به‌روز شده است.
   - `narrator.set` ایجنت میتواند 409 بگیرد.
