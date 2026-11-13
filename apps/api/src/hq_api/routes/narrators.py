@@ -83,6 +83,18 @@ async def agent_narrator(body: NarratorSetIn, ctx: Ctx = Depends(internal_ctx)) 
     await allow(ctx, "narrator.set", {"company": who.company, "assigned": order is not None})
     async with ctx.hub.db.tx(wide) as tx:
         company = await ctx.hub.companies.by_id(w["company_id"])
+        cur = await NR.of(tx, company.id)
+        if cur is not None and cur["by_kind"] == "owner":
+            # ⟨2026-11-13⟩ the owner's own choice stays (F-0018: the holder set it back from its
+            # old notes a minute after the owner chose); only the owner changes it
+            style = f" ({cur['style_fa']})" if cur.get("style_fa") else " (بی حالت)"
+            raise ApiError(
+                409,
+                "validation_failed",
+                fields={"voice": "the owner set this company's narrator himself"},
+                message_fa=f"گوینده‌ی این شرکت را مدیر کل خودش گذاشته است: {cur['voice']}{style}. "
+                "همان میماند و ساخت صدا خودش همان را میگیرد؛ عوض کردنش فقط با خود مدیر کل است.",
+            )
         row = await NR.put(tx, company.id, voice=body.voice, style_fa=body.style_fa, by=who)
         await ctx.audit(
             tx,
