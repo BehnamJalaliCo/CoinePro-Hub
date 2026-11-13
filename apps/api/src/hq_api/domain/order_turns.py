@@ -624,7 +624,11 @@ async def owner_word(tx: Tx, ref: str, text: str, *, work_mode: bool) -> dict[st
     words = " ".join((text or "").split())
     if not words:
         return out
-    if work_mode and not is_question(words):
+    # ⟨2026-11-13⟩ in a direct session the holder answers everything in the session: a word with
+    # a question mark is the order's word too. F-0018, 05:25: «این ویدیو نهاییه؟ … قراره هر کلمه …
+    # موشنگرافی بشه …» was read as a question, so it was no step, woke nobody, and the talk (which
+    # does not answer a direct session) said nothing either
+    if work_mode and (not is_question(words) or await _direct_now(tx)):
         try:
             async with tx.conn.begin_nested():
                 got = await reply(tx, ref, text)  # its own lines: the plan is read from them

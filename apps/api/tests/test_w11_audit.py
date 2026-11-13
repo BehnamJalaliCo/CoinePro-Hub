@@ -25,6 +25,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.agents import runner
 from hq_api.domain import groups as GR
@@ -97,7 +98,14 @@ async def test_the_owners_word_in_a_working_session_is_the_orders_word_by_code(
     no_model: list[Any],  # noqa: F811
     talk: dict[str, Any],  # noqa: F811
     new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # the classic session (no workshop for direct turns): a question is the talk's alone. ⟨2026-11-13⟩
+    # with direct turns it is the order's word too (test_w21_direct_session)
+    async def not_direct(tx: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(OT, "_direct_now", not_direct)
     co = (await new_company())["code"]
     out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
     ref, conv = out["ref"], out["talk_ref"]

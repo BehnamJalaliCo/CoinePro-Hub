@@ -713,3 +713,32 @@ async def test_a_turn_without_a_question_is_followed_at_once_while_the_plan_is_o
         assert went == 1
         monkeypatch.setattr(DR, "CONTINUE_MAX", 1)
         assert await DR.go_on(tx, dict(rep), w, o["ref"]) is False
+
+
+async def test_in_a_direct_session_a_word_with_a_question_mark_reaches_the_holder(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018: the owner's «این ویدیو نهاییه؟ … هر کلمه … موشنگرافی بشه» was read as a
+    question: no step, nobody woken. With the workshop holding direct turns, it is his word."""
+    from hq_api.domain import order_turns as OT
+
+    co = (await new_company())["code"]
+    await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    await su.execute(
+        "UPDATE agents.runs SET state = 'refused', error_code = 'test', finished_at = now() "
+        "WHERE work_id = $1 AND state IN ('queued', 'running')",
+        o["work_id"],
+    )
+    words_ = "این ویدیو نهاییه؟ قراره هر جمله موشنگرافی بشه."
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        out = await OT.owner_word(tx, o["ref"], words_, work_mode=True)
+    assert out["replied"] is True and out["woken"] == [o["work_ref"]]
+    rep = (await client.get(f"/api/v1/orders/{o['ref']}/report", headers=owner)).json()
+    assert any(s["who_fa"] == "مدیر کل" and "موشنگرافی" in s["what_fa"] for s in rep["steps"])
