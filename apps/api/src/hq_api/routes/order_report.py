@@ -420,6 +420,35 @@ def _agent(ctx: Ctx) -> None:
         raise ApiError(403, "policy_denied", "agents only")
 
 
+async def _lead_only(tx: Any, ref: str, code: str) -> None:
+    """⟨2026-11-13⟩ One session, one plan: when an order went to several companies, the holder of
+    its first root work holds the plan. F-0018 went to Pro-Chart and IG; both sent a plan (14 and
+    15 tasks: «کار ۱۳ از ۲۹») and did the same steps twice. Another root's holder does its part
+    when the lead asks, and reports it with order.progress: 409 here."""
+    order = await OR.load_order(tx, ref)
+    roots = OR.root_refs(order) if order is not None else []
+    if len(roots) < 2:
+        return
+    rows = await tx.all(
+        """SELECT w.ref, e.code, e.title_fa FROM work.work w
+           JOIN core.employees e ON e.id = w.assignee_id WHERE w.ref = ANY(:roots)""",
+        roots=roots,
+    )
+    by_ref = {str(r["ref"]): r for r in rows}
+    lead = by_ref.get(roots[0])
+    others = {str(by_ref[x]["code"]) for x in roots[1:] if x in by_ref}
+    if lead is None or code == lead["code"] or code not in others:
+        return
+    raise ApiError(
+        409,
+        "validation_failed",
+        fields={"plan": "the session's lead holder holds its plan"},
+        message_fa=f"مسئول این جلسه {lead['title_fa']} است و برنامه‌ی جلسه با اوست. برنامه‌ی جدا "
+        "نساز و کار او را تکرار نکن: بخش خودت را وقتی او خواست انجام بده و نتیجه را با "
+        "order.progress بگو.",
+    )
+
+
 async def _session_open(tx: Any, ref: str) -> None:
     """⟨2026-11-10⟩ A closed session takes no plan, step or question (a run that was still going
     when the owner closed it): 409 `work_closed`, and the run ends with it."""
@@ -440,6 +469,7 @@ async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> 
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
         await _session_open(tx, ref)
+        await _lead_only(tx, ref, ctx.who.code)
         rep = await OR.acknowledge(
             tx,
             ctx.who,

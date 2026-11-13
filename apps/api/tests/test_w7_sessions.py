@@ -887,3 +887,46 @@ async def test_the_player_persona_is_data_and_the_hire_card_names_its_company() 
     assert CARD_HELP["order"] in free and "ON THIS ORDER" not in free
     guest = persona_section(p, "work", ("ask",), False, "F-0001", holder=False, sum_up=True)
     assert "another persona holds it" in guest and "Sum up" in guest
+
+
+async def test_an_order_of_two_companies_has_one_plan_its_leads(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018 went to Pro-Chart and IG; both sent a plan (14 + 15 tasks, «کار ۱۳ از
+    ۲۹») and did each step twice. The first root's holder holds the plan; another root's holder
+    gets 409 with a plain line and does its part when asked."""
+    co = (await new_company())["code"]
+    other = await new_company()
+    out = await post_order(client, owner, f"برای {co} برنامه‌ی ریلز را آماده کن {words()}")
+    ref = out["ref"]
+    [route] = out["routes"]
+    lead = route["to"]
+    second = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code,
+               assignee_id, status)
+           SELECT $1, 'one_off', 'همکاری', 'service', 'orders', e.id, 'in_progress'
+           FROM core.employees e WHERE e.code = $2 RETURNING ref""",
+        other["id"], f"{other['code']}-CEO",
+    )  # fmt: skip
+    await su.execute(
+        """UPDATE owner.orders SET routes = routes || jsonb_build_array(jsonb_build_object(
+               'to', $2::text, 'kind', 'work', 'company', $3::text, 'work_ref', $4::text))
+           WHERE ref = $1""",
+        ref, f"{other['code']}-CEO", other["code"], second,
+    )  # fmt: skip
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/ack",
+        headers=await agent_headers(f"{other['code']}-CEO"),
+        json={"plan_fa": "برنامه‌ی من", "steps": ["نوت", "بانک موضوع"]},
+    )
+    assert r.status_code == 409 and "برنامه‌ی جدا" in r.json()["message_fa"], r.text
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/ack",
+        headers=await agent_headers(lead),
+        json={"plan_fa": "برنامه", "steps": ["نوت", "بانک موضوع"]},
+    )
+    assert r.status_code == 200 and len(r.json()["tasks"]) == 2, r.text
