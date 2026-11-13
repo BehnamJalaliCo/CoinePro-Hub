@@ -605,9 +605,16 @@ def wall_of(j: dict[str, Any]) -> tuple[str | None, str | None]:
 
 
 async def fresh_files(tx: Tx, work_id: Any, files: list[str]) -> list[str]:
-    """⟨2026-11-13⟩ The files whose content (sha256) no earlier card of this work holds."""
+    """⟨2026-11-13⟩ The files whose content (sha256) no earlier card of this work holds. A turn that
+    sent a video sends a publish package: its files stay whole (F-0018: the final video's card lost
+    its cover.jpg, the same picture as a 01:34 cover, and a reel is published from one card)."""
     if not files:
         return []
+    kinds = await tx.all(
+        "SELECT mime FROM files.files WHERE id = ANY(CAST(:ids AS uuid[]))", ids=files
+    )
+    if any(str(r["mime"] or "").startswith("video/") for r in kinds):
+        return list(dict.fromkeys(files))
     old = await tx.all(
         """SELECT DISTINCT f.sha256 FROM cartable.deliverables d
            JOIN files.files f ON f.id = ANY(d.attachments)

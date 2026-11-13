@@ -642,7 +642,8 @@ async def test_the_same_content_is_not_delivered_twice(
                VALUES ($1, 'one_off', 'کار', 'service', 'test') RETURNING id""",
             co["id"],
         )
-        assert await WSX.fresh_files(tx, w, [v1, v2, cover]) == [v1, cover]
+        # a video in the set: a publish package, kept whole (F-0018: the cover was lost)
+        assert await WSX.fresh_files(tx, w, [v1, v2, cover]) == [v1, v2, cover]
     # once a card of the work holds it, it is not delivered again
     emp = await su.fetchval("SELECT id FROM core.employees WHERE company_id = $1 LIMIT 1", co["id"])
     await su.execute(
@@ -652,7 +653,23 @@ async def test_the_same_content_is_not_delivered_twice(
         co["id"], w, emp, v1,
     )  # fmt: skip
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        assert await WSX.fresh_files(tx, w, [v2, cover]) == [cover]
+        assert await WSX.fresh_files(tx, w, [v2, cover]) == [v2, cover]  # a video: a package
+        # a set without a video drops what an earlier card holds
+        cap = str(await su.fetchval(
+            """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                   created_by_kind, created_by_code, kind)
+               VALUES ($1, 'caption.txt', 'text/plain', 1, $2, gen_random_uuid()::text, 'agent',
+                       'x', 'document') RETURNING id""",
+            co["id"], "c" * 64,
+        ))  # fmt: skip
+        cover2 = str(await su.fetchval(
+            """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                   created_by_kind, created_by_code, kind)
+               VALUES ($1, 'cover-2.jpg', 'image/jpeg', 1, $2, gen_random_uuid()::text, 'agent',
+                       'x', 'image') RETURNING id""",
+            co["id"], "a" * 64,
+        ))  # fmt: skip
+        assert await WSX.fresh_files(tx, w, [cover2, cap]) == [cap]
 
 
 async def test_a_turn_without_a_question_is_followed_at_once_while_the_plan_is_open(
