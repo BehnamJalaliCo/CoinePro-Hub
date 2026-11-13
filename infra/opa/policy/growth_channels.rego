@@ -16,3 +16,14 @@ owner_only_growth_ops := {
 }
 
 deny_reasons contains "owner_only_growth" if op in owner_only_growth_ops
+
+# ⟨1.37⟩ board (contract §59.9, §59.10): the automations board, its health, the owner's day, the
+# calendar and an automation's audit are the OWNER's routes (/api/v1, owner session); n8n's
+# summary is /internal/v1/flows/summary, signed by n8n's HMAC (§30.4) and no principal's op. Named
+# here so that no agent or service op of /internal/v1 ever reaches them.
+owner_only_board_ops := {
+	"automation.board", "automation.today", "automation.calendar", "automation.audit",
+	"automation.summary",
+}
+
+deny_reasons contains "owner_only_board" if op in owner_only_board_ops
