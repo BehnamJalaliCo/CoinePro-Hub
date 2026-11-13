@@ -47,3 +47,28 @@ test_the_connection_read_stays_open_to_the_growth_lead if {
 		"target": {"company": "TY", "charter": "growth_lead"},
 	}
 }
+
+# ⟨1.37⟩ board
+test_no_agent_reaches_the_automations_board if {
+	every op in internal.owner_only_board_ops {
+		not internal.allow with input as {
+			"principal": channel_agent("TY-CEO", "ceo", "CEO"),
+			"op": op,
+			"target": {"company": "TY"},
+		}
+		not internal.allow with input as {
+			"principal": {"kind": "service", "code": "n8n", "role": "service"},
+			"op": op,
+			"target": {"company": "TY"},
+		}
+	}
+}
+
+test_the_board_refusal_names_the_reason if {
+	r := internal.deny_reasons with input as {
+		"principal": channel_agent("TY-CEO", "ceo", "CEO"),
+		"op": "automation.board",
+		"target": {"company": "TY"},
+	}
+	r.owner_only_board
+}

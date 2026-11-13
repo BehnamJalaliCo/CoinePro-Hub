@@ -141,6 +141,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "holding": ("links.", "holding."),
     # ⟨1.20⟩ §38 topic `hub`: hub.job (a hub operation's state changed)
     "hub": ("hub.",),
+    # ⟨1.37⟩ §59.11 topic `automations`: automation.run, .step, .changed, .summary (they still
+    # reach `growth` too, as automation.run always did)
+    "automations": ("automation.",),
 }
 
 

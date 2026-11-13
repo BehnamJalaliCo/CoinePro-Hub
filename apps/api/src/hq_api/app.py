@@ -70,6 +70,7 @@ from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import automation_board as board_routes  # ⟨1.37⟩ §59.9-§59.10 board, day
 from hq_api.routes import automations as automation_routes  # prompt 22 part 3: §31.7
 from hq_api.routes import campaigns as campaign_routes  # prompt 22 part 3: §31.5
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
@@ -338,6 +339,8 @@ def create_app(
     # a company's links and a flow's replies; n8n's tick and summary
     app.include_router(flow_auto_routes.router, prefix="/api/v1")
     app.include_router(flow_auto_routes.internal_router, prefix="/internal/v1")
+    app.include_router(board_routes.router, prefix="/api/v1")
+    app.include_router(board_routes.internal_router, prefix="/internal/v1")
     app.include_router(site_link_routes.router, prefix="/api/v1")
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")
