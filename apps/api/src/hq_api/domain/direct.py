@@ -77,7 +77,10 @@ SKILL_READ = "skill_read"
 # turns: the session's memory is caught up first, and the next turn is a fresh Claude session in
 # the same folder that starts from the memory, the folder's NOTES.md, the session's state and the
 # owner's last words.
-ROTATE_TOKENS = 250_000
+# ⟨2026-11-13⟩ 250K -> 150K: on F-0018 a fresh session's turns read 3.2M then 4.9M (9-11 min of
+# work) as it grew to 189K; a session's own base is ~50K (Claude Code, 74 hub tools ~22K, the
+# brief ~7K), so 150K keeps every step's re-read near half of what 250K allowed
+ROTATE_TOKENS = 150_000
 NOTES_FILE = "NOTES.md"
 # ⟨2026-11-13⟩ The owner: «۱۳ دقیقه بیکار بود؛ نباید این اتفاق بیفتد … روند تا انتهای کارگروه باید
 # مرتب بره». A turn that ends without a question to the owner while the plan has open tasks is
