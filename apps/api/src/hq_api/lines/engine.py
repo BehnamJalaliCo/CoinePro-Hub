@@ -1081,6 +1081,21 @@ async def _on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
             )
             state = await _done(tx, hub, run, cur, sdef, out)
         else:
+            # ⟨1.37⟩ a failed turn cost all the same (a workshop turn that left no file): on its step
+            await tx.exec(
+                """UPDATE lines.step_runs SET tokens = tokens + :t, usd_equiv = usd_equiv + :u,
+                       via = :via WHERE id = :id""",
+                id=cur["id"],
+                t=_int(body.get("tokens")),
+                u=_usd(body.get("usd_equiv")),
+                via=str(body.get("via") or "n8n")[:40],
+            )
+            await tx.exec(
+                "UPDATE lines.runs SET tokens = tokens + :t, usd_equiv = usd_equiv + :u WHERE id = :id",
+                id=run["id"],
+                t=_int(body.get("tokens")),
+                u=_usd(body.get("usd_equiv")),
+            )
             steps = await store.step_rows(tx, run["id"])
             err = StepFailed(
                 str(body.get("error_fa") or "گردش کار n8n نشد."), retry=bool(body.get("retry"))

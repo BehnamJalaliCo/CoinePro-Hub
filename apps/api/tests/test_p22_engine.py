@@ -778,6 +778,35 @@ async def test_n8n_callback_is_signed_and_a_ceo_gate_is_the_ceos(
     assert steps_of(late)["flow"]["state"] == "failed" and "نرسید" in late["note_fa"]
 
 
+async def test_a_failed_answer_still_books_what_the_turn_cost(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], new_company: Any,
+    su: Any, fakes: Fakes,
+) -> None:  # fmt: skip
+    """⟨1.37⟩ 2026-11-13, the first dry run: a workshop turn that left no file fails its step, and
+    what it cost (its tokens, its usd) is on the step and the run all the same."""
+    h = owner_session["headers"]
+    co = await new_company()
+    line = await make_line(client, h, co["code"], template="flow_test")
+    async with holding_switch(su, "released"):
+        run = await start(client, h, line["ref"])
+        assert (await engine.drive(hub, run["ref"]))["state"] == "waiting"
+        got = await engine.on_callback(
+            hub, {"run": run["ref"], "step": "flow", "ok": False, "error_fa": "فایلی نماند.",
+                  "tokens": 3_474_027, "usd_equiv": "3.312", "via": "workshop"},
+        )  # fmt: skip
+        assert got is not None and got["state"] in ("failed", "running")
+    row = await su.fetchrow(
+        """SELECT s.state, s.tokens, s.usd_equiv, s.via, r.tokens AS run_tokens,
+                  r.usd_equiv AS run_usd
+           FROM lines.step_runs s JOIN lines.runs r ON r.id = s.run_id
+           WHERE r.ref = $1 AND s.key = 'flow'""",
+        run["ref"],
+    )
+    assert row["tokens"] == 3_474_027 and str(row["usd_equiv"]).startswith("3.312")
+    assert row["via"] == "workshop" and row["run_tokens"] >= 3_474_027
+    assert row["run_usd"] >= row["usd_equiv"]
+
+
 async def test_an_n8n_answer_that_beats_the_steps_parking_looks_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
