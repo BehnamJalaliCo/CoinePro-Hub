@@ -5,7 +5,10 @@ kind `cover_folder` in the line's library; `settings.cover_folder` names one by 
 into the chat with the brief (the step's prompt, with the content filled in) and the generated image
 comes back as a file. No silent switch to another generator: a signed-out ChatGPT, a page that
 changed or no image are plain failures. Settings: `cover_folder` (asset id, optional), `max_files`
-(default 6).
+(default 6). ⟨1.37⟩ §59.2 each image is a new regular chat (the recipe's `cover` and `image` tasks
+open chatgpt.com afresh for every job; a temporary chat makes no image). `folder: optional` (a
+flow's cover step, whose playbook carries no company folder): with no cover folder in the line's
+library the brief alone goes to the recipe's `image` task.
 """
 
 from __future__ import annotations
@@ -21,11 +24,13 @@ FILE_CAP = 5 * 1024 * 1024
 IMAGE_MIMES = ("image/png", "image/jpeg", "image/webp")
 
 
-def folder_of(ctx: StepContext) -> dict[str, Any]:
+def folder_of(ctx: StepContext) -> dict[str, Any] | None:
     want = C.setting(ctx, "cover_folder")
     folders = [a for a in ctx.library if a.get("kind") == "cover_folder"]
     if want:
         folders = [a for a in folders if str(a.get("id")) == str(want)]
+    if not folders and not want and C.setting(ctx, "folder") == "optional":
+        return None
     if not folders:
         raise StepFailed(
             "پوشه‌ی کاور برای این خط انتخاب نشده؛ در کتابخانه یک «پوشه‌ی کاور» اضافه و به خط وصل کن.",
@@ -43,6 +48,8 @@ class Cover:
             raise StepFailed("متن درخواست کاور خالی است.", code="empty_prompt")
         folder = folder_of(ctx)
         co = await C.company_of(ctx)
+        if folder is None:
+            return await self._brief_only(ctx, brief, co)
         files: list[dict[str, str]] = []
         for fid in list(folder.get("files") or [])[: int(C.setting(ctx, "max_files", 6))]:
             data, row = await C.file_bytes(ctx.hub, co.id, str(fid), with_holding=True)
@@ -69,6 +76,23 @@ class Cover:
             files=(str(fid),),
             via=ACCOUNT,
             data={"folder": str(folder.get("id")), "from_files": len(files), "mime": mime},
+        )
+
+    async def _brief_only(self, ctx: StepContext, brief: str, co: Any) -> StepOutput:
+        got = await C.web_job(
+            ctx.hub, account=ACCOUNT, task="image", prompt=brief, timeout_s=C.timeout_of(ctx, 180)
+        )
+        data, _name, mime = C.decode_b64(got.get("file"))
+        if not mime.startswith("image/"):
+            raise StepFailed("چیزی که از ChatGPT آمد تصویر نبود.", code="not_image", retry=True)
+        fid = await C.store_file(
+            ctx.hub, co.id, data, name=f"{ctx.run_ref}-cover.{mime.split('/')[1]}", mime=mime
+        )
+        return StepOutput(
+            file_id=str(fid),
+            files=(str(fid),),
+            via=ACCOUNT,
+            data={"folder": None, "from_files": 0, "mime": mime},
         )
 
 

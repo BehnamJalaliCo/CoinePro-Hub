@@ -11,6 +11,12 @@ The text to speak is the first input step's text (`settings.text_from` names ano
 
 `speak()` is the one egress call, shared with the media roles' `speech.make` outside the lines
 (domain/speech_make.py).
+
+⟨1.37⟩ §59.2 the voice chain, as `speech.make` has it since 2026-11-13: Gemini's API first (the
+voice layer's engine `gemini-3.8-flash-tts`, a long text read in parts and joined:
+speech_make.api_speak), the AI Studio page only when the API has no key, refuses or fails; never a
+`lite` model (the engine is fixed here, not a setting). The company's narrator (§48) is the voice:
+when the company has one, its voice and style put the step's own settings aside.
 """
 
 from __future__ import annotations
@@ -27,6 +33,7 @@ ACCOUNT = "aistudio-web"
 DEFAULT_VOICE = "Kore"
 MAX_CHARS = 5_000  # one generation; a longer text is cut into lines by the script step
 CACHE_S = 24 * 3600
+API_ENGINE = "gemini-3.8-flash-tts"  # §59.2: the API's and the page's model; never a `lite` one
 
 # AI Studio's documented prebuilt speakers (Gemini speech generation), used when no live list is
 # available: (name, gender, trait in Persian). A fallback, labelled as such in the list.
@@ -112,6 +119,37 @@ async def speak(
     return data, mime
 
 
+# Tests put a fake here: (hub, job) -> (audio, mime) | None; production asks speech_make.api_speak.
+API_OVERRIDE: Any = None
+
+
+async def narrator_of(ctx: StepContext, company_id: Any) -> dict[str, Any] | None:
+    """§48 the company's narrator ({voice, style_fa}), or None."""
+    from hq_api.domain import narrator as NR
+
+    try:
+        async with ctx.hub.db.tx([company_id]) as tx:
+            row = await NR.of(tx, company_id)
+    except Exception:  # noqa: BLE001 - no narrator read: the step's own voice
+        log.info("narrator not read", extra={"company": ctx.company})
+        return None
+    return row if isinstance(row, dict) and row.get("voice") else None
+
+
+async def api_voice(
+    ctx: StepContext, text: str, voice: str, style: str
+) -> tuple[bytes, str] | None:
+    """The voice from Gemini's API (speech_make's own call), or None (the page is tried then)."""
+    job = {"job": f"{ctx.run_ref}-{ctx.step.get('key', 'voice')}", "text": text, "voice": voice,
+           "style": style, "by": "lines"}  # fmt: skip
+    if API_OVERRIDE is not None:
+        got: tuple[bytes, str] | None = await API_OVERRIDE(ctx.hub, job)
+        return got
+    from hq_api.domain import speech_make as SM
+
+    return await SM.api_speak(ctx.hub, job)
+
+
 class Tts:
     kind = "tts"
 
@@ -120,10 +158,20 @@ class Tts:
         style = str(C.setting(ctx, "style", "") or "").strip()
         src = C.first_input(ctx, C.setting(ctx, "text_from"))
         text = str((src.text if src is not None else None) or ctx.prompt or "").strip()
-        data, mime = await speak(
-            ctx.hub, text, voice=voice, style=style, timeout_s=C.timeout_of(ctx, 240)
-        )
+        if not text:
+            raise StepFailed("متنی برای صداگذاری نیست.", code="empty_text")
         co = await C.company_of(ctx)
+        narrator = await narrator_of(ctx, co.id)
+        if narrator is not None:
+            voice, style = str(narrator["voice"]), str(narrator.get("style_fa") or "").strip()
+        await C.check_unlocked(ctx.hub)
+        got = await api_voice(ctx, text, voice, style)
+        engine = "gemini_api" if got is not None else "aistudio"
+        if got is None:
+            got = await speak(
+                ctx.hub, text, voice=voice, style=style, timeout_s=C.timeout_of(ctx, 240)
+            )
+        data, mime = got
         fid = await C.store_file(
             ctx.hub,
             co.id,
@@ -134,9 +182,10 @@ class Tts:
         return StepOutput(
             file_id=str(fid),
             files=(str(fid),),
-            via=ACCOUNT,
-            data={"voice": voice, "style": style, "mime": mime, "bytes": len(data)},
-        )
+            via=ACCOUNT if engine == "aistudio" else "gemini-api",
+            data={"voice": voice, "style": style, "mime": mime, "bytes": len(data),
+                  "engine": engine, "model": API_ENGINE, "narrator": narrator is not None},
+        )  # fmt: skip
 
 
 def ext(mime: str) -> str:
