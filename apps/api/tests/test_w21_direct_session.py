@@ -22,7 +22,7 @@ from hq_api import workflows_client
 from hq_api.domain import direct as DR
 from hq_api.hub import Hub
 
-from .conftest import idem
+from .conftest import agent_headers, idem
 from .test_p13a_media import mp4
 from .test_p17_runners import take
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
@@ -658,3 +658,58 @@ async def test_a_card_names_its_files_and_the_same_content_is_not_delivered_twic
     )  # fmt: skip
     async with hub.db.tx(await hub.companies.ids()) as tx:
         assert await WSX.fresh_files(tx, w, [v2, cover]) == [cover]
+
+
+async def test_a_turn_without_a_question_is_followed_at_once_while_the_plan_is_open(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018 sat idle 13 minutes after a turn that ended «فعلاً کاری با شما نیست»:
+    the next turn now starts at once while the plan has open tasks, at most CONTINUE_MAX times
+    since the owner's last word; a turn that asked him waits for him."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    r = await client.post(
+        f"/internal/v1/orders/{o['ref']}/ack",
+        headers=await agent_headers(o["holder"]),
+        json={"plan_fa": "دو قدم", "steps": ["صدا", "ویدیو"]},
+    )
+    assert r.status_code == 200, r.text
+    # the agent's own token holds a run of its own: ended, as its run would end
+    await su.execute(
+        "UPDATE agents.runs SET state = 'done', finished_at = now() "
+        "WHERE employee_id = $1 AND state = 'running'",
+        o["emp"]["id"],
+    )
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    await result(
+        client, rn, job["id"], "صدا را ساختم؛ نوبت بعد کنترلش میکنم. فعلاً کاری با شما نیست."
+    )
+    nxt = await su.fetchrow(
+        "SELECT reason FROM agents.runs WHERE work_id = $1 AND state = 'queued'", o["work_id"]
+    )
+    assert nxt is not None and nxt["reason"] == f"{DR.CONTINUE_REASON}{o['ref']}"
+    assert "قدم بعد برنامه" in DR.why_fa(nxt["reason"])
+    # capped: once CONTINUE_MAX turns went on by themselves since his last word, none more
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        from hq_api.domain import work as W
+
+        rep = await tx.first("SELECT * FROM owner.order_reports WHERE ref = :r", r=o["ref"])
+        w = await W.load(tx, o["work_id"])
+        went = await tx.scalar(
+            "SELECT count(*) FROM agents.runs WHERE work_id = :w AND reason = :r",
+            w=o["work_id"], r=f"{DR.CONTINUE_REASON}{o['ref']}",
+        )  # fmt: skip
+        assert went == 1
+        monkeypatch.setattr(DR, "CONTINUE_MAX", 1)
+        assert await DR.go_on(tx, dict(rep), w, o["ref"]) is False

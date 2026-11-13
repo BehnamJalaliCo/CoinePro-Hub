@@ -79,6 +79,12 @@ SKILL_READ = "skill_read"
 # owner's last words.
 ROTATE_TOKENS = 250_000
 NOTES_FILE = "NOTES.md"
+# ⟨2026-11-13⟩ The owner: «۱۳ دقیقه بیکار بود؛ نباید این اتفاق بیفتد … روند تا انتهای کارگروه باید
+# مرتب بره». A turn that ends without a question to the owner while the plan has open tasks is
+# followed at once by the next turn (not by the idle sweep ten minutes later), at most
+# CONTINUE_MAX times since the owner's last word: then the sweep's `stuck` and its one notice.
+CONTINUE_REASON = "continue:"
+CONTINUE_MAX = 6
 
 RULES_FA = (
     "قاعده‌های این جلسه:",
@@ -264,6 +270,11 @@ def why_fa(reason: str) -> str:
             "ستاد تو را بیدار کرد: روی این جلسه هیچ کاری در جریان نیست. طبق «بیدارباش ستاد» کار باز "
             "برنامه را همین حالا خودت پیش ببر یا یک سؤال کوتاه با order_ask از مدیر کل بپرس؛ فقط "
             "گزارش ننویس."
+        )
+    if reason.startswith(CONTINUE_REASON):
+        return (
+            "نوبت قبلی‌ات تمام شد و از مدیر کل سؤالی باز نیست؛ قدم بعد برنامه را همین حالا انجام "
+            "بده. اگر چیزی فقط با مدیر کل است، یک سؤال کوتاه با order_ask بپرس؛ فقط گزارش ننویس."
         )
     if reason.startswith("speech_done:"):
         return "صدای گوینده‌ای که خواسته بودی آماده شد (speech_make با همان job)؛ با آن ادامه بده."
@@ -609,6 +620,42 @@ async def after_turn(
     await events.emit(tx, w["company"], "order.updated", ref, {"direct": "idle"})
     if ref and await pending_word(tx, ref, j):
         await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"owner_reply:{ref}")
+    elif ref and text and not asked:
+        await go_on(tx, dict(rep), w, ref)
+
+
+async def go_on(tx: Tx, rep: dict[str, Any], w: dict[str, Any], ref: str) -> bool:
+    """⟨2026-11-13⟩ The next turn at once, when the plan has open tasks and fewer than CONTINUE_MAX
+    turns went on by themselves since the owner's last word. True when one was queued."""
+    import contextlib
+    from datetime import datetime
+
+    from hq_api.domain import sessions as SE
+
+    open_tasks = [
+        t for t in await SE.tasks_of(tx, rep["order_id"]) if t["state"] not in ("done", "dropped")
+    ]
+    if not open_tasks:
+        return False
+    since = rep.get("created_at")
+    for s in reversed(OR._j(rep.get("steps")) or []):
+        if isinstance(s, dict) and s.get("who_fa") == "مدیر کل":
+            with contextlib.suppress(ValueError):
+                since = datetime.fromisoformat(str(s.get("at")))
+            break
+    went = await tx.scalar(
+        """SELECT count(*) FROM agents.runs WHERE work_id = :w AND reason = :r
+             AND created_at > :since""",
+        w=w["id"],
+        r=f"{CONTINUE_REASON}{ref}",
+        since=since,
+    )
+    if int(went or 0) >= CONTINUE_MAX:
+        return False
+    run = await tx.scalar(
+        "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{CONTINUE_REASON}{ref}"
+    )
+    return run is not None
 
 
 # ------------------------------------------------------------------ the tools --
