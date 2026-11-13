@@ -63,6 +63,7 @@ import com.coinepro.hq.core.net.MemberPublish
 import com.coinepro.hq.core.net.Playbook
 import com.coinepro.hq.core.net.PlaybookApplied
 import com.coinepro.hq.core.net.applyWithWord
+import com.coinepro.hq.core.net.gated
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.DIcon
@@ -111,39 +112,52 @@ import java.util.UUID
 @Composable
 fun PlaybooksScreen() {
     val nav = LocalNav.current
-    val q = rememberPlaybooks()
     val on = served(HubFeature.PLAYBOOKS)
     val companies = rememberCompanies()
+    // ⟨1.37⟩ §59.1 the library: search, the filters (platform, state, company) and a card per playbook with its figures
+    var text by rememberSaveable { mutableStateOf("") }
+    var platform by rememberSaveable { mutableStateOf<String?>(null) }
+    var state by rememberSaveable { mutableStateOf<String?>(null) }
+    var company by rememberSaveable { mutableStateOf<String?>(null) }
+    val q = rememberLibrary(text.trim(), platform, state, company)
     val r = refresher(q)
+    val importFile = rememberImport { pb -> nav.go("playbook/${pb.ref}") }
+    val library = served(HubFeature.LIBRARY)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item(key = "head") { PageHeader("کارگروه‌ها", eyebrow = "نتیجه‌ی هر جلسه، ماندگار؛ مُهرش کن و به هر شرکت و پلتفرمی بده") }
-        val list = q.data
+        item(key = "head") {
+            PageHeader("کتابخانه‌ی کارگروه‌ها", eyebrow = "هر کارگروه آزموده، نسخه‌دار؛ با یک فرم در هر شرکتی به کار میرود") {
+                if (library) IconBtn(DivanIcon.ATTACH, "درون‌آوری فایل", importFile)
+            }
+        }
+        item(key = "search") {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HqTextField(text, { text = it }, "جستجو در نام و هدف کارگروه‌ها", Modifier.fillMaxWidth(), maxLength = 80)
+                LibraryFilters(
+                    platform, { platform = it }, state, { state = it }, company, { company = it },
+                    companies.filter { it.kind != "holding" && it.status != "archived" }.map { it.code to (it.nameFa ?: it.code) },
+                )
+            }
+        }
+        val list = q.data?.let { com.coinepro.hq.core.data.libraryFiltered(it, text, platform, state, company) }
         when {
             list == null && q.error != null -> item(key = "error") { ErrorBlock(q.error, { q.refresh() }) }
             list == null && !on -> item(key = "none") {
                 Empty("کارگروه‌ها با به‌روزرسانی بعدی هاب میایند", icon = DivanIcon.DEPARTMENT, body = "تا آن موقع کارگروه‌های هر شرکت در «کارگروه‌ها»ی رشد است.")
             }
-            list == null -> items(3, key = { "sk-$it" }) { Skeleton(Modifier.fillMaxWidth().height(72.dp), radius = 14.dp) }
+            list == null -> items(3, key = { "sk-$it" }) { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp) }
+            list.isEmpty() && (text.isNotBlank() || platform != null || state != null || company != null) -> item(key = "nothing") {
+                Empty("کارگروهی با این پالایش نیست", icon = DivanIcon.FILTER)
+            }
             list.isEmpty() -> item(key = "empty") {
-                Empty("هنوز کارگروهی نیست", icon = DivanIcon.DEPARTMENT, body = "از هر جلسه با دکمه‌ی «کارگروه از این جلسه بساز» در «جزئیات» همان جلسه.")
+                Empty("هنوز کارگروهی نیست", icon = DivanIcon.DEPARTMENT, body = "جلسه‌ای که بسته شود کارگروهش را این‌جا میگذارد؛ یا از «جزئیات» هر جلسه «کارگروه از این جلسه بساز».")
             }
-            else -> for ((title, group) in libraryGroups(list)) {
-                item(key = "t-$title") { SectionTitle(title, note = "${faNum(group.size)} کارگروه") }
-                item(key = "g-$title") {
-                    HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                        group.forEachIndexed { i, pb ->
-                            if (i > 0) HorizontalDivider(color = Divan.colors.lineDivider)
-                            PlaybookRow(pb, pb.source.company?.let { companyOf(companies, it).nameFa }, showState = false) { nav.go("playbook/${pb.ref}") }
-                        }
-                    }
-                }
-            }
+            else -> items(list.size, key = { "pb-" + list[it].ref }) { i -> LibraryCard(list[i]) { nav.go("playbook/${list[i].ref}") } }
         }
     }
 }
 
 // -------------------------------------------------------------------- page --
-private enum class PbSheet { NONE, APPLY, RETIRE }
+private enum class PbSheet { NONE, APPLY, RETIRE, COPY, COMPARE, USE_VERSION }
 
 /** A draft's light edits, kept on the phone until «ذخیره» or the seal (one `PATCH` of only what changed). */
 @Stable
@@ -155,18 +169,22 @@ private class DraftEdit(val pb: Playbook) {
 }
 
 @Composable
-fun PlaybookScreen(ref: String) {
+fun PlaybookScreen(ref: String, version: Int? = null) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
     val act = activity()
     val haptics = rememberHaptics()
     val c = Divan.colors
-    val q = rememberPlaybook(ref)
+    // ⟨1.37⟩ §59.1 a version of its own ([version]), or the playbook as the hub serves it (the newest sealed, else the newest draft)
+    val q = if (version == null) rememberPlaybook(ref)
+    else com.coinepro.hq.ui.rememberQuery("playbook:$ref:v$version", "playbooks", "groups", maxAgeMs = 15_000) { gated(HubFeature.PLAYBOOKS) { playbookAt(ref, version) } }
     val on = served(HubFeature.PLAYBOOKS)
     val r = refresher(q)
     val companies = rememberCompanies()
     var sheet by rememberSaveable { mutableStateOf(PbSheet.NONE) }
+    var pickedVersion by rememberSaveable { mutableStateOf(0) }
+    val library = served(HubFeature.LIBRARY)
     // `group.playbook` names the playbook that moved (drafted, edited in the session, sealed, given, retired).
     LaunchedEffect(env, ref) { env.stream.events.collect { e -> if (e.type == "group.playbook" && e.ref == ref) q.refresh() } }
     val pb = q.data
@@ -219,7 +237,8 @@ fun PlaybookScreen(ref: String) {
                     Text(
                         remember(pb, shown.platform, companies) {
                             facts(
-                                pbPlatformLineFa(shown.platform), pb.source.company?.let { "شرکت: ${companyOf(companies, it).nameFa}" },
+                                pbPlatformLineFa(shown.platform), com.coinepro.hq.core.data.versionFa(pb.version).takeIf { pb.versions.isNotEmpty() },
+                                pb.source.company?.let { "شرکت: ${companyOf(companies, it).nameFa}" },
                                 pb.parent?.let { "نسخه‌ای از کارگروهی دیگر" }, pb.createdAt.takeIf { it.isNotBlank() }?.let { "ساخته شد ${jDate(it)}" },
                                 pb.sealedAt?.let { "مُهر شد ${jDate(it)}" }, pb.retiredAt?.let { "بازنشسته شد ${jDate(it)}" },
                             )
@@ -229,7 +248,10 @@ fun PlaybookScreen(ref: String) {
                 },
                 actions = {
                     if (pb.source.order.isNotBlank()) QuietLink("جلسه‌ای که از آن ساخته شد", { nav.go("session/${pb.source.order}") })
-                    if (pb.sealed) {
+                    if (pb.sealed && served(HubFeature.LIBRARY)) {
+                        // ⟨1.37⟩ §59.4 the page's act: one form for another company; adapting it in a session and retiring are in «کارها»
+                        HqButton("در شرکت دیگر به کار ببر", { nav.go("playbook/${pb.ref}/use") }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
+                    } else if (pb.sealed) {
                         HqButton("به شرکت دیگر بده", { sheet = PbSheet.APPLY }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
                         HqButton("بازنشسته کن", { sheet = PbSheet.RETIRE }, variant = BtnVariant.TEXT, size = BtnSize.SM)
                     }
@@ -253,6 +275,13 @@ fun PlaybookScreen(ref: String) {
                             }
                             if (draft != null) {
                                 item(key = "hint") { Hint(onSession = { nav.go("session/${pb.source.order}") }) }
+                                // ⟨1.37⟩ §59.2 the flow and what it hands over, read here; changed in words in the session
+                                if (pb.steps.isNotEmpty()) item(key = "flow") { FlowSection(pb) }
+                                if (pb.`package`.isNotEmpty()) item(key = "package") { PackageSection(pb) }
+                                if (pb.lessons.isNotEmpty()) item(key = "lessons") { LessonsFold(pb) }
+                                if (pb.versions.size > 1) item(key = "versions") {
+                                    VersionsSection(pb, here = pb.version, onOpen = { v -> nav.go("playbook/${pb.ref}/v/$v") }, onCompare = { sheet = PbSheet.COMPARE }) { v -> pickedVersion = v; sheet = PbSheet.USE_VERSION }
+                                }
                                 item(key = "draft") {
                                     DraftEditor(draft, standing = if (publishes(pb)) ({ StandingChoice(word, { word = it }, company = pb.source.company?.takeIf { !companyOf(companies, it).holding }) }) else null)
                                 }
@@ -264,12 +293,22 @@ fun PlaybookScreen(ref: String) {
                                     }
                                 }
                                 if (pb.routines.isNotEmpty()) item(key = "routines") { RoutineRuns(pb) }
+                                // ⟨1.37⟩ §59.1–§59.2 the flow step by step, the package, the lessons
+                                if (pb.steps.isNotEmpty()) item(key = "flow") { FlowSection(pb) }
+                                if (pb.`package`.isNotEmpty()) item(key = "package") { PackageSection(pb) }
+                                if (pb.lessons.isNotEmpty()) item(key = "lessons") { LessonsFold(pb) }
                                 // What the working group is: read when he wants it, folded until then.
                                 item(key = "definition") {
                                     Fold("تعریف کارگروه", remember(pb) { facts(*sealSummary(pb.seats.size, pb.routines.size, pb.connections.size).toTypedArray()) }, tag = "group-definition") { Definition(pb) }
                                 }
                                 pb.group?.takeIf { pb.sealed }?.let { g ->
                                     item(key = "kpis") { QuietLink("شاخص‌ها و آزمایش هفته در «کارگروه‌ها»", { nav.go("groups/$g") }) }
+                                }
+                                item(key = "versions") {
+                                    VersionsSection(pb, here = pb.version, onOpen = { v -> nav.go("playbook/${pb.ref}/v/$v") }, onCompare = { sheet = PbSheet.COMPARE }) { v -> pickedVersion = v; sheet = PbSheet.USE_VERSION }
+                                }
+                                if (library || pb.sealed) item(key = "acts") {
+                                    PlaybookActs(pb, onCopy = { sheet = PbSheet.COPY }, onAdapt = { sheet = PbSheet.APPLY }, onRetire = { sheet = PbSheet.RETIRE })
                                 }
                                 if (pb.retired) item(key = "retired") {
                                     Text(
@@ -303,6 +342,18 @@ fun PlaybookScreen(ref: String) {
         }
         PbSheet.RETIRE -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "این کارگروه بازنشسته شود؟", sub = "روال‌هایش برای همه‌ی شرکت‌های عضو می‌ایستد؛ چیزی پاک نمیشود.") {
             RetireBody(pb, onCancel = { sheet = PbSheet.NONE }) { out -> sheet = PbSheet.NONE; q.set(out) }
+        }
+        // ⟨1.37⟩ §59.1 copy for another platform, compare two versions, move a member to a version
+        PbSheet.COPY -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "کپی برای پلتفرم دیگر", sub = "یک کارگروه تازه از روی همین روند.") {
+            CopyBody(pb) { out, order ->
+                sheet = PbSheet.NONE
+                if (order != null) { toasts.ok("کپی ساخته شد و جلسه‌ی تطبیقش باز شد."); nav.go("session/$order") }
+                else { toasts.ok("کپی ساخته شد؛ پیش‌نویسش را ببین."); nav.go("playbook/${out.ref}") }
+            }
+        }
+        PbSheet.COMPARE -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "مقایسه‌ی نسخه‌ها", sub = "چه چیزی از یکی به دیگری عوض شده.") { CompareBody(pb) }
+        PbSheet.USE_VERSION -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "استفاده از ${com.coinepro.hq.core.data.versionFa(pickedVersion)}", sub = "کدام شرکت؟") {
+            UseVersionBody(pb, pickedVersion) { sheet = PbSheet.NONE; q.refresh() }
         }
     }
 }

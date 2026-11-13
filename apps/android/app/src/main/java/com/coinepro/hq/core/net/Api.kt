@@ -1978,6 +1978,67 @@ class Api(
     suspend fun retirePlaybook(ref: String, stepUp: StepUp): Playbook =
         call(write("POST", "/playbooks/${seg(ref)}/retire", JsonObject(emptyMap()), stepUp("playbook.retire", ref)), serializer())
 
+    // --------------------------------------------- ⟨1.37⟩ §59 the library and the automations --
+    /** §59.1 the library with its filters: [q] searches titles and purposes, [company] a member or the source, [platform], [state]. */
+    suspend fun library59(state: String? = null, platform: String? = null, company: String? = null, q: String? = null): List<Playbook> =
+        get("/playbooks", mapOf("state" to state, "platform" to platform, "company" to company, "q" to q?.trim()?.ifEmpty { null }))
+    /** That [version]'s body (null: the newest sealed, else the newest draft). */
+    suspend fun playbookAt(ref: String, version: Int?): Playbook = get("/playbooks/${seg(ref)}", mapOf("version" to version))
+    suspend fun playbookCompare(ref: String, a: Int, b: Int): PlaybookDiff = get("/playbooks/${seg(ref)}/compare", mapOf("a" to a, "b" to b))
+    /** A sealed playbook's next version as a draft (a copy of the newest sealed body); the sealed one keeps running. */
+    suspend fun revisePlaybook(ref: String, key: String): Playbook =
+        call(write("POST", "/playbooks/${seg(ref)}/revise", JsonObject(emptyMap()), null, key), serializer())
+    /** «استفاده از این نسخه»: [company] runs [version] from its next run. */
+    suspend fun useVersion(ref: String, company: String, version: Int): PlaybookMember =
+        put("/playbooks/${seg(ref)}/members/${seg(company)}/version", buildJsonObject { put("version", version) })
+    /** A new playbook from this one (another platform); with a note, also a session that adapts it. */
+    suspend fun copyPlaybook(ref: String, body: JsonObject, key: String): PlaybookApplied =
+        call(write("POST", "/playbooks/${seg(ref)}/copy", body, null, key), serializer())
+    /** The playbook as its own file (`coinepro.playbook/1`, no company, account or link in it). */
+    suspend fun exportPlaybook(ref: String, version: Int?): JsonObject = get("/playbooks/${seg(ref)}/export", mapOf("version" to version))
+    /** A draft from an exported file already on the hub. */
+    suspend fun importPlaybook(fileId: String, key: String): Playbook =
+        call(write("POST", "/playbooks/import", buildJsonObject { put("file_id", fileId) }, null, key), serializer())
+    /** §59.4 the form: with `dry` only its [UsePreview]; without, the membership and its flow ([PlaybookUsed]). */
+    suspend fun usePreview(ref: String, body: JsonObject): UsePreview =
+        post("/playbooks/${seg(ref)}/use", JsonObject(body + ("dry" to kotlinx.serialization.json.JsonPrimitive(true))))
+    suspend fun usePlaybook(ref: String, body: JsonObject, key: String): PlaybookUsed =
+        call(write("POST", "/playbooks/${seg(ref)}/use", JsonObject(body - "dry"), null, key), serializer())
+    /** A narrator's sample to hear (≤ 8 s). */
+    suspend fun narratorSample(voice: String, styleFa: String?): NarratorSample =
+        post("/narrators/sample", buildJsonObject { put("voice", voice); styleFa?.trim()?.ifEmpty { null }?.let { put("style_fa", it) } })
+    /** §59.5 the company's own links. */
+    suspend fun siteLinks(company: String): SiteLinks = get("/companies/${seg(company)}/site-links")
+    suspend fun putSiteLinks(company: String, body: JsonObject): SiteLinks = put("/companies/${seg(company)}/site-links", body)
+
+    /** §59.10 everything that runs by itself, with the road's health and today's figures. */
+    suspend fun automationBoard(company: String? = null, kind: String? = null): AutomationBoard =
+        get("/automations/board", mapOf("company" to company, "kind" to kind))
+    /** §59.7 a flow automation. */
+    suspend fun flowAutomation(ref: String): FlowAutomation = get("/automations/${seg(ref)}")
+    suspend fun flowRuns(ref: String, before: String? = null): FlowRuns = get("/automations/${seg(ref)}/runs", mapOf("limit" to 20, "before" to before))
+    /** The owner's switch, one tap, for every kind of the board (a standing publish off is «هر بار بپرس»). The answer is read loosely. */
+    suspend fun switchAutomation(ref: String, on: Boolean) { writeLoose("POST", "/automations/${seg(ref)}/state", buildJsonObject { put("state", if (on) "on" else "off") }) }
+    suspend fun runFlowNow(ref: String, key: String): FlowRunRef =
+        call(write("POST", "/automations/${seg(ref)}/run-now", JsonObject(emptyMap()), null, key), serializer())
+    suspend fun pauseFlow(ref: String, until: String?, key: String): FlowAutomation =
+        call(write("POST", "/automations/${seg(ref)}/pause", buildJsonObject { if (until != null) put("until", until) }, null, key), serializer())
+    suspend fun skipFlow(ref: String, at: String?, skip: Boolean, key: String): FlowAutomation =
+        call(write("POST", "/automations/${seg(ref)}/skip", buildJsonObject { if (at != null) put("at", at); put("skip", skip) }, null, key), serializer())
+    suspend fun patchFlow(ref: String, body: JsonObject): FlowAutomation =
+        send("PATCH", "/automations/${seg(ref)}", json.encodeToString(JsonElement.serializer(), body))
+    /** §59.6 the replies' policy, and what a person sees with it. */
+    suspend fun putReplies(ref: String, body: JsonObject): FlowAutomation = put("/automations/${seg(ref)}/replies", body)
+    suspend fun repliesPreview(ref: String, topicFa: String? = null): RepliesPreview =
+        post("/automations/${seg(ref)}/replies/preview", buildJsonObject { topicFa?.trim()?.ifEmpty { null }?.let { put("topic_fa", it) } })
+    /** «رد کردن این نوبت»: the run skipped, its topic freed. */
+    suspend fun skipLineRun(ref: String): LineRun = post("/line-runs/${seg(ref)}/cancel", buildJsonObject { put("skip", true) })
+    /** §59.9 the owner's day. */
+    suspend fun automationsToday(day: String? = null): DaySummary = get("/automations/today", mapOf("day" to day))
+    suspend fun automationsCalendar(from: String, to: String, company: String? = null): AutoCalendar =
+        get("/automations/calendar", mapOf("from" to from, "to" to to, "company" to company))
+    suspend fun automationAudit(ref: String): List<AuditLine> = get("/automations/${seg(ref)}/audit", mapOf("limit" to 50))
+
     // --------------------------------------------- ⟨1.31⟩ §47–§51 what the reels order still lacked --
     /** §47.4 a page of what [company] already said in the working group [group], newest first: [kind] `topic` · `reference`, [q] a
      *  search in the titles. The counts are of the whole ledger. */

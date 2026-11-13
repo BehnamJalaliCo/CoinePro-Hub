@@ -5507,8 +5507,10 @@ SiteLinks { company, site: {url, title_fa}, sections: [{key, title_fa, url}],
   (unless `any`) or a reply. Audit `publish.rule`. Every keyword goes with its joined forms (spaces and half-spaces out).
 - `comment.txt` of a package: `keyword:` (the word said in the video), `match: any` (every comment is answered),
   `reply:` and `link:` (the DM's text and link), `button:`, and each `public:` line a public reply. `PublishComment.match`.
-- The public replies: the package's own first, filled up to ten from the hub's warm pool; IG-Hub picks one at random for
-  each person. A link reply is **one message**: the text with at most three buttons under it.
+- The public replies: the package's own first, filled up to ten from the hub's warm pool; IG-Hub sends them **in turn**
+  (IG-Hub 1806b86, `rules.public_turn`): ten people who comment one after another get ten different replies, then it starts
+  from the first again. **Their order is the order they go out in**, so every list of them keeps it. A link reply is **one
+  message**: the text with at most three buttons under it.
 - `any` is for a post's comments only; a story reply and a DM answer only the word. Instagram's API cannot like a comment.
 - A story gets its reel's comment rule by itself (the same words, `story_reply`), whichever goes out first, once per output.
 
@@ -5517,7 +5519,7 @@ SiteLinks { company, site: {url, title_fa}, sections: [{key, title_fa, url}],
 ReplyPolicy {
   comment: {match: "any"|"word"|"per_video"},       # per_video (default): each video's comment.txt chooses
   story: bool, dm: bool,                             # answer the word in story replies / in DMs (default both true)
-  public_pool: [str],                                # ≥ 10 (code fills from the hub's pool), ≤ 30, each ≤ 300 chars
+  public_pool: [str],                                # in the order they go out (in turn, §59.6); ≥ 10 (code fills from the hub's pool), ≤ 30, each ≤ 300 chars
   dm: {text_fa, buttons: [{title_fa, section | null}]},   # the default DM; text ≤ 640, buttons ≤ 3, title ≤ 20
   per_video_dm: bool,                                # true (default): each video's `reply:` replaces dm.text_fa that day
   repeat: {mode: "once_a_year"|"after_days", days?: 1..365},   # default once_a_year: one answer per person per rule a year
@@ -5526,13 +5528,15 @@ ReplyPolicy {
 ```
 - The `package` step writes `comment.txt` from it: `keyword:` the word the script says aloud (the `gpt_text` step is told to
   say it), `match: any` when the policy (or that video) says so, `reply:` the day's DM (`{topic}` in the text is the day's
-  topic), `link:` the section's link with the path's UTM, and ten or more `public:` lines from the pool.
+  topic), `link:` the section's link with the path's UTM, and ten or more `public:` lines from the pool, **in the pool's
+  order** (the order IG-Hub sends them in).
 - After the publish the hub makes **three** rules for that output (each once, each with its own UTM): `comment` on the post,
   `story_reply` (when `story`), and `dm` (when `dm`; IG-Hub's `dm` trigger, the word only). `repeat` is each rule's
   cooldown at IG-Hub (`cooldown_days`: 365, or N). A rule IG-Hub refuses is told once in the run, never silently dropped.
 - **Validation (422 `fields.*`):** `dm.text_fa` > 640 chars, more than 3 buttons, a title > 20, a `section` that is not one
   of the company's (§59.5), `public_pool` with fewer than one own line is fine (the pool fills it), more than 30 is not.
-- `POST /automations/{ref}/replies/preview {topic_fa?}` → `{dm: {text, buttons: [{title, url}]}, public: [str] (3 samples),
+- `POST /automations/{ref}/replies/preview {topic_fa?}` → `{dm: {text, buttons: [{title, url}]}, public: [str] (every reply,
+  in the order they go out: the first commenter gets the first),
   comment_fa, story_fa, dm_fa}`: what a person sees, built by the same code; the apps draw it as Instagram does.
 
 ### 59.7 The flow automation (`Automation.kind = "flow"`, §31.7 additive)

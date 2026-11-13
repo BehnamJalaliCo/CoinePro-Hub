@@ -74,6 +74,13 @@ val STEP_KIND_FA = mapOf(
     "deliver" to "تحویل به تو",
     "n8n" to "خودکارساز",
     "seal" to "مُهر تو",
+    // ⟨1.37⟩ §59.2 a working group's flow
+    "topic" to "موضوع",
+    "voice_check" to "بازبینی صدا",
+    "inspire" to "الهام",
+    "workshop" to "ساخت در کارگاه",
+    "package" to "بسته",
+    "report" to "گزارش",
 )
 
 fun stepKindFa(kind: String?): String = STEP_KIND_FA[kind] ?: "مرحله"
@@ -92,6 +99,12 @@ fun stepKindIcon(kind: String?): DivanIcon = when (kind) {
     "deliver" -> DivanIcon.DOWNLOAD
     "n8n" -> DivanIcon.SETTINGS
     "seal" -> DivanIcon.SEAL
+    "topic" -> DivanIcon.KNOWLEDGE
+    "voice_check" -> DivanIcon.MIC
+    "inspire" -> DivanIcon.SEARCH
+    "workshop" -> DivanIcon.VIDEO
+    "package" -> DivanIcon.DELIVERABLE
+    "report" -> DivanIcon.REPORT
     else -> DivanIcon.TASK
 }
 

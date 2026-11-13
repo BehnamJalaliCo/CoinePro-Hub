@@ -106,6 +106,8 @@ fun OfficeScreen() {
                 if (presence.data?.khalvat == true) Pill("خلوت؛ فقط فوری", Tone.LEARN, icon = DivanIcon.KHALVAT)
                 // ⟨1.36⟩ §58.5 the publish desk is its own page: the office keeps ONE line to it, at its head (nothing on a hub without it)
                 com.coinepro.hq.ui.look.DeskLine()
+                // ⟨1.37⟩ §59.13 everything that runs by itself, and the owner's day, in one more quiet line (nothing on an older hub)
+                com.coinepro.hq.ui.automation.AutomationsLine()
             }
         }
         when {

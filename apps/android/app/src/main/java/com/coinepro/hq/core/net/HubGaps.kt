@@ -92,6 +92,14 @@ enum class HubFeature {
     GROUP_RUNS,
     /** ⟨1.35⟩ §57 `/orders/{ref}/team…`; without it the row «تیم این جلسه» under the session's header is hidden. */
     SESSION_TEAM,
+    /** ⟨1.37⟩ §59.1–§59.4 a playbook's versions, compare, copy, export, import and the use form; without them the library is §40's
+     *  (no versions, no flow, no form) and the new parts say they come with the next hub update. */
+    LIBRARY,
+    /** ⟨1.37⟩ §59.7–§59.10 the automations board, a flow's page and its controls, the replies and the day's summary; without them
+     *  «اتوماسیون‌ها» opens on the automations from one sentence (§31.7), as before. */
+    AUTOMATIONS,
+    /** ⟨1.37⟩ §59.5 `/companies/{code}/site-links`; without it the form's links are left out (the hub keeps the company's own). */
+    SITE_LINKS,
 }
 
 /**

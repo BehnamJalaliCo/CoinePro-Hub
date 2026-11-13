@@ -48,6 +48,9 @@ data class PlaybookMember(
     val order: String? = null,
     /** ⟨0.19.9⟩ §45 the owner's standing word on publishing for this company. */
     val publish: MemberPublish = MemberPublish(),
+    /** ⟨1.37⟩ §59.1 the version this company runs, and its flow automation. */
+    val version: Int? = null,
+    val automation: String? = null,
 )
 
 /** `GET /playbooks/{ref}` and every playbook route's answer. [ref] (`PB-0001`) is the app's key only: it is never shown. */
@@ -77,6 +80,16 @@ data class Playbook(
     val group: String? = null,
     /** What the drafter dropped and why, in plain Persian. */
     val noteFa: String? = null,
+    // ⟨1.37⟩ §59.1: [version] is the number of THIS body (v1 at the first seal); [edits] what it counted before.
+    val edits: Int = 0,
+    /** A newer draft of the same playbook exists (its number). */
+    val draftVersion: Int? = null,
+    val versions: List<VersionRef> = emptyList(),
+    val steps: List<FlowStep> = emptyList(),
+    val `package`: List<PackageFile> = emptyList(),
+    val lessons: List<PlaybookLesson> = emptyList(),
+    val stats: PlaybookStats = PlaybookStats(),
+    val companiesFa: List<String> = emptyList(),
 ) {
     val draft: Boolean get() = state == "draft"
     val sealed: Boolean get() = state == "sealed"

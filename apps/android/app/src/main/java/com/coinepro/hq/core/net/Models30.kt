@@ -145,13 +145,20 @@ data class StepRun(
     /** The step's output was taken from the earlier run (a rerun from a later step). */
     val reused: Boolean = false,
     val missing: kotlinx.serialization.json.JsonElement? = null,
+    // ⟨1.37⟩ §59.8 a flow's step: who, with what, at what cost, and what it left (a text file read in place)
+    val seatFa: String? = null,
+    val helper: String? = null,
+    val model: String? = null,
+    val effort: String? = null,
+    val costUsd: Double? = null,
+    val outputs: List<StepFile> = emptyList(),
 )
 
 @Serializable
-data class RunCost(val tokens: Long = 0, val usdEquiv: JsonPrimitive? = null)
+data class RunCost(val tokens: Long = 0, val usdEquiv: JsonPrimitive? = null, val usd: Double? = null)
 
 @Serializable
-data class Published(val platform: String = "", val kind: String = "", val externalId: String? = null, val at: String? = null, val url: String? = null)
+data class Published(val platform: String = "", val kind: String = "", val externalId: String? = null, val at: String? = null, val url: String? = null, val permalink: String? = null)
 
 @Serializable
 data class RunMetrics(val h24: JsonObject? = null, val d7: JsonObject? = null)
@@ -182,6 +189,15 @@ data class LineRun(
     val decision: String? = null,
     val rerunOf: String? = null,
     val fromStep: String? = null,
+    // ⟨1.37⟩ §59.8 a flow's run: its automation and playbook, the day's topic, what it published and how it did, its minutes
+    val automation: String? = null,
+    val playbook: String? = null,
+    val playbookFa: String? = null,
+    val version: Int? = null,
+    val companyFa: String? = null,
+    val topicFa: String? = null,
+    val results: RunResults? = null,
+    val minutes: Double? = null,
 )
 
 /** §30.1 Asset: a library entry of a company (or of the holding when [company] is null). */

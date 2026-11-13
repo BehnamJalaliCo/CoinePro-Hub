@@ -157,7 +157,9 @@ private val GROUPS = listOf(
         Tool("groups", "کارگروه‌ها", DivanIcon.DEPARTMENT, "محتوا و انتشار و رشد؛ شاخص‌ها و آزمایش هفته"),
         // ⟨1.12⟩ §30: the production lines' calendar (every company) and their library (covers, voices, prompts, patterns).
         Tool("campaign-calendar", "تقویم کمپین", DivanIcon.PLANNER, "انتشار خط‌ها، خبرنامه، تبلیغ و کمپین همه‌ی شرکت‌ها، با تداخل‌ها"),
-        Tool("automations", "اتوماسیون از یک جمله", DivanIcon.SETTINGS, "بنویس چه شود؛ با مُهر تو کار میکند"),
+        // ⟨1.37⟩ §59: everything that runs by itself, in one place (its switch the owner's), and the working groups' library.
+        Tool("automations", "اتوماسیون‌ها", DivanIcon.SETTINGS, "هر چه خودش اجرا میشود؛ کلید هر کدام با توست"),
+        Tool("playbooks", "کتابخانه‌ی کارگروه‌ها", DivanIcon.DEPARTMENT, "هر کارگروه آزموده، نسخه‌دار؛ با یک فرم در هر شرکتی"),
         Tool("kits", "شرکت آماده", DivanIcon.COMPANIES, "یک شرکت تازه با تیم و خط‌های تولیدش، با یک مُهر"),
         Tool("library", "کتابخانه‌ی تولید", DivanIcon.IMAGE, "پوشه‌های کاور، صدا، پرامپت و الگو برای خط‌های تولید"),
         Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE, "گزارش‌ها و کارهای تحویل‌شده؛ بخوان و امتیاز بده"),
@@ -518,7 +520,13 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     // ⟨1.13⟩ §31: the §30 lines' calendar is the «خط تولید» filter of the one campaign calendar.
                     page("lines-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen(kind0 = "line") }
                     page("campaign-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen() }
-                    page("automations") { com.coinepro.hq.ui.v31.AutomationsScreen() }
+                    page("automations") { com.coinepro.hq.ui.automation.AutomationsBoardScreen() }
+                    // ⟨1.37⟩ §59.7–§59.10 the automations from one sentence (§31.7) under the board; a flow, its replies, a run, the calendar
+                    page("automations/sentence") { com.coinepro.hq.ui.v31.AutomationsScreen() }
+                    page("automations/calendar") { com.coinepro.hq.ui.automation.AutomationsCalendarScreen() }
+                    page("automation/{ref}") { com.coinepro.hq.ui.automation.FlowScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("automation/{ref}/replies") { com.coinepro.hq.ui.automation.RepliesScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("flow-run/{ref}") { com.coinepro.hq.ui.automation.FlowRunScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("kits") { com.coinepro.hq.ui.v31.KitsScreen() }
                     page("library") { com.coinepro.hq.ui.v30.LibraryScreen() }
                     page("library/{company}") { com.coinepro.hq.ui.v30.LibraryScreen(it.arguments?.getString("company")) }
@@ -538,6 +546,9 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     // ⟨1.22⟩ §40 the working groups drawn from sessions: the library and one playbook.
                     page("playbooks") { com.coinepro.hq.ui.playbook.PlaybooksScreen() }
                     page("playbook/{ref}") { com.coinepro.hq.ui.playbook.PlaybookScreen(it.arguments?.getString("ref").orEmpty()) }
+                    // ⟨1.37⟩ §59.1 one version of a playbook, and §59.4 the form that gives it to another company
+                    page("playbook/{ref}/v/{n}") { com.coinepro.hq.ui.playbook.PlaybookScreen(it.arguments?.getString("ref").orEmpty(), it.arguments?.getString("n")?.toIntOrNull()) }
+                    page("playbook/{ref}/use") { com.coinepro.hq.ui.playbook.UseScreen(it.arguments?.getString("ref").orEmpty()) }
                     // ⟨1.8⟩ §26 the companies' servers
                     page("servers") { com.coinepro.hq.ui.servers.ServersScreen() }
                     page("servers/{id}") { com.coinepro.hq.ui.servers.ServerScreen(it.arguments?.getString("id").orEmpty()) }
