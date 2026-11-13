@@ -40,14 +40,17 @@ from pydantic import BaseModel, Field
 from hq_api import events
 from hq_api.db import Tx
 from hq_api.domain import automations as AU
+from hq_api.domain import flow_shapes as FS
 from hq_api.domain import groups as GR
 from hq_api.domain import humanize as HZ
 from hq_api.domain import order_report as OR
+from hq_api.domain import playbook_versions as PV
 from hq_api.domain import recurrence
 from hq_api.domain.connections import KINDS as CONNECTION_KINDS
 from hq_api.errors import ApiError
 from hq_api.schemas import Model
 from hq_api.talk.scrub import clean
+from hq_common import persian
 
 log = logging.getLogger("hq_api.playbooks")
 
@@ -115,6 +118,9 @@ class PlaybookMember(BaseModel):
     order: str | None = None
     # ⟨§45⟩ the owner's standing word on publishing for this company (`ask` unless he said `auto`)
     publish: GR.MemberPublish = Field(default_factory=GR.MemberPublish)
+    # ⟨1.37⟩ §59.1 the version this company runs, and its flow automation
+    version: int | None = None
+    automation: str | None = None
 
 
 class Playbook(BaseModel):
@@ -139,10 +145,30 @@ class Playbook(BaseModel):
     retired_at: datetime | None = None
     group: str | None = None
     note_fa: str | None = None
+    # ⟨1.37⟩ §59.1 `version` is the number of THIS body (v1 at the first seal); `edits` what it
+    # counted before (each PATCH of a draft); a newer draft's number; every version newest
+    # first; the flow, the package and the lessons (empty in the list); the last 30 days of its
+    # flow runs; the member companies' names
+    edits: int = 0
+    draft_version: int | None = None
+    versions: list[FS.VersionRef] = Field(default_factory=list)
+    steps: list[FS.FlowStep] = Field(default_factory=list)
+    package: list[FS.PackageFile] = Field(default_factory=list)
+    lessons: list[FS.Lesson] = Field(default_factory=list)
+    stats: FS.PlaybookStats = Field(default_factory=FS.PlaybookStats)
+    companies_fa: list[str] = Field(default_factory=list)
+
+
+class StepIn(FS.FlowStep):
+    """A step as PATCH takes it: `settings` left out keeps the step's own (the app 1.1.0 does not
+    carry them)."""
+
+    settings: dict[str, object] | None = None  # type: ignore[assignment]
 
 
 class PlaybookPatch(Model):
-    """PATCH /playbooks/{ref} (draft only): any field of the shape but ref, state, source."""
+    """PATCH /playbooks/{ref} (the newest draft only): any field of the shape but ref, state,
+    source; ⟨1.37⟩ `steps`, `package` and `lessons` too, each list whole."""
 
     title_fa: str | None = Field(default=None, min_length=1, max_length=200)
     purpose_fa: str | None = Field(default=None, max_length=2000)
@@ -152,6 +178,9 @@ class PlaybookPatch(Model):
     kpis: list[dict[str, Any]] | None = Field(default=None, max_length=MAX_KPIS)
     connections: list[str] | None = Field(default=None, max_length=MAX_CONNECTIONS)
     rules_fa: list[str] | None = Field(default=None, max_length=MAX_RULES)
+    steps: list[StepIn] | None = Field(default=None, max_length=PV.MAX_STEPS)
+    package: list[FS.PackageFile] | None = Field(default=None, max_length=PV.MAX_PACKAGE)
+    lessons: list[FS.Lesson] | None = Field(default=None, max_length=PV.MAX_LESSONS)
 
 
 class PublishRuleIn(Model):
@@ -181,6 +210,26 @@ class PlaybookApplied(BaseModel):
     member: PlaybookMember | None = None
     order: str | None = None
     conversation: str | None = None
+
+
+class DraftIn(Model):
+    """⟨1.37⟩ §59.3 POST /orders/{ref}/playbook: `playbook` makes the draft that playbook's next
+    version; `log_md` the session's fault log when the hub cannot read it itself (a direct
+    session's NOTES.md lives in its workshop folder)."""
+
+    playbook: str | None = Field(default=None, pattern=r"^PB-[0-9]{4,}$")
+    log_md: str | None = Field(default=None, max_length=60_000)
+
+
+class MemberVersionIn(Model):
+    version: int = Field(ge=1)
+
+
+class PlaybookCopyIn(Model):
+    version: int | None = Field(default=None, ge=1)
+    platform: Platform | None = None
+    title_fa: str | None = Field(default=None, min_length=1, max_length=200)
+    note_fa: str | None = Field(default=None, max_length=2000)
 
 
 # ----------------------------------------------------------------- normalise --
@@ -232,6 +281,10 @@ def normalise(
             continue
         seen.add(key)
         helpers = [h for h in (s.get("helpers") or []) if isinstance(h, str) and h in HELPERS]
+        seat_fa = _text(s.get("title_fa"), 200) or str(charter.title_fa)
+        for h in s.get("helpers") or []:
+            if h not in HELPERS and str(h).strip():
+                notes.append(f"ابزار «{str(h)[:30]}» در هاب نیست و از «{seat_fa[:40]}» برداشته شد.")
         model = _text(s.get("model"), 60) or None
         seats.append(
             {
@@ -318,13 +371,14 @@ def normalise(
         "kpis": kpis,
         "connections": connections[:MAX_CONNECTIONS],
         "rules_fa": rules[:MAX_RULES],
+        # ⟨1.37⟩ §59.1 the flow, the package and the lessons, checked the same way
+        **PV.normalise_flow(raw, seats, notes),
     }
 
 
 def definition_json(d: dict[str, Any]) -> str:
     """The stored part of a normalised shape (the rest are the row's own columns)."""
-    keys = ("seats", "routines", "kpis", "connections", "rules_fa")
-    return json.dumps({k: d[k] for k in keys}, ensure_ascii=False)
+    return json.dumps(PV.definition_of(d), ensure_ascii=False)
 
 
 # ------------------------------------------------------------------- reads --
@@ -346,10 +400,14 @@ async def members_of(tx: Tx, row: dict[str, Any]) -> list[PlaybookMember]:
     if row.get("group_id") is None:
         return []
     rows = await tx.all(
-        """SELECT c.code, c.name_fa, m.state, m.publish
+        """SELECT c.id, c.code, c.name_fa, m.state, m.publish, m.version, m.automation,
+                  (SELECT a.ref FROM growth.automations a
+                   WHERE a.kind = 'flow' AND a.playbook = :p AND a.company_id = c.id
+                   ORDER BY a.created_at DESC LIMIT 1) AS flow
            FROM growth.memberships m JOIN core.companies c ON c.id = m.company_id
            WHERE m.group_id = :g ORDER BY m.joined_at""",
         g=row["group_id"],
+        p=row["ref"],
     )
     src = _j(row["source"]) or {}
     out = []
@@ -371,51 +429,172 @@ async def members_of(tx: Tx, row: dict[str, Any]) -> list[PlaybookMember]:
                 state=r["state"],
                 order=order_ref,
                 publish=GR.member_publish(r["publish"]),
+                # a member from before 1.37 runs v1 (every playbook then had one body)
+                version=int(r["version"] or 1),
+                automation=r["automation"] or r["flow"],
             )
         )
     return out
 
 
-async def render(tx: Tx, row: dict[str, Any]) -> Playbook:
-    d = _j(row["definition"]) or {}
+async def stats_of(tx: Tx, ref: str) -> FS.PlaybookStats:
+    """§59.1 the last 30 days of the playbook's flow runs, every member together: the runs of
+    the lines its flow automations run (growth.automations kind `flow`), dry and skipped ones
+    left out; the cost and the time of the finished ones."""
+    r = await tx.one(
+        """WITH a AS (SELECT company_id, line FROM growth.automations
+                      WHERE kind = 'flow' AND playbook = :p),
+                x AS (SELECT DISTINCT x.id, x.state, x.at, x.started_at, x.ended_at, x.usd_equiv
+                      FROM a JOIN lines.lines l ON l.ref = a.line
+                      JOIN lines.runs x ON x.line_id = l.id
+                      WHERE NOT x.dry AND x.at >= now() - interval '30 days'
+                        AND x.state NOT IN ('skipped', 'cancelled'))
+           SELECT (SELECT count(*) FROM x) AS runs,
+                  (SELECT count(*) FROM x WHERE state = 'done') AS done,
+                  (SELECT count(*) FROM x WHERE state IN ('done', 'failed')) AS finished,
+                  (SELECT avg(usd_equiv) FROM x WHERE state IN ('done', 'failed')) AS cost,
+                  (SELECT avg(EXTRACT(EPOCH FROM ended_at - started_at) / 60.0) FROM x
+                   WHERE state = 'done' AND started_at IS NOT NULL AND ended_at IS NOT NULL)
+                      AS minutes,
+                  (SELECT max(at) FROM x) AS last_at,
+                  (SELECT count(DISTINCT company_id) FROM a) AS companies""",
+        p=ref,
+    )
+    finished = int(r["finished"] or 0)
+    return FS.PlaybookStats(
+        runs=int(r["runs"] or 0),
+        done=int(r["done"] or 0),
+        success_pct=round(100.0 * int(r["done"] or 0) / finished, 1) if finished else None,
+        avg_cost_usd=round(float(r["cost"]), 4) if r["cost"] is not None else None,
+        avg_minutes=round(float(r["minutes"]), 1) if r["minutes"] is not None else None,
+        last_run_at=r["last_at"],
+        companies=int(r["companies"] or 0),
+    )
+
+
+def _items(model: type[BaseModel], raw: Any) -> list[Any]:
+    """A stored list read leniently: an item that no longer holds is left out, never a 500."""
+    out = []
+    for x in raw or []:
+        try:
+            out.append(model.model_validate(x))
+        except ValueError:
+            continue
+    return out
+
+
+async def render(
+    tx: Tx, row: dict[str, Any], version: int | None = None, *, full: bool = True
+) -> Playbook:
+    """One playbook at a version (without: its current body, the newest sealed, else the newest
+    draft), with every version, its members and the last 30 days of its flow. `full=False` (the
+    library list) leaves the steps, the package and the lessons out."""
+    vs = await PV.versions(tx, row["id"])
+    v = PV.at_version(vs, version) if vs else None
+    if v is None:  # a row without its bodies (never after 0066): the row is its own v1
+        body: dict[str, Any] = {"title_fa": row["title_fa"], "purpose_fa": row["purpose_fa"],
+                                "platform": row["platform"], **(_j(row["definition"]) or {})}  # fmt: skip
+        number, state, sealed_at = int(row["version"]), str(row["state"]), row.get("sealed_at")
+    else:
+        body, number = v.body, v.version
+        state = v.state if version is not None else str(row["state"])
+        sealed_at = v.sealed_at or row.get("sealed_at")
     src = _j(row["source"]) or {}
     group = None
+    members = await members_of(tx, row)
     if row.get("group_id") is not None:
         group = await tx.scalar("SELECT key FROM growth.groups WHERE id = :g", g=row["group_id"])
+    on: dict[int | None, int] = {}
+    for m in members:
+        on[m.version] = on.get(m.version, 0) + 1
+    draft = PV.newest_draft(vs)
+    parent = row.get("parent")
+    if parent and src.get("parent_version"):
+        parent = f"{parent}@{int(src['parent_version'])}"
     return Playbook(
         ref=row["ref"],
-        title_fa=row["title_fa"],
-        purpose_fa=row["purpose_fa"],
-        state=row["state"],
-        version=row["version"],
-        platform=row["platform"],
-        seats=[PlaybookSeat(**s) for s in d.get("seats") or []],
-        routines=[PlaybookRoutine(**r) for r in d.get("routines") or []],
-        kpis=[PlaybookKpi(**k) for k in d.get("kpis") or []],
-        connections=list(d.get("connections") or []),
-        rules_fa=list(d.get("rules_fa") or []),
+        title_fa=str(body.get("title_fa") or row["title_fa"]),
+        purpose_fa=str(
+            body.get("purpose_fa") if body.get("purpose_fa") is not None else row["purpose_fa"]
+        ),
+        state=state,
+        version=number,
+        platform=str(body.get("platform") or row["platform"]),
+        seats=_items(PlaybookSeat, body.get("seats")),
+        routines=_items(PlaybookRoutine, body.get("routines")),
+        kpis=_items(PlaybookKpi, body.get("kpis")),
+        connections=list(body.get("connections") or []),
+        rules_fa=list(body.get("rules_fa") or []),
         source=PlaybookSource(
             order=str(src.get("order") or ""),
             company=src.get("company"),
             conversation=src.get("conversation"),
         ),
-        members=await members_of(tx, row),
-        parent=row.get("parent"),
+        members=members,
+        parent=parent,
         created_at=row["created_at"],
-        sealed_at=row.get("sealed_at"),
+        sealed_at=sealed_at,
         retired_at=row.get("retired_at"),
         group=group,
-        note_fa=row.get("note_fa"),
+        note_fa=(str(body.get("note_fa") or "") or None)
+        if "note_fa" in body
+        else row.get("note_fa"),
+        edits=int(row.get("edits") or 0),
+        draft_version=draft.version if draft is not None and row["state"] != "retired" else None,
+        versions=[
+            FS.VersionRef(
+                version=x.version,
+                state=x.state,
+                at=x.sealed_at or x.at,
+                by_fa=x.by_fa,
+                changelog_fa=x.changelog_fa,
+                members=on.get(x.version, 0),
+            )
+            for x in vs
+        ],
+        steps=_items(FS.FlowStep, body.get("steps")) if full else [],
+        package=_items(FS.PackageFile, body.get("package")) if full else [],
+        lessons=_items(FS.Lesson, body.get("lessons")) if full else [],
+        stats=await stats_of(tx, str(row["ref"])),
+        companies_fa=[m.name_fa for m in members],
     )
 
 
-async def listing(tx: Tx, state: str | None) -> list[Playbook]:
+def _words(text: str) -> str:
+    return " ".join(persian.words(text or ""))
+
+
+async def listing(
+    tx: Tx,
+    state: str | None,
+    platform: str | None = None,
+    company: str | None = None,
+    q: str | None = None,
+) -> list[Playbook]:
+    """§59.1 the library, newest first: `state`, `platform`, `company` (a member or the source
+    company) and `q` (Persian-normalised words over the title and the purpose, every word)."""
     rows = await tx.all(
-        """SELECT * FROM owner.playbooks WHERE (CAST(:st AS text) IS NULL OR state = :st)
-           ORDER BY created_at DESC LIMIT 200""",
+        """SELECT * FROM owner.playbooks p
+           WHERE (CAST(:st AS text) IS NULL OR p.state = :st)
+             AND (CAST(:pl AS text) IS NULL OR p.platform = :pl)
+             AND (CAST(:co AS text) IS NULL OR p.source ->> 'company' = :co
+                  OR EXISTS (SELECT 1 FROM growth.memberships m
+                             JOIN core.companies c ON c.id = m.company_id
+                             WHERE m.group_id = p.group_id AND c.code = :co))
+           ORDER BY p.created_at DESC LIMIT 200""",
         st=state,
+        pl=platform,
+        co=company,
     )
-    return [await render(tx, dict(r)) for r in rows]
+    want = _words(q or "").split()
+    out = []
+    for r in rows:
+        if want:
+            hay = _words(f"{r['title_fa']} {r['purpose_fa']}")
+            if not all(w in hay for w in want):
+                continue
+        out.append(await render(tx, dict(r), full=False))
+    return out
 
 
 async def of_order(tx: Tx, order_ref: str) -> list[dict[str, Any]]:
@@ -445,7 +624,20 @@ SYSTEM = (
     "`connections` only from the kinds given; `rules_fa` the standing rules the owner set in the "
     "session, in plain Persian. Persian for every *_fa field, Latin digits. Keep what the session "
     "decided; invent nothing it did not; leave out what it did not settle. At most 12 seats and 12 "
-    "routines."
+    "routines. "
+    # ⟨1.37⟩ §59.2-§59.3 the flow, its package and its lessons
+    "Also `steps`: the daily FLOW, the owner's own steps in HIS order as the `plan` lists them "
+    "(one step per recurring part of the work, never a one-off fix): {key, title_fa, seat, kind, "
+    "helper, model, effort, input_fa, output_fa, rules_fa, inputs, gate, optional, max_attempts}; "
+    "`kind` one of `step_kinds`; `seat` a seat key above; `helper` one of gpt, gemini, aistudio, "
+    "workshop, code, ighub, model or null; `effort` `max` only where the session said the "
+    "highest effort (the video's workshop build), else low|medium|high or null; `inputs` the keys "
+    "of earlier steps it reads; `gate` `ask` only where the owner wants to approve. `package`: "
+    "the files one run hands over [{name, title_fa, step, required}]. `lessons`: from "
+    "`fault_log` (each entry: title_fa, cause_fa, fix_fa, rule_fa, the step key it belongs to "
+    "or null); a lesson's rule_fa is a short standing rule. When `current_playbook` is given, "
+    "this is its NEXT VERSION: start from it, keep what still holds, change what the session "
+    "changed, and write `summary_fa`, one plain Persian line of what this version changes."
 )
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -512,6 +704,70 @@ SCHEMA: dict[str, Any] = {
             "maxItems": MAX_RULES,
             "items": {"type": "string", "maxLength": 300},
         },
+        # ⟨1.37⟩ §59.2-§59.3
+        "steps": {
+            "type": "array",
+            "maxItems": PV.MAX_STEPS,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["key", "title_fa", "seat", "kind"],
+                "properties": {
+                    "key": {"type": "string", "maxLength": 40},
+                    "title_fa": {"type": "string", "maxLength": 200},
+                    "seat": {"type": "string", "maxLength": 60},
+                    "kind": {"type": "string", "enum": list(PV.STEP_KINDS)},
+                    "helper": {
+                        "type": ["string", "null"],
+                        "enum": [*sorted(PV.FLOW_HELPERS), None],
+                    },
+                    "model": {"type": ["string", "null"], "maxLength": 80},
+                    "effort": {
+                        "type": ["string", "null"],
+                        "enum": ["low", "medium", "high", "max", None],
+                    },
+                    "input_fa": {"type": "string", "maxLength": 500},
+                    "output_fa": {"type": "string", "maxLength": 500},
+                    "rules_fa": {"type": "array", "items": {"type": "string", "maxLength": 300}},
+                    "inputs": {"type": "array", "items": {"type": "string", "maxLength": 40}},
+                    "gate": {"type": "string", "enum": ["auto", "ask"]},
+                    "optional": {"type": "boolean"},
+                    "max_attempts": {"type": "integer", "minimum": 1, "maximum": 3},
+                },
+            },
+        },
+        "package": {
+            "type": "array",
+            "maxItems": PV.MAX_PACKAGE,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["name", "title_fa"],
+                "properties": {
+                    "name": {"type": "string", "maxLength": 120},
+                    "title_fa": {"type": "string", "maxLength": 200},
+                    "step": {"type": ["string", "null"], "maxLength": 40},
+                    "required": {"type": "boolean"},
+                },
+            },
+        },
+        "lessons": {
+            "type": "array",
+            "maxItems": PV.MAX_LESSONS,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["title_fa", "rule_fa"],
+                "properties": {
+                    "title_fa": {"type": "string", "maxLength": 300},
+                    "cause_fa": {"type": "string", "maxLength": 1000},
+                    "fix_fa": {"type": "string", "maxLength": 1000},
+                    "rule_fa": {"type": "string", "maxLength": 300},
+                    "step": {"type": ["string", "null"], "maxLength": 40},
+                },
+            },
+        },
+        "summary_fa": {"type": "string", "maxLength": 300},
     },
 }
 
@@ -533,6 +789,12 @@ class Material(BaseModel):
     turns: list[str]
     roles: dict[str, str]
     skeleton: dict[str, Any]
+    # ⟨1.37⟩ §59.3 the playbook this draft is the next version of (its ref and the body it
+    # starts from), the session's fault log, and the drafter's own summary line
+    target: str | None = None
+    current: dict[str, Any] | None = None
+    fault_log: str | None = None
+    summary: str | None = None
 
 
 async def _hires(tx: Tx, conv: dict[str, Any] | None, company: str | None) -> list[dict[str, Any]]:
@@ -695,7 +957,13 @@ def body_of(m: Material, holding: str) -> dict[str, Any]:
         "roles": m.roles,
         "connection_kinds": list(CONNECTION_KINDS),
         "skeleton": m.skeleton,
+        # ⟨1.37⟩ §59.2-§59.3
+        "step_kinds": list(PV.STEP_KINDS),
     }
+    if m.fault_log:
+        prompt["fault_log"] = m.fault_log[:FAULT_LOG_CHARS]
+    if m.current is not None:
+        prompt["current_playbook"] = m.current
     return {
         "company_code": holding,
         "actor_ref": f"playbook:{m.order}",
@@ -705,66 +973,150 @@ def body_of(m: Material, holding: str) -> dict[str, Any]:
         "system": SYSTEM,
         "prompt": json.dumps(prompt, ensure_ascii=False),
         "json_schema": SCHEMA,
-        "max_output_tokens": 8_000,
+        "max_output_tokens": 16_000 if m.current is not None or m.fault_log else 8_000,
         "timeout_s": 90,
         "meta": {"purpose": "playbook_draft", "order": m.order},
     }
 
 
 NO_MODEL_FA = "مدل پیش‌نویس نداد؛ این پیش‌نویس را کد از روی آدم‌ها و خودکارسازی‌های جلسه ساخت."
+NO_MODEL_NEXT_FA = (
+    "مدل پیش‌نویس نداد؛ این نسخه همان نسخه‌ی قبل است و درس‌های دفتر خرابی را کد به آن افزود."
+)
+FAULT_LOG_CHARS = 30_000
+DRAFTER_FA = "مسئول جلسه"
 
 
-async def draft(ctx: Any, order_ref: str) -> tuple[dict[str, Any], Material, list[str]]:
+async def target_of(
+    tx: Tx, m: Material, given: str | None, source_playbook: str | None
+) -> dict[str, Any] | None:
+    """⟨1.37⟩ §59.3 the playbook whose next version this session's draft is: the one given, else
+    the one the session was opened from when the session is of that working group (its own
+    company, a member, or a playbook of no company: a copy or a file). A session that adapts a
+    playbook for a company outside its group drafts a playbook of its own with `parent` (§40.3)."""
+    if given:
+        row = await row_of(tx, given)
+        if row["state"] == "retired":
+            raise ApiError(409, "validation_failed", "the playbook is retired",
+                           message_fa="این کارگروه بازنشسته شده است.")  # fmt: skip
+        return row
+    if not source_playbook:
+        return None
+    found = await tx.first("SELECT * FROM owner.playbooks WHERE ref = :r", r=source_playbook)
+    if found is None or found["state"] == "retired":
+        return None
+    row = dict(found)
+    company = (_j(row["source"]) or {}).get("company")
+    if not company or company == m.company:
+        return row
+    if (
+        m.company
+        and row.get("group_id") is not None
+        and await tx.scalar(
+            """SELECT EXISTS (SELECT 1 FROM growth.memberships x JOIN core.companies c
+               ON c.id = x.company_id WHERE x.group_id = :g AND c.code = :co)""",
+            g=row["group_id"],
+            co=m.company,
+        )
+    ):
+        return row
+    return None
+
+
+def _with_log_lessons(raw: dict[str, Any], log_md: str | None) -> dict[str, Any]:
+    """Code's lessons from the fault log joined to what came (a lesson the body already has, by
+    its title, is kept as it is)."""
+    found = PV.lessons_from_log(log_md)
+    if not found:
+        return raw
+    have = [x for x in raw.get("lessons") or [] if isinstance(x, dict)]
+    titles = {str(x.get("title_fa") or "") for x in have}
+    return {**raw, "lessons": have + [x for x in found if x["title_fa"] not in titles]}
+
+
+async def draft(
+    ctx: Any, order_ref: str, *, playbook: str | None = None, log_md: str | None = None
+) -> tuple[dict[str, Any], Material, list[str]]:
     """The holder's one call over the session's material, outside any transaction; what comes
-    back normalised by code (or the code's skeleton when the model gives nothing). Answers
-    (the definition, the material, the notes)."""
+    back normalised by code (or the code's skeleton when the model gives nothing). ⟨1.37⟩ §59.3
+    with a target playbook (`playbook`, or the one the session came from) the call starts from
+    its newest body and the draft is its next version (`Material.target`); the fault log
+    (`log_md`) becomes `lessons`. Answers (the definition, the material, the notes)."""
     from hq_api import workflows_client
 
     async with ctx.tx() as tx:
         m = await material(tx, ctx.hub, order_ref)
         roles = await AU.company_roles(tx, ctx.hub, m.company) if m.company else None
+        rep = await OR.ensure(tx, order_ref)
+        target = await target_of(tx, m, playbook, (rep or {}).get("source_playbook"))
+        if target is not None:
+            vs = await PV.versions(tx, target["id"])
+            base = PV.newest_draft(vs) or PV.current(vs)
+            m.target = str(target["ref"])
+            m.current = PV.shape_of(base.body) if base is not None else None
+            src_company = (_j(target["source"]) or {}).get("company")
+            if src_company and src_company != m.company:
+                roles = await AU.company_roles(tx, ctx.hub, str(src_company))
+    m.fault_log = (log_md or "").strip() or None
     holding = await ctx.hub.companies.holding()
     out = await workflows_client.model_call(ctx.hub, body_of(m, holding.code), timeout_s=120)
     notes: list[str] = []
     raw = out if isinstance(out, dict) and out.get("seats") is not None else None
     if raw is None:
-        notes.append(NO_MODEL_FA)
-        raw = m.skeleton
+        notes.append(NO_MODEL_FA if m.current is None else NO_MODEL_NEXT_FA)
+        raw = dict(m.current) if m.current is not None else dict(m.skeleton)
+    raw = _with_log_lessons(raw, m.fault_log)
+    m.summary = _text(raw.get("summary_fa"), 300) or None
     return normalise(raw, roles, ctx.hub.charters, notes), m, notes
 
 
-async def store_draft(
-    tx: Tx, holding_id: UUID, m: Material, d: dict[str, Any], notes: list[str]
+async def _insert(
+    tx: Tx,
+    company_id: UUID,
+    d: dict[str, Any],
+    source: dict[str, Any],
+    *,
+    parent: str | None,
+    note: str | None,
+    by_kind: str,
+    by_fa: str,
+    order: str | None = None,
+    summary: str | None = None,
 ) -> dict[str, Any]:
-    """The draft stored (its `parent` the playbook the session was opened from, if any), one step
-    and one `playbook` card in the session."""
+    """A new playbook and its v1 draft (⟨1.37⟩ every playbook has its bodies)."""
+    row = dict(
+        await tx.one(
+            """INSERT INTO owner.playbooks (company_id, title_fa, purpose_fa, platform, definition,
+                   source, parent, note_fa)
+               VALUES (:co, :t, :p, :pl, CAST(:d AS jsonb), CAST(:s AS jsonb), :parent, :note)
+               RETURNING *""",
+            co=company_id,
+            t=d["title_fa"],
+            p=d["purpose_fa"],
+            pl=d["platform"],
+            d=definition_json(d),
+            s=json.dumps(source, ensure_ascii=False),
+            parent=parent,
+            note=note,
+        )
+    )
+    await PV.insert_version(
+        tx, row, 1, PV.body_of(d, note_fa=note, summary_fa=summary, order=order),
+        by_kind=by_kind, by_fa=by_fa,
+    )  # fmt: skip
+    return row
+
+
+async def _in_session(
+    tx: Tx, m: Material, ref: str, d: dict[str, Any], notes: list[str], line: str
+) -> None:
+    """The draft's step and its `playbook` card «کارگروه از این جلسه» in the session."""
     from hq_api.domain import order_turns as OT
     from hq_api.domain import sessions as SE
     from hq_api.talk import store
 
     rep = await OR.ensure(tx, m.order)
     assert rep is not None
-    row = dict(
-        await tx.one(
-            """INSERT INTO owner.playbooks (company_id, title_fa, purpose_fa, platform, definition, source,
-                   parent, note_fa)
-               VALUES (:co, :t, :p, :pl, CAST(:d AS jsonb), CAST(:s AS jsonb), :parent, :note)
-               RETURNING *""",
-            co=holding_id,
-            t=d["title_fa"],
-            p=d["purpose_fa"],
-            pl=d["platform"],
-            d=definition_json(d),
-            s=json.dumps(
-                {"order": m.order, "company": m.company, "conversation": m.conversation},
-                ensure_ascii=False,
-            ),
-            parent=rep.get("source_playbook"),
-            note="\n".join(notes)[:2000] or None,
-        )
-    )
-    ref = str(row["ref"])
-    line = f"کارگروه از این جلسه پیش‌نویس شد: {ref} «{d['title_fa']}»"
     if rep.get("closed_at") is None:
         await SE.step(tx, m.order, SE.OWNER_FA, line, remember_line=line)
     else:
@@ -788,8 +1140,58 @@ async def store_draft(
         holding = await OR._holding(tx)
         await events.emit(tx, holding["code"], "talk.card", conv["ref"],
                           {"card": str(card["id"]), "kind": "playbook", "state": "offered"})  # fmt: skip
+
+
+async def store_draft(
+    tx: Tx, holding_id: UUID, m: Material, d: dict[str, Any], notes: list[str]
+) -> dict[str, Any]:
+    """The draft stored (its `parent` the playbook the session was opened from, if any), one step
+    and one `playbook` card in the session. ⟨1.37⟩ §59.3 with `m.target`: that playbook's next
+    version (its newest draft rewritten, else a new draft after its newest sealed one); the
+    answer's `version` is that draft's number."""
+    rep = await OR.ensure(tx, m.order)
+    assert rep is not None
+    note = "\n".join(notes)[:2000] or None
+    if m.target is not None:
+        row = await row_of(tx, m.target, lock=True)
+        vs = await PV.versions(tx, row["id"], lock=True)
+        body = PV.body_of(d, note_fa=note, summary_fa=m.summary, order=m.order)
+        dr = PV.newest_draft(vs)
+        if dr is not None:
+            await PV.write_draft(tx, dr, body, by_kind="agent", by_fa=DRAFTER_FA)
+            number = dr.version
+            await tx.exec(
+                "UPDATE owner.playbooks SET edits = edits + 1 WHERE id = :id", id=row["id"]
+            )
+        else:
+            number = vs[0].version + 1 if vs else 1
+            await PV.insert_version(tx, row, number, body, by_kind="agent", by_fa=DRAFTER_FA)
+        out = await PV.mirror(tx, row["id"])
+        ref = str(row["ref"])
+        line = f"نسخه‌ی {number} کارگروه {ref} از این جلسه پیش‌نویس شد «{d['title_fa']}»"
+        await _in_session(tx, m, ref, d, notes, line)
+        await _emit(tx, ref, "draft", version=number)
+        return {**out, "version": number}
+    row = await _insert(
+        tx, holding_id, d,
+        {"order": m.order, "company": m.company, "conversation": m.conversation},
+        parent=rep.get("source_playbook"), note=note, by_kind="agent", by_fa=DRAFTER_FA,
+        order=m.order, summary=m.summary,
+    )  # fmt: skip
+    ref = str(row["ref"])
+    line = f"کارگروه از این جلسه پیش‌نویس شد: {ref} «{d['title_fa']}»"
+    await _in_session(tx, m, ref, d, notes, line)
     await _emit(tx, ref, "draft")
     return row
+
+
+async def drafted_in(tx: Tx, row: dict[str, Any], order_ref: str) -> bool:
+    """⟨1.37⟩ The playbook is this session's to rewrite in words: drafted from it, or its newest
+    draft was (§59.3: a version drafted in a later session of the same working group)."""
+    if str((_j(row["source"]) or {}).get("order") or "") == order_ref:
+        return True
+    dr = PV.newest_draft(await PV.versions(tx, row["id"]))
+    return dr is not None and str(dr.body.get("order") or "") == order_ref
 
 
 # ------------------------------------------------------- ⟨1.36⟩ §58.2 kept on close --
@@ -850,10 +1252,11 @@ async def worth_keeping(tx: Tx, order_ref: str) -> bool:
 async def keep_on_close(tx: Tx, hub: Any, order_ref: str) -> str | None:
     """⟨1.36⟩ §58.2 the session closed: its working group drafted by itself into the library
     (code's skeleton now; the holder's model refines it after the answer, refine_kept), when it
-    is worth keeping and no playbook was drafted from it yet. Nothing runs before the owner's
-    seal. Answers the playbook's ref, or None."""
+    is worth keeping and no playbook (⟨1.37⟩ nor a playbook's version) was drafted from it yet.
+    Nothing runs before the owner's seal. Answers the playbook's ref, or None."""
     if await tx.scalar(
-        "SELECT EXISTS (SELECT 1 FROM owner.playbooks WHERE source ->> 'order' = :o)",
+        """SELECT EXISTS (SELECT 1 FROM owner.playbooks WHERE source ->> 'order' = :o)
+               OR EXISTS (SELECT 1 FROM owner.playbook_versions WHERE body ->> 'order' = :o)""",
         o=order_ref,
     ):
         return None
@@ -866,23 +1269,12 @@ async def keep_on_close(tx: Tx, hub: Any, order_ref: str) -> str | None:
     rep = await OR.ensure(tx, order_ref)
     assert rep is not None
     holding = await OR._holding(tx)
-    row = await tx.one(
-        """INSERT INTO owner.playbooks (company_id, title_fa, purpose_fa, platform, definition, source,
-               parent, note_fa)
-           VALUES (:co, :t, :p, :pl, CAST(:d AS jsonb), CAST(:s AS jsonb), :parent, :note)
-           RETURNING ref""",
-        co=holding["id"],
-        t=d["title_fa"],
-        p=d["purpose_fa"],
-        pl=d["platform"],
-        d=definition_json(d),
-        s=json.dumps(
-            {"order": m.order, "company": m.company, "conversation": m.conversation},
-            ensure_ascii=False,
-        ),
-        parent=rep.get("source_playbook"),
-        note="\n".join([AUTO_FA, *notes])[:2000],
-    )
+    row = await _insert(
+        tx, holding["id"], d,
+        {"order": m.order, "company": m.company, "conversation": m.conversation},
+        parent=rep.get("source_playbook"), note="\n".join([AUTO_FA, *notes])[:2000],
+        by_kind="system", by_fa=SYSTEM_FA, order=m.order,
+    )  # fmt: skip
     ref = str(row["ref"])
     await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, f"{KEPT_FA}: {ref}")])
     await _emit(tx, ref, "draft")
@@ -904,7 +1296,7 @@ async def refine_kept(hub: Any, order_ref: str, ref: str) -> None:
             return
         async with hub.db.tx(await hub.companies.ids()) as tx:
             row = await row_of(tx, ref, lock=True)
-            if row["state"] != "draft" or int(row["version"]) != 1:
+            if row["state"] != "draft" or int(row.get("edits") or 0) != 0:
                 return  # the owner changed or sealed it meanwhile: his stays
             given = {k: out.get(k) for k in ("title_fa", "purpose_fa", "platform", "seats",
                                              "routines", "kpis", "connections", "rules_fa")}  # fmt: skip
@@ -919,43 +1311,83 @@ async def _emit(tx: Tx, ref: str, state: str, **more: Any) -> None:
 
 
 # ------------------------------------------------------------------- edits --
+SEALED_FA = "این نسخه مُهر شده؛ تغییر، نسخه‌ی تازه میسازد"
+RETIRED_FA = "این کارگروه بازنشسته شده است."
+
+
+def _keep_settings(given: dict[str, Any], cur: dict[str, Any]) -> dict[str, Any]:
+    """PATCH's steps without `settings` keep the step's own (the app does not carry them)."""
+    if given.get("steps") is None:
+        return given
+    old = {str(x.get("key")): x for x in cur.get("steps") or [] if isinstance(x, dict)}
+    steps = []
+    for st in given["steps"]:
+        if isinstance(st, dict) and st.get("settings") is None:
+            st = {**st, "settings": dict((old.get(str(st.get("key"))) or {}).get("settings") or {})}
+        steps.append(st)
+    return {**given, "steps": steps}
+
+
 async def patch(
     tx: Tx, hub: Any, ref: str, body: dict[str, Any], *, notes: list[str] | None = None
 ) -> dict[str, Any]:
-    """PATCH /playbooks/{ref} and the holder's rewrite: the given fields over the draft, the
-    whole normalised again (a dropped item leaves a note); the version counts up."""
+    """PATCH /playbooks/{ref} and the holder's rewrite: the given fields over the newest draft,
+    the whole normalised again (a dropped item leaves a note); `edits` counts up. ⟨1.37⟩ §59.1 a
+    sealed playbook with no draft refuses (409): a change makes the next version
+    (POST …/revise). Answers the playbook's row with `version` the draft's number."""
     row = await row_of(tx, ref, lock=True)
-    if row["state"] != "draft":
-        raise ApiError(409, "validation_failed", "the playbook is not a draft",
-                       message_fa="این کارگروه مُهر شده است؛ پیش‌نویسش دیگر عوض نمیشود.")  # fmt: skip
-    cur = {
-        "title_fa": row["title_fa"],
-        "purpose_fa": row["purpose_fa"],
-        "platform": row["platform"],
-        **(_j(row["definition"]) or {}),
-    }
+    if row["state"] == "retired":
+        raise ApiError(409, "validation_failed", "the playbook is retired", message_fa=RETIRED_FA)
+    vs = await PV.versions(tx, row["id"], lock=True)
+    dr = PV.newest_draft(vs)
+    if dr is None:
+        raise ApiError(409, "validation_failed", "the playbook is sealed and has no draft",
+                       message_fa=SEALED_FA)  # fmt: skip
+    cur = {"title_fa": row["title_fa"], "purpose_fa": row["purpose_fa"],
+           "platform": row["platform"], **dr.body}  # fmt: skip
     given = {k: v for k, v in body.items() if v is not None}
     if not given:
         raise ApiError(422, "validation_failed", fields={"body": "nothing to change"},
                        message_fa="چیزی برای تغییر داده نشد.")  # fmt: skip
+    given = _keep_settings(given, cur)
     src = _j(row["source"]) or {}
     company = src.get("company")
     roles = await AU.company_roles(tx, hub, str(company)) if company else None
     notes = [] if notes is None else notes
     d = normalise({**cur, **given}, roles, hub.charters, notes)
-    out = await tx.one(
-        """UPDATE owner.playbooks SET title_fa = :t, purpose_fa = :p, platform = :pl,
-               definition = CAST(:d AS jsonb), version = version + 1, note_fa = :note, updated_at = now()
-           WHERE id = :id RETURNING *""",
-        t=d["title_fa"],
-        p=d["purpose_fa"],
-        pl=d["platform"],
-        d=definition_json(d),
-        note="\n".join(notes)[:2000] or None,
+    note = "\n".join(notes)[:2000] or None
+    await PV.write_draft(
+        tx, dr, PV.body_of(d, note_fa=note, summary_fa=cur.get("summary_fa"),
+                           order=cur.get("order")),
+    )  # fmt: skip
+    await tx.exec(
+        "UPDATE owner.playbooks SET edits = edits + 1, updated_at = now() WHERE id = :id",
         id=row["id"],
     )
-    await _emit(tx, ref, "draft", version=int(out["version"]))
-    return dict(out)
+    out = await PV.mirror(tx, row["id"])
+    await _emit(tx, ref, "draft", version=dr.version, edits=int(out["edits"]))
+    return {**out, "version": dr.version}
+
+
+async def revise(tx: Tx, ref: str) -> tuple[dict[str, Any], int, bool]:
+    """⟨1.37⟩ §59.1 POST /playbooks/{ref}/revise: the next version as a draft, a copy of the newest
+    sealed body; the sealed one keeps running. A draft that is already there is answered as it
+    is. Answers (the row, the draft's number, made now)."""
+    row = await row_of(tx, ref, lock=True)
+    if row["state"] == "retired":
+        raise ApiError(409, "validation_failed", "the playbook is retired", message_fa=RETIRED_FA)
+    vs = await PV.versions(tx, row["id"], lock=True)
+    dr = PV.newest_draft(vs)
+    if dr is not None:
+        if len(vs) == 1:
+            raise ApiError(409, "validation_failed", "not sealed yet",
+                           message_fa="این کارگروه هنوز مُهر نشده؛ همین پیش‌نویس را عوض کن.")  # fmt: skip
+        return row, dr.version, False
+    sealed = vs[0]
+    number = sealed.version + 1
+    await PV.insert_version(tx, row, number, {**PV.shape_of(sealed.body), "note_fa": None})
+    await _emit(tx, ref, "draft", version=number)
+    return row, number, True
 
 
 # -------------------------------------------------------------------- seal --
@@ -1051,16 +1483,31 @@ async def _group_row(tx: Tx, holding_id: UUID, row: dict[str, Any]) -> dict[str,
 
 
 async def join(
-    tx: Tx, grow: dict[str, Any], company: Any, *, hires: list[dict[str, Any]] | None = None
+    tx: Tx,
+    grow: dict[str, Any],
+    company: Any,
+    *,
+    hires: list[dict[str, Any]] | None = None,
+    version: int | None = None,
 ) -> dict[str, Any]:
     """A company joins the playbook's group: the membership (on), its seats first to the session's
-    hires (`hires`: {role, code}), then resolved and filled by automatic hiring (§29.10)."""
+    hires (`hires`: {role, code}), then resolved and filled by automatic hiring (§29.10).
+    ⟨1.37⟩ a new member runs `version` (one already there keeps its own)."""
     await tx.exec(
-        """INSERT INTO growth.memberships (company_id, group_id) VALUES (:co, :g)
+        """INSERT INTO growth.memberships (company_id, group_id, version) VALUES (:co, :g, :v)
            ON CONFLICT (group_id, company_id) DO NOTHING""",
         co=company.id,
         g=grow["id"],
+        v=version,
     )
+    if version is not None:
+        await tx.exec(
+            """UPDATE growth.memberships SET version = COALESCE(version, :v)
+               WHERE group_id = :g AND company_id = :co""",
+            g=grow["id"],
+            co=company.id,
+            v=version,
+        )
     await GR.set_member_state(tx, grow, company.id, "on")
     g = GR.render(grow)
     if hires:
@@ -1081,55 +1528,78 @@ async def join(
 
 
 async def seal(tx: Tx, hub: Any, ref: str) -> dict[str, Any]:
-    """POST /playbooks/{ref}/seal (the route consumed 🔏 playbook.seal): the group in the database,
-    the session's company its first member with the seats of the session's hires, the routines
-    from their next time (the groups' tick). Answers the playbook's row."""
+    """POST /playbooks/{ref}/seal: ⟨1.37⟩ §59.1 the newest draft becomes version n, frozen, with
+    its `changelog_fa` (code's lines against version n−1 and the drafter's summary). The first
+    seal makes the group in the database, the session's company its first member (on v1) with
+    the seats of the session's hires, the routines from their next time (the groups' tick). A
+    later one moves the group's definition to the new body and fills a new seat; every member
+    stays on the version it runs until the owner moves it. Answers the playbook's row."""
     from hq_api.domain import sessions as SE
 
     row = await row_of(tx, ref, lock=True)
-    if row["state"] != "draft":
+    if row["state"] == "retired":
+        raise ApiError(409, "validation_failed", "the playbook is retired", message_fa=RETIRED_FA)
+    vs = await PV.versions(tx, row["id"], lock=True)
+    dr = PV.newest_draft(vs)
+    if dr is None:
         raise ApiError(409, "validation_failed", f"the playbook is {row['state']}",
                        message_fa="این کارگروه پیش از این مُهر شده است.")  # fmt: skip
+    prev = next((v for v in vs if v.version == dr.version - 1), None)
+    await tx.exec(
+        """UPDATE owner.playbook_versions SET state = 'sealed', sealed_at = now(),
+               changelog_fa = :cl WHERE id = :id""",
+        id=dr.id,
+        cl=PV.changelog(prev.body if prev is not None else None, dr.body),
+    )
+    row = await PV.mirror(tx, row["id"])
     holding = await hub.companies.holding()
+    first = row.get("group_id") is None
     grow = await _group_row(tx, holding.id, row)
     src = _j(row["source"]) or {}
     member = None
     company = (
         await hub.companies.find(str(src.get("company") or "")) if src.get("company") else None
     )
-    if company is not None and company.kind != "holding":
-        conv = None
-        if src.get("conversation"):
-            conv = await tx.first(
-                "SELECT * FROM talk.conversations WHERE ref = :r", r=src["conversation"]
+    if not first:
+        await GR.reconcile_members(tx, grow, fill=True)
+        out = row
+    else:
+        if company is not None and company.kind != "holding":
+            conv = None
+            if src.get("conversation"):
+                conv = await tx.first(
+                    "SELECT * FROM talk.conversations WHERE ref = :r", r=src["conversation"]
+                )
+                conv = dict(conv) if conv is not None else None
+            hires = await _hires(tx, conv, company.code)
+            member = await join(tx, grow, company, hires=hires, version=dr.version)
+        out = dict(
+            await tx.one(
+                """UPDATE owner.playbooks SET state = 'sealed', sealed_at = now(), group_id = :g,
+                       updated_at = now() WHERE id = :id RETURNING *""",
+                g=grow["id"],
+                id=row["id"],
             )
-            conv = dict(conv) if conv is not None else None
-        hires = await _hires(tx, conv, company.code)
-        member = await join(tx, grow, company, hires=hires)
-    out = dict(
-        await tx.one(
-            """UPDATE owner.playbooks SET state = 'sealed', sealed_at = now(), group_id = :g,
-                   updated_at = now() WHERE id = :id RETURNING *""",
-            g=grow["id"],
-            id=row["id"],
         )
-    )
-    if company is not None and src.get("order"):
-        # ⟨§47⟩ what the session already said (its day one) is the group's from now on
-        from hq_api.domain import topics as TP
+        if company is not None and src.get("order"):
+            # ⟨§47⟩ what the session already said (its day one) is the group's from now on
+            from hq_api.domain import topics as TP
 
-        await TP.adopt(tx, str(src["order"]), company.id, grow["id"])
-    rep = await OR.ensure(tx, str(src.get("order") or ""))
+            await TP.adopt(tx, str(src["order"]), company.id, grow["id"])
+    rep = await OR.ensure(tx, str(dr.body.get("order") or src.get("order") or ""))
     if rep is not None:
-        line = f"کارگروه {ref} مُهر شد و راه افتاد"
-        if member is not None:
-            filled = sum(1 for s in member.get("seats") or [] if s.get("employee"))
-            line += f"؛ {filled} جایگاه از {len(member.get('seats') or [])} پر است"
+        if first:
+            line = f"کارگروه {ref} مُهر شد و راه افتاد"
+            if member is not None:
+                filled = sum(1 for s in member.get("seats") or [] if s.get("employee"))
+                line += f"؛ {filled} جایگاه از {len(member.get('seats') or [])} پر است"
+        else:
+            line = f"نسخه‌ی {dr.version} کارگروه {ref} مُهر شد؛ هر شرکت روی نسخه‌ی خودش میماند"
         if rep.get("closed_at") is None:
             await SE.step(tx, str(rep["ref"]), SE.OWNER_FA, line, remember_line=line)
         else:
             await OR._append_steps(tx, rep["id"], [OR._step(SE.OWNER_FA, line)])
-    await _emit(tx, ref, "sealed", group=grow["key"])
+    await _emit(tx, ref, "sealed", group=grow["key"], version=dr.version)
     return out
 
 
@@ -1203,7 +1673,8 @@ async def apply_as_is(tx: Tx, hub: Any, ref: str, company: Any) -> dict[str, Any
         await tx.exec("UPDATE growth.groups SET state = 'on', updated_at = now() WHERE id = :id",
                       id=grow["id"])  # fmt: skip
         grow["state"] = "on"
-    return await join(tx, grow, company)
+    # ⟨1.37⟩ a new member runs the newest sealed version (the row's current body)
+    return await join(tx, grow, company, version=int(row["version"]))
 
 
 async def mark_source(tx: Tx, order_ref: str, playbook_ref: str) -> None:
@@ -1220,7 +1691,8 @@ async def mark_source(tx: Tx, order_ref: str, playbook_ref: str) -> None:
 # ------------------------------------------------------------------ retire --
 async def retire(tx: Tx, ref: str) -> dict[str, Any]:
     """POST /playbooks/{ref}/retire (🔏 playbook.retire): the group off, so its routines stop for
-    every member; the playbook retired; nothing deleted."""
+    every member; ⟨1.37⟩ every member's flow automation off and the sealed versions `retired`;
+    the playbook retired; nothing deleted."""
     row = await row_of(tx, ref, lock=True)
     if row["state"] == "retired":
         raise ApiError(409, "validation_failed", "retired already",
@@ -1230,6 +1702,21 @@ async def retire(tx: Tx, ref: str) -> dict[str, Any]:
             "UPDATE growth.groups SET state = 'off', updated_at = now() WHERE id = :id",
             id=row["group_id"],
         )
+    await tx.exec(
+        """UPDATE owner.playbook_versions SET state = 'retired'
+           WHERE playbook_id = :p AND state = 'sealed'""",
+        p=row["id"],
+    )
+    flows = await tx.all(
+        """UPDATE growth.automations a SET state = 'off', off_reason = 'owner', updated_at = now()
+           FROM core.companies c
+           WHERE c.id = a.company_id AND a.kind = 'flow' AND a.playbook = :p
+             AND a.state IN ('on', 'paused')
+           RETURNING a.ref, c.code""",
+        p=ref,
+    )
+    for f in flows:
+        await events.emit(tx, f["code"], "automation.changed", f["ref"], {"state": "off"})
     out = dict(
         await tx.one(
             """UPDATE owner.playbooks SET state = 'retired', retired_at = now(), updated_at = now()
@@ -1237,8 +1724,135 @@ async def retire(tx: Tx, ref: str) -> dict[str, Any]:
             id=row["id"],
         )
     )
-    await _emit(tx, ref, "retired")
+    await _emit(tx, ref, "retired", flows=len(flows))
     return out
+
+
+# ------------------------------------------------------- ⟨1.37⟩ §59.1 a member's version --
+async def set_member_version(tx: Tx, hub: Any, ref: str, code: str, version: int) -> PlaybookMember:
+    """PUT /playbooks/{ref}/members/{code}/version: the company runs that sealed version from its
+    flow's next run (its membership and its flow automation). A draft or a retired version is
+    a 409."""
+    row = await row_of(tx, ref, lock=True)
+    company = await hub.companies.find(code)
+    if company is None or row.get("group_id") is None:
+        raise ApiError(
+            404, "not_found", "not a member", message_fa="این شرکت عضو این کارگروه نیست."
+        )
+    m = await tx.first(
+        "SELECT version FROM growth.memberships WHERE group_id = :g AND company_id = :co FOR UPDATE",
+        g=row["group_id"],
+        co=company.id,
+    )
+    if m is None:
+        raise ApiError(
+            404, "not_found", "not a member", message_fa="این شرکت عضو این کارگروه نیست."
+        )
+    v = PV.at_version(await PV.versions(tx, row["id"]), version)
+    assert v is not None
+    if v.state == "retired":
+        raise ApiError(409, "validation_failed", "the version is retired",
+                       message_fa="این نسخه کنار گذاشته شده است؛ نسخه‌ی دیگری را انتخاب کن.")  # fmt: skip
+    if v.state != "sealed":
+        raise ApiError(409, "validation_failed", "the version is a draft",
+                       message_fa="این نسخه هنوز مُهر نشده است؛ اول مُهرش کن.")  # fmt: skip
+    await tx.exec(
+        """UPDATE growth.memberships SET version = :v, updated_at = now()
+           WHERE group_id = :g AND company_id = :co""",
+        v=version,
+        g=row["group_id"],
+        co=company.id,
+    )
+    flows = await tx.all(
+        """UPDATE growth.automations SET playbook_version = :v, updated_at = now()
+           WHERE kind = 'flow' AND playbook = :p AND company_id = :co RETURNING ref, state""",
+        v=version,
+        p=ref,
+        co=company.id,
+    )
+    for f in flows:
+        await events.emit(tx, company.code, "automation.changed", f["ref"],
+                          {"state": f["state"], "version": version})  # fmt: skip
+    await _emit(tx, ref, "member", company=company.code, version=version)
+    member = next((x for x in await members_of(tx, row) if x.company == company.code), None)
+    assert member is not None
+    return member
+
+
+# ---------------------------------------------------- ⟨1.37⟩ §59.1 copy, export, import --
+def copy_text(pb: Playbook, platform: str | None, note_fa: str) -> str:
+    """The first word of the session that adapts a copy (the holding's media lead, §59.1)."""
+    where = f" برای {PLATFORM_FA.get(platform, platform)}" if platform else ""
+    head = f"این کارگروه را{where} جور کن: {' '.join(note_fa.split())}"
+    return (head + "\n\n" + markdown(pb))[:9_900]
+
+
+async def body_at(
+    tx: Tx, ref: str, version: int | None
+) -> tuple[dict[str, Any], dict[str, Any], int]:
+    """(the row, the body, its number) at a version (without: the current body)."""
+    row = await row_of(tx, ref)
+    v = PV.at_version(await PV.versions(tx, row["id"]), version)
+    if v is None:
+        body = {"title_fa": row["title_fa"], "purpose_fa": row["purpose_fa"],
+                "platform": row["platform"], **(_j(row["definition"]) or {})}  # fmt: skip
+        return row, body, int(row["version"])
+    return row, v.body, v.version
+
+
+async def copy(
+    tx: Tx,
+    hub: Any,
+    holding_id: UUID,
+    ref: str,
+    body: PlaybookCopyIn,
+    *,
+    order: str | None = None,
+    conversation: str | None = None,
+) -> dict[str, Any]:
+    """POST /playbooks/{ref}/copy: a new playbook in draft (v1) from a version of this one, its
+    steps and rules as they were, the platform (and the title) changed; `parent` this playbook
+    at that version. With the session that adapts it (`order`), the copy is that session's."""
+    _, src, number = await body_at(tx, ref, body.version)
+    notes: list[str] = []
+    raw = {**PV.shape_of(src)}
+    if body.platform:
+        raw["platform"] = body.platform
+    if body.title_fa:
+        raw["title_fa"] = body.title_fa
+    d = normalise(raw, None, hub.charters, notes)
+    head = f"کپی نسخه‌ی {number} کارگروه «{src.get('title_fa') or ref}»"
+    note = "\n".join([head, *notes])[:2000]
+    row = await _insert(
+        tx, holding_id, d,
+        {"order": order or "", "company": None, "conversation": conversation,
+         "copy_of": ref, "parent_version": number},
+        parent=ref, note=note, by_kind="owner", by_fa=PV.OWNER_FA, order=order,
+    )  # fmt: skip
+    await _emit(tx, str(row["ref"]), "draft", parent=ref)
+    return row
+
+
+async def import_file(tx: Tx, hub: Any, holding_id: UUID, doc: dict[str, Any]) -> dict[str, Any]:
+    """POST /playbooks/import: a new playbook in draft (v1) from a `coinepro.playbook/1` file;
+    `note_fa` says what was dropped (a role no charter has, a step kind the line engine does not
+    run, a helper the hub does not have)."""
+    notes: list[str] = []
+    d = normalise(dict(doc["playbook"]), None, hub.charters, notes)
+    try:
+        number = int(doc.get("version") or 1)
+    except (TypeError, ValueError):
+        number = 1
+    head = f"از فایل کارگروه (نسخه‌ی {number}) ساخته شد"
+    note = "\n".join([head + ("؛ این‌ها کنار رفت:" if notes else "."), *notes])[:2000]
+    row = await _insert(
+        tx, holding_id, d,
+        {"order": "", "company": None, "conversation": None,
+         "imported": {"version": number, "exported_at": str(doc.get("exported_at") or "")[:40]}},
+        parent=None, note=note, by_kind="owner", by_fa=PV.OWNER_FA,
+    )  # fmt: skip
+    await _emit(tx, str(row["ref"]), "draft", imported=True)
+    return row
 
 
 def title_line(row: dict[str, Any]) -> str:

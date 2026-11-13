@@ -346,7 +346,8 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     assert pref in {x["ref"] for x in r.json()}
     assert (await client.get(f"/api/v1/playbooks/{pref}", headers=owner)).json()["ref"] == pref
     assert (await client.get("/api/v1/playbooks/PB-9999", headers=owner)).status_code == 404
-    # the owner edits it directly: the whole checked again, the version counts up
+    # the owner edits it directly: the whole checked again, ⟨1.37⟩ `edits` counts up (the draft
+    # stays version 1: `version` is the body's number since §59.1)
     r = await client.patch(f"/api/v1/playbooks/{pref}", headers=owner, json={})
     assert r.status_code == 422
     r = await client.patch(
@@ -363,7 +364,7 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     )  # fmt: skip
     assert r.status_code == 200, r.text
     pb = r.json()
-    assert pb["version"] == 2 and pb["title_fa"] == "موضوع‌یاب روزانه"
+    assert pb["version"] == 1 and pb["edits"] == 1 and pb["title_fa"] == "موضوع‌یاب روزانه"
     assert [x["key"] for x in pb["routines"]] == ["daily_topic", "weekly"]
     assert "بی‌زمان" in pb["note_fa"] and "«خلبان»" not in pb["note_fa"]
     # … or in words: the holder offers the full new draft as a `playbook` card
@@ -380,10 +381,10 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     assert r.status_code == 200, r.text
     assert r.json()["made"] == [pref]
     pb = (await client.get(f"/api/v1/playbooks/{pref}", headers=owner)).json()
-    assert pb["version"] == 3 and pb["platform"] == "youtube"
+    assert pb["version"] == 1 and pb["edits"] == 2 and pb["platform"] == "youtube"
     assert pb["title_fa"] == "موضوع‌یاب روزانه (نسخه‌ی مدیر)"
     rep = await report(client, owner, ref)
-    assert rep["steps"][-1]["what_fa"].startswith(f"پیش‌نویس کارگروه {pref} بازنویسی شد (نسخه‌ی 3)")
+    assert rep["steps"][-1]["what_fa"].startswith(f"پیش‌نویس کارگروه {pref} بازنویسی شد (نسخه‌ی 1)")
     # the pointer card (no draft) only points
     r = await run_card(client, owner, {"id": str(await su.fetchval(
         "SELECT c.id FROM talk.cards c JOIN talk.conversations v ON v.id = c.conversation_id "
@@ -401,7 +402,7 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     asks = {"mode": "ask", "account": None, "story": False, "since": None, "at": None,
             "best": False}  # fmt: skip
     assert member == {"company": co, "name_fa": f"شرکت آزمایشی {co}", "state": "on", "order": ref,
-                      "publish": asks}  # fmt: skip
+                      "publish": asks, "version": 1, "automation": None}  # fmt: skip
     # a working group in the database: eligibility `chosen`, on, version 1, the playbook named
     r = await client.get(f"/api/v1/groups/{gkey}", headers=owner)
     assert r.status_code == 200, r.text
