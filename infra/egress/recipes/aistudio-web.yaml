@@ -1,18 +1,25 @@
 # Google AI Studio's speech generation in the hub's signed-in browser profile
-# `aistudio-web` (prompt 22, contract §30.2 step kind `tts`): the text to speak
-# in the speaker (prebuilt voice) and style the owner chose; the audio is
-# downloaded. The owner's own Google account. A reviewed file: a change here
-# is a reviewed change, never an agent's write.
-# The profile is its own (a recipe is one profile with one lock), but it is the
-# SAME Google account as gemini-web: one sign-in with `make aistudio-web-login`.
-# Written against aistudio.google.com/generate-speech as documented on
-# 2026-11-04 and NOT yet verified on the live site (no sign-in exists until the
-# owner's login); as with the other recipes the first failing step shows in the
-# line's run, and the lesson goes here. The selectors lean on the page's
-# structure (element kinds, order, a control's role), never on a language: the
-# profile's locale is fa-IR.
+# `aistudio-web` (prompt 22, contract §30.2 step kind `tts`): the text spoken
+# by the speaker and in the style the job names; the audio is downloaded. The
+# owner's own Google account, signed in once with `make aistudio-web-login`
+# (the same account as gemini-web). A reviewed file: a change here is a
+# reviewed change, never an agent's write.
+# ⟨2026-11-13⟩ Rewritten against the page as it is since 2026-11 and as the
+# owner's own tutorial (session F-0018, 3934.mp4) does it: model Gemini 3.8
+# Flash TTS (the page's default), "Create new dialog", Speaker 1 -> the voice
+# found by name in the 2,000+ voice library (search box, then its card),
+# Style -> the preset of that name (Narration, Friendly, …) or, for any other
+# style, the free "Describe the voice style" box, the text in the speech
+# block, Run, then the generated audio's download. The old page (one
+# textarea, a voice mat-select, Ctrl+Enter) is gone; Ctrl+Enter no longer
+# runs. Selectors lean on structure and aria-labels, never on the UI language
+# (the profile's locale is fa-IR, the page stays English).
+# Hosts: AI Studio refused a generation (403 "The caller does not have
+# permission") and later signed the profile out while the job could not
+# reach Google's sign-in host (cookie rotation) nor the Cloud console's auth
+# warm-up; both are the account's own Google hosts.
 key: aistudio-web
-version: "2026-11-04.1"
+version: "2026-11-13.1"
 site: aistudio.google.com
 start_url: "https://aistudio.google.com/generate-speech"
 hosts:
@@ -26,8 +33,13 @@ hosts:
   - alkalimakersuite-pa.clients6.google.com
   - waa-pa.clients6.google.com
   - generativelanguage.googleapis.com
-login_hosts:
+  # ⟨2026-11-13⟩ the session's own upkeep: cookie rotation, the Cloud project warm-up, the
+  # account's profile (people) and Google's API host the page calls
   - accounts.google.com
+  - console.cloud.google.com
+  - people-pa.clients6.google.com
+  - www.googleapis.com
+login_hosts:
   - gds.google.com
   - consent.google.com
   - ogs.google.com
@@ -44,16 +56,30 @@ tasks:
     timeout_s: 240
     steps:
       - {do: goto, url: "{start_url}"}
-      - {do: wait, selector: "textarea", timeout_s: 40}
-      # the speaker: the voice control of the run settings (a mat-select), then its option by name
-      - do: select
-        selector: "mat-select[aria-label*='oice'], [data-test-id*='voice'] mat-select, ms-voice-selector mat-select, mat-select"
-        text: "{voice}"
-        timeout_s: 20
-      # the style note (the first box), when the job has one; the text to speak is the last box
-      - {do: fill, selector: "textarea >> nth=0", text: "{style}", optional: true}
-      - {do: fill, selector: "textarea >> nth=-1", text: "{prompt}"}
-      - {do: press, selector: "textarea >> nth=-1", key: "Control+Enter"}
+      # Google's cookie bar covers the Run button on a 900 px window
+      - {do: click, selector: "button.glue-cookie-notification-bar__accept", optional: true}
+      # the landing page: a new dialog opens the speech block (a page already showing one skips it)
+      - do: click_unless
+        selector: "text=Create new dialog"
+        unless: "textarea[aria-label='Speech block text']"
+        timeout_s: 40
+      - {do: wait, selector: "textarea[aria-label='Speech block text']", timeout_s: 30}
+      # the speaker: Speaker 1's chip, the library searched by the job's voice, its card, close
+      - {do: click, selector: "button.voice-chip", timeout_s: 20}
+      - {do: fill, selector: "input[aria-label='Search voices']", text: "{voice}", timeout_s: 20}
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "button.voice-card-content[aria-label='{voice}']", timeout_s: 20}
+      - {do: wait, selector: "button.voice-chip:has-text('{voice}')", timeout_s: 10}
+      - {do: click, selector: "button[aria-label='Close panel']", optional: true}
+      # the style: its preset by name; any other style goes into the free box of the same menu
+      - {do: click, selector: "button[aria-label='Style']", optional: true}
+      - {do: click, selector: "button[role=menuitem]:has-text('{style}')", optional: true}
+      - {do: fill, selector: "textarea[aria-label='Describe the voice style']", text: "{style}", timeout_s: 3, optional: true}
+      - {do: press, selector: "textarea[aria-label='Describe the voice style']", key: "Escape", timeout_s: 2, optional: true}
+      - {do: fill, selector: "textarea[aria-label='Speech block text']", text: "{prompt}"}
+      - {do: click, selector: "button.ctrl-enter-submits", timeout_s: 20}
+      # the generated audio's player (not yet seen on the live page: the profile was signed out
+      # before a generation finished, 2026-11-13; the API is tried first, this is the fallback)
       - {do: wait, selector: "audio", state: attached, timeout_s: 180}
       - {do: pause, ms: 1500}
       - {do: download_media, selector: "audio", attr: src}
