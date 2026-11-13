@@ -301,7 +301,7 @@ fun AutomationsCalendarScreen() {
                                 Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.go("automation/${e.ref}") }.padding(horizontal = 14.dp, vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                Text(jTime(e.at), style = Divan.type.caption, color = c.textSecondary)
+                                Text(com.coinepro.hq.designsystem.timesFig(jTime(e.at)), style = Divan.type.caption, color = c.textSecondary)
                                 Column(Modifier.weight(1f)) {
                                     Text(facts(e.titleFa, e.companyFa.ifBlank { null }), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(plain(e.topicFa ?: "موضوع روز اجرا انتخاب میشود"), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)

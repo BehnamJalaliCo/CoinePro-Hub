@@ -146,7 +146,7 @@ fun FlowScreen(ref: String) {
                                 val (fa, tone) = autoStateFa(f.state)
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Pill(fa, tone, dot = true)
-                                    if (f.state == "paused" && f.pausedUntil != null) Text("تا ${jDateTime(f.pausedUntil)}", style = Divan.type.micro, color = c.textMuted)
+                                    if (f.state == "paused" && f.pausedUntil != null) Text(plain("تا ${jDateTime(f.pausedUntil)}"), style = Divan.type.micro, color = c.textMuted)
                                 }
                                 Text(
                                     remember(f) { facts(scheduleFa(f.schedule), f.account?.let { "@$it" }, if (f.story) "استوری هم" else null, flowModeFa(f.mode)) },
