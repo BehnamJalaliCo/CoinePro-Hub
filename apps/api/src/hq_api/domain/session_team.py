@@ -12,17 +12,22 @@
                     that person's answers; never the main thread. The main session gets one step per
                     burst: when the same side's previous line of the seat is older than BURST.
     say             the word joins the person's open work of the order (it runs again now, the side
-                    talk in its run's brief), else a side work is made for them under the order's
-                    root, with a plan task of the owner's (as the session's «delegate» card does).
+                    talk in its run's brief), else a side work is made for them: a work requested by
+                    the order's root (in the order's tree, never a part that holds the root's
+                    delivery or a task of the plan; the main session stays as it was).
     the answers     while a person works a side work of the order (or a work a side word woke within
                     SIDE_WOKEN), their `order.ask` and `order.progress` on that order are side lines:
                     no main step, no owner's turn, no notification (`session.team` on the stream).
+    the close       a side work's run that ends done with no question of theirs open and nothing of
+                    it still going closes it by itself (`done`, «گفتگو جواب گرفت»); what it
+                    delivered stays in the session, and a later word makes a new side work.
     hire            an empty media seat filled at once by the owner's own hire (by code, with his
                     approval's hard checks); the newcomer joins the session (§39).
 """
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Literal
 
@@ -65,6 +70,7 @@ SEAT_FULL_FA = "این جایگاه پر است؛ با همان کس حرف بز
 NO_COMPANY_FA = "شرکتِ این جلسه روشن نیست؛ برای آن کسی استخدام نمیشود."
 NO_CHARTER_FA = "این نقش در این شرکت منشور ندارد."
 EMPTY_FA = "متن خالی است."
+CLOSED_FA = "گفتگو جواب گرفت"
 OWNER_STEP_FA = "با {who}: {words}"
 SEAT_STEP_FA = "جواب داد"
 SIDE_BRIEF_FA = (
@@ -89,6 +95,7 @@ PERSON_SQL = """SELECT e.id, e.code, e.role, e.kind, e.title_fa, e.company_id, c
                        c.kind AS company_kind, c.name_fa AS company_fa
                 FROM core.employees e JOIN core.companies c ON c.id = e.company_id"""
 LINE_COLS = "id, created_at, who, who_fa, text, work_ref"
+SIDE_SERVICE = Principal(kind="service", code="session_team", role="service")
 
 
 # ------------------------------------------------------------------ shapes --
@@ -342,11 +349,12 @@ async def _insert(
     work: dict[str, Any] | None,
     *,
     made: bool = False,
+    asked: bool = False,
 ) -> SideLine:
     row = await tx.one(
         f"""INSERT INTO owner.session_side_lines (company_id, order_id, seat_code, who, who_fa,
-                text, work_id, work_ref, made_work)
-            VALUES (:co, :o, :c, :w, :name, :t, :wid, :wref, :made)
+                text, work_id, work_ref, made_work, asked)
+            VALUES (:co, :o, :c, :w, :name, :t, :wid, :wref, :made, :asked)
             RETURNING {LINE_COLS}""",  # noqa: S608
         co=rep["company_id"],
         o=rep["order_id"],
@@ -357,6 +365,7 @@ async def _insert(
         wid=work["id"] if work else None,
         wref=str(work["ref"]) if work else None,
         made=made,
+        asked=asked,
     )
     return _line(dict(row))
 
@@ -509,15 +518,13 @@ async def child_of_order(
     *,
     title: str,
     brief: str,
-    hold_parent: bool = True,
 ) -> dict[str, Any]:
-    """A work of the order for `emp`: a child of the root in the root's company; in another
-    company (or the holding) a work requested by the root, which the order's tree follows.
-    `hold_parent=False` (a side work): the root goes on as it is."""
+    """A work of the order for `emp` (the session's «delegate» and «ask» cards): a child of the
+    root in the root's company; in another company (or the holding) a work requested by the root,
+    which the order's tree follows."""
     if emp["company_id"] == parent["company_id"]:
         return await W.delegate(tx, who, parent, to_code=str(emp["code"]), title=title,
-                                brief=brief, priority=None, due_at=None, budget=None,
-                                hold_parent=hold_parent)  # fmt: skip
+                                brief=brief, priority=None, due_at=None, budget=None)  # fmt: skip
     return await W.create(
         tx,
         who,
@@ -529,6 +536,37 @@ async def child_of_order(
         priority=str(parent["priority"]),
         assignee_code=str(emp["code"]),
         requested_by_work_id=parent["id"],
+    )
+
+
+async def side_work(
+    tx: Tx, who: Principal, root: dict[str, Any], emp: dict[str, Any], *, title: str, brief: str
+) -> dict[str, Any]:
+    """⟨1.35⟩ A side work: requested by the order's root whatever the company (in the order's
+    tree, so its outputs reach the session), never a child of it: the root is not held, its
+    delivery never waits for a chat, and no plan task is made."""
+    return await W.create(
+        tx,
+        who,
+        company_id=emp["company_id"],
+        company_code=str(emp["company"]),
+        title=title,
+        brief=brief,
+        kind="one_off",
+        priority=str(root["priority"]),
+        assignee_code=str(emp["code"]),
+        requested_by_work_id=root["id"],
+    )
+
+
+async def is_side_work(tx: Tx, work_id: Any) -> bool:
+    """Whether a side talk made this work (its holder is not woken when it ends)."""
+    return bool(
+        await tx.scalar(
+            """SELECT EXISTS (SELECT 1 FROM owner.session_side_lines
+                 WHERE work_id = :w AND made_work)""",
+            w=work_id,
+        )
     )
 
 
@@ -599,14 +637,11 @@ async def say(ctx: Any, tx: Tx, ref: str, code: str, text: str) -> SayOut:
         if root_id is None:
             raise ApiError(409, "validation_failed", "the order has no work",
                            message_fa=NO_ROOT_FA)  # fmt: skip
-        parent = await W.load(tx, root_id, lock=True)
-        title = " ".join(words.split())[:300]
-        work = await child_of_order(
-            tx, ctx.who, parent, p, title=title, brief=side_brief(ref, words, so_far),
-            hold_parent=False,
+        parent = await W.load(tx, root_id)
+        work = await side_work(
+            tx, ctx.who, parent, p, title=" ".join(words.split())[:300],
+            brief=side_brief(ref, words, so_far),
         )  # fmt: skip
-        await SE.add_task(tx, rep, title_fa=title, by="owner", who_fa=name, who_code=code,
-                          work_ref=str(work["ref"]))  # fmt: skip
     line = await _insert(tx, rep, code, "owner", OWNER_FA, words, work, made=made)
     if target is not None:
         await OT._wake_for_owner(tx, works, target, f"{SIDE_REASON}{ref}")
@@ -654,16 +689,18 @@ async def side_work_of(tx: Tx, ref: str, who: Principal) -> dict[str, Any] | Non
     return next((w for wid in marked for w in candidates if w["id"] == wid), None)
 
 
-async def answer(tx: Tx, ref: str, who: Principal, text: str, work: dict[str, Any]) -> None:
-    """The person's `order.ask` / `order.progress` from a side work: a side line, and one main
-    step «… جواب داد» per burst."""
+async def answer(
+    tx: Tx, ref: str, who: Principal, text: str, work: dict[str, Any], *, asked: bool = False
+) -> None:
+    """The person's `order.ask` (`asked`) / `order.progress` from a side work: a side line, and
+    one main step «… جواب داد» per burst."""
     rep = await OR.ensure(tx, ref)
     if rep is None:
         return
     row = await tx.first(PERSON_SQL + " WHERE e.code = :c", c=who.code)
     name = who_fa(dict(row)) if row is not None else who.code
     burst = not await _in_burst(tx, rep["order_id"], who.code, "seat")
-    await _insert(tx, rep, who.code, "seat", name, " ".join(text.split()), work)
+    await _insert(tx, rep, who.code, "seat", name, text.strip(), work, asked=asked)
     if burst:
         await OR._append_steps(tx, rep["id"], [OR._step(name, SEAT_STEP_FA)])
     await _emit(tx, ref, who.code)
@@ -689,6 +726,69 @@ async def run_brief(tx: Tx, rep: dict[str, Any], work_id: Any) -> dict[str, Any]
         "lines": [f"{x['who_fa']}: {str(x['text'])[:BRIEF_LINE_CHARS]}" for x in talk],
         "rule": SIDE_RULE.format(ref=rep["ref"]),
     }
+
+
+# --------------------------------------------------------------- the close --
+async def after_run(tx: Tx, run: dict[str, Any]) -> bool:
+    """§57 a run of a side work ended `done`: the side work closes by itself (`done`, «گفتگو جواب
+    گرفت»; the side talk is its evidence when it delivered nothing) when nothing of it is left: no
+    question of the person open in the side talk (their last line an `order.ask`), no other run
+    queued or running, no workshop turn, outside call or voice job still going, no open work of
+    its own. What it delivered stays in the session. Answers whether it was closed."""
+    from hq_api.domain import session_activity as SA
+
+    wid = run.get("work_id")
+    if wid is None or run.get("trigger") != "work":
+        return False
+    side = await tx.first(
+        """SELECT l.order_id, l.seat_code, r.ref AS order_ref FROM owner.session_side_lines l
+           JOIN owner.order_reports r ON r.order_id = l.order_id
+           WHERE l.work_id = :w AND l.made_work LIMIT 1""",
+        w=wid,
+    )
+    if side is None:
+        return False
+    w = await tx.first(
+        "SELECT id, ref, status, company_id FROM work.work WHERE id = :w FOR UPDATE", w=wid
+    )
+    if w is None or w["status"] not in (*W.OPEN, "delivered"):
+        return False
+    last = await tx.first(
+        """SELECT who, asked FROM owner.session_side_lines WHERE order_id = :o AND seat_code = :c
+           ORDER BY id DESC LIMIT 1""",
+        o=side["order_id"],
+        c=side["seat_code"],
+    )
+    if last is not None and last["who"] == "seat" and last["asked"]:
+        return False  # the person asked the owner something: it waits for his word
+    if await SA.live_run(tx, [wid]) is not None or await SA.live_turns(tx, [wid]):
+        return False
+    if await tx.scalar(
+        """SELECT EXISTS (SELECT 1 FROM work.work c
+             WHERE (c.parent_id = :w OR c.requested_by_work_id = :w)
+               AND c.status IN ('queued', 'in_progress', 'waiting'))""",
+        w=wid,
+    ):
+        return False
+    rows = await OR.tree(tx, [str(w["ref"])])
+    if await SA.pending_outside(tx, rows):
+        return False
+    evidence = json.dumps([{"kind": "side_talk", "ref": str(side["order_ref"])}])
+    await tx.exec(
+        """UPDATE work.work SET status = 'done', close_reason = :why, closed_at = now(),
+               evidence = CASE WHEN EXISTS (SELECT 1 FROM cartable.deliverables d
+                                            WHERE d.work_id = work.work.id)
+                               THEN evidence ELSE evidence || CAST(:ev AS jsonb) END
+           WHERE id = :w""",
+        why=CLOSED_FA,
+        ev=evidence,
+        w=wid,
+    )
+    await W.event(tx, dict(w), "side_closed", SIDE_SERVICE, {"order": side["order_ref"]})
+    company = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=w["company_id"])
+    await events.emit(tx, str(company), "work.completed", str(w["ref"]), {"by": SIDE_SERVICE.code})
+    await _emit(tx, str(side["order_ref"]), str(side["seat_code"]))
+    return True
 
 
 # -------------------------------------------------------------------- hire --

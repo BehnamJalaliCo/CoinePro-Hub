@@ -1816,6 +1816,17 @@ class Runner:
         )
 
     # -------------------------------------------------------------- finish --
+    async def _side_closed(self, tx: Tx, run: dict[str, Any]) -> None:
+        """⟨1.35⟩ §57 a side talk's work whose run answered and left nothing open closes by
+        itself (session_team.after_run); never fails the run's end."""
+        from hq_api.domain import session_team as ST
+
+        try:
+            async with tx.conn.begin_nested():
+                await ST.after_run(tx, run)
+        except Exception:  # noqa: BLE001 - a run's end never fails on the side talk
+            log.warning("the side work could not be closed", extra={"run": str(run.get("id"))})
+
     async def finish(
         self,
         run_id: str,
@@ -1887,6 +1898,8 @@ class Runner:
         )
         # ⟨1.23⟩ §41.1 the session sees how the run ended (a refusal before a start too)
         await SA.on_run(tx, run, emp, "finished", state=state, code=code, partial=partial)
+        if state == "done" and run.get("work_id") is not None and run["trigger"] == "work":
+            await self._side_closed(tx, run)
         if run["trigger"] == "meeting":
             # ⟨1.5⟩ the meeting books the turn's tokens and queues the next (prompt 11 §1.4)
             await MF.turn_finished(tx, run)

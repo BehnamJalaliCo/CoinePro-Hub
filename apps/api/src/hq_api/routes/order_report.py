@@ -539,7 +539,7 @@ async def order_ask(ref: str, body: AskIn, ctx: Ctx = Depends(internal_ctx)) -> 
         # ⟨1.35⟩ §57.4 a question from a side work goes to that side talk, not to the owner's turn
         side = await ST.side_work_of(tx, ref, ctx.who)
         if side is not None:
-            await ST.answer(tx, ref, ctx.who, body.question_fa, side)
+            await ST.answer(tx, ref, ctx.who, body.question_fa, side, asked=True)
         else:
             await OT.ask(tx, ctx.who, ref, body.question_fa)
         await ctx.audit(

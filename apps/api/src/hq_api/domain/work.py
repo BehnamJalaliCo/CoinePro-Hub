@@ -420,10 +420,7 @@ async def delegate(
     due_at: datetime | None,
     budget: BudgetIn | None,
     key_result: str | None = None,
-    hold_parent: bool = True,
 ) -> dict[str, Any]:
-    """A child work for `to_code`. ⟨1.35⟩ §57.3 `hold_parent=False`: the parent goes on as it is
-    (a side work the owner's side talk made: the session's holder keeps working)."""
     if parent["status"] in CLOSED:
         raise ApiError(409, "validation_failed", "the work is closed")
     child = await create(
@@ -441,7 +438,7 @@ async def delegate(
         parent=parent,
         key_result=key_result or parent.get("key_result_ref"),
     )
-    if hold_parent and parent["status"] in ("queued", "in_progress"):
+    if parent["status"] in ("queued", "in_progress"):
         await tx.exec("UPDATE work.work SET status = 'waiting' WHERE id = :id", id=parent["id"])
     await event(tx, parent, "delegated", who, {"child": child["ref"], "to": to_code})
     await events.emit(

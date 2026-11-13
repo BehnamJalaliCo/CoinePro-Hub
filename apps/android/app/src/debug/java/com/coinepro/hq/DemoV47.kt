@@ -113,7 +113,7 @@ internal class V47Demo(private val v35: V35Demo) {
     fun teamNarrator(code: String): JsonObject? = narrators[code]?.let { n ->
         val voice = n.str("voice").orEmpty()
         val trait = VOICES.firstOrNull { it.first == voice }?.third
-        jo("company" to code, "voice" to voice, "voice_fa" to listOfNotNull(voice, trait).joinToString("، "), "style_fa" to n.str("style_fa"))
+        jo("company" to code, "voice" to voice, "voice_fa" to if (trait != null) "$voice ($trait)" else voice, "style_fa" to n.str("style_fa"))
     }
 
     private fun narrator(code: String): JsonObject {

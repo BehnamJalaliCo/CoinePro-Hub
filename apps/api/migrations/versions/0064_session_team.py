@@ -5,7 +5,7 @@
   code, `seat_code`): the owner's words to that person (`who = 'owner'`) and the person's answers
   (`who = 'seat'`: their `order.ask` / `order.progress` from a side work of the order). `work_id`:
   the work the owner's word joined or made (`made_work`: made for this word, a side work), or the
-  work the person answered from. Append-only (no UPDATE or DELETE for the app roles); the lines go
+  work the person answered from (`asked`: a question, their `order.ask`). Append-only (no UPDATE or DELETE for the app roles); the lines go
   with their order when the owner erases it (ON DELETE CASCADE from owner.orders).
 - owner.session_side_reads: how far the owner has read each side talk (`read_id`, the newest line
   he saw), for the seat's `unread`. One row per order and seat.
@@ -54,8 +54,10 @@ CREATE TABLE owner.session_side_lines (
     work_id     uuid REFERENCES work.work (id),
     work_ref    text CHECK (work_ref IS NULL OR work_ref ~ '^W-[0-9]{{6,12}}$'),
     made_work   boolean NOT NULL DEFAULT false,
+    asked       boolean NOT NULL DEFAULT false,
     created_at  timestamptz NOT NULL DEFAULT now(),
-    CHECK (NOT made_work OR (who = 'owner' AND work_id IS NOT NULL))
+    CHECK (NOT made_work OR (who = 'owner' AND work_id IS NOT NULL)),
+    CHECK (NOT asked OR who = 'seat')
 );
 CREATE INDEX session_side_lines_seat ON owner.session_side_lines (order_id, seat_code, created_at);
 CREATE INDEX session_side_lines_work ON owner.session_side_lines (work_id) WHERE work_id IS NOT NULL;

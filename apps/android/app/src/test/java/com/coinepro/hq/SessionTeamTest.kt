@@ -6,7 +6,6 @@ import com.coinepro.hq.core.data.mergeSideLines
 import com.coinepro.hq.core.data.narratorChipFa
 import com.coinepro.hq.core.data.revisionOf
 import com.coinepro.hq.core.data.revisions
-import com.coinepro.hq.core.data.seatChipFa
 import com.coinepro.hq.core.data.seatSaidFa
 import com.coinepro.hq.core.data.sessionTimeline
 import com.coinepro.hq.core.data.sideTitleFa
@@ -67,7 +66,7 @@ class SessionTeamTest {
         {"key":"PC-CEO","role":null,"role_fa":"مسئول جلسه","holder":true,"employee":{"code":"PC-CEO","title_fa":"مدیرعامل پرو-چارت","company":"PC"},"state":"working","last":null,"unread":0},
         {"key":"PC-SCR-01","role":"scriptwriter","role_fa":"نویسنده","holder":false,"employee":{"code":"PC-SCR-01","title_fa":"سناریست پرو-چارت","company":"PC"},"state":"working","last":{"at":"2026-11-13T08:24:00Z","who":"seat","text":"گذاشتم."},"unread":2},
         {"key":"role:video_director","role":"video_director","role_fa":"کارگردان","holder":false,"employee":null,"state":"empty","last":null,"unread":0}],
-        "narrator":{"company":"PC","voice":"Kore","voice_fa":"Kore، محکم","style_fa":null}}"""
+        "narrator":{"company":"PC","voice":"Kore","voice_fa":"Kore (محکم)","style_fa":null}}"""
 
     // ------------------------------------------------------------------ the team --
     @Test
@@ -82,7 +81,7 @@ class SessionTeamTest {
         assertEquals("video_director", empty.roleKey)
         // an empty seat without its role field still says which role it is
         assertEquals("motion_designer", empty.copy(role = null, key = "role:motion_designer").roleKey)
-        assertEquals("Kore، محکم", t.narrator!!.voiceFa)
+        assertEquals("Kore (محکم)", t.narrator!!.voiceFa)
         // a hub that leaves fields out still reads
         assertEquals(0, Api.json.decodeFromString(SessionTeam.serializer(), """{"seats":[{"key":"x","role_fa":"y"}]}""").seats.single().unread)
     }
@@ -100,13 +99,13 @@ class SessionTeamTest {
     @Test
     fun theChipsSayWhoAndWhat() {
         val (holder, writer, empty) = Api.json.decodeFromString(SessionTeam.serializer(), teamJson).seats
-        assertEquals("مسئول جلسه", seatChipFa(holder))
-        assertEquals("+ کارگردان", seatChipFa(empty))
+        assertEquals("مدیرعامل پرو-چارت، مسئول جلسه، در کار", seatSaidFa(holder))
+        assertEquals("کارگردان: خالی؛ استخدام", seatSaidFa(empty))
         assertEquals("کارگردان استخدام شود؟", hireAskFa(empty))
         assertEquals("با سناریست پرو-چارت", sideTitleFa(writer))
         // a prose count in Persian digits
         assertEquals("سناریست پرو-چارت، نویسنده، در کار، ۲ حرف تازه", seatSaidFa(writer))
-        assertEquals("گوینده: Kore، محکم", narratorChipFa(TeamNarrator("PC", "Kore", "Kore، محکم")))
+        assertEquals("گوینده: Kore (محکم)", narratorChipFa(TeamNarrator("PC", "Kore", "Kore (محکم)")))
         assertEquals("گوینده: Kore", narratorChipFa(TeamNarrator("PC", "Kore", " ")))
         assertEquals("نسخه‌ی ۳", versionFa(3))
     }

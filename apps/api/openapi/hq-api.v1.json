@@ -120154,7 +120154,7 @@
     },
     "/api/v1/orders/{ref}/team/{code}/say": {
       "post": {
-        "description": "⟨1.35⟩ §57.3 The owner's word to one person of the session (a filled seat other than the\nholder: the holder's word is `/reply`, 409). It joins the person's open work of this order\n(which runs again now with the side talk in its brief), else a side work is made for them\nunder the order's root, with a plan task of the owner's. The main session gets one step per\nburst («مدیر کل: با …»). An ended session: 409; a code not in the team: 404. Requires\n`Idempotency-Key`; no step-up.",
+        "description": "⟨1.35⟩ §57.3 The owner's word to one person of the session (a filled seat other than the\nholder: the holder's word is `/reply`, 409). It joins the person's open work of this order\n(which runs again now with the side talk in its brief), else a side work is made for them,\nrequested by the order's root: no plan task, never a part the root's delivery waits for; it\ncloses by itself once its run answered and left nothing open («گفتگو جواب گرفت»). The main\nsession gets one step per burst («مدیر کل: با …»). An ended session: 409; a code not in the\nteam: 404. Requires `Idempotency-Key`; no step-up.",
         "operationId": "session_team_say",
         "parameters": [
           {

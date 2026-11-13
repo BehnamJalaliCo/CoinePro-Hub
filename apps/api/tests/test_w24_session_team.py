@@ -16,11 +16,13 @@ D. a direct turn's output is named by its files, and a file re-issued under a ve
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import Any
 
 import httpx
 
+from hq_api.agents.runner import Runner
 from hq_api.domain import order_report as OR
 from hq_api.domain import order_turns as OT
 from hq_api.domain import players as PL
@@ -30,7 +32,7 @@ from hq_api.domain import workspace as WS
 from hq_api.hub import Hub
 
 from .conftest import agent_headers, idem
-from .test_p21_routing_orders import envelope, report
+from .test_p21_routing_orders import deliver, envelope, report
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_w7_sessions import WORK_TEXT
 
@@ -60,6 +62,37 @@ async def side_lines(su: Any, ref: str, code: str) -> list[Any]:
             code,
         )
     )
+
+
+async def finish_side_run(su: Any, runner: Runner, work_id: Any) -> None:
+    """The side work's queued run claimed and ended `done` through the runner (the others of
+    it refused)."""
+    rid = await su.fetchval(
+        """SELECT id FROM agents.runs WHERE work_id = $1 AND state IN ('queued', 'running')
+           ORDER BY queued_at LIMIT 1""",
+        work_id,
+    )
+    assert rid is not None
+    await su.execute(
+        """UPDATE agents.runs SET state = 'refused', error_code = 'test', finished_at = now()
+           WHERE work_id = $1 AND state IN ('queued', 'running') AND id <> $2""",
+        work_id,
+        rid,
+    )
+    # one running run per employee: the test's own (agent_headers) ends first
+    await su.execute(
+        """UPDATE agents.runs SET state = 'done', finished_at = now()
+           WHERE state = 'running' AND trigger <> 'talk' AND id <> $2
+             AND employee_id = (SELECT assignee_id FROM work.work WHERE id = $1)""",
+        work_id,
+        rid,
+    )
+    await su.execute(
+        """UPDATE agents.runs SET state = 'running', started_at = now(),
+               token_expires_at = now() + interval '1 hour' WHERE id = $1""",
+        rid,
+    )
+    await runner.finish(str(rid), "done", None)
 
 
 def steps_with(rep: dict[str, Any], text: str) -> list[dict[str, Any]]:
@@ -205,6 +238,7 @@ async def test_an_empty_seat_is_hired_at_once_and_a_refusal_makes_nothing(
 async def test_a_word_to_one_person_is_a_side_talk_and_their_answers_stay_in_it(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -249,11 +283,14 @@ async def test_a_word_to_one_person_is_a_side_talk_and_their_answers_stay_in_it(
     assert got["line"]["who"] == "owner" and got["line"]["text"] == first
     assert got["line"]["who_fa"] == ST.OWNER_FA and got["line"]["work_ref"] == got["work_ref"]
     side = await su.fetchrow(
-        """SELECT w.id, w.title, w.brief, w.parent_id, w.status, e.code AS assignee
+        """SELECT w.id, w.title, w.brief, w.parent_id, w.requested_by_work_id, w.status,
+                  e.code AS assignee
            FROM work.work w JOIN core.employees e ON e.id = w.assignee_id WHERE w.ref = $1""",
         got["work_ref"],
     )
-    assert side["assignee"] == code and side["parent_id"] == root["id"] and side["title"] == first
+    assert side["assignee"] == code and side["title"] == first
+    # requested by the root, never its child: no part the root's delivery waits for
+    assert side["parent_id"] is None and side["requested_by_work_id"] == root["id"]
     assert f"در جلسه‌ی {ref}" in side["brief"] and "order.ask" in side["brief"]
     assert got["woken"] is True  # its first run is queued
     # the holder's own work goes on as it was (a side talk never makes it wait)
@@ -261,13 +298,12 @@ async def test_a_word_to_one_person_is_a_side_talk_and_their_answers_stay_in_it(
         await su.fetchval("SELECT status FROM work.work WHERE id = $1", root["id"])
         == root["status"]
     )
-    task = await su.fetchrow(
-        """SELECT t.by, t.who_code, t.title_fa FROM owner.session_tasks t
-           JOIN owner.orders o ON o.id = t.order_id WHERE o.ref = $1 AND t.work_ref = $2""",
+    # and no task of the session's plan: the main session stays as it was
+    assert not await su.fetchval(
+        """SELECT count(*) FROM owner.session_tasks t JOIN owner.orders o ON o.id = t.order_id
+           WHERE o.ref = $1""",
         ref,
-        got["work_ref"],
     )
-    assert (task["by"], task["who_code"]) == ("owner", code)
     rep = await report(client, owner, ref)
     main = side_steps(rep)
     assert len(main) == 1, rep["steps"]
@@ -345,16 +381,65 @@ async def test_a_word_to_one_person_is_a_side_talk_and_their_answers_stay_in_it(
     r = await client.get(f"/api/v1/orders/{ref}/team/{other}-CEO/lines", headers=owner)
     assert r.status_code == 404
 
-    # a word after the burst is one more main step
+    # its run ends while the person's question is open: the side work stays open
+    runner = Runner(wk["hub"], router=None, gateway=None)  # type: ignore[arg-type]
+    await finish_side_run(su, runner, side["id"])
+    assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", side["id"]) in W.OPEN
+
+    # a word after the burst is one more main step; it answers the question and wakes the work
     await su.execute(
         """UPDATE owner.session_side_lines SET created_at = created_at - interval '11 minutes'
            WHERE order_id = (SELECT id FROM owner.orders WHERE ref = $1)""",
         ref,
     )
-    r = await say(client, owner, ref, code, "ممنون؛ همین خوب است")
-    assert r.status_code == 200, r.text
+    r = await say(client, owner, ref, code, "با شعار؛ همین خوب است")
+    assert r.status_code == 200 and r.json()["work_ref"] == got["work_ref"], r.text
     rep = await report(client, owner, ref)
     assert len(side_steps(rep)) == 2
+    h = await agent_headers(code)  # a run of its own again (the side run ended)
+    r = await client.post(f"/internal/v1/orders/{ref}/progress", headers=h,
+                          json={"step_fa": "شعار را گذاشتم؛ متن آماده است"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    # the run that answered ends with nothing left: the side work closes by itself, the
+    # holder is not woken for it, and the session's thread does not change
+    holder_runs = await su.fetchval(
+        "SELECT count(*) FROM agents.runs WHERE work_id = $1", root["id"]
+    )
+    steps_before = len((await report(client, owner, ref))["steps"])
+    await finish_side_run(su, runner, side["id"])
+    closed = await su.fetchrow(
+        "SELECT status, close_reason, evidence FROM work.work WHERE id = $1", side["id"]
+    )
+    assert (closed["status"], closed["close_reason"]) == ("done", ST.CLOSED_FA)
+    ev = (
+        json.loads(closed["evidence"])
+        if isinstance(closed["evidence"], str)
+        else closed["evidence"]
+    )
+    assert ev == [{"kind": "side_talk", "ref": ref}]
+    assert await su.fetchval(
+        "SELECT count(*) FROM agents.runs WHERE work_id = $1", root["id"]
+    ) == holder_runs  # fmt: skip
+    assert len((await report(client, owner, ref))["steps"]) == steps_before
+    # a later word to the same person: a new side work
+    r = await say(client, owner, ref, code, "یک ریلز دیگر هم برای فردا بنویس")
+    assert r.status_code == 200, r.text
+    newer = r.json()["work_ref"]
+    assert newer != got["work_ref"]
+    assert [x["made_work"] for x in await side_lines(su, ref, code)][-1] is True
+    # its output reaches the session; the holder delivers while it is still open: the root is
+    # delivered and the session `ready` (a chat holds nothing)
+    newer_id = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", newer)
+    r = await deliver(client, code, newer_id, "متن ریلز فردا")
+    assert r.status_code in (200, 201), r.text
+    r = await deliver(client, holder, root["id"], "گزارش فروش هفته")
+    assert r.status_code in (200, 201), r.text
+    assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", root["id"]) == (
+        "delivered"
+    )
+    rep = await report(client, owner, ref)
+    assert rep["session"]["badge"] == "ready", rep["session"]
+    assert any(o["title_fa"] == "متن ریلز فردا" for o in rep["outputs"])
 
     # a person of another company present in the session: a work requested by the root
     r = await client.post(f"/api/v1/orders/{ref}/participants", headers=owner,

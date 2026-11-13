@@ -22,9 +22,6 @@ const val TEAM_FA = "تیم این جلسه"
  *  the header does not. Nothing on a hub without `/team` (null). */
 fun teamShown(team: SessionTeam?): Boolean = team != null && (team.seats.count { !it.holder } > 0 || team.narrator != null)
 
-/** A seat's chip: its name; an empty one «+ نویسنده». */
-fun seatChipFa(s: SessionSeat): String = if (s.empty) "+ ${s.roleFa}" else s.roleFa
-
 /** What a reader of the screen hears for a chip: who, in which seat, at work, and how many lines wait for the owner. */
 fun seatSaidFa(s: SessionSeat): String = when {
     s.empty -> "${s.roleFa}: خالی؛ استخدام"
@@ -34,7 +31,7 @@ fun seatSaidFa(s: SessionSeat): String = when {
     ).joinToString("، ")
 }
 
-/** «گوینده: Kore، محکم» (the voice as the hub says it in Persian, else its name). */
+/** «گوینده: Kore (محکم)» (the voice as the hub says it in Persian, else its name). */
 fun narratorChipFa(n: TeamNarrator): String = "گوینده: ${n.voiceFa.trim().ifBlank { n.voice }}"
 
 /** The one question before an empty seat is filled: «نویسنده استخدام شود؟». */

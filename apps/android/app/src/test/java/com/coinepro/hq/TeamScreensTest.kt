@@ -72,7 +72,7 @@ class TeamScreensTest(private val name: String, private val night: Boolean) {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
             // The row under the header: the holder first (at work: his ring), the scriptwriter (his ring and the dot of his unread line),
             // the two empty media seats dashed.
-            "team-session" to Scene(listOf(TEAM_FA, "مسئول جلسه", "نویسنده", "+ کارگردان", "+ موشن‌گرافی", "ChatGPT")) { OrderSessionScreen(REF) },
+            "team-session" to Scene(listOf(TEAM_FA, "مسئول جلسه", "نویسنده", "کارگردان", "موشن‌گرافی", "ChatGPT")) { OrderSessionScreen(REF) },
             // …run to its end: «گوینده» with the company's voice.
             "team-session-narrator" to Scene(listOf(TEAM_FA, "گوینده:", "Kore"), then = Then.NARRATOR) { OrderSessionScreen(REF) },
             // A filled seat's side talk: half the screen, his lines and the owner's, the composer and close; nothing of the main thread.

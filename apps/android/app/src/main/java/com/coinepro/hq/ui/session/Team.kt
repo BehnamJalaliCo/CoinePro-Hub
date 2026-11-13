@@ -46,7 +46,7 @@ import com.coinepro.hq.core.data.faNum
 import com.coinepro.hq.core.data.hireAskFa
 import com.coinepro.hq.core.data.mergeSideLines
 import com.coinepro.hq.core.data.narratorChipFa
-import com.coinepro.hq.core.data.seatChipFa
+import com.coinepro.hq.core.data.seatSaidFa
 import com.coinepro.hq.core.data.sideTitleFa
 import com.coinepro.hq.core.data.sideTurn
 import com.coinepro.hq.core.net.ApiException
@@ -153,20 +153,22 @@ private fun SeatChip(s: SessionSeat, onClick: () -> Unit) {
     }
 }
 
-/** An empty media seat: a dashed «+ نویسنده». */
+/** An empty media seat: a dashed «+ نویسنده» (the plus a mark at its start, as «+ آدم» of the details: never a stray sign in the line). */
 @Composable
 private fun EmptySeatChip(s: SessionSeat, onClick: () -> Unit) {
     val c = Divan.colors
     Row(
         Modifier.height(34.dp).clip(CircleShape).dashedPill(c.lineStrong)
-            .clickable(role = Role.Button, onClickLabel = hireAskFa(s), onClick = onClick).padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(role = Role.Button, onClickLabel = hireAskFa(s), onClick = onClick)
+            .semantics { stateDescription = seatSaidFa(s) }.padding(start = 10.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(seatChipFa(s), style = Divan.type.micro, color = c.textSecondary, maxLines = 1)
+        DIcon(DivanIcon.ADD, size = 13.dp, tint = c.textSecondary)
+        Text(s.roleFa, style = Divan.type.micro, color = c.textSecondary, maxLines = 1)
     }
 }
 
-/** «گوینده: Kore، محکم»: the company's narrator; a tap opens §48's picker. */
+/** «گوینده: Kore (محکم)»: the company's narrator; a tap opens §48's picker. */
 @Composable
 private fun NarratorChip(n: TeamNarrator, onClick: () -> Unit) {
     val c = Divan.colors
@@ -295,7 +297,8 @@ internal fun HireSeatSheet(ref: String, seat: SessionSeat, onDismiss: () -> Unit
 /** What the hire sheet says under its question. */
 internal const val HIRE_SUB_FA = "همین‌جا در جلسه، با تنظیم پیش‌فرض همین نقش؛ در سقف پاکت ماه."
 
-/** The hire's few words and its bar: the hub's answer is the team with the seat filled; its refusal, its own Persian words. */
+/** The hire's few words and its bar: the hub's answer is the team with the seat filled (by the company's own person in that role when
+ *  there is one, else a new hire); its refusal, its own Persian words. */
 @Composable
 internal fun HireSeatBody(ref: String, seat: SessionSeat, onHired: (SessionTeam) -> Unit) {
     val env = LocalEnv.current
@@ -316,7 +319,7 @@ internal fun HireSeatBody(ref: String, seat: SessionSeat, onHired: (SessionTeam)
                 hire.run(onError = { e: ApiException -> haptics.error(); toasts.error(e.messageFa) }) {
                     val out = env.api.hireSeat(ref, role, key)
                     haptics.seal()
-                    toasts.ok("${seat.roleFa} استخدام شد و به جلسه آمد.")
+                    toasts.ok("${seat.roleFa} به جلسه آمد.")
                     env.cache.invalidate("sessions", "office", "employees")
                     onHired(out)
                 }

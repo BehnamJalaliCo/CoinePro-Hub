@@ -683,6 +683,10 @@ async def on_child_closed(tx: Tx, work: dict[str, Any], what: str) -> dict[str, 
     wake, or None when the work is a root or belongs to no session."""
     if work.get("parent_id") is None and work.get("requested_by_work_id") is None:
         return None
+    from hq_api.domain import session_team as ST
+
+    if await ST.is_side_work(tx, work["id"]):
+        return None  # ⟨1.35⟩ §57 a side talk's work: the holder's thread is not disturbed
     ref = await OR.order_of_work(tx, work["id"])
     if ref is None:
         return None

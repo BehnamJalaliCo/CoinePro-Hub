@@ -74,10 +74,11 @@ async def session_team_say(
 ) -> Any:
     """⟨1.35⟩ §57.3 The owner's word to one person of the session (a filled seat other than the
     holder: the holder's word is `/reply`, 409). It joins the person's open work of this order
-    (which runs again now with the side talk in its brief), else a side work is made for them
-    under the order's root, with a plan task of the owner's. The main session gets one step per
-    burst («مدیر کل: با …»). An ended session: 409; a code not in the team: 404. Requires
-    `Idempotency-Key`; no step-up."""
+    (which runs again now with the side talk in its brief), else a side work is made for them,
+    requested by the order's root: no plan task, never a part the root's delivery waits for; it
+    closes by itself once its run answered and left nothing open («گفتگو جواب گرفت»). The main
+    session gets one step per burst («مدیر کل: با …»). An ended session: 409; a code not in the
+    team: 404. Requires `Idempotency-Key`; no step-up."""
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
