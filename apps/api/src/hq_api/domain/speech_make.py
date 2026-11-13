@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -257,15 +258,107 @@ def api_text(text: str, style: str) -> str:
     return f"Read the following Persian text aloud, in this manner: {how}.\n\n{text}"
 
 
+# ⟨2026-11-13⟩ Gemini's speech refuses a long text in one request (F-0020: 844 characters were
+# `upstream_error` on every try, 517 went through in 40 s): a longer text is read in parts, cut
+# between its lines (then its sentences, then its words), and the parts are joined with a breath
+API_PART_CHARS = 480
+PART_PAUSE_S = 0.25
+SENTENCE_END = re.compile(r"(?<=[.!?؟؛…])\s+")
+
+
+def api_parts(text: str, limit: int = API_PART_CHARS) -> list[str]:
+    """The text in parts of at most `limit` characters, never cutting inside a word."""
+    units: list[str] = []
+    for line in (x.strip() for x in text.splitlines()):
+        if not line:
+            continue
+        if len(line) <= limit:
+            units.append(line)
+            continue
+        for piece in SENTENCE_END.split(line):
+            piece = piece.strip()
+            while len(piece) > limit:
+                cut = piece.rfind(" ", 0, limit)
+                cut = cut if cut > 0 else limit
+                units.append(piece[:cut].strip())
+                piece = piece[cut:].strip()
+            if piece:
+                units.append(piece)
+    parts: list[str] = []
+    cur = ""
+    for u in units:
+        if cur and len(cur) + 1 + len(u) > limit:
+            parts.append(cur)
+            cur = u
+        else:
+            cur = f"{cur}\n{u}" if cur else u
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+async def _pcm_of(data: bytes) -> bytes:
+    """Any audio file as the API's own PCM (16-bit mono, 24 kHz), by ffmpeg."""
+    import tempfile
+    from pathlib import Path
+
+    from hq_api import media as ME
+    from hq_api.voice import audio as AU
+
+    with tempfile.TemporaryDirectory(prefix="speech-") as tmp:
+        src, out = Path(tmp) / "in.audio", Path(tmp) / "out.pcm"
+        await asyncio.to_thread(src.write_bytes, data)
+        code, _, _ = await ME.run_tool(
+            "ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", str(src),
+            "-f", "s16le", "-ar", str(AU.PCM_RATE), "-ac", "1", str(out),
+            limit_s=AU.ENCODE_LIMIT_S,
+        )  # fmt: skip
+        if code != 0 or not out.is_file():
+            raise AU.EncodeFailed("ffmpeg")
+        return await asyncio.to_thread(out.read_bytes)
+
+
+async def join_audio(clips: list[bytes]) -> tuple[bytes, str]:
+    """The parts as one Ogg/Opus voice, a short breath between them."""
+    from hq_api.voice import audio as AU
+
+    pause = b"\x00\x00" * int(AU.PCM_RATE * PART_PAUSE_S)
+    pcms = [await _pcm_of(c) for c in clips]
+    return await AU.pcm_to_opus(pause.join(pcms)), AU.OGG
+
+
 async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
     """The voice from Gemini's API: (audio, mime), or None when that engine has no key, is off or
-    fails (the web page is tried then). Never raises."""
+    fails (the web page is tried then). A long text is read in parts and joined. Never raises."""
+    name = f"speech-{str(job['job'])[:8]}"
+    parts = api_parts(str(job["text"]))
+    if len(parts) <= 1:
+        return await _api_text(hub, job, str(job["text"]), name)
+    clips: list[bytes] = []
+    for i, part in enumerate(parts, 1):
+        got = await _api_text(hub, job, part, f"{name}-{i}")
+        if got is None:
+            log.info("speech by the API: a part failed", extra={"job": str(job["job"]), "part": i})
+            return None
+        clips.append(got[0])
+    try:
+        return await join_audio(clips)
+    except Exception as exc:  # noqa: BLE001 - the web page is the fallback
+        log.warning(
+            "speech parts not joined", extra={"job": str(job["job"]), "error": type(exc).__name__}
+        )
+        return None
+
+
+async def _api_text(
+    hub: Any, job: dict[str, Any], text: str, name: str
+) -> tuple[bytes, str] | None:
+    """One text through the API, tried again after a passing refusal."""
     from hq_api.voice import speaker as SP
     from hq_api.voice.base import EngineFailed
 
-    name = f"speech-{str(job['job'])[:8]}"
     for attempt in range(API_TRIES):
-        got, again = await _api_once(hub, job, name, SP, EngineFailed)
+        got, again = await _api_once(hub, job, name, SP, EngineFailed, text=text)
         if got is not None or not again:
             return got
         if attempt < API_TRIES - 1:
@@ -274,7 +367,7 @@ async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
 
 
 async def _api_once(
-    hub: Any, job: dict[str, Any], name: str, SP: Any, EngineFailed: Any
+    hub: Any, job: dict[str, Any], name: str, SP: Any, EngineFailed: Any, *, text: str | None = None
 ) -> tuple[tuple[bytes, str] | None, bool]:
     """One try of the API: ((audio, mime) | None, whether another try may help)."""
     try:
@@ -283,7 +376,8 @@ async def _api_once(
             if not await api_ready(hub, tx):
                 return None, False  # no key given yet: the web page, as before
         spoke = await SP.speak_one(
-            hub, API_ENGINE, api_text(str(job["text"]), str(job.get("style") or "")),
+            hub, API_ENGINE, api_text(text if text is not None else str(job["text"]),
+                                      str(job.get("style") or "")),
             str(job["voice"]), 1.0, kind="speech", persona=f"speech.make {job['by']}"[:80],
             conversation_ref=None, turn_id=None, seq=None, name=name,
         )  # fmt: skip

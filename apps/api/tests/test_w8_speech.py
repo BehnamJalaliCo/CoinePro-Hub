@@ -442,3 +442,32 @@ async def test_a_passing_api_refusal_is_tried_again_before_the_web_page(
     tries.clear()
     codes = ["bad_key"]
     assert await SM.api_speak(hub, job) is None and len(tries) == 1
+
+
+async def test_a_long_text_is_read_in_parts_and_joined(monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨2026-11-13⟩ F-0020: Gemini refused the day's 844-character script in one request on every
+    try (517 characters went through): a long text is read in parts, joined with a breath."""
+    from hq_api.voice import audio as AU
+
+    lines = [f"جمله‌ی شماره‌ی {i} از متن امروز است و کمی طولانی‌تر نوشته شده." for i in range(30)]
+    text = "\n".join(lines)
+    parts = SM.api_parts(text)
+    assert len(parts) >= 2 and all(len(p) <= SM.API_PART_CHARS for p in parts)
+    assert "\n".join(parts) == text  # nothing lost, never inside a line here
+    one = "کلمه " * 200  # one line with no sentence end: cut between words
+    assert all(len(p) <= SM.API_PART_CHARS and not p.startswith(" ") for p in SM.api_parts(one))
+    assert SM.api_parts("سلام") == ["سلام"]
+
+    asked: list[str] = []
+    second = await AU.pcm_to_opus(b"\x00\x01" * AU.PCM_RATE)  # one second
+
+    async def part(hub: Any, job: dict[str, Any], text: str, name: str) -> Any:
+        asked.append(text)
+        return second, AU.OGG
+
+    monkeypatch.setattr(SM, "_api_text", part)
+    got = await SM.api_speak(None, {"job": "j1", "text": text, "voice": "Cruz", "by": "x"})
+    assert got is not None and got[1] == AU.OGG and asked == parts
+    pcm = await SM._pcm_of(got[0])
+    joined = AU.pcm_seconds(pcm)
+    assert len(parts) * 0.9 < joined < len(parts) * 1.1 + SM.PART_PAUSE_S * len(parts)
