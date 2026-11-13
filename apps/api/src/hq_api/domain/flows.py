@@ -138,11 +138,13 @@ async def start(
             raise ApiError(409, "validation_failed", f"no company {flow.company}")
         tomorrow = datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
         the_day = day or tomorrow
-        # one order per flow and day, whatever calls again (a key expires in 24 hours)
+        # one order per flow and day, whatever calls again (a key expires in 24 hours); a day
+        # whose work failed or was cancelled may be made again
         made = await tx.first(
             """SELECT ref, run_meta -> 'flow' AS flow FROM work.work
                WHERE run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d
-               ORDER BY created_at LIMIT 1""",
+                 AND status NOT IN ('failed', 'cancelled')
+               ORDER BY created_at DESC LIMIT 1""",
             k=flow.key,
             d=the_day.isoformat(),
         )
