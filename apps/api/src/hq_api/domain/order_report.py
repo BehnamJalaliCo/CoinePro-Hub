@@ -1453,6 +1453,7 @@ WAKE_REASONS = (
     "joined:%", "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%",
     "owner_turn_over:%", "side_word:%",
     "continue:%",  # ⟨2026-11-13⟩ the next turn at once (direct.go_on)
+    "capped:%",  # ⟨2026-11-13⟩ F-0018 P5: a part's next run after its cap (runner, bounded)
 )  # fmt: skip
 PRODUCTIVE_TOOLS = (
     "order.progress", "order.ack", "deliver", "work.delegate", "work.request", "work.split",

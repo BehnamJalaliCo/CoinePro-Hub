@@ -3143,6 +3143,13 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
   The full figures stay in the Token Treasury.
 - **Short of budget:** a run that would pass its cap stops cleanly, its work goes `waiting` with a `budget` blocker, and its CEO gets
   «بودجه کم است، +X بدهم؟» (`work.budget {ref, add_tokens}`, A2, within the company's month envelope). The same button is in the order report.
+- ⟨2026-11-13⟩ **A part of an open session goes on after its cap** (F-0018 P5). A `work` run of a child or requested work of an owner's
+  open order (not the holder's own root) that stops at its per-run step or token cap queues that work's next run (reason
+  `capped:<work ref>`) before its partial deliverable, which then says so; that delivery does not wake the session's holder (he issued
+  the part again from nothing each time: IG's W-000413 → 414, W-000415 → 416). Every run of a work whose last run with a step ended
+  partial reads that run's steps (summaries, tools, outcomes, refs; 3,000 characters, newest kept) near the top of its context and is
+  told to go on from there. At most 2 such runs in a row (counted since the work's last whole run); then the holder is woken as before.
+  The run is held like any other while a «با من» order waits for the owner, and is not counted as talk without output (§29.2).
 
 ### 29.7 Language: Persian only, and plain for the owner
 - **Every player answers in Persian.** An answer whose letters are less than 60% Persian, or holding CJK characters, is refused and asked

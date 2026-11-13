@@ -691,6 +691,15 @@ async def on_child_closed(tx: Tx, work: dict[str, Any], what: str) -> dict[str, 
 
     if await ST.is_side_work(tx, work["id"]):
         return None  # ⟨1.35⟩ §57 a side talk's work: the holder's thread is not disturbed
+    if what == "delivered" and await tx.scalar(
+        """SELECT 1 FROM agents.runs WHERE work_id = :w AND state = 'queued'
+             AND reason LIKE 'capped:%'""",
+        w=work["id"],
+    ):
+        # ⟨2026-11-13⟩ F-0018 P5: a part's partial output at its run's cap, its next run already
+        # queued (runner._continue_capped): it goes on by itself; the holder is not woken to
+        # issue it again from scratch
+        return None
     ref = await OR.order_of_work(tx, work["id"])
     if ref is None:
         return None
