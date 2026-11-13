@@ -85,8 +85,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0062"] == "0061"  # the stall of 2026-11-10: GPT's content_draft seat
     assert rev["0063"] == "0062"  # the audit of 2026-11-11: five schema fixes
     assert rev["0064"] == "0063"  # 1.35: the session's team (side talks and their read marks)
-    assert heads == {"0064"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0064"
+    assert rev["0065"] == "0064"  # F-0018 P5: a part that goes on after its cap wakes nobody
+    assert heads == {"0065"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0065"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

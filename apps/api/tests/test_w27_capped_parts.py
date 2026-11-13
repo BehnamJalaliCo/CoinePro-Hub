@@ -54,7 +54,7 @@ async def _capped_run(su: Any, agents: Any, run_id: Any, who: str, tag: str) -> 
     ]
 
 
-@pytest.mark.parametrize("shape", ["requested"])
+@pytest.mark.parametrize("shape", ["requested", "delegated"])
 async def test_a_part_that_reached_its_cap_goes_on_in_its_own_next_run(
     client: httpx.AsyncClient,
     owner: dict[str, str],
@@ -65,7 +65,8 @@ async def test_a_part_that_reached_its_cap_goes_on_in_its_own_next_run(
     shape: str,
 ) -> None:
     """`requested`: F-0018's own shape (the holder asked another company's people with
-    work.request; the holder was woken by order_turns.on_child_closed)."""
+    work.request; the holder was woken by order_turns.on_child_closed). `delegated`: a child
+    work (the deliverable trigger, agents.wake_on_deliverable, woke the parent's assignee)."""
     co = (await new_company())["code"]
     out = await post_order(
         client, owner, f"برای {co} {words()} وضع کامل شرکت را بررسی کن و گزارش بده", pace="auto"
