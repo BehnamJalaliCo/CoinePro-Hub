@@ -2010,6 +2010,21 @@ class Api(
      *  kept with «در حال لغو» while IG-Hub is asked); one that is out already is a `409 not_cancellable`. */
     suspend fun cancelPublish(job: String): SessionPublish = post("/publishes/${seg(job)}/cancel", JsonObject(emptyMap()))
 
+    // --------------------------------------------- ⟨1.35⟩ §57 the session's team, one person at a time --
+    /** §57.1 the holder first; the media seats of a content session (filled, or `empty`); the other people present. */
+    suspend fun sessionTeam(ref: String): SessionTeam = get("/orders/${seg(ref)}/team")
+    /** §57.2 a page of one seat's side talk, newest last; reading the newest page marks it read. Not a seat of the session: 404. */
+    suspend fun sideLines(ref: String, code: String, limit: Int = 50, before: String? = null): Page<SideLine> =
+        get("/orders/${seg(ref)}/team/${seg(code)}/lines", mapOf("limit" to limit.coerceIn(1, MAX_PAGE), "before" to before))
+    /** §57.3 the owner's word to one person of the session (never the holder: his word is `/reply`). His tap, no passkey; [key] is the
+     *  press's own UUID (a retry sends the same). An ended session: 409. */
+    suspend fun sayToSeat(ref: String, code: String, text: String, key: String): SideSaid =
+        call(write("POST", "/orders/${seg(ref)}/team/${seg(code)}/say", buildJsonObject { put("text", text) }, null, key), serializer())
+    /** §57.5 an empty media seat filled at once with the role's charter defaults: his tap, no passkey; [key] the press's own UUID. A hard
+     *  check that refuses (the envelope, the model, five a day) answers its own code with `message_fa`; nothing is made. */
+    suspend fun hireSeat(ref: String, role: String, key: String): SessionTeam =
+        call(write("POST", "/orders/${seg(ref)}/team/hire", buildJsonObject { put("role", role) }, null, key), serializer())
+
     /** §35.6 the canvas: the hub and the companies, and the links between them. */
     suspend fun links(): Canvas = get("/links")
     suspend fun newLink(from: String, to: String, kind: String, purposeFa: String): CompanyLink =

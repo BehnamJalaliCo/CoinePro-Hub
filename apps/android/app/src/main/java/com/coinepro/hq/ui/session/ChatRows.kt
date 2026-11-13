@@ -28,6 +28,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.ChatRow
+import com.coinepro.hq.core.data.Revisions
+import com.coinepro.hq.core.data.revisionOf
+import com.coinepro.hq.core.data.revisions
+import com.coinepro.hq.core.data.versionFa
 import com.coinepro.hq.core.data.SessionEntry
 import com.coinepro.hq.core.data.eventsCountFa
 import com.coinepro.hq.core.data.eventsSpan
@@ -142,6 +146,17 @@ internal fun rememberSessionOutputs(outputs: List<ReportOutput>): List<SessionOu
     return out
 }
 
+/** ⟨1.35⟩ §57.6 the chains of versions among a session's outputs: the report's word on each, else its deliverable's `produced_with`. */
+@Composable
+internal fun rememberRevisions(outputs: List<ReportOutput>, outs: List<SessionOutput>): Revisions {
+    val made = outs.map { it.ref to it.d?.producedWith }
+    return remember(outputs, made) {
+        val pw = made.toMap()
+        val byRef = outputs.associateBy { it.ref }
+        revisions(outputs.map { it.ref }) { r -> byRef[r]?.let { revisionOf(it, pw[r]) } }
+    }
+}
+
 /**
  * One output in the talk, where it arrived: a calm ticked line with its title and «باز کن», then its files as a strip of tiles (a
  * video plays in place). Under the file that goes out (its video, else its first picture), its quiet «تأیید و انتشار» or where its
@@ -149,7 +164,7 @@ internal fun rememberSessionOutputs(outputs: List<ReportOutput>): List<SessionOu
  * says how it was made.
  */
 @Composable
-internal fun OutputTiles(o: SessionOutput, lead: String?, onAsk: (String, FileRef) -> Unit) {
+internal fun OutputTiles(o: SessionOutput, lead: String?, onAsk: (String, FileRef) -> Unit, version: Int? = null) {
     val c = Divan.colors
     val nav = LocalNav.current
     val files = o.files
@@ -168,6 +183,8 @@ internal fun OutputTiles(o: SessionOutput, lead: String?, onAsk: (String, FileRe
                 },
                 style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f),
             )
+            // ⟨1.35⟩ §57.6 the newest of a chain of versions says which it is; the older ones are not drawn
+            version?.let { com.coinepro.hq.ui.v14.Tag(versionFa(it), Modifier.testTag("output-version")) }
             HqButton("باز کن", { nav.go("outputs/${o.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM)
         }
         when {
@@ -188,11 +205,11 @@ internal fun OutputTiles(o: SessionOutput, lead: String?, onAsk: (String, FileRe
 
 /** The outputs delivered between two turns, each where it arrived. */
 @Composable
-internal fun OutputsRow(row: ChatRow.Outputs, outs: List<SessionOutput>, lead: String?, onAsk: (String, FileRef) -> Unit) {
+internal fun OutputsRow(row: ChatRow.Outputs, outs: List<SessionOutput>, lead: String?, versions: Map<String, Int> = emptyMap(), onAsk: (String, FileRef) -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         for (e: SessionEntry.Output in row.outputs) {
             val o = outs.firstOrNull { it.ref == e.output.ref } ?: SessionOutput(e.output.ref, e.output.titleFa, e.output.kind, null, false, null)
-            OutputTiles(o, lead, onAsk)
+            OutputTiles(o, lead, onAsk, versions[o.ref])
         }
     }
 }

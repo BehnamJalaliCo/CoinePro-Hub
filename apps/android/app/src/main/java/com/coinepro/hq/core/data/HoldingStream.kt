@@ -464,6 +464,8 @@ class HoldingStream(
             // ⟨1.23⟩ §41.1 a step of a session's work (every run start, step and end): its live panel only, never the lists or the report
             // (they move on `session.updated` and `order.report`), before the rest of `session.`.
             "session.activity" to arrayOf("session-activity"),
+            // ⟨1.35⟩ §57.4 a seat's side talk moved (`{order, seat}`): the row «تیم این جلسه» and an open side talk read again, nothing else.
+            "session.team" to arrayOf("session-team"),
             "session." to arrayOf("sessions", "office", "order-report", "session-activity"),
             "links." to arrayOf("links", "office"),
             "order." to arrayOf("orders", "planner", "work"),

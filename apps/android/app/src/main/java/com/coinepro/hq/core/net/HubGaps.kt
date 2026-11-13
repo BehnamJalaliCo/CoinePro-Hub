@@ -90,6 +90,8 @@ enum class HubFeature {
     WORK_STOP,
     /** `GET /groups/{key}/runs` read for a sealed working group's page; without it the runs' dots and «آخرین نوبت» are left out. */
     GROUP_RUNS,
+    /** ⟨1.35⟩ §57 `/orders/{ref}/team…`; without it the row «تیم این جلسه» under the session's header is hidden. */
+    SESSION_TEAM,
 }
 
 /**

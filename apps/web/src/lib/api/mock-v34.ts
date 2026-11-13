@@ -15,6 +15,8 @@
 // ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states and in no list: F-0094 while
 // the draft waits in ChatGPT's queue (an outside call at work, `kind: call`), F-0095 the next morning, when nothing ran after «… از ChatGPT
 // خواسته شد و در صف است» and the hub still said «آرام» (the page says «ایستاده» with «ادامه بده»).
+// ⟨1.0.3⟩ §57 F-0093, a content session of Pro-Chart's reels whose team ./mock-v57 serves (the holder, a scriptwriter at work with a
+// side talk, an empty director's and motion designer's seat, the company's narrator), with a chain of revised notes (§57.6). In no list.
 
 import { conversationCard, conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
 import { memoryOf, setSource, sourceOf } from './mock-v40';
@@ -157,6 +159,17 @@ function seed() {
     ['owner', 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من.', ago41(830 * 60)],
     ['ceo@PC', '**سؤال از تو** · گام ۱ انجام شد (استخدام سناریست و روش موضوع روزانه). تأیید یا اصلاح؟ اگر تأیید است، گام ۲ (متن گوینده و تنظیم یک‌بارِ صدا) را شروع کنم؟', ago41(815 * 60)],
     ['owner', 'خودت تصمیم بگیر و ادامه بده', ago41(813 * 60)],
+  ]);
+  // ⟨1.0.3⟩ §57 the session's team: the scriptwriter is in the session (the media seat «نویسنده»), the rest of the seats are empty.
+  mk({
+    ref: 'F-0093', text_fa: 'برای پرو-چارت یک ریلز درباره‌ی واگرایی در RSI بساز', persona: 'media_director@PC', listed: false,
+    opened_at: ago41(150 * 60), last_at: ago41(12 * 60),
+    holder: { code: 'PC-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'PC', company_fa: 'پرو-چارت' },
+    participants: [holderP('مدیر رسانه پرو-چارت', 'PC', 'media_director@PC'), { key: 'scriptwriter@PC', kind: 'person', title_fa: 'نویسنده‌ی ریلز پرو-چارت', company: 'PC' }],
+    tasks: [task(1, 'یادداشت‌های سناریو', 'done', 'agent', 'نویسنده'), task(2, 'متن گوینده', 'doing', 'agent', 'نویسنده', 'W-000341'), task(3, 'موشن‌گرافی و کاور', 'todo'), task(4, 'تأیید و انتشار', 'todo', 'owner')],
+  }, [
+    ['owner', 'برای پرو-چارت یک ریلز درباره‌ی واگرایی در RSI بساز.', ago41(150 * 60)],
+    ['media_director@PC', 'نویسنده یادداشت‌های سناریو را نوشت و حالا متن گوینده را مینویسد؛ کارگردان و موشن‌گرافی هنوز در جلسه نیستند.', ago41(12 * 60)],
   ]);
 }
 /** The eighteen steps of Pro-Chart's daily reels («با من»): two done, the third in hand. */
@@ -368,6 +381,20 @@ const LOCAL: Record<string, any> = {
       { at: ago41(812 * 60), who_fa: 'مدیرعامل پرو-چارت', what_fa: STALLED_FA },
     ],
     blockers: [], outputs: [], summary: null, updated_at: ago41(812 * 60),
+  },
+  // ⟨1.0.3⟩ §57.6 three versions of the same notes (the last two revise the one before), and the voice-over beside them.
+  'F-0093': {
+    ref: 'F-0093', text_fa: 'برای پرو-چارت یک ریلز درباره‌ی واگرایی در RSI بساز', at: ago41(150 * 60), state: 'in_progress',
+    ack: null, route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 600_000, mode: 'single', player: 'auto' },
+    steps: [{ at: ago41(149 * 60), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به رسانه‌ی پرو-چارت سپرد.' }, { at: ago41(12 * 60), who_fa: 'نویسنده', what_fa: 'یادداشت‌های سناریو را به‌روز کرد.' }],
+    blockers: [],
+    outputs: [
+      { ref: 'O-000584', title_fa: 'متن گوینده', kind: 'final' },
+      { ref: 'O-000583', title_fa: 'نسخه‌ی تازه‌ی یادداشت‌های سناریو', kind: 'final', revision_of: 'O-000582' },
+      { ref: 'O-000582', title_fa: 'نسخه‌ی تازه‌ی یادداشت‌های سناریو', kind: 'final' },
+      { ref: 'O-000581', title_fa: 'یادداشت‌های سناریو', kind: 'final' },
+    ],
+    summary: null, updated_at: ago41(12 * 60),
   },
   'F-0004': {
     ref: 'F-0004', text_fa: 'گزارش هزینه‌ی تبلیغات اکتبر', at: T('2026-10-28', '14:00'), state: 'delivered',

@@ -140,6 +140,9 @@ export function keysFor(type: string): Array<readonly string[]> {
   // ⟨1.24⟩ §42.2 `llm.tick` comes every 5 s per busy company: the live store folds it into the meter, the pulse and the company cards;
   // reading the treasury again on each would be a request every few seconds for nothing (`llm.call.*` still refreshes it).
   if (type === 'session.activity' || type === 'llm.tick') return [];
+  // ⟨1.0.3⟩ §57.4 `session.team {order, seat}`: a side line, a seat's ring or its unread count moved; only the team rows and the open
+  // side talks are read again (the session's own report did not change).
+  if (type === 'session.team') return [['orders', 'team']];
   const out: Array<readonly string[]> = [];
   for (const [prefix, keys] of INVALIDATE) if (type.startsWith(prefix)) for (const k of keys) out.push(typeof k === 'string' ? [k] : k);
   return out;

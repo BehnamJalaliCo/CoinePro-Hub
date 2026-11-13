@@ -12,6 +12,9 @@
 // - ⟨2026-11-11⟩ an open session that nobody works on and that none of those explains is «ایستاده» after twenty minutes: one calm card
 //   there says so, with the last thing done and «ادامه بده» (looked at again every minute);
 // - a closed session ends with its end leaf. Nothing here shows a ref or a code, and nothing sends the owner elsewhere.
+// ⟨1.0.3⟩ §57 under the header, the row «تیم این جلسه»: one chip per person, each with a small side talk of his own (look/team.tsx);
+// the main thread stays the holder's. §57.6 an output that revises an earlier one takes its place: only the newest of a chain is in
+// the talk, with «نسخه‌ی n».
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -43,6 +46,7 @@ import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playboo
 import { useDraftPlaybook } from '@/lib/api/v40';
 import { madeWith, type OrderGaps } from '@/lib/api/v47';
 import { DIRECT_FA, type DirectReport } from '@/lib/api/v55';
+import { newestOfChains, revisionOf } from '@/lib/api/v57';
 import { Routines } from '@/components/v47/routines';
 import { SessionPublishes } from '@/components/v47/session-publishes';
 import { StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
@@ -56,6 +60,7 @@ import { DrawnTick } from '@/components/look/ring';
 import { AnswerSent, EndLeaf, IdleNudge, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, StillCard, WaitingCard, activityOfReport, isCall, liveActivity, moodOf, stillOf, taskFa, taskOf } from '@/components/look/session';
 import { useTick } from '@/components/live/motion';
 import { SpringSheet } from '@/components/look/spring-sheet';
+import { TeamRow, versionFa } from '@/components/look/team';
 import { Facts, Ltr } from '@/components/look/text';
 import { SysRow } from './system-group';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
@@ -90,8 +95,11 @@ export function SessionView({ refId }: { refId: string }) {
 type Full = SessionReport & Required<Pick<SessionReport, 'session' | 'brief' | 'tasks' | 'participants'>>;
 
 // ================================================================================================ the outputs ==
-/** A session's output with what its page knows of it: its files (the deliverable's attachments) and where their publications stand. */
-type SessionOutput = { ref: string; title_fa: string; kind: string; d: Output | null; loading: boolean; panel: PublishPanel | null };
+/**
+ * A session's output with what its page knows of it: its files (the deliverable's attachments) and where their publications stand.
+ * ⟨1.0.3⟩ `rev`: the earlier output it revises (§57.6), read leniently; `version`: the newest of a chain says which version it is.
+ */
+type SessionOutput = { ref: string; title_fa: string; kind: string; d: Output | null; loading: boolean; panel: PublishPanel | null; rev: string | null; version?: number };
 const OUTPUTS_SHOWN = 12;
 
 /** The deliverable and the publish panel of each output of the session: the same cached reads the output's own page uses. */
@@ -105,7 +113,18 @@ function useSessionOutputs(outputs: SessionReport['outputs']): SessionOutput[] {
       refetchInterval: (q: { state: { data?: PublishPanel | null } }) => (q.state.data?.publishes.some((p) => p.state === 'publishing') ? 5_000 : q.state.data?.publishes.some((p) => p.state === 'scheduled') ? 60_000 : false as const),
     })),
   });
-  return list.map((o, i) => ({ ref: o.ref, title_fa: o.title_fa, kind: o.kind, d: ds[i]?.data ?? null, loading: !!ds[i]?.isLoading, panel: ps[i]?.data ?? null }));
+  return list.map((o, i) => ({
+    ref: o.ref, title_fa: o.title_fa, kind: o.kind, d: ds[i]?.data ?? null, loading: !!ds[i]?.isLoading, panel: ps[i]?.data ?? null,
+    rev: revisionOf(ds[i]?.data?.produced_with, ds[i]?.data, o),
+  }));
+}
+
+/** §57.6 the outputs the talk shows: the newest of each revision chain, each with its version; the older ones stay in «نتیجه‌ها». */
+function useShownOutputs(outs: SessionOutput[]): SessionOutput[] {
+  return useMemo(() => {
+    const { shown, version } = newestOfChains(outs, (o) => o.ref, (o) => o.rev);
+    return shown.map((o) => (version.has(o.ref) ? { ...o, version: version.get(o.ref) } : o));
+  }, [outs]);
 }
 
 const OUT_FA: Record<string, string> = { final: 'خروجی', part: 'بخشی از کار', partial: 'خروجی ناقص' };
@@ -128,7 +147,7 @@ function OutputTiles({ o, lead, onAsk }: { o: SessionOutput; lead: string | null
     <section aria-label={`خروجی: ${o.title_fa}`} data-output={o.ref} className="flex w-full max-w-[46rem] flex-col gap-2 self-start">
       <div className="flex items-center gap-2 text-[12px] leading-5 text-sec">
         <span className="flex-none text-pos"><DrawnTick size={15} /></span>
-        <span className="min-w-0 flex-1"><Facts>{o.kind === 'partial' ? 'خروجی ناقص رسید' : 'خروجی تحویل شد'}<span className="font-semibold text-ink"><PlainText text={o.title_fa} /></span>{files.length ? null : outKindFa(o.kind)}</Facts></span>
+        <span className="min-w-0 flex-1"><Facts>{o.kind === 'partial' ? 'خروجی ناقص رسید' : 'خروجی تحویل شد'}<span className="font-semibold text-ink"><PlainText text={o.title_fa} /></span>{o.version ? <span data-testid="output-version" data-version={o.version}>{versionFa(o.version)}</span> : null}{files.length ? null : outKindFa(o.kind)}</Facts></span>
         <Link href={outHref(o.ref)} className="flex-none rounded-[8px] px-2 py-0.5 text-[12px] font-semibold text-silver-ink hover:bg-[var(--hq-silver-soft)] hover:text-ink">باز کن</Link>
       </div>
       {files.length ? (
@@ -211,7 +230,9 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const still = stillCan ? stillOf(r, activity, badge, minute) : null;
   const mood = still ? 'still' : moodOf(activity, { closed, badge, asked });
   const task = taskOf(r.tasks);
-  const outs = useSessionOutputs(r.outputs);
+  const allOuts = useSessionOutputs(r.outputs);
+  // §57.6 an older version of an output is not shown again where the newer one arrived (nor waited on, nor counted as made).
+  const outs = useShownOutputs(allOuts);
 
   // The ONE thing of the owner's above the composer, and where the page's one full gold is.
   const ready = badge === 'ready' && !closed;
@@ -253,13 +274,13 @@ function Session({ refId, r }: { refId: string; r: Full }) {
     ...placed.map((o) => ({ key: `out-${o.ref}`, at: o.d!.created_at, node: <OutputTiles o={o} lead={lead} onAsk={ask} /> })),
   ];
   const allFiles = outs.flatMap((o) => o.d?.attachments ?? []);
-  const used = outs.reduce((n, o) => n + (o.d ? usageOf(o.d).used ?? 0 : 0), 0);
+  const used = allOuts.reduce((n, o) => n + (o.d ? usageOf(o.d).used ?? 0 : 0), 0);
   const tail = (
     <>
       {unplaced.map((o) => <OutputTiles key={o.ref} o={o} lead={lead} onAsk={ask} />)}
       {closed ? null : <LiveTail a={activity} />}
       {closed ? (
-        <EndLeaf r={r} used={used || null} outputs={r.outputs.length}
+        <EndLeaf r={r} used={used || null} outputs={r.outputs.length - (allOuts.length - outs.length)}
           made={allFiles.length ? <FilesStrip files={allFiles} label="آنچه ساخته شد" /> : null}
           action={<Button variant="secondary" size="sm" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>} />
       ) : null}
@@ -291,6 +312,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           </div>
           <SegmentLine tasks={r.tasks} waiting={asked || ready} />
         </header>
+        {/* ⟨1.0.3⟩ §57 the session's team: a chip per person; a side talk each; the holder's chip brings the composer into reach. */}
+        <TeamRow refId={refId} closed={closed} onHolder={() => pane?.focus()} />
 
         {talk ? (
           <ConversationPane

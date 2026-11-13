@@ -71,8 +71,16 @@ data class Blocker(
     val fix: Fix? = null,
 )
 
+/** ⟨1.35⟩ §57.6 [revisionOf] / [producedWith]`.revision_of`: the earlier deliverable this one is a new version of, read leniently (a ref, or
+ *  an object with its `ref`) wherever the hub puts it; the deliverable's own `produced_with` says it too. */
 @Serializable
-data class ReportOutput(val ref: String, val titleFa: String = "", val kind: String = "")
+data class ReportOutput(
+    val ref: String,
+    val titleFa: String = "",
+    val kind: String = "",
+    val revisionOf: JsonElement? = null,
+    val producedWith: JsonElement? = null,
+)
 
 /** The end report: «چه شد», «چه ماند», «از تو چه لازم است». */
 @Serializable

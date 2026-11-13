@@ -194,7 +194,7 @@ import kotlinx.serialization.json.JsonObject
 //   there says so, with the last thing done and «ادامه بده».
 // Nothing technical and no ref is shown: the ref is the key only.
 
-private enum class SessionSheet { NONE, DETAILS, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE, ROUTINE }
+private enum class SessionSheet { NONE, DETAILS, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE, ROUTINE, TEAM_SEAT, TEAM_HIRE, TEAM_NARRATOR }
 
 /** How long «جوابت رفت» stays said where the question was. */
 private const val SAID_MS = 6_000L
@@ -298,6 +298,9 @@ fun OrderSessionScreen(ref: String) {
 
     var sheet by rememberSaveable { mutableStateOf(SessionSheet.NONE) }
     var picked by remember { mutableStateOf<SessionParticipant?>(null) }
+    // ⟨1.35⟩ §57 the session's team: one row under the header; a filled seat's side talk ([seatCode] its code), an empty one's hire (its key).
+    val teamQ = rememberSessionTeam(ref)
+    var seatCode by rememberSaveable(ref) { mutableStateOf<String?>(null) }
     var caught by remember { mutableStateOf("") }
     val hf = rememberHandsFree(talk, { keyPatterns(emptyList()) }) { k -> caught = k; sheet = SessionSheet.KEY }
 
@@ -398,8 +401,14 @@ fun OrderSessionScreen(ref: String) {
         return
     }
 
+    // ⟨1.35⟩ §57.6 the outputs of the session with their files; of a chain of versions only the newest is drawn, with «نسخه‌ی n».
+    val outsAll = rememberSessionOutputs(o?.outputs.orEmpty())
+    val revs = rememberRevisions(o?.outputs.orEmpty(), outsAll)
+    val outs = remember(outsAll, revs) { if (revs.hidden.isEmpty()) outsAll else outsAll.filter { it.ref !in revs.hidden } }
     // The chat in time order; drawn bottom-up, so it opens at its newest word.
-    val entries = sessionTimeline(talk.turns.toList(), o, hasTalk = cv != null)
+    val entries = sessionTimeline(talk.turns.toList(), o, hasTalk = cv != null).let { e ->
+        if (revs.hidden.isEmpty()) e else e.filterNot { it is SessionEntry.Output && it.output.ref in revs.hidden }
+    }
     val rows = remember(entries) { chatRows(entries) }
     val newest = entries.lastOrNull()
     val list = rememberLazyListState()
@@ -439,8 +448,7 @@ fun OrderSessionScreen(ref: String) {
     val mood = if (still != null) "still" else moodOf(shown, closed, badge, asked)
     val pace = paceAsked ?: o?.pace ?: "auto"
 
-    // The outputs of the session with their files, and the ONE thing of the owner's above the composer (where the page's gold is).
-    val outs = rememberSessionOutputs(o?.outputs.orEmpty())
+    // The ONE thing of the owner's above the composer (where the page's gold is).
     val ready = badge == "ready" && !closed && sessionsOn
     val blockers = if (closed) emptyList() else o?.blockers.orEmpty()
     val knot = o != null && !closed && !asked && (blockers.isNotEmpty() || (mood == "stuck" && !shown?.stuckFa.isNullOrBlank()))
@@ -469,7 +477,7 @@ fun OrderSessionScreen(ref: String) {
     var asking by remember { mutableStateOf<Pair<String, String>?>(null) }
     val focus = remember { FocusRequester() }
     val allFiles = outs.flatMap { it.files }
-    val used = outs.sumOf { so -> so.d?.let { usageOf(it).first } ?: 0L }
+    val used = outsAll.sumOf { so -> so.d?.let { usageOf(it).first } ?: 0L }
 
     // M18: the header is one line while older words are above; at the top of the thread it opens. It lies over the thread's top (the
     // thread keeps the open header's room there), so folding it never moves a word under the owner's finger.
@@ -477,6 +485,21 @@ fun OrderSessionScreen(ref: String) {
     var headPx by remember { mutableIntStateOf(0) }
     val foldedNow by remember(list) { derivedStateOf { list.canScrollForward } }
     val fold by animateFloatAsState(if (foldedNow) 1f else 0f, motionMedium(), label = "session-header")
+    // ⟨1.35⟩ §57.7 «تیم این جلسه» under the header while someone besides the holder (or the narrator) is there; a hub without `/team`
+    // shows nothing. The thread keeps its room too.
+    val team = teamQ.data
+    val teamOn = o != null && !closed && com.coinepro.hq.core.data.teamShown(team)
+    var teamPx by remember { mutableIntStateOf(0) }
+    LaunchedEffect(teamOn) { if (!teamOn) teamPx = 0 }
+    fun onSeat(s: com.coinepro.hq.core.net.SessionSeat) {
+        val t = team ?: return
+        when {
+            // the main thread is the holder's: his chip goes to the session's own composer
+            s.holder -> { talk.addressee = null; scope.launch { list.animateScrollToItem(0) }; runCatching { focus.requestFocus() } }
+            s.empty -> { seatCode = s.key; sheet = SessionSheet.TEAM_HIRE }
+            else -> { seatCode = s.code; teamQ.set(com.coinepro.hq.core.data.teamRead(t, s.code)); sheet = SessionSheet.TEAM_SEAT }
+        }
+    }
 
     // The page's one full gold is over the composer (the decision bar, the knot's action, or the send): the cards of the thread are outlined.
     androidx.compose.runtime.CompositionLocalProvider(com.coinepro.hq.ui.v32.LocalQuietCards provides true) {
@@ -484,7 +507,7 @@ fun OrderSessionScreen(ref: String) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 Modifier.fillMaxSize().testTag("session-chat"), state = list, reverseLayout = true,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = with(density) { headPx.toDp() } + 12.dp, bottom = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = with(density) { (headPx + teamPx).toDp() } + 12.dp, bottom = 8.dp),
                 // An open session rests on its newest word; a closed one reads from its top (nothing is typed under it).
                 verticalArrangement = Arrangement.spacedBy(12.dp, if (closed) Alignment.Top else Alignment.Bottom),
             ) {
@@ -515,7 +538,7 @@ fun OrderSessionScreen(ref: String) {
                             )
                         }
                         is ChatRow.Events -> EventsRow(r) { by -> personaIdTitle(by, faces + talk.personas) }
-                        is ChatRow.Outputs -> OutputsRow(r, outs, lead = waitsOn?.second?.id) { output, f -> asking = output to f.id }
+                        is ChatRow.Outputs -> OutputsRow(r, outs, lead = waitsOn?.second?.id, versions = revs.version) { output, f -> asking = output to f.id }
                     }
                 }
                 if (talk.loading && talk.turns.isEmpty() && cv != null) items(2, key = { "tsk-$it" }) { i -> Skeleton(Modifier.fillMaxWidth(if (i == 0) 0.5f else 0.7f).height(56.dp), radius = 16.dp) }
@@ -539,6 +562,7 @@ fun OrderSessionScreen(ref: String) {
                     q.error != null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { ErrorBlock(q.error, { q.refresh() }) }
                     else -> Skeleton(Modifier.fillMaxWidth().padding(16.dp).height(44.dp), radius = 12.dp)
                 }
+                if (teamOn && team != null) TeamRow(team, ::onSeat, onNarrator = { sheet = SessionSheet.TEAM_NARRATOR }, Modifier.onSizeChanged { teamPx = it.height })
                 HorizontalDivider(color = c.lineDivider)
             }
             JumpToEnd(follow)
@@ -706,6 +730,21 @@ fun OrderSessionScreen(ref: String) {
         SessionSheet.KEY -> com.coinepro.hq.ui.v32.TalkSheet(onDismiss = { sheet = SessionSheet.NONE; caught = "" }) {
             com.coinepro.hq.ui.v32.KeyBody({ sheet = SessionSheet.NONE; caught = "" }, initial = caught)
         }
+        // ⟨1.35⟩ §57 one person of the session, in a small room of his own; closed, he goes on with his work.
+        SessionSheet.TEAM_SEAT -> team?.seats?.firstOrNull { !it.empty && !it.holder && it.code == seatCode }?.let { s ->
+            SideTalkSheet(ref, s, closed) { sheet = SessionSheet.NONE; seatCode = null; teamQ.refresh() }
+        }
+        SessionSheet.TEAM_HIRE -> team?.seats?.firstOrNull { it.empty && it.key == seatCode }?.let { s ->
+            HireSeatSheet(ref, s, onDismiss = { sheet = SessionSheet.NONE; seatCode = null }) { out ->
+                teamQ.set(out)
+                sheet = SessionSheet.NONE
+                seatCode = null
+                scope.launch { q.refresh() }
+            }
+        }
+        SessionSheet.TEAM_NARRATOR -> team?.narrator?.let { n ->
+            TeamNarratorSheet(n.company, onDismiss = { sheet = SessionSheet.NONE }) { sheet = SessionSheet.NONE; teamQ.refresh() }
+        }
     }
 }
 
@@ -828,8 +867,9 @@ internal fun SessionDetailsBody(
     val asked = o.turn != null && !closed
     val still = remember(o, activity, closed) { if (closed) null else stillOf(o, activity) }
     val mood = if (still != null) "still" else moodOf(activity, closed, sessionBadge(o), asked)
-    val outs = rememberSessionOutputs(o.outputs)
-    val made = outs.flatMap { it.files }
+    val outsAll = rememberSessionOutputs(o.outputs)
+    val revs = rememberRevisions(o.outputs, outsAll)
+    val made = outsAll.filter { it.ref !in revs.hidden }.flatMap { it.files }
     Column(Modifier.testTag("details-order"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("متن فرمان", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
         com.coinepro.hq.ui.Selectable { Para(o.textFa, style = Divan.type.body, color = c.textPrimary) }
@@ -874,7 +914,7 @@ internal fun SessionDetailsBody(
     }
     PeopleBar(participants, open = !closed && sessionsOn, addressee = addressee, onPick = onPick, onAddPerson = onAddPerson, onAddModel = onAddModel)
     if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged)
-    if (o.outputs.isNotEmpty()) ResultsCard(o)
+    if (o.outputs.isNotEmpty()) ResultsCard(o, revs)
     // ⟨1.0.1⟩ §51 what went out or is set to go out from this session; a scheduled one is taken back here.
     SessionPublishes(o.publishes, onChanged = onTasksChanged)
     if (o.files.any { it.id.isNotBlank() }) FilesCard(o.files.filter { it.id.isNotBlank() })
@@ -909,13 +949,14 @@ private fun BriefLine(title: String, body: String, tint: androidx.compose.ui.gra
 
 /** «نتیجه‌ها»: each output of the session by its title; a tap opens its page. */
 @Composable
-private fun ResultsCard(o: OrderReport) {
+private fun ResultsCard(o: OrderReport, revs: com.coinepro.hq.core.data.Revisions = com.coinepro.hq.core.data.Revisions()) {
     val nav = LocalNav.current
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("نتیجه‌ها", note = "آنچه تا حالا ساخته شده")
         Column(Modifier.padding(top = 6.dp)) {
-            o.outputs.forEachIndexed { i, x ->
+            // ⟨1.35⟩ §57.6 a chain of versions is its newest, with «نسخه‌ی n»
+            o.outputs.filter { it.ref !in revs.hidden }.forEachIndexed { i, x ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
                 Row(
                     Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "باز کردن") { nav.go("outputs/${x.ref}") }.padding(vertical = 10.dp),
@@ -923,6 +964,7 @@ private fun ResultsCard(o: OrderReport) {
                 ) {
                     DrawnMark(true, c.positive, size = 14.dp)
                     Text(plain(quietLine(x.titleFa)), style = Divan.type.small, color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    revs.version[x.ref]?.let { com.coinepro.hq.ui.v14.Tag(com.coinepro.hq.core.data.versionFa(it)) }
                     Text(outputKindFa(x.kind), style = Divan.type.micro, color = c.textMuted)
                 }
             }

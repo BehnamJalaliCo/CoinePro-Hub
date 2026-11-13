@@ -28,6 +28,7 @@ import type { MediaRef } from '@/lib/api/v13';
 import { PLAYERS } from '@/lib/api/v34';
 import { SystemGroup } from './system-group';
 import { Ltr } from '@/components/look/text';
+import { prefersReducedMotion } from '@/components/live/motion';
 import { cx, jTime } from '@/lib/format';
 import { LONG_VOICE_ERROR, recognizer, useLongVoice } from '@/lib/long-voice';
 import { useAudioQueue } from '@/lib/talk-audio';
@@ -59,7 +60,11 @@ type Live = { owner: string; files: MediaRef[]; id: string | null; answer: strin
 export type SysLine = { who: string; text: string };
 
 /** What a page can ask of the pane from outside: say a word for the owner, or put words in his composer for him to finish. */
-export type PaneApi = { send: (text: string) => Promise<void>; draft: (text: string) => void };
+export type PaneApi = {
+  send: (text: string) => Promise<void>; draft: (text: string) => void;
+  /** ⟨1.0.3⟩ §57.7 the holder's chip: the composer is brought into view and takes the focus, what is typed there kept. */
+  focus: () => void;
+};
 
 /** ⟨1.0.1⟩ [session]: the session's look (C2.2): the owner's words carry a thin gold edge, the holder's a silver mark; nothing is filled gold. */
 export function Bubble({ children, own, session }: { children: React.ReactNode; own?: boolean; session?: boolean }) {
@@ -356,6 +361,13 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     onApi?.({
       send: (t) => sendRef.current(t),
       draft: (t) => { setText(t); requestAnimationFrame(() => { const el = area.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }); },
+      focus: () => {
+        const el = area.current;
+        if (!el) return;
+        el.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+        el.focus({ preventScroll: true });
+        el.setSelectionRange(el.value.length, el.value.length);
+      },
     });
     return () => onApi?.(null);
   }, [onApi]);

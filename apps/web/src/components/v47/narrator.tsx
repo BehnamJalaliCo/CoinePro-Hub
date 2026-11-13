@@ -54,6 +54,12 @@ export function NarratorCard({ company, nameFa }: { company: string; nameFa: str
   return <Card className="px-4 py-1.5" aria-label="گوینده‌ی محتوا"><NarratorRow company={company} nameFa={nameFa} /></Card>;
 }
 
+/** ⟨1.0.3⟩ §57.7 the same picker, opened from elsewhere (the session's «گوینده» chip): it reads the company's narrator and shows the sheet. */
+export function NarratorPicker({ company, nameFa, onClose }: { company: string; nameFa: string; onClose: () => void }) {
+  const q = useNarrator(company);
+  return q.data ? <NarratorSheet n={q.data} company={company} nameFa={nameFa} onClose={onClose} /> : null;
+}
+
 function NarratorSheet({ n, company, nameFa, onClose }: { n: Narrator; company: string; nameFa: string; onClose: () => void }) {
   const toast = useToast();
   const save = useSetNarrator(company);
