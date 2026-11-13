@@ -40,3 +40,14 @@
 - **`verify-live`:** سبز (rc=0، بی FAIL، دو GAP همیشگی)، پایان 16:43:54.
 
 این گزارش را برای Claude سشن مشورت ببر.
+
+## پیوست ۳۶.۱: مُهر استخدام بی «برآورد ماهانه» (۲۰۲۶-۱۱-۱۳، 00:54 تا 00:56)
+- **شاخه:** `server/p36-1-deploy` روی `eb91077f` از شاخه‌ی اصلی؛ نسبت به نسخه‌ی زنده فقط `apps/api` و سند عوض شده، migration ندارد.
+- **تست:** `test_hiring.py`، `test_people.py`، `test_w16_direct_sessions.py` و `test_decisions_messages.py`: ۳۲ از ۳۲ سبز (پایگاه دورریختنی). ruff، ruff format و `mypy src`: سبز.
+- **deploy:** لاگ‌ها ذخیره شد، backup ‏`20261113T005403Z`، checkout، ساخت ایمیج مشترک، بعد `api` (سالم 00:55:17) و بعد `worker` (سالم 00:55:44)، تک‌تک با `hq.sh up -d --wait --no-deps`. سرویس دیگری عوض نشد، داده‌ای پاک نشد.
+- **سنجش:** `healthz` ‏۲۰۰. لاگ api و worker از deploy به بعد: Traceback ۰، خطا ۰. `estimate_filled` در هر دو کانتینر هست.
+- **کارت‌ها (فقط خواندن):** هر دو `pending`، نقش `scriptwriter`، `payload->'quota_estimate_month'` خالی، amendments خالی.
+  - `D-000166`: ‏`quota_tokens` ۳٬۷۵۰٬۰۰۰، پیشنهاددهنده `PC-CEO`. `D-000167`: ‏`quota_tokens` ۴٬۰۰۰٬۰۰۰، پیشنهاددهنده `IG-CEO`.
+  - یک نوبت منشور `scriptwriter` ‏۱۲۰٬۰۰۰ است، پس مُهر بعدی مالک همان برآورد خود کارت را amendment میکند. هیچ‌کدام را تأیید یا رد نکردم.
+
+این گزارش را برای Claude سشن مشورت ببر.
