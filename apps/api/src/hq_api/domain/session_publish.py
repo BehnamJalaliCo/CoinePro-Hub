@@ -383,6 +383,32 @@ ANY_WORDS = frozenset(
 )
 
 
+# ⟨2026-11-13⟩ the public replies under a comment, one of them at random for each person (IG-Hub
+# picks): at least ten, each written warmly and with its emoji. The owner: «جواب برگشت کامنت ها
+# باید هر نفر متفاوت و رندوم باشد مثلا حداقل ۱۰ تا پیام مختلف داشته باشیم». A package's own
+# (`public:` lines of comment.txt) come first; this pool fills them up to ten.
+PUBLIC_POOL = (
+    "برو دایرکتت رو چک کن، فرستادم برات؛ موفق باشی 🤍",
+    "فرستادم! یه سر به دایرکتت بزن 🙌",
+    "دایرکتت رو ببین، همه‌چی اون‌جاست 💌",
+    "برات ارسال شد ✅ امیدوارم به کارت بیاد 🌱",
+    "توی دایرکت منتظرته 🎁 روز خوبی داشته باشی",
+    "ارسال شد 🚀 دایرکت رو چک کن",
+    "لینکش آماده‌ست، توی دایرکتته 🔗💛",
+    "حله! برات فرستادیم 😊 دایرکت رو ببین",
+    "جوابت رفت توی دایرکت 📬 ممنون که همراهمونی",
+    "دایرکتت رو باز کن، یه چیز خوب برات فرستادیم ✨",
+)
+PUBLIC_MIN = 10
+
+
+def with_public(rule: dict[str, Any]) -> dict[str, Any]:
+    """The comment rule with its public replies filled up to ten from the pool."""
+    own = [str(x) for x in rule.get("public_replies") or [] if str(x).strip()]
+    pool = [x for x in PUBLIC_POOL if x not in own]
+    return {**rule, "public_replies": (own + pool)[: max(PUBLIC_MIN, len(own))][:10]}
+
+
 def word_forms(words: Any) -> list[str]:
     """⟨2026-11-13⟩ Each keyword and its joined forms (F-0018: the caption asked for «بازپخش», the
     rule had «باز پخش»): spaces and half-spaces taken out as well, at most 10 words."""
@@ -640,7 +666,7 @@ async def _send(
     if scheduled_at is not None:
         meta["scheduled_at"] = scheduled_at.isoformat()
     if comment and what != "story":
-        meta["comment"] = comment
+        meta["comment"] = with_public(comment)
     if (first_comment or "").strip() and what != "story":
         meta["first_comment"] = str(first_comment).strip()[:CAPTION_MAX]
     j = await SV.create_job(
@@ -1286,7 +1312,10 @@ def brief_block(raw: Any) -> str:
         "exactly these in `out/`. When the reel asks viewers to comment a word or a number, add "
         "`comment.txt` with three lines, `keyword: <that word>`, `reply: <the private message>` "
         "and `link: https://…`: whoever comments it on this post gets the reply with the link "
-        "(add `match: any` to answer every comment on it, whatever it says), "
+        "(add `match: any` to answer every comment on it, whatever it says; `keyword` is still "
+        "the word the video says, and the story's replies are answered on it alone; a line "
+        "`public: …` for each reply under the comment, ten at most, warm and with an emoji: "
+        "those you leave out are filled from a pool), "
         "and the story of the same work, when it goes out, answers its replies with the same "
         "rule by itself. "
         "When that one turn leaves the whole package in `out/` (the video or the picture, and "
@@ -1324,7 +1353,8 @@ def rule_body(
         # every comment only on its own post; a DM or a story reply is answered on its words
         "match": "any" if trigger == "comment" and rule.get("match") == "any" else "contains",
         "reply_text": str(rule.get("reply") or "")[:1000],
-        "public_replies": list(rule.get("public_replies") or [])[:10],
+        # under a comment only: one of ten at random for each person
+        "public_replies": with_public(rule)["public_replies"] if trigger == "comment" else [],
         "post_ids": [p for p in post_ids if p.isdigit()],
         "name": f"HQ {RULE_WHAT_FA.get(trigger, trigger)} @{account.lstrip('@')}"[:80],
         "key": key[:200],

@@ -59,7 +59,10 @@ def test_a_word_is_taken_in_its_joined_forms() -> None:
     assert body["keywords"] == ["باز پخش", "بازپخش"] and body["match"] == "contains"
     assert body["post_ids"] == [REEL_ID]  # an id IG-Hub still holds is no post
     assert body["buttons"] == [{"title": "نمودار", "url": "https://pro-chart.com/chart"}]
-    assert body["public_replies"] == ["دایرکت را ببین"] and body["reply_text"] == "لینک سایت"
+    # his own first, then the pool: ten, each different, one at random for each person
+    assert body["public_replies"][0] == "دایرکت را ببین" and len(set(body["public_replies"])) == 10
+    assert body["reply_text"] == "لینک سایت"
+    assert SPB.rule_body("story_reply", RULE, "a", [], "k")["public_replies"] == []
     assert "buttons" not in SPB.rule_body(
         "story_reply", {"keywords": ["x"], "reply": "y"}, "a", [], "k"
     )
