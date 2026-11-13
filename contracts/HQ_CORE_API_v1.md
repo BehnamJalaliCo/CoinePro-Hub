@@ -20,6 +20,8 @@
 > **v1.34 (۲۰۲۶-۱۱-۱۲، پرامپت ۳۶):** هیچ جلسه‌ای بی‌صدا نمی‌ایستد (§۵۶؛ جلسه‌ی ریلز پروچارت ۱۲ ساعت بعد از «از ChatGPT خواسته شد و در صف است» ایستاد): مهلت و خبر برای هر درخواست بازیکن ذخیره، کار در صف بیرونی «کار زنده» است، ریشه‌ی جلسه تا تمام شدن برنامه باز میماند، بیدارباش با سقف و بعد «گیر کرده»، اکانت پر و برگشت کار، راستی ایجنت درباره‌ی کار ردشده، مسیر انتشار از تنظیم هلدینگ، و «ایستاده» در اپ؛ همراه ممیزی سرور هاب ۲۰۲۶-۱۱-۱۱ (§۵۶.۸، migration `0063`، runner 0.3.6).
 
 > **v1.35 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** تیم جلسه، یک نفر در هر بار (§۵۷): ردیف «تیم این جلسه»، گفتگوی کوتاه کنار جلسه با هر نفر، استخدام یک‌ضربه‌ای صندلی خالی، گوینده از همان ردیف، و نام درست هر تحویل با نسخه‌ها در یک خط.
+
+> **v1.36 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** جای نوشتن هنگام سؤال، کارگروه جلسه‌ی بسته در کتابخانه، انتشار خودکار همان مُهر کارگروه، بایگانی بسته‌ی منتشرشده و پاک شدن بقیه پس از ۷۲ ساعت، و میز انتشار در صفحه‌ی خودش (§۵۸).
 >
 > **v1.33 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** آنچه ظاهر تازه‌ی اپ میخواند (§۵۵، پرامپت ۳۵): خط زنده‌ی کار و «چراغ حال» جلسه (`Worker.kind`، `cap_s`، `last_fa`، `SessionActivity.mood`)، «میز انتشار» (`GET /publish-desk`)، حلقه‌ی هر اکانت Claude و کنتور امروز (`GET /treasury/limits`)، و یک ردیف برای هر انتشار (کارهای پیگیری و لغو دیگر ردیف جدا نیستند). فقط خواندنی و افزودنی؛ migration ندارد.
 >
@@ -5303,3 +5305,50 @@ A hard check that refuses (envelope, the model, five a day) answers its own code
   «گوینده» opens §48's narrator picker. The holder's chip scrolls to the composer.
 - The timeline shows only the newest deliverable of a revision chain, with «نسخه‌ی n».
 - A hub without `/team` (404 route missing): the row is hidden.
+
+## 58. Room to write, a session that leaves its working group, a lighter desk ⟨1.36⟩ (2026-11-13, prompt 37)
+The owner, 2026-11-13, in one message, the decisions left to the consulting session («هر چی گفتم تصمیمش با خودته»):
+- «وقتی سوال میپرسه من میخوام بنویسم نوشته هام دیده نمیشه و سوالش طولانی … میگه برو خروجی رو ببین من اصلا فضایی از
+  صفحه ندارم که خروجی رو ببینم»;
+- «بستن جلسه که بایگانی شد حداقل اون رویه و کارگروه … توی اپ بمونه که برای … شرکت‌های مشابه استفاده کنیم و بتونیم با یه
+  پرامپت کوتاه تغییرش بدیم … و تحویل شرکت جدید بدیم»;
+- «حالت انتشار خودکار … باید به حالت اتوماتیک در اتوماسیونی مثل n8n رانش کنیم»;
+- «میز انتشار … حجمش زیاد میشه … کاور اصلی و ریلز اصلی و متن کپشن بایگانی بشه و بقیه … پاک بشه دیسک رو سنگین نکنه»;
+- «میز انتشار رو برای اینستاگرام و یوتوب و چند تا چیز دیگه استفاده میکنیم اینکه وسط دفتره آیا درسته؟».
+
+### 58.1 The owner's turn never hides what he writes (apps only)
+- The question card above the composer shows at most three lines with «بیشتر» (expands in place, scrolls inside
+  itself to at most 40% of the screen) and folds back to its first line as soon as the composer has focus or text.
+- The composer always sits above the keyboard (IME insets), grows to five lines then scrolls inside itself; the text is
+  never under the keyboard or the card. The draft is kept per session across leaving the screen.
+- The question card carries a chip of the session's newest output («خروجی آخر: {title}»); a tap opens it full screen
+  (video, picture, PDF, text) over the session, and closing it returns to the same draft and cursor.
+
+### 58.2 A closed session leaves its working group in the library (§40)
+- Closing a session that has people beyond its holder, a routine, or an output with a video or a picture, and no
+  playbook yet, drafts its playbook by itself (§40.2's draft, the holder's model; code's skeleton when the model gives
+  nothing). It stays a **draft** in the library («کتابخانه‌ی کارگروه‌ها»); nothing runs before the owner's seal.
+- The close answer and the closed session's card say it in one line: «کارگروه این جلسه در کتابخانه ماند».
+- The library's «برای شرکت تازه» is §40.3's `apply {company, platform?, note_fa}`: one short sentence of the owner's is
+  the note the new session's holder adapts it by.
+
+### 58.3 Publishing by itself is the working group's standing word (§45)
+No new automation: a sealed working group's routine runs on the hub's own scheduler at its time, and with
+«انتشار خودکار» (§45) its package goes out through IG-Hub without asking. The group page says it as one line:
+«هر روز {ساعت}: ساخت → {تأیید تو | انتشار خودکار} → اینستاگرام» (an n8n workflow is not needed and none is made).
+
+### 58.4 What stays after a publication, and what goes
+- When a publication is confirmed published (IG-Hub's success), its package is **kept**: the video, the cover and
+  `caption.txt` of that output are filed to the archive (§23) as the publication's record (`archive.files`, kept like
+  any archived file).
+- Every **other** file of that output and of the earlier versions in its revision chain (§57.6) — drafts, other
+  renders, notes, comment/topic text files once used — is deleted 72 hours after the publication (a daily sweep;
+  `files.files` rows and their blobs), unless the owner opened or downloaded it in those 72 hours, or another output or
+  an open session refers to it. A failed or cancelled publication deletes nothing.
+- The sweep writes one audit row per output (`files.publish_sweep`, the count and bytes freed); the publish desk's
+  `done` card shows «بایگانی شد · {size} آزاد شد».
+
+### 58.5 The publish desk is its own page
+- The office (home) keeps one line for it: «انتشار: {ready} آماده · {queue} در صف» → the page.
+- The page has a tab per channel the holding publishes to (`DeskCard.channel`; today «اینستاگرام»; YouTube and others
+  appear when their route exists), each with «آماده · در صف · منتشرشده». The «خروجی‌ها» tab beside it stays.
