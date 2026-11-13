@@ -20,6 +20,11 @@ each call does at most one step:
   (`skipped`, with the reason in plain Persian); `runs_per_day` is counted
   when a run is made.
 
+⟨1.37⟩ A line under a flow automation (§59.7, domain/flow_auto.py) also stops before a step
+for a paused member or a retired version, waits (`waiting`, one notice) when the run's or the
+day's budget is spent, holds its `publish` for the owner's «نوبت تو» in mode `ask` (untapped by
+the end of his day: `skipped`), and tells each step its publish time (`ctx.step["_flow"]`).
+
 Costs are summed from the adapters' StepOutput (the router and the
 substitutes already wrote the ledger: nothing is written to it here). The
 database is the truth: a run the workflow lost is picked up by the tick.
@@ -66,6 +71,20 @@ LOCK_FA = {
     "deploy_freeze": "زمان استقرار است و کارها نگه داشته شده‌اند.",
 }
 VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*)\s*\}\}")
+
+
+def _FA() -> Any:  # the module, imported late (it imports this one)
+    from hq_api.domain import flow_auto
+
+    return flow_auto
+
+
+async def _flow(tx: Tx, run: dict[str, Any]) -> dict[str, Any] | None:
+    """⟨1.37⟩ The flow automation whose line this run is on (§59.7), or None."""
+    if not run.get("automation"):
+        return None
+    row: dict[str, Any] | None = await _FA().row_for_run(tx, run)
+    return row
 
 
 # ------------------------------------------------------------------ prompts --
@@ -330,10 +349,23 @@ async def stop_reason(
 
 
 # --------------------------------------------------------------- run states --
-async def _emit(tx: Tx, run: dict[str, Any], **data: Any) -> None:
+async def _emit(tx: Tx, run: dict[str, Any], note_fa: str | None = None, **data: Any) -> None:
     await events.emit(
         tx, run["company"], "line_run.updated", run["ref"], {"line": run["line_ref"], **data}
     )
+    if run.get("automation"):  # ⟨1.37⟩ §59.11 a flow's run on the `automations` stream
+        if "step" in data:
+            await events.emit(
+                tx, run["company"], "automation.step", run["automation"],
+                {"ref": run["automation"], "run": run["ref"], "step": data["step"],
+                 "state": data.get("step_state") or data.get("state")},
+            )  # fmt: skip
+        else:
+            await events.emit(
+                tx, run["company"], "automation.run", run["automation"],
+                {"ref": run["automation"], "run": run["ref"], "state": data.get("state"),
+                 "note_fa": note_fa or ""},
+            )  # fmt: skip
 
 
 async def _end(tx: Tx, run: dict[str, Any], state: str, note_fa: str | None) -> None:
@@ -349,7 +381,7 @@ async def _end(tx: Tx, run: dict[str, Any], state: str, note_fa: str | None) -> 
         s=state,
         n=(note_fa or None) and note_fa[:1000],
     )
-    await _emit(tx, run, state=state)
+    await _emit(tx, run, note_fa=note_fa, state=state)
 
 
 async def _withdraw(tx: Tx, run: dict[str, Any], note: str) -> None:
@@ -396,6 +428,16 @@ async def _finish(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
 
 
 # ------------------------------------------------------------ making a run --
+async def _start_stop(tx: Tx, line: dict[str, Any], body: dict[str, Any], dry: bool) -> str | None:
+    """Why a run is `skipped` as it is made: a lock, or the line's `runs_per_day`."""
+    if (lock := await gate.automation_lock(tx, line["company_id"])) is not None:
+        return LOCK_FA.get(lock, LOCK_FA["holding"])
+    cap = int(body["caps"].get("runs_per_day", 0))
+    if not dry and await runs_today(tx, line["id"]) >= cap:
+        return f"سقف اجرای روزانه‌ی این خط ({cap}) پر است."
+    return None
+
+
 async def start_run(
     tx: Tx,
     line: dict[str, Any],
@@ -406,20 +448,19 @@ async def start_run(
     from_step: str | None = None,
     source: dict[str, Any] | None = None,
     occurrence_at: datetime | None = None,
+    skip_fa: str | None = None,
 ) -> dict[str, Any]:
     """A run of the line's current version (`queued`), or `skipped` at once
-    with its reason (a lock, `runs_per_day`). `from_step`: the steps before it
-    reuse the outputs of `source` (a run of this line; default its latest run
-    that has them) and are not run again."""
+    with its reason (a lock, `runs_per_day`; ⟨1.37⟩ `skip_fa`: an occurrence the
+    owner skipped). `from_step`: the steps before it reuse the outputs of
+    `source` (a run of this line; default its latest run that has them) and are
+    not run again. `occurrence_at`: the schedule's occurrence (for a flow, the
+    publish time the run works towards)."""
     body = await store.version_body(tx, line["id"], line["version"])
     keys = [s["key"] for s in body["steps"]]
     if from_step is not None and from_step not in keys:
         raise ApiError(422, "validation_failed", fields={"from_step": "a step of this line"})
-    reason = None
-    if (lock := await gate.automation_lock(tx, line["company_id"])) is not None:
-        reason = LOCK_FA.get(lock, LOCK_FA["holding"])
-    elif not dry and await runs_today(tx, line["id"]) >= int(body["caps"].get("runs_per_day", 0)):
-        reason = f"سقف اجرای روزانه‌ی این خط ({int(body['caps'].get('runs_per_day', 0))}) پر است."
+    reason = skip_fa or await _start_stop(tx, line, body, dry)
     row = await tx.one(
         """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, dry, state,
                occurrence_at, rerun_of, from_step, note_fa, ended_at, by_kind, by_code)
@@ -476,6 +517,12 @@ async def start_run(
         tx, line["company"], "line_run.updated", run["ref"],
         {"line": line["ref"], "state": run["state"], "dry": dry, "trigger": trigger},
     )  # fmt: skip
+    if run.get("automation"):  # ⟨1.37⟩ §59.11
+        await events.emit(
+            tx, line["company"], "automation.run", run["automation"],
+            {"ref": run["automation"], "run": run["ref"], "state": run["state"],
+             "note_fa": run["note_fa"] or ""},
+        )  # fmt: skip
     return run
 
 
@@ -526,6 +573,7 @@ async def advance(hub: Any, ref: str) -> dict[str, Any]:
         if run["state"] in TERMINAL:
             return {"state": run["state"]}
         steps = await store.step_rows(tx, run["id"])
+        flow = await _flow(tx, run)  # ⟨1.37⟩ the flow automation the line is under, if any
         if run["state"] == "waiting":
             w = next((s for s in steps if s["state"] == "waiting"), None)
             if w is not None:
@@ -548,6 +596,10 @@ async def advance(hub: Any, ref: str) -> dict[str, Any]:
                         state = await _failed(tx, run, {**w, "state": "running"}, sdef, late, steps)
                         return {"state": state}
                     return {"state": "waiting"}
+                if flow is not None and await _FA().ask_expired(tx, run, w):
+                    await _withdraw(tx, run, _FA().NOT_APPROVED_FA)
+                    await _end(tx, run, "skipped", _FA().NOT_APPROVED_FA)
+                    return {"state": "skipped"}
                 if await tx.scalar(OVERDUE, t=since, w=WAIT_MAX):
                     await _withdraw(tx, run, "بی پاسخ ماند")
                     await _end(tx, run, "cancelled", "یک هفته بی پاسخ ماند و بسته شد.")
@@ -562,9 +614,20 @@ async def advance(hub: Any, ref: str) -> dict[str, Any]:
             await _withdraw(tx, run, why)
             await _end(tx, run, "skipped", why)
             return {"state": "skipped"}
-        g = effective_gate(sdef, run["mode"], run["dry"])
+        if flow is not None:  # ⟨1.37⟩ §59.7 a flow's own stops, its budget, the owner's mode
+            FA = _FA()
+            if (why := await FA.stop_why(tx, flow, run, body)) is not None:
+                await _withdraw(tx, run, why)
+                await _end(tx, run, "skipped", why)
+                if why == FA.SKIPPED_FA:
+                    await free_topics(tx, run)
+                return {"state": "skipped"}
+            if await FA.budget_hold(tx, flow, run):
+                return {"state": "waiting"}
+        g = effective_gate(sdef, _FA().gate_mode(flow) if flow else run["mode"], run["dry"])
         if g is not None and step["sealed_at"] is None:
-            d = await _card(tx, run, step, sdef, g, steps)
+            ask = flow is not None and sdef["kind"] == "publish" and flow["mode"] == "ask"
+            d = await _card(tx, run, step, sdef, g, steps, why_fa=_FA().ASK_FA if ask else None)
             await tx.exec(
                 """UPDATE lines.step_runs SET state = 'waiting', gate = :g, decision_id = :d,
                        started_at = now() WHERE id = :id""",
@@ -619,6 +682,8 @@ async def advance(hub: Any, ref: str) -> dict[str, Any]:
                 "_sealed": {"by": step["sealed_by"], "at": str(step["sealed_at"])}
                 if step["sealed_at"]
                 else None,
+                # ⟨1.37⟩ §59.7 a flow's run: its automation, the publish time, account, story, mode
+                **({"_flow": _FA().step_context(flow, run)} if flow is not None else {}),
             },
             prompt=prompt,
             inputs={k: done[k] for k in input_keys(sdef) if k in done},
@@ -772,6 +837,7 @@ def published_of(
             "external_id": (str(p["external_id"]) if p.get("external_id") else None),
             "at": p.get("at") or now,
             "url": p.get("url"),
+            "permalink": p.get("permalink") or p.get("url"),  # ⟨1.37⟩ §59.8
         }
         for p in items
         if isinstance(p, dict)
@@ -913,11 +979,29 @@ async def on_card_decided(
     await _end(tx, run, "cancelled", (f"{who_fa} {word}" + (f": {note}" if note else ""))[:1000])
 
 
-async def cancel(tx: Tx, run: dict[str, Any]) -> None:
+SKIP_FA = "مالک این نوبت را رد کرد؛ موضوعش آزاد شد."
+
+
+async def cancel(tx: Tx, run: dict[str, Any], *, skip: bool = False) -> None:
+    """Stops the run before its next step; ⟨1.37⟩ `skip` (§59.8 «رد کردن این نوبت»): the run is
+    `skipped` and the topic it claimed in the ledger is free again."""
     if run["state"] in TERMINAL:
         raise ApiError(409, "validation_failed", f"{run['ref']} is {run['state']}")
-    await _withdraw(tx, run, "اجرا لغو شد")
+    await _withdraw(tx, run, "این نوبت رد شد" if skip else "اجرا لغو شد")
+    if skip:
+        await _end(tx, run, "skipped", SKIP_FA)
+        await free_topics(tx, run)
+        return
     await _end(tx, run, "cancelled", "مالک لغو کرد.")
+
+
+async def free_topics(tx: Tx, run: dict[str, Any]) -> int:
+    """§59.8 the ledger's lines this run claimed (§47) are said no more: another day may use them."""
+    return await tx.exec(
+        """UPDATE growth.topics SET state = 'freed', freed_at = now()
+           WHERE run_id = :r AND state = 'said'""",
+        r=run["id"],
+    )
 
 
 async def on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any]:

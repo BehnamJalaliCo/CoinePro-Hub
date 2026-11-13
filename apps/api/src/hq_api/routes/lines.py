@@ -20,7 +20,8 @@ but the signed n8n callback.
     POST /line-runs/{ref}/rerun              {from_step}
     POST /line-runs/{ref}/seal               {approve, note_fa?} (approving: 🔏 decision.approve
                                              on the card, A3)
-    POST /line-runs/{ref}/cancel
+    POST /line-runs/{ref}/cancel             {skip?}: ⟨1.37⟩ §59.8 `skip: true` «رد کردن این نوبت»
+                                             (the run `skipped`, its ledger topic freed)
     GET  /calendar/lines?from&to&company
     GET  /library?company&kind,  POST /library,  PUT /library/{id},  DELETE /library/{id}
     GET  /tts/voices                         the speakers the tts adapter offers (a day's cache)
@@ -115,6 +116,12 @@ class RunIn(Model):
 
 class RerunIn(Model):
     from_step: str = Field(pattern=KEY)
+
+
+class CancelIn(Model):
+    """⟨1.37⟩ §59.8 `skip`: the run is `skipped` and its topic freed in the ledger (§47)."""
+
+    skip: bool = False
 
 
 class LineSealIn(Model):
@@ -478,8 +485,8 @@ async def get_line_insights(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.In
 
 
 # -------------------------------------------------------------------- runs --
-async def _run_out(tx: Any, ref: str) -> store.LineRunOut:
-    return await store.render_run(tx, await store.load_run(tx, ref))
+async def _run_out(tx: Any, ref: str, storage: Any | None = None) -> store.LineRunOut:
+    return await store.render_run(tx, await store.load_run(tx, ref), storage)
 
 
 @router.post("/lines/{ref}/runs", response_model=store.LineRunOut, status_code=201, responses=E)
@@ -566,9 +573,12 @@ async def list_line_runs(
 @router.get("/line-runs/{ref}", response_model=store.LineRunOut, responses=E)
 async def get_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.LineRunOut:
     """One run, step by step: each output (text, files, data), the tool that
-    answered, tokens, the reason of a failure, the card it waits on."""
+    answered, tokens, the reason of a failure, the card it waits on. ⟨1.37⟩
+    §59.8 a flow's run also names its automation, playbook and version, the
+    day's topic, its results and minutes; each step its seat, helper, model,
+    effort, cost and files (a `.txt` or `.md` with its first 4000 letters)."""
     async with ctx.tx() as tx:
-        return await _run_out(tx, ref)
+        return await _run_out(tx, ref, ctx.hub.storage)
 
 
 @router.post(
@@ -654,15 +664,21 @@ async def seal_line_run(
 
 
 @router.post("/line-runs/{ref}/cancel", response_model=store.LineRunOut, responses=E)
-async def cancel_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.LineRunOut:
-    """Stops the run before its next step (its open card withdrawn)."""
+async def cancel_line_run(
+    ref: str, body: CancelIn | None = None, ctx: Ctx = Depends(owner_ctx)
+) -> store.LineRunOut:
+    """Stops the run before its next step (its open card withdrawn). ⟨1.37⟩
+    `skip: true` («رد کردن این نوبت»): the run ends `skipped` and the topic it
+    claimed in the ledger is free for another day."""
+    skip = body is not None and body.skip
     async with ctx.tx() as tx:
         run = await store.load_run(tx, ref, lock=True)
         await _policy(ctx, "line.cancel", {"run": ref})
-        await engine.cancel(tx, run)
+        await engine.cancel(tx, run, skip=skip)
         await ctx.audit(
             tx, company_id=run["company_id"], action="line_run.cancel", action_class="A2",
-            target_kind="line_run", target_ref=ref, summary="cancelled by the owner",
+            target_kind="line_run", target_ref=ref,
+            summary="skipped by the owner, topic freed" if skip else "cancelled by the owner",
         )  # fmt: skip
         out = await _run_out(tx, ref)
     await engine.wake(ctx.hub, ref)

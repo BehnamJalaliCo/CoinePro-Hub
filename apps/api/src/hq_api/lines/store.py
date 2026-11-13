@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import events
 from hq_api.db import Tx
+from hq_api.domain import flow_shapes as FS
 from hq_api.domain import recurrence
 from hq_api.errors import ApiError
 from hq_api.lines import templates as T
@@ -89,6 +90,17 @@ class StepOutputOut(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+class StepFile(BaseModel):
+    """⟨1.37⟩ §59.8 a file a step left; `text` (≤ TEXT_MAX) for a `.txt` or a `.md`."""
+
+    id: str
+    name: str
+    mime: str = "application/octet-stream"
+    size: int = 0
+    kind: Literal["text", "audio", "image", "video", "file"] = "file"
+    text: str | None = None
+
+
 class StepRun(BaseModel):
     key: str
     kind: str
@@ -109,11 +121,20 @@ class StepRun(BaseModel):
     sealed_by: str | None
     reused: bool
     missing: list[str]
+    # ⟨1.37⟩ §59.8 a flow's step: its seat, the helper or model and effort, its cost, its files
+    seat_fa: str | None = None
+    helper: str | None = None
+    model: str | None = None
+    effort: str | None = None
+    cost_usd: float | None = None
+    outputs: list[StepFile] = Field(default_factory=list)
 
 
 class LineCost(BaseModel):
     tokens: int
     usd_equiv: Decimal
+    # ⟨1.37⟩ §59.8 the treasury's own figure (USD equivalent), for the apps' «هزینه»
+    usd: float | None = None
 
 
 class Published(BaseModel):
@@ -122,6 +143,7 @@ class Published(BaseModel):
     external_id: str | None
     at: datetime | None
     url: str | None
+    permalink: str | None = None  # ⟨1.37⟩ §59.8
 
 
 class Metrics(BaseModel):
@@ -150,6 +172,17 @@ class LineRunOut(BaseModel):
     decision: str | None
     rerun_of: str | None
     from_step: str | None
+    # ⟨1.37⟩ §59.8 a flow's run: its automation, playbook and version, the day's topic, how its
+    # post did, how long it took (null for a line not under a flow)
+    automation: str | None = None
+    playbook: str | None = None
+    playbook_fa: str | None = None
+    version: int | None = None
+    company_fa: str | None = None
+    topic_fa: str | None = None
+    results: FS.RunResults | None = None
+    minutes: float | None = None
+    occurrence_at: datetime | None = None
 
 
 class InsightsBest(BaseModel):
@@ -371,6 +404,54 @@ async def create_line(
     return row
 
 
+# ⟨1.37⟩ §59.4 a flow's line is built from a playbook version, not a template: `flow`, its
+# template_version the playbook version it was built from; the flow automation is its only clock
+# (no schedule of its own) and its budget the real cap (these caps only keep a runaway in check)
+FLOW_TEMPLATE = "flow"
+FLOW_CAPS = {"runs_per_day": 6, "tokens_per_run": 20_000_000, "opus_per_day": 6}
+
+
+async def insert_flow_line(
+    tx: Tx,
+    who: Principal,
+    *,
+    company_id: UUID,
+    platform: str,
+    channel: dict[str, Any],
+    title_fa: str,
+    version: int,
+    steps: list[dict[str, Any]],
+    library: list[str],
+) -> dict[str, Any]:
+    """A flow's line (`on`, `auto`): the version's steps for one company and account."""
+    try:
+        T.check_steps([T.StepDef.model_validate(s) for s in steps])
+    except ValueError as exc:
+        raise ApiError(
+            422, "validation_failed", fields={"steps": str(exc).splitlines()[0][:200]},
+            message_fa="قدم‌های این نسخه با هم جور نیستند؛ اول نسخه را درست کن.",
+        ) from exc  # fmt: skip
+    lid = await tx.scalar(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, channel,
+               title_fa, schedule, state, mode, caps, auto_after, steps, library)
+           VALUES (:co, :tpl, :tv, :platform, CAST(:channel AS jsonb), :title, NULL, 'on', 'auto',
+                   CAST(:caps AS jsonb), 7, CAST(:steps AS jsonb), CAST(:library AS uuid[]))
+           RETURNING id""",
+        co=company_id,
+        tpl=FLOW_TEMPLATE,
+        tv=version,
+        platform=platform,
+        channel=dumps(channel),
+        title=title_fa[:200],
+        caps=dumps(FLOW_CAPS),
+        steps=dumps(steps),
+        library=library,
+    )
+    row = await by_id(tx, lid)
+    await write_version(tx, row, who, f"از کارگروه، نسخه‌ی {version}")
+    return row
+
+
 def caps_rise(old: dict[str, Any], new: dict[str, Any]) -> bool:
     return any(int(new.get(k, 0)) > int(old.get(k, 0)) for k in T.Caps.model_fields)
 
@@ -455,9 +536,12 @@ async def set_mode(tx: Tx, row: dict[str, Any], mode: str) -> dict[str, Any]:
 
 
 # -------------------------------------------------------------------- runs --
+# ⟨1.37⟩ §59.7 `automation`: the flow automation the run's line is under (null for a plain line)
 RUN_SQL = """
     SELECT r.*, l.ref AS line_ref, l.title_fa, l.platform, l.mode, l.caps AS line_caps,
-           c.code AS company, d.ref AS decision_ref, p.ref AS rerun_ref
+           c.code AS company, d.ref AS decision_ref, p.ref AS rerun_ref,
+           (SELECT fa.ref FROM growth.automations fa
+             WHERE fa.line = l.ref AND fa.kind = 'flow' LIMIT 1) AS automation
     FROM lines.runs r JOIN lines.lines l ON l.id = r.line_id
     JOIN core.companies c ON c.id = r.company_id
     LEFT JOIN cartable.decisions d ON d.id = r.decision_id
@@ -477,6 +561,50 @@ async def step_rows(tx: Tx, run_id: UUID) -> list[dict[str, Any]]:
 
 def step_titles(body: dict[str, Any]) -> dict[str, str]:
     return {s["key"]: s.get("title_fa") or s["key"] for s in body.get("steps") or []}
+
+
+TEXT_MAX = 4000  # §59.8 a `.txt` or `.md` output shown in place
+TEXT_READ_MAX = 64 * 1024  # a text file larger than this is not read for its first lines
+TEXT_NAMES = (".txt", ".md")
+FILE_KINDS = {"audio": "audio", "image": "image", "video": "video"}
+
+
+def file_ids(o: dict[str, Any]) -> list[str]:
+    """Every file of a step's output once, its single `file_id` first."""
+    return list(dict.fromkeys(str(f) for f in [o.get("file_id"), *(o.get("files") or [])] if f))
+
+
+async def step_files(tx: Tx, ids: list[str], storage: Any | None) -> dict[str, StepFile]:
+    """§59.8 the files of a run's steps by id; a short text file's words with it (`storage`)."""
+    good = []
+    for i in ids:
+        try:
+            good.append(str(UUID(i)))
+        except ValueError:
+            continue
+    if not good:
+        return {}
+    rows = await tx.all(
+        """SELECT id, name, mime, size, kind, storage_key FROM files.files
+           WHERE id = ANY(CAST(:ids AS uuid[]))""",
+        ids=good,
+    )
+    out: dict[str, StepFile] = {}
+    for r in rows:
+        name = str(r["name"])
+        texty = name.lower().endswith(TEXT_NAMES)
+        text = None
+        if texty and storage is not None and int(r["size"]) <= TEXT_READ_MAX:
+            try:
+                raw = await storage.get(str(r["storage_key"]))
+                text = bytes(raw).decode("utf-8", errors="replace")[:TEXT_MAX]
+            except Exception:  # noqa: BLE001 - a file not readable now shows without its words
+                text = None
+        out[str(r["id"])] = StepFile(
+            id=str(r["id"]), name=name, mime=str(r["mime"]), size=int(r["size"]),
+            kind="text" if texty else FILE_KINDS.get(str(r["kind"] or ""), "file"), text=text,
+        )  # fmt: skip
+    return out
 
 
 def render_step(s: dict[str, Any], title_fa: str) -> StepRun:
@@ -507,11 +635,95 @@ def render_step(s: dict[str, Any], title_fa: str) -> StepRun:
     )
 
 
-async def render_run(tx: Tx, r: dict[str, Any]) -> LineRunOut:
+def flow_meta(sdef: dict[str, Any]) -> dict[str, Any]:
+    """§59.2 a flow step's own words kept in its settings (seat, helper, model, effort)."""
+    st = sdef.get("settings") or {}
+    return {k: st.get(k) for k in ("seat", "seat_fa", "helper", "model", "effort")}
+
+
+async def _flow_of(tx: Tx, r: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
+    """§59.8 what a flow's run adds: its automation's playbook, the day's topic, its results."""
+    if not r.get("automation"):
+        return {}
+    auto = await tx.first(
+        """SELECT a.playbook, a.playbook_version, p.title_fa AS playbook_fa
+           FROM growth.automations a LEFT JOIN owner.playbooks p ON p.ref = a.playbook
+           WHERE a.ref = :ref""",
+        ref=r["automation"],
+    )
+    topic = await tx.scalar(
+        """SELECT title_fa FROM growth.topics WHERE run_id = :r AND kind = 'topic'
+           ORDER BY (state = 'said') DESC, created_at DESC LIMIT 1""",
+        r=r["id"],
+    )
+    return {
+        "automation": r["automation"],
+        "playbook": auto["playbook"] if auto else None,
+        "playbook_fa": auto["playbook_fa"] if auto else None,
+        "version": int(body.get("template_version") or (auto or {}).get("playbook_version") or 1),
+        "topic_fa": topic,
+        "results": (await results_of(tx, [r["id"]])).get(str(r["id"])),
+    }
+
+
+async def results_of(tx: Tx, run_ids: list[UUID]) -> dict[str, FS.RunResults]:
+    """§59.9 what each run's post did (null figures: not given), by run id. The results' own
+    module (domain/run_results.results_of, the reader of IG-Hub) answers when it is there; else
+    growth.run_results is read as it stands."""
+    if not run_ids:
+        return {}
+    import importlib
+
+    try:
+        mod: Any = importlib.import_module("hq_api.domain.run_results")
+        got = await mod.results_of(tx, run_ids)
+    except (ImportError, AttributeError):
+        rows = await tx.all(
+            "SELECT * FROM growth.run_results WHERE run_id = ANY(CAST(:ids AS uuid[]))",
+            ids=[str(i) for i in run_ids],
+        )
+        got = {r["run_id"]: dict(r) for r in rows}
+    out: dict[str, FS.RunResults] = {}
+    for k, v in (got or {}).items():
+        if v is None:
+            continue
+        raw = v if isinstance(v, dict) else v.model_dump()
+        out[str(k)] = FS.RunResults.model_validate(raw)
+    return out
+
+
+def minutes_of(r: dict[str, Any]) -> float | None:
+    if r.get("started_at") is None:
+        return None
+    end: datetime = r.get("ended_at") or datetime.now(UTC)
+    start: datetime = r["started_at"]
+    return round(max(0.0, (end - start).total_seconds()) / 60, 1)
+
+
+async def render_run(tx: Tx, r: dict[str, Any], storage: Any | None = None) -> LineRunOut:
+    """The run step by step; ⟨1.37⟩ with a flow's additions, and the step's files (a short text
+    file's words read from `storage` when given: one run's page, not a list)."""
     body = await version_body(tx, r["line_id"], r["line_version"])
     titles = step_titles(body)
-    steps = [render_step(s, titles.get(s["key"], s["key"])) for s in await step_rows(tx, r["id"])]
+    defs = {s["key"]: s for s in body.get("steps") or []}
+    rows = await step_rows(tx, r["id"])
+    files = await step_files(tx, [f for s in rows for f in file_ids(s["output"] or {})], storage)
+    steps = []
+    for s in rows:
+        one = render_step(s, titles.get(s["key"], s["key"]))
+        meta = flow_meta(defs.get(s["key"]) or {})
+        one.seat_fa = meta["seat_fa"] or meta["seat"] or None
+        one.helper, one.model, one.effort = meta["helper"], meta["model"], meta["effort"]
+        one.cost_usd = float(s["usd_equiv"]) if s["usd_equiv"] is not None else None
+        one.outputs = [files[f] for f in file_ids(s["output"] or {}) if f in files]
+        if one.error_fa:
+            one.error_fa = " ".join(one.error_fa.split())[:300]
+        steps.append(one)
     m = r["metrics"] or {}
+    company_fa = await tx.scalar(
+        "SELECT coalesce(name_fa, code) FROM core.companies WHERE id = :id", id=r["company_id"]
+    )
+    flow = await _flow_of(tx, r, body)
     return LineRunOut(
         ref=r["ref"],
         line=r["line_ref"],
@@ -525,14 +737,24 @@ async def render_run(tx: Tx, r: dict[str, Any]) -> LineRunOut:
         at=r["at"],
         ended_at=r["ended_at"],
         steps=steps,
-        cost=LineCost(tokens=int(r["tokens"]), usd_equiv=Decimal(r["usd_equiv"])),
-        published=[Published.model_validate(p) for p in r["published"] or []],
+        cost=LineCost(
+            tokens=int(r["tokens"]), usd_equiv=Decimal(r["usd_equiv"]),
+            usd=round(float(r["usd_equiv"]), 4),
+        ),
+        published=[
+            Published.model_validate({**p, "permalink": p.get("permalink") or p.get("url")})
+            for p in r["published"] or []
+        ],
         metrics=Metrics(h24=m.get("h24"), d7=m.get("d7")),
         note_fa=r["note_fa"],
         decision=r["decision_ref"],
         rerun_of=r["rerun_ref"],
         from_step=r["from_step"],
-    )
+        company_fa=company_fa,
+        minutes=minutes_of(r),
+        occurrence_at=r.get("occurrence_at"),
+        **flow,
+    )  # fmt: skip
 
 
 # ---------------------------------------------------------------- calendar --
