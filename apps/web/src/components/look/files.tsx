@@ -141,6 +141,25 @@ function TextBody({ f }: { f: StripFile }) {
   return <pre dir="auto" className="max-h-full w-[min(100%,44rem)] overflow-auto whitespace-pre-wrap rounded-[12px] bg-card p-4 text-start font-sans text-[14px] leading-7 text-ink">{text ?? '…'}</pre>;
 }
 
+/**
+ * ⟨1.0.3⟩ §58.1 a PDF on the full screen: its mark, its name and size, and «باز کن» in the browser's own reader (a new tab). It is not
+ * framed in the page: the app and the hub forbid framing (`frame-ancestors 'none'`).
+ */
+function PdfBody({ f }: { f: StripFile }) {
+  return (
+    <div className="flex w-[min(100%,24rem)] flex-col items-center gap-4 rounded-[16px] bg-card p-6 text-center" data-pdf>
+      <span className="flex h-40 w-32 items-center justify-center rounded-[12px] bg-tile shadow-[inset_0_0_0_1px_var(--hq-line-divider)]"><FileFace f={f} /></span>
+      <span className="flex flex-col gap-0.5">
+        <Ltr tabular={false} className="text-[14px] font-semibold text-ink [overflow-wrap:anywhere]">{f.name}</Ltr>
+        <Ltr className="text-[12px] text-muted">{fileSize(f.size)}</Ltr>
+      </span>
+      <a href={fileUrl(f.id)} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-[12px] border border-strong px-5 text-[14px] font-semibold text-ink hover:bg-hover">
+        <Icon name="report" size={18} />باز کن
+      </a>
+    </div>
+  );
+}
+
 /** A video on the full screen: its controls and its sound, from where the inline one was. */
 function FullVideo({ f, at }: { f: StripFile; at: number }) {
   const [failed, setFailed] = useState(false);
@@ -182,7 +201,7 @@ export function Viewer({ file, at = 0, onClose, title, onCloseAutoFocus, testid 
             {!file ? null : isVideo(file) ? <FullVideo key={file.id} f={file} at={at} /> : isImage(file) ? (
               // eslint-disable-next-line @next/next/no-img-element -- a file of the owner's, served by the API
               <img src={fileUrl(file.id)} alt={file.name} className="max-h-full max-w-full rounded-[8px] object-contain" />
-            ) : isPdf(file) ? <iframe src={fileUrl(file.id)} title={file.name} data-pdf className="size-full max-w-[60rem] rounded-[8px] bg-white" /> : <TextBody f={file} />}
+            ) : isPdf(file) ? <PdfBody f={file} /> : <TextBody f={file} />}
           </div>
         </D.Content>
       </D.Portal>

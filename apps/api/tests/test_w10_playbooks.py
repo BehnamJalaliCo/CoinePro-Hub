@@ -205,19 +205,24 @@ async def test_the_session_remembers_by_code_and_a_small_model_folds_it(
         f"/api/v1/orders/{ref}/close", headers={**owner, **idem()}, json={"verdict": "cancel"}
     )
     assert r.status_code == 200, r.text
-    assert len(seen) == 1 and seen[0]["task_class"] == MEM.TASK_CLASS
+    # ⟨1.36⟩ §58.2 and a session with people beyond its holder leaves its working group in the
+    # library: the holder's one draft call follows the fold
+    assert [s["task_class"] for s in seen] == [MEM.TASK_CLASS, PB.TASK_CLASS]
+    kept = r.json()["session"]["playbook_kept"]
+    assert kept and kept.startswith("PB-")
     memory, upto = await memory_of(su, ref)
     assert memory is not None and memory.endswith("- بسته شد")
     # … through the close's own line («لغو و بستن» is the owner's last turn)
     assert upto == await su.fetchval("SELECT turns FROM talk.conversations WHERE ref = $1", conv)
     assert upto == turns + MEM.FOLD_EVERY + 1
-    # related sessions: the company's next session names this one (title, one line, no playbook)
+    # related sessions: the company's next session names this one (title, one line, the playbook
+    # it left in the library)
     out2 = await post_order(client, owner, REEL_TEXT.format(co=co, w=words()))
     async with await all_tx(hub) as tx:
         brief = await OT.talk_brief(tx, out2["ref"])
     assert brief is not None
     [related] = brief["related_sessions"]
-    assert related["order"] == ref and related["state"] == "closed" and related["playbook"] is None
+    assert related["order"] == ref and related["state"] == "closed" and related["playbook"] == kept
     assert related["title_fa"].startswith("برای") and related["outcome_fa"]
     assert HZ.check(related["outcome_fa"]) == []
 

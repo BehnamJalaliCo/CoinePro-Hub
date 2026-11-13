@@ -76,7 +76,8 @@ test('§58.1 «خروجی آخر» opens the newest output on the full screen; c
     await expect(viewer).toBeVisible();
     await expect(viewer).toContainText('نسخه‌ی تازه‌ی یادداشت‌های سناریو');
     await expect(viewer).toContainText('rsi-divergence-notes-v3.pdf');
-    await expect(viewer.locator('iframe[data-pdf]')).toHaveAttribute('title', 'rsi-divergence-notes-v3.pdf');
+    // A PDF is not framed (framing is forbidden): its face, its name, and «باز کن» in the browser's own reader.
+    await expect(viewer.locator('[data-pdf]').getByRole('link', { name: 'باز کن' })).toHaveAttribute('target', '_blank');
     const box = (await viewer.boundingBox())!;
     expect(box.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
     await viewer.getByRole('button', { name: 'بستن' }).click();

@@ -220,8 +220,10 @@ test('the output: «تأیید و انتشار» is the page\'s one gold in its 
     const rateY = (await detail(page).getByLabel('امتیاز تو', { exact: true }).boundingBox())!.y;
     expect(removeY).toBeGreaterThan(rateY);
     await bar.getByRole('button', { name: 'اصلاح' }).click();
-    await expect(page).toHaveURL(/\/s\/F-0012\?about=O-000067$/);
+    // (the session takes the output's name into the composer and drops `about` from its address at once: either may be seen)
+    await expect(page).toHaveURL(/\/s\/F-0012(\?about=O-000067)?$/);
     await expect(page.getByLabel('پیام', { exact: true })).toHaveValue('درباره‌ی «ریلز: حد ضرر را کجا بگذاریم»: ');
+    await expect(page).toHaveURL(/\/s\/F-0012$/);
   });
 });
 
