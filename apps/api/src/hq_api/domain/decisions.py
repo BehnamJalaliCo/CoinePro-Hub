@@ -1601,6 +1601,11 @@ async def decide(
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.
         charters = await company_charters(tx, charters, d["company_id"])
+        # ⟨2026-11-13⟩ a card without its monthly estimate gets one, kept as an amendment (the
+        # month envelope counts it, the employee is made with it): never a 422 on the seal
+        fill = hiring.estimate_filled(d, amended("hire", d["payload"], amendments), charters)
+        if fill:
+            amendments = {**(amendments or {}), **fill}
         await hiring.check_approval(
             tx, d, amended("hire", d["payload"], amendments), charters, by_ceo=who.is_agent, hub=hub
         )

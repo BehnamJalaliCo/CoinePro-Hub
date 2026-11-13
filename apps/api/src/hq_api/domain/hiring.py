@@ -523,6 +523,29 @@ async def owner_words(tx: Tx, who: Principal, work_id: UUID | None) -> tuple[str
     return ref, said
 
 
+def estimate_filled(
+    d: dict[str, Any], payload: dict[str, Any], charters: Any
+) -> dict[str, Any] | None:
+    """⟨2026-11-13⟩ The amendment that gives a hire card the monthly estimate it lacks, or None.
+
+    A proposer may leave `payload.quota_estimate_month` out (it is optional on the card) or name
+    less than one run of its charter; the owner cannot write it from the app, so his seal was
+    refused 422 on a field he never saw (D-000166). The card's own estimate (`quota_tokens`, the
+    figure the card shows) is taken when it covers one run, else 30 runs of the charter, the
+    same default a hire written in a session gets. Without a charter nothing is filled and the
+    role check refuses the card as before."""
+    charter = charters.get(payload.get("role")) if charters is not None else None
+    if charter is None:
+        return None
+    floor = int(charter.limits.tokens_per_run)
+    estimate = (payload.get("quota_estimate_month") or {}).get("tokens")
+    if estimate and int(estimate) >= floor:
+        return None
+    shown = d.get("quota_tokens")
+    tokens = int(shown) if shown and int(shown) >= floor else floor * 30
+    return {"quota_estimate_month": {"tokens": tokens}}
+
+
 async def approve_by_code(
     tx: Tx, d: dict[str, Any], charters: Any, *, owner_order: str | None = None
 ) -> dict[str, Any]:
@@ -536,7 +559,9 @@ async def approve_by_code(
     from hq_api.domain import decisions as D
 
     lib = await D.company_charters(tx, charters, d["company_id"])
-    await check_approval(tx, d, d["payload"], lib, by_ceo=owner_order is None)
+    fill = estimate_filled(d, d["payload"], lib)  # decide() records the same fill as amendments
+    payload = {**d["payload"], **fill} if fill else d["payload"]
+    await check_approval(tx, d, payload, lib, by_ceo=owner_order is None)
     await D.decide(
         tx,
         SERVICE,

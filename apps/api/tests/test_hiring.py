@@ -455,6 +455,45 @@ async def test_direct_hire_reports_to_and_validation(
     assert r.status_code == 422 and "payload.reports_to" in r.json()["fields"]
 
 
+async def test_a_hire_card_without_its_estimate_is_sealed_with_the_charters(
+    client: httpx.AsyncClient,
+    hub: Any,
+    su: Any,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-13⟩ D-000166: a card that left `quota_estimate_month` out was refused 422 on the
+    owner's seal, a field he cannot write. Now it gets 30 runs of its charter, kept as an
+    amendment the month envelope counts; the employee is made."""
+    h, sid = owner_session["headers"], owner_session["session_id"]
+    co = (await new_company())["code"]
+    body = {
+        "company": co,
+        "department": "TECH",
+        "role": "sre",
+        "title_fa": "کارشناس بی‌برآورد",
+        "title_en": "Engineer",
+        "model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "reason": "آزمایش",
+    }
+    content = body_bytes(body)
+    su_h = await step_up(hub, sid, "hire.direct", hashlib.sha256(content).hexdigest())
+    r = await client.post(
+        "/api/v1/org/hires",
+        content=content,
+        headers={**h, **su_h, "Content-Type": "application/json"},
+    )
+    assert r.status_code == 201, r.text
+    ref = r.json()["decision"]["ref"]
+    per_run = hub.charters.get("sre").limits.tokens_per_run
+    amendments = json.loads(
+        await su.fetchval("SELECT amendments FROM cartable.decisions WHERE ref = $1", ref)
+    )
+    assert amendments == {"quota_estimate_month": {"tokens": per_run * 30}}
+    assert r.json()["employee"]["code"].startswith(f"{co}-TECH-")
+
+
 # ---------------------------------------------------------- v1.4.3 shape --
 async def test_delegated_without_envelopes_spends_no_step_up(
     client: httpx.AsyncClient,
