@@ -32,6 +32,17 @@
       }
     },
     {
+      "id": "7b2f0000-0000-4000-8000-000000000004",
+      "name": "Run now (test, or a missed day)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
       "id": "7b2f0000-0000-4000-8000-000000000002",
       "name": "Tomorrow, signed",
       "type": "n8n-nodes-base.code",
@@ -42,7 +53,7 @@
       ],
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const crypto = require('crypto');\nconst secret = $env.HQ_SIGNING_SECRET || '';\nif (!secret) throw new Error('no signing secret');\n// tomorrow in Tehran: the day the post goes out (it is made today)\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 24 * 3600 * 1000));\nconst body = JSON.stringify({ day: parts });\nconst ts = Math.floor(Date.now() / 1000);\nconst mac = crypto.createHmac('sha256', secret).update(`${ts}.`).update(body).digest('hex');\nreturn [{ json: { body, signature: `t=${ts},v1=${mac}`, key: `flow:prochart_reels:${parts}` } }];"
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.HQ_SIGNING_SECRET || '';\nif (!secret) throw new Error('no signing secret');\n// tomorrow in Tehran: the day the post goes out (it is made today)\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 24 * 3600 * 1000));\nconst body = JSON.stringify({ day: parts });\nconst ts = Math.floor(Date.now() / 1000);\nconst mac = crypto.createHmac('sha256', secret).update(`${ts}.`).update(body).digest('hex');\n// the hub's Idempotency-Key is a UUID: one made from the flow and the day (the same on a retry)\nconst h = crypto.createHash('sha256').update(`flow:prochart_reels:${parts}`).digest('hex');\nconst key = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16], 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;\nreturn [{ json: { body, signature: `t=${ts},v1=${mac}`, key } }];"
       }
     },
     {
@@ -97,6 +108,17 @@
         [
           {
             "node": "Start the day on the hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now (test, or a missed day)": {
+      "main": [
+        [
+          {
+            "node": "Tomorrow, signed",
             "type": "main",
             "index": 0
           }

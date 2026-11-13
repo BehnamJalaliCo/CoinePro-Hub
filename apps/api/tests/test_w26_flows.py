@@ -96,6 +96,11 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
         "/api/v1/flows/t/run", headers={**owner, **key}, json={"day": day.isoformat()}
     )
     assert again.json()["order"] == got["order"]
+    # another key, the same day: still the one order
+    third = await client.post(
+        "/api/v1/flows/t/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert third.json()["order"] == got["order"] and third.json()["work"] == got["work"]
     order, work_ref = got["order"], got["work"]
     w = await su.fetchrow(
         "SELECT id, run_meta -> 'flow' AS flow FROM work.work WHERE ref = $1", work_ref

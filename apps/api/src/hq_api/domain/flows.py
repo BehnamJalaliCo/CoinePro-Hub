@@ -138,6 +138,18 @@ async def start(
             raise ApiError(409, "validation_failed", f"no company {flow.company}")
         tomorrow = datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
         the_day = day or tomorrow
+        # one order per flow and day, whatever calls again (a key expires in 24 hours)
+        made = await tx.first(
+            """SELECT ref, run_meta -> 'flow' AS flow FROM work.work
+               WHERE run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d
+               ORDER BY created_at LIMIT 1""",
+            k=flow.key,
+            d=the_day.isoformat(),
+        )
+        if made is not None:
+            m = OR._j(made["flow"]) or {}
+            return {"order": str(m.get("order") or ""), "work": str(made["ref"]),
+                    "publish_at": str(m.get("publish_at") or ""), "why_fa": "پیش از این ساخته شده"}  # fmt: skip
         at, why = await slot_of(tx, flow, the_day, co["id"])
     body = OrderIn(
         text=brief_of(flow, the_day, at),
