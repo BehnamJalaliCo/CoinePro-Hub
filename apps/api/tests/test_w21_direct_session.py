@@ -422,3 +422,59 @@ async def test_a_turn_that_fails_or_is_stopped_ends_its_run_and_is_never_silent(
         "AND work_id = $1",
         o["work_id"],
     ) == 0  # fmt: skip
+
+
+async def test_a_turn_the_owner_stops_ends_its_run_and_his_next_word_starts_a_turn(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-13⟩ F-0018: the owner stopped a turn; its run stayed `running` (the runner's
+    result of a cancelled job is refused, so after_job never ran) and each word he said after it
+    only waited until the run's token expired."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+
+    r = await client.post(f"/api/v1/work/{o['work_id']}/stop", headers={**owner, **idem()})
+    assert r.status_code == 200 and r.json()["jobs_stopped"] == 1, r.text
+    d = await su.fetchrow("SELECT state, error_code, note FROM agents.runs WHERE id = $1::uuid",
+                          job["args"]["run"])  # fmt: skip
+    assert (d["state"], d["error_code"]) == ("failed", "workspace_stopped")
+    assert d["note"] == f"direct turn, job {job['id']}"
+    # the runner's late result of the cancelled job changes nothing
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 0, "summary_fa": "تمام شد.", "data": {"result_fa": "x"}},
+        headers=rn["h"],
+    )
+    assert r.status_code == 409, r.text
+
+    # his next word is a new turn on the same workspace, not «the last turn is still working»
+    await su.execute("UPDATE work.workspaces SET updated_at = now() - interval '1 minute' "
+                     "WHERE work_id = $1", o["work_id"])  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    assert note is not None and note.startswith("direct turn ") and note != DR.WAITING, note
+    await end_run(su, run, note)
+    nxt = await take(client, rn)
+    assert nxt["id"] != job["id"] and nxt["args"]["direct"] is True
+
+    # a turn the holder stops itself (workshop.stop) ends its run the same way
+    from hq_api.domain import hands as HANDS
+    from hq_api.domain import work as W
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        w = await W.load(tx, o["work_id"], lock=True)
+        out = await HANDS.stop_turn(tx, DR.principal(o["emp"]), w, "test")
+    assert out["stopped"] is True
+    assert await su.fetchval("SELECT state FROM agents.runs WHERE id = $1::uuid",
+                             nxt["args"]["run"]) == "failed"  # fmt: skip
