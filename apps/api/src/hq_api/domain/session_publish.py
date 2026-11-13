@@ -1413,23 +1413,44 @@ async def _rule_ended(tx: Tx, j: dict[str, Any], args: dict[str, Any]) -> None:
         await OR._append_steps(tx, rep["id"], [_line(SYSTEM_FA, say)])
 
 
-async def _story_rule(tx: Tx, j: dict[str, Any], args: dict[str, Any]) -> None:
-    """⟨2026-11-13⟩ A story of a session went out: the comment rule its reel carried is made for the
-    account's story replies too (the owner: «برای استوری جواب دایرکت تنظیم شد؟»)."""
-    s = args.get("session") or {}
-    ref = str(s.get("order") or "")
-    if not ref:
+SAME_OUTPUT_SQL = f"""SELECT {JOB_COLS} FROM infra.server_jobs j
+    WHERE j.kind = 'publish' AND j.args -> 'session' ->> 'output' = :out
+      AND j.args ->> 'account' = :a AND j.args ->> 'kind' = ANY(CAST(:kinds AS text[]))
+    ORDER BY j.created_at DESC LIMIT 20"""  # noqa: S608 - constant columns
+RULE_MADE_SQL = """SELECT 1 FROM infra.server_jobs j
+    WHERE j.kind = 'publish' AND j.args -> 'rule_for' ->> 'output' = :out
+      AND j.args ->> 'account' = :a AND j.args -> 'rule_for' ->> 'trigger' = 'story_reply'
+      AND j.state IN ('queued', 'running', 'done') LIMIT 1"""
+
+
+async def _story_rule(tx: Tx, args: dict[str, Any]) -> None:
+    """⟨2026-11-13⟩ The comment rule of a reel or post is made for the account's story replies once
+    the story of the same output is out, whichever of the two went out first, with no one's
+    tap: the working group's own publish (n8n, a standing word: no order) as well as the
+    owner's. The owner: «بحث دکمه نیست باید اتوماتیک پشت صحنه انجام بشه». Once per output."""
+    out = str((args.get("session") or {}).get("output") or "")
+    account = str(args.get("account") or "")
+    if not out or not account:
         return
-    reel = await tx.first(
-        """SELECT j.args FROM infra.server_jobs j
-           WHERE j.kind = 'publish' AND j.args -> 'session' ->> 'order' = :r
-             AND j.args ->> 'kind' IN ('reel', 'post') AND j.args -> 'meta' ? 'comment'
-             AND j.state = 'done' ORDER BY j.created_at DESC LIMIT 1""",
-        r=ref,
+    if await tx.first(RULE_MADE_SQL, out=out, a=account) is not None:
+        return
+    rows = [
+        {**dict(r), "args": OR._j(r["args"]) or {}}
+        for r in await tx.all(
+            SAME_OUTPUT_SQL, out=out, a=account, kinds=["reel", "post", "carousel", "story"]
+        )
+    ]
+    comment = next(
+        (c for r in rows if r["args"].get("kind") != "story"
+         if (c := (r["args"].get("meta") or {}).get("comment"))),
+        None,
+    )  # fmt: skip
+    story = next(
+        (r for r in rows if r["args"].get("kind") == "story" and view(r).state == "published"),
+        None,
     )
-    comment = ((OR._j(reel["args"]) or {}).get("meta") or {}).get("comment") if reel else None
-    if comment:
-        await queue_rule(tx, SERVICE, j["id"], "story_reply", comment)
+    if comment and story is not None:
+        await queue_rule(tx, SERVICE, story["id"], "story_reply", comment)
 
 
 async def after_job(hub: Any, job_id: UUID) -> None:
@@ -1506,10 +1527,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 )
             return
         ok = done.state == "published"
-        if ok and args.get("kind") == "story":
+        if ok and args.get("kind") in ("story", "reel", "post", "carousel"):
             try:
                 async with tx.conn.begin_nested():
-                    await _story_rule(tx, j, args)
+                    await _story_rule(tx, args)
             except Exception:  # noqa: BLE001 - the story is out whatever its rule does
                 log.warning("the story's reply rule was not queued", extra={"job": str(job_id)})
         if ok:

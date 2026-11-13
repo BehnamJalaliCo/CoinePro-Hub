@@ -10,17 +10,23 @@ rule for the account's story replies by itself; a word is taken in its joined fo
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 
 from hq_api.domain import session_publish as SPB
 from hq_api.hub import Hub
 
 from .conftest import idem
 from .test_p17_runners import take
+from .test_p21_groups import TEHRAN
+from .test_p21_routing_orders import auto_hiring  # noqa: F401 - the fixture
 from .test_p21_secretary import no_model  # noqa: F401 - the fixture
+from .test_p23_talk import talk  # noqa: F401 - the fixture
 from .test_w17_session_publish import an_output, tap
+from .test_w18_standing_publish import a_day, a_group, args_of, jobs_of
 from .test_w19_publish_time import answer, connected
 
 REEL_ID, STORY_ID = "17866260483693371", "18127217014697683"
@@ -128,3 +134,49 @@ async def test_the_owner_sets_a_rule_on_a_reel_that_is_out_and_its_story_takes_i
         pc["id"],
     )
     assert len(acts) == 2
+
+
+async def test_the_automatic_publish_sets_the_story_rule_whichever_goes_out_first(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    talk: dict[str, Any],  # noqa: F811
+    auto_hiring: None,  # noqa: F811
+    new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The owner: «بحث دکمه نیست باید اتوماتیک پشت صحنه انجام بشه … توسط n8n». A working group's
+    own publish (his standing word, reel and story, no order, no tap): the package's
+    `comment.txt` is the reel's rule, and the story's replies take it too, whichever of the two
+    goes out first."""
+    g = await a_group(client, hub, owner_session, su, new_company, monkeypatch,
+                      {"publish": {"mode": "auto", "story": True}})  # fmt: skip
+    words = "keyword: باز پخش\nreply: لینک امروز\nlink: https://pro-chart.com/today"
+    day = datetime.now(TEHRAN).date() + timedelta(days=1)
+    made = await a_day(
+        client, hub, su, g, day, ("reel.mp4", "cover.png", "caption.txt", "comment.txt"),
+        texts={"comment.txt": words},
+    )  # fmt: skip
+    jobs = {args_of(j)["kind"]: j for j in await jobs_of(su, made["run"])}
+    assert set(jobs) == {"reel", "story"}
+    assert args_of(jobs["reel"])["meta"]["comment"]["keywords"] == ["باز پخش", "بازپخش"]
+    rn, out = g["ig_rn"], made["output"]
+    rules_sql = (
+        "SELECT count(*) FROM infra.server_jobs WHERE args -> 'rule_for' ->> 'output' = $1"
+        " AND args -> 'rule_for' ->> 'trigger' = 'story_reply'"
+    )
+    # the story is out first: the reel's rule is made for its replies at once
+    await answer(client, rn, str(jobs["story"]["id"]), {"external_id": STORY_ID, "url": None})
+    assert await su.fetchval(rules_sql, out) == 1
+    [rule_job] = await su.fetch(
+        "SELECT args FROM infra.server_jobs WHERE args -> 'rule_for' ->> 'output' = $1", out
+    )
+    a = args_of(rule_job)
+    assert a["rule_for"]["order"] is None and a["meta"]["rule"]["trigger"] == "story_reply"
+    assert a["meta"]["rule"]["keywords"] == ["باز پخش", "بازپخش"]
+    assert a["meta"]["rule"]["buttons"][0]["url"] == "https://pro-chart.com/today"
+    # the reel goes out after it: no second rule
+    await answer(client, rn, str(jobs["reel"]["id"]), {"external_id": REEL_ID, "url": None})
+    assert await su.fetchval(rules_sql, out) == 1
