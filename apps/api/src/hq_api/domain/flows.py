@@ -57,6 +57,9 @@ class Flow:
     # ⟨2026-11-14⟩ the n8n workflow that calls it and when (Tehran), for the automations board
     n8n: str = ""
     trigger_at: str = "13:00"
+    # ⟨2026-11-14⟩ the day's cost cap (USD); the owner for TradeYar: «هزینه هیچ محدودیتی نیست»,
+    # so its flows keep only a guard against a run that never ends
+    usd_cap: Decimal = Decimal("10")
 
 
 FLOWS = {
@@ -69,6 +72,21 @@ FLOWS = {
         start=date(2026, 11, 14),
         hours=("09:30", "14:00", "19:30", None),
         n8n="hqFlowProchartReels1",
+    ),
+    # ⟨2026-11-14⟩ the owner: TradeYar's page @zaribsad, a coin-profile reel at 19:00 every day
+    # (what the coin is, how it was built, its advantages, today's price, its year), the video made
+    # by Claude alone in code, the end inviting to buy on WEEX or LBank; cost has no limit
+    "zaribsad_coin": Flow(
+        key="zaribsad_coin",
+        company="TY",
+        account="zaribsad",
+        title_fa="ریلز معرفی ارز ضریب صد",
+        kit="/home/studio/kits/zaribsad-coin",
+        start=date(2026, 11, 15),
+        hours=("19:00", "19:00", "19:00", "19:00"),
+        budget_tokens=20_000_000,
+        trigger_at="14:00",
+        usd_cap=Decimal("100"),
     ),
 }
 
@@ -254,9 +272,11 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
     if w is None:
         return False
     usd = await spent_usd(tx, str(w["ref"]))
-    if usd < FLOW_USD_CAP:
-        return False
     meta = w["flow"]
+    flow = FLOWS.get(str(meta.get("key")))
+    cap = flow.usd_cap if flow else FLOW_USD_CAP
+    if usd < cap:
+        return False
     if not meta.get("capped"):
         meta["capped"] = f"{usd:.2f}"
         await tx.exec(
@@ -265,7 +285,6 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
             w=w["id"],
             m=_json(meta),
         )
-        flow = FLOWS.get(str(meta.get("key")))
         from hq_api.domain import notify
 
         await notify.raise_notification(
@@ -283,7 +302,7 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
         await audit.record(
             tx, FLOW, company_id=w["company_id"], action="flow.capped", action_class="A1",
             target_kind="work", target_ref=str(w["ref"]),
-            summary=f"{meta.get('key')} {meta.get('day')}: ${usd:.2f} >= ${FLOW_USD_CAP}",
+            summary=f"{meta.get('key')} {meta.get('day')}: ${usd:.2f} >= ${cap}",
         )  # fmt: skip
     return True
 

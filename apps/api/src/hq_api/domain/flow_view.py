@@ -313,7 +313,7 @@ async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
         state="off" if off else "on",
         schedule=FS.FlowSchedule(mode="fixed", at=flow.trigger_at, when_fa=when_fa(flow, tomorrow)),
         account=flow.account, story=flow.story, mode="auto",
-        budget=FS.FlowBudget(per_run_usd=float(FL.FLOW_USD_CAP), per_day_usd=float(FL.FLOW_USD_CAP),
+        budget=FS.FlowBudget(per_run_usd=float(flow.usd_cap), per_day_usd=float(flow.usd_cap),
                              spent_today_usd=usd),
         steps=steps_of(flow), next=upcoming[0] if upcoming and not off else None,
         upcoming=[] if off else upcoming, last_run=last, today=FS.FlowToday(runs=n, cost_usd=usd),
