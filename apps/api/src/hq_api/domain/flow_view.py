@@ -158,7 +158,9 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
         """SELECT args ->> 'kind' AS kind, args -> 'meta' ->> 'rule_for' IS NOT NULL
                   OR args ? 'rule_for' AS rule, state, finished_at, result
            FROM infra.server_jobs
-           WHERE kind = 'publish' AND args -> 'session' ->> 'order' = :o ORDER BY created_at""",
+           WHERE kind = 'publish' AND (args -> 'session' ->> 'order' = :o
+                                       OR args -> 'rule_for' ->> 'order' = :o)
+           ORDER BY created_at""",
         o=order,
     )
     said = await tx.all(
@@ -422,10 +424,11 @@ async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
             elif f["scheduled"]:
                 st = "waiting"
         elif s.key == "report":
-            if said_out:
-                st, end = "done", said_out[-1]["created_at"]
-            elif f["said"]:
-                st, end = "waiting", f["said"][-1]["created_at"]
+            # (the owner may delete a notice: a reel that is out was told with its link)
+            if said_out or f["out"]:
+                st, end = "done", said_out[-1]["created_at"] if said_out else out_at
+            elif f["said"] or f["scheduled"]:
+                st = "waiting"
         steps.append(store.StepRun(
             key=s.key, kind=s.kind, title_fa=s.title_fa, state=st,
             attempt=1, started_at=start or (end if st == "done" else None), ended_at=end,
