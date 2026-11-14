@@ -238,7 +238,7 @@ def woff_to_sfnt(data: bytes) -> bytes:
 
 
 def compose_job(
-    svg_text: str,
+    svg_text: str | bytes,
     out: str,
     font_dir: str,
     extra_font: str | None = None,
@@ -250,6 +250,8 @@ def compose_job(
     to `sfnt_out` first)."""
     import resvg_py
 
+    if isinstance(svg_text, bytes):  # ⟨2026-11-15⟩ from the parent's stdin
+        svg_text = svg_text.decode("utf-8")
     fonts = [str(Path(font_dir) / f) for f in FONT_FILES if (Path(font_dir) / f).exists()]
     if extra_font:
         if extra_mime == "font/woff":
@@ -273,8 +275,10 @@ async def render_png(hub: Any, svg_text: str, font: dict[str, Any] | None = None
     """The SVG rendered in a child; ⟨1.18⟩ `font`: the owner's font row (its file and type)."""
     out = hub.storage.scratch()
     sfnt = hub.storage.scratch() if font is not None else None
-    kwargs: dict[str, Any] = {"svg_text": svg_text, "out": str(out),
-                              "font_dir": hub.settings.fonts_dir}  # fmt: skip
+    # ⟨2026-11-15⟩ the SVG goes on the child's stdin: it holds the picture (base64), and one
+    # argument over 128 KiB fails the spawn itself (E2BIG, "Argument list too long"), which
+    # ended every big ChatGPT/Gemini picture as `worker_error`
+    kwargs: dict[str, Any] = {"out": str(out), "font_dir": hub.settings.fonts_dir}
     if font is not None:
         kwargs.update(
             extra_font=str(hub.storage.local_path(font["storage_key"])),
@@ -283,7 +287,10 @@ async def render_png(hub: Any, svg_text: str, font: dict[str, Any] | None = None
         )
     try:
         got = await untrusted.run(
-            "hq_api.domain.creative_overlay:compose_job", kwargs=kwargs, limits=COMPOSE_LIMITS
+            "hq_api.domain.creative_overlay:compose_job",
+            kwargs=kwargs,
+            data=svg_text.encode("utf-8"),
+            limits=COMPOSE_LIMITS,
         )
     finally:
         if sfnt is not None:

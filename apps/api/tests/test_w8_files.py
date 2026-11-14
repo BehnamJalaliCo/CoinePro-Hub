@@ -589,3 +589,33 @@ async def test_a_media_item_names_a_font_of_its_order(
     r = await client.get(f"/internal/v1/media/render/{job['id']}/files/{font['id']}",
                          headers=media_svc)  # fmt: skip
     assert r.status_code == 200 and r.content == font_bytes
+
+
+# ============================== ⟨2026-11-15⟩ a big picture is composed (E2BIG) ==
+async def test_a_big_picture_is_composed_through_the_childs_stdin(tmp_path: Path) -> None:
+    """Every rich ChatGPT/Gemini picture ended its creative `worker_error`: the overlay's SVG holds
+    the picture as base64 and went to the render child on its command line, and one argument over
+    128 KiB cannot be spawned at all (OSError E2BIG). It goes on the child's stdin now."""
+    import random
+    from types import SimpleNamespace
+
+    from PIL import Image
+
+    from hq_api.domain import creative_overlay as O
+
+    rnd = random.Random(7)
+    noise = Image.frombytes("RGB", (900, 1600), rnd.randbytes(900 * 1600 * 3))
+    buf = io.BytesIO()
+    noise.save(buf, "JPEG", quality=90)
+    svg = O.svg("other", {"title_fa": "تست"}, ("image/jpeg", buf.getvalue()), {}, None)
+    assert len(svg.encode()) > 128 * 1024  # over the kernel's limit for one argument
+    hub = SimpleNamespace(
+        storage=SimpleNamespace(scratch=lambda: tmp_path / f"{uuid.uuid4().hex}.part"),
+        settings=SimpleNamespace(fonts_dir=str(FONTS)),
+    )
+    png = await O.render_png(hub, svg)
+    assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    # the child still takes a plain string from a caller in the same process
+    out = tmp_path / "direct.png"
+    O.compose_job(svg.encode(), str(out), str(FONTS))
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
