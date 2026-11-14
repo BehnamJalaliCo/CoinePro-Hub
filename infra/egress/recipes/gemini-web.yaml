@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-14.1"
+version: "2026-11-14.2"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -78,12 +78,19 @@ tasks:
       # 2026-11-14.1 (owner: «اگر جمنای قراره بسازه مدل آرگون باید بسازه»): the model menu, then
       # «4 Argon» (a chat model; with it chosen, Gemini's own image tool makes the picture); the
       # full-size file through Gemini's download button (checked on the live page 2026-11-14)
-      - {do: click, selector: "[data-test-id=bard-mode-menu-button]"}
-      - {do: click, selector: "[role=menuitem]:has-text('Argon'), [role=menuitemradio]:has-text('Argon'), button:has-text('Argon')"}
+      # 2026-11-14.2: .1 failed at the download (TargetClosedError): the steps of the test that
+      # worked the same day: short pauses for the menu and before the download (the full-size file
+      # is still being fetched when the image shows), and the button by any of its names
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "[role=menuitem]:has-text('Argon'), [role=menuitemradio]:has-text('Argon'), button:has-text('Argon')", timeout_s: 10}
+      - {do: pause, ms: 1500}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
-      - {do: wait, selector: "generated-image img", timeout_s: 170}
-      - {do: download, selector: "download-generated-image-button button", timeout_s: 60}
+      - {do: wait, selector: "generated-image img, single-image img.image", timeout_s: 140}
+      - {do: pause, ms: 3000}
+      - {do: download, selector: "download-generated-image-button button, button[aria-label*='Download full size' i], button[aria-label*='دانلود']", timeout_s: 25}
   video:
     timeout_s: 600
     steps:
