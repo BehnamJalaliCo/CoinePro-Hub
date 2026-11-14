@@ -33,7 +33,8 @@ colours, character «پرو», slogan or cover template; this is a different bra
 - Caption: catchy and gripping (a strong first line), SEO-aware, **exactly 3 hashtags**
   (one broad, one about the coin, one brand-ish, e.g. #ضریب_صد). Comment/DM texts: no hashtags.
 - Brand base: TradeYar ink #030B26 and teal #0FB5AE (you may extend the palette per style, always
-  clean and coherent). Font IRANYekanX (PCKIT/fonts). Video 1080×1920, 60–80 s.
+  clean and coherent). Font: ONLY IRANYekanX Eco (owner, 2026-11-14), /home/studio/kits/fonts-eco
+  (Regular and Bold; FaNum for Persian digits; nothing else). Video 1080×1920, 60–80 s.
 
 ## Spend wisely, render safely
 - Keep command output short (`| tail -5`, `-q`, `-v error`). Record the plan with `order.ack`
@@ -77,7 +78,7 @@ colours, character «پرو», slogan or cover template; this is a different bra
 7. **Build:** write the scene as `motion/engine5_template.html` (engine6 loads it from your folder;
    read engine6.py's header and its page contract: the page sets `window.READY=true` and answers
    `frame(t)`; adapt engine6 to your page, nothing of Pro-Chart's look stays). Every frame a pure
-   function of time. Persian text with IRANYekanX, word-by-word kinetic captions in the safe area
+   function of time. Persian text with IRANYekanX Eco, word-by-word kinetic captions in the safe area
    (top 220 px and bottom 380 px stay clear of key text). Lips (if a character speaks): mouth open
    from the voice loudness/word times, closed in silence; blinks.
 8. **Sound:** music bed + cues + the voice: `motion/audio4.py` with your own cue list (read its

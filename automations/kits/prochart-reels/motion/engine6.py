@@ -24,12 +24,13 @@ from multiprocessing import Process
 ROOT = os.environ.get("REEL_ROOT") or os.getcwd()  # the day's own folder
 KIT = "/home/studio/kits/prochart-reels"
 HERE = os.path.join(ROOT, "motion")
-FD = "/home/studio/kits/prochart-reels/fonts/"
+# ⟨2026-11-14⟩ the owner: every reel from now on in IRANYekanX Eco (his licensed pack: Regular and Bold)
+FD = "/home/studio/kits/fonts-eco/"
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
 VOICE = os.path.join(ROOT, "qc/voice_final.wav")
 SEG = os.path.join(ROOT, "build", "seg6")
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
-FONTS = {"4": "Regular", "6": "DemiBold", "7": "Bold", "8": "ExtraBold", "9": "Black", "X": "ExtraBlack"}
+FONTS = {"4": "Regular", "6": "Bold", "7": "Bold", "8": "Bold", "9": "Bold", "X": "Bold"}
 
 
 def envelope():

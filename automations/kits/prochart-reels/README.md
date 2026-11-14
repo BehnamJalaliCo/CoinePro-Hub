@@ -20,7 +20,8 @@ it; copy what you change into your own folder).
 ## Fixed rules (owner, F-0018 — never change)
 - Colours: ONLY pure black #000000 and mustard #D4A64A, everywhere (video, cover, character, end card).
   Up candles solid mustard, down candles hollow with a mustard outline. No other colour, no white.
-- Font IRANYekanX (KIT/fonts, KIT/fontpack_raw). Logo: KIT/coverkit2/logo.
+- Font: ONLY IRANYekanX Eco (owner, 2026-11-14: «از این به بعد در تمام ویدیو ها»): /home/studio/kits/fonts-eco
+  (Regular and Bold; FaNum for Persian digits). No other weight or font. Logo: KIT/coverkit2/logo.
 - Video: 1080×1920, 60 fps, 60–90 s (owner: 1:00–1:30), animation AND motion graphics together in every
   scene: every word and sentence becomes motion; text rises word by word; scene changes with a diagonal
   mustard band; no frame still longer than 3 s; no price figures. The character «پرو» (toon.js) acts

@@ -3,7 +3,8 @@
 A kit is what a flow's day is made from on the holding's workshop: its recipe (README.md, the
 day step by step) and its tools. The source is here; the workshop runs the copy in
 /home/studio/kits/<kit>, with what is too big or licensed for git beside it there: the fonts
-(IRANYekanX, licensed), the Python environments (`venv-render`, `asr` with its model) and
+(IRANYekanX, licensed; ⟨2026-11-14⟩ every reel uses only the owner's IRANYekanX Eco pack in
+/home/studio/kits/fonts-eco), the Python environments (`venv-render`, `asr` with its model) and
 Playwright's Chromium (`ms-playwright`).
 
     automations/kits/sync.sh prochart-reels    # this source -> the workshop's copy (code and texts only)
