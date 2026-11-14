@@ -31,6 +31,8 @@ def main() -> None:
         "market_cap_usd": m["market_cap"]["usd"],
         "categories": d.get("categories"),
         "homepage": (d.get("links") or {}).get("homepage", [None])[0],
+        # the coin's OFFICIAL logo (never let an AI draw a logo): download it with curl
+        "logo": (d.get("image") or {}).get("large"),
     }
     try:
         t = get(f"https://api.lbkex.com/v2/ticker/24hr.do?symbol={lb_sym}")["data"][0]["ticker"]

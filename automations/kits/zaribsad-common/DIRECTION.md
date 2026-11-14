@@ -50,6 +50,9 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
   (up to 2 more tries), else redesign that shot. Cut subjects out (flat background → alpha) to
   move them on their own plane. Upscale to fit 1080×1920 cleanly (Lanczos), never blurry.
 - AI images are STILL assets only. Every motion is yours, in code. No AI video, ever.
+- **Logos are REAL, never AI-drawn:** the coin's official logo from its facts (`logo`, CoinGecko),
+  the exchange's logo from its own site (or its official press kit), TradeYar's from trade-future.ir.
+  Download with curl; vectorise or clean the edges if needed; place it as its own layer.
 
 ## 3. Every shot
 - **Camera:** never static. Push-in, dolly, parallax drift, slow rotation, rack focus, a whip on the

@@ -77,6 +77,7 @@ def test_a_rotating_flow_names_the_days_kind_in_its_brief() -> None:
     assert kinds == ["آموزش", "کمپین صرافی", "خبر و بازار", "آموزش"]
     assert "«کمپین صرافی»" in FL.brief_of(flow, START + timedelta(days=1), at)
     assert "نوع ریلز امروز" not in FL.brief_of(a_flow("PC"), START, at)
+    assert FL.kind_of(flow, START - timedelta(days=1)) == ""  # before its first day: no kind
     real = FL.FLOWS["zaribsad_noon"]
     assert real.company == "TY" and real.trigger_at == "07:00" and real.hours[0] == "12:00"
     assert FL.FLOWS["zaribsad_coin"].trigger_at == "14:00" and FL.FLOWS["zaribsad_coin"].n8n

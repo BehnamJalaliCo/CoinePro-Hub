@@ -88,7 +88,8 @@ FLOWS = {
         account="zaribsad",
         title_fa="ریلز چرخشی ضریب صد",
         kit="/home/studio/kits/zaribsad-noon",
-        start=date(2026, 11, 15),
+        # (2026-11-15 is the owner's ZEC remake, the page's first reel: the round starts the day after)
+        start=date(2026, 11, 16),
         hours=("12:00", "12:00", "12:00", "12:00"),
         budget_tokens=10_000_000,  # (the route allows at most 10M; the USD cap is the guard)
         n8n="hqFlowZaribsadNoon1",
@@ -177,7 +178,7 @@ def at_fa(at: datetime) -> str:
 
 def kind_of(flow: Flow, day: date) -> str:
     """The day's kind in a flow's round («» for a flow without one)."""
-    if not flow.cycle:
+    if not flow.cycle or day < flow.start:
         return ""
     return flow.cycle[(day - flow.start).days % len(flow.cycle)]
 

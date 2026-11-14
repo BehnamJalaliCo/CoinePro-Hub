@@ -23,6 +23,11 @@ PCKIT = /home/studio/kits/prochart-reels (reuse its TOOLS only — never its loo
 - Topics and writing with ChatGPT's help (`substitute.call`, player gpt); you check every fact.
   No promise of profit; one short honest risk line. Font: IRANYekanX Eco only. 1080×1920, 55–80 s.
 
+## The owner's override comes first
+If KIT/bank/override.json has an entry for TODAY's date (Tehran, the day of your order), today's
+reel is THAT one: read its `note_fa`, follow the kit it names (`follow`) for the rules and steps,
+`topic.claim` its `claim` title, and use its exchange. Otherwise, today's kind below.
+
 ## Today's kind — your order names it: «آموزش», «کمپین صرافی» or «خبر و بازار»
 - **آموزش (education):** the first entry of KIT/bank/education.json not used yet (`topic.claim`
   «آموزش: <title>»; refused = take the next). Teach ONE idea so well that a beginner gets it and a
