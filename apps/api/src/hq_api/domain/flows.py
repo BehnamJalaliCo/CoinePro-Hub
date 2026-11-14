@@ -84,7 +84,7 @@ FLOWS = {
         kit="/home/studio/kits/zaribsad-coin",
         start=date(2026, 11, 15),
         hours=("19:00", "19:00", "19:00", "19:00"),
-        budget_tokens=20_000_000,
+        budget_tokens=10_000_000,  # (the route allows at most 10M; the USD cap is the guard)
         trigger_at="14:00",
         usd_cap=Decimal("100"),
     ),
