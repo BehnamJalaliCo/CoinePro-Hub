@@ -141,7 +141,8 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
     assert r.status_code == 201, r.text
     job = await take(client, ws)
     # F-0020: the package comes over two turns (the cover and the texts, then the video and the
-    # story): nothing goes out before the whole package, then it goes out from both outputs
+    # story): nothing goes out before the whole package, then it goes out from both outputs;
+    # F-0023 (2026-11-14): the first of them stopped unfinished (exit 1) after writing its files
     turns = (
         (("cover.png", "image/png", a_png(1)),
          ("caption.txt", "text/plain", "کپشن #پرو_چارت".encode()),
@@ -163,7 +164,7 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
         await refuse_queued(su, str(w["id"]))
         r = await client.post(
             f"/api/v1/runners/jobs/{job['id']}/result",
-            json={"exit_code": 0, "summary_fa": "تمام شد.",
+            json={"exit_code": 0 if n else 1, "summary_fa": "تمام شد.",
                   "data": {"session_id": "cs-flow-1", "result_fa": "آماده.", "files": files}},
             headers=ws["h"],
         )  # fmt: skip

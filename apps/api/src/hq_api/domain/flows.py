@@ -344,10 +344,17 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
         co=w["company_id"],
     )
     newest: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+    finished_later = False
     for r in rows:
         d = dict(r)
+        # an unfinished turn's files count once a later turn of the session finished (⟨2026-11-14⟩
+        # F-0023: the first turn wrote the cover and the texts, then stopped; the second sent only
+        # the videos, as the texts had not changed); never on their own
         if (OR._j(d.get("produced_with")) or {}).get("unfinished"):
-            continue
+            if not finished_later:
+                continue
+        else:
+            finished_later = True
         for f in await SPB._files(tx, d):
             newest.setdefault(str(f["name"] or "").strip().lower(), (dict(f), d))
     files = [f for f, _ in newest.values()]
