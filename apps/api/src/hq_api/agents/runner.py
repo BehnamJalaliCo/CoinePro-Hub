@@ -61,6 +61,7 @@ from hq_api.domain import meeting_flow as MF
 from hq_api.domain import order_report as OR
 from hq_api.domain import oversight as O
 from hq_api.domain import role_drafts as RD
+from hq_api.domain import self_work as SW
 from hq_api.domain import session_activity as SA
 from hq_api.domain import skills as SK
 from hq_api.domain import work as W
@@ -410,6 +411,9 @@ class Runner:
                 lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
                 if lock is not None:  # kill switch (holding or company) or a deploy freeze
                     refuse = "locked"
+                elif await SW.refuse(tx, run):
+                    # ⟨2026-11-14⟩ the owner's switch: work the hub started by itself is off
+                    refuse = SW.REFUSED
                 elif (
                     # 0 (or less) means nothing at all, not "no cap" (prompt 08.1)
                     self.s.agent_daily_token_cap <= 0
@@ -452,6 +456,8 @@ class Runner:
                     refuse = "budget_used_up"
             if refuse is not None:
                 await self._finish(tx, run, emp, "refused", refuse, note=None, start=False)
+                if refuse == SW.REFUSED:
+                    await SW.close_work(tx, run["work_id"])
                 return Claim("final", "refused", refuse)
             if run["trigger"] == "work" and run["work_id"] is not None:
                 # ⟨1.9⟩ §27.1: a work whose player is a substitute goes to that

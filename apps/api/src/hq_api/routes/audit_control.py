@@ -231,3 +231,34 @@ async def set_deploy_freeze(
         )
     await workshop.paused(ctx.hub)
     return FreezeOut(company=body.company, active=r["active"], until=body.until)
+
+
+# ⟨2026-11-14⟩ the owner's switch on the work the hub starts by itself (domain/self_work.py)
+class SelfWork(BaseModel):
+    on: bool
+
+
+class SelfWorkIn(Model):
+    on: bool
+    reason: str | None = Field(default=None, max_length=300)
+
+
+@router.get("/control/self-work", response_model=SelfWork, responses=E)
+async def get_self_work(ctx: Ctx = Depends(owner_ctx)) -> SelfWork:
+    """Whether the hub's schedules and agents start work by themselves. Off: only what the owner
+    asked for runs (his orders, talk, sessions, the meetings he calls)."""
+    from hq_api.domain import self_work as SW
+
+    async with ctx.tx() as tx:
+        return SelfWork(on=await SW.on(tx))
+
+
+@router.put("/control/self-work", response_model=SelfWork, responses=E)
+async def put_self_work(body: SelfWorkIn, ctx: Ctx = Depends(owner_ctx)) -> SelfWork:
+    """The owner's tap (audit `hub.self_work`, A2). Off: a run nobody asked for is refused at its
+    claim (`owner_only`, no model call) and its open work cancelled; nothing is deleted."""
+    from hq_api.domain import self_work as SW
+
+    async with ctx.tx() as tx:
+        await SW.set_on(tx, ctx.who, body.on, body.reason or "")
+        return SelfWork(on=await SW.on(tx))
