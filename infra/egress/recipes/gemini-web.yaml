@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-14.2"
+version: "2026-11-15.1"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -90,7 +90,12 @@ tasks:
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "generated-image img, single-image img.image", timeout_s: 140}
       - {do: pause, ms: 3000}
-      - {do: download, selector: "download-generated-image-button button, button[aria-label*='Download full size' i], button[aria-label*='دانلود']", timeout_s: 25}
+      # 2026-11-15.1: .2 still failed at the download, with the page itself gone (TargetClosedError,
+      # no screenshot), on every image of the night of 11-14: the picture the page shows is taken
+      # first (its own source, with the profile's session), then the full-size download is tried;
+      # when it works its file wins, when the page closes on it the shown picture is the answer
+      - {do: download_image, selector: "generated-image img, single-image img.image", attr: src, optional: true, timeout_s: 20}
+      - {do: download, selector: "download-generated-image-button button, button[aria-label*='Download full size' i], button[aria-label*='دانلود']", timeout_s: 25, optional: true}
   video:
     timeout_s: 600
     steps:
