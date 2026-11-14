@@ -63,7 +63,7 @@ SP_REF = re.compile(r"^SP:([a-z][a-z0-9_]{1,40}):([A-Z][A-Z0-9]{1,9})$")
 AT_REF = re.compile(r"^AT-[0-9]{4,}$")
 LN_REF = re.compile(r"^LN-[0-9]{4,}$")
 AU_REF = re.compile(r"^AU-[0-9]{4,}$")
-REF = r"^(AT-[0-9]{4,}|LN-[0-9]{4,}|AU-[0-9]{4,}|SP:[a-z][a-z0-9_]{1,40}:[A-Z][A-Z0-9]{1,9})$"
+REF = r"^(AT-[0-9]{4,}|LN-[0-9]{4,}|AU-[0-9]{4,}|SP:[a-z][a-z0-9_]{1,40}:[A-Z][A-Z0-9]{1,9}|N8:[a-z][a-z0-9_]{0,40})$"
 CLOCK = re.compile(r"^([01][0-9]|2[0-3]):([0-5][0-9])$")
 DEFAULT_AT = "18:00"  # a `best` flow whose account has too few posts and no fixed hour
 DAY_INDEX = {"MO": 0, "TU": 1, "WE": 2, "TH": 3, "FR": 4, "SA": 5, "SU": 6}
@@ -574,6 +574,11 @@ async def board(
     now = datetime.now(UTC)
     start = local_midnight(today(tz, now), tz)
     items: list[BoardItem] = []
+    if kind in (None, "n8n"):
+        # ⟨2026-11-14⟩ the n8n flows (domain/flows.py), each with its steps on its page
+        from hq_api.domain import flow_view as FV
+
+        items += await FV.board_items(tx, hub, company)
     if kind in (None, "flow"):
         items += await _flow_items(tx, company, tz, now, start)
     if kind in (None, "routine", "rule"):
@@ -1148,6 +1153,11 @@ async def _subject(tx: Tx, hub: Any, ref: str) -> tuple[list[str], list[UUID], d
             "SELECT company_id, created_at, line FROM growth.automations WHERE ref = :r", r=ref
         )
         return [ref], [row["company_id"], holding.id], row["created_at"]
+    from hq_api.domain import flow_view as FV
+
+    if (flow := FV.flow_of(ref)) is not None:
+        company = await hub.companies.by_code(flow.company)
+        return [ref], [company.id, holding.id], datetime(2026, 11, 13, tzinfo=UTC)
     raise ApiError(404, "not_found", f"no automation {ref}")
 
 

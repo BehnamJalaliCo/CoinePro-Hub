@@ -54,6 +54,9 @@ class Flow:
     hours: tuple[str | None, ...]
     story: bool = True
     budget_tokens: int = 3_000_000
+    # ⟨2026-11-14⟩ the n8n workflow that calls it and when (Tehran), for the automations board
+    n8n: str = ""
+    trigger_at: str = "13:00"
 
 
 FLOWS = {
@@ -65,8 +68,36 @@ FLOWS = {
         kit="/home/studio/kits/prochart-reels",
         start=date(2026, 11, 14),
         hours=("09:30", "14:00", "19:30", None),
+        n8n="hqFlowProchartReels1",
     ),
 }
+
+
+# ------------------------------------------------------------ the owner's switch --
+OFF_WHY_FA = "این اتوماسیون خاموش است؛ با کلیدش در بخش اتوماسیون‌ها روشن میشود"
+
+
+async def off_keys(tx: Tx) -> set[str]:
+    """⟨2026-11-14⟩ the flows the owner switched off on the automations board (owner.settings)."""
+    got = await tx.scalar("SELECT flows_off FROM owner.settings WHERE id = 1")
+    return {str(k) for k in got or []}
+
+
+async def set_on(tx: Tx, who: Principal, key: str, on: bool) -> bool:
+    """The owner's switch on one flow: True when it changed (audit `flow.switch`)."""
+    flow = FLOWS[key]
+    off = await off_keys(tx)
+    if (key not in off) == on:
+        return False
+    off = (off - {key}) if on else (off | {key})
+    await tx.exec("UPDATE owner.settings SET flows_off = :k WHERE id = 1", k=sorted(off))
+    co = await tx.one("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
+    await audit.record(
+        tx, who, company_id=co["id"], action="flow.switch", action_class="A2",
+        target_kind="flow", target_ref=f"N8:{key}",
+        summary=f"{'off -> on' if on else 'on -> off'} (n8n {flow.n8n or '-'})",
+    )  # fmt: skip
+    return True
 
 
 def week_of(flow: Flow, day: date) -> int:
@@ -137,6 +168,9 @@ async def start(
         co = await tx.first("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
         if co is None:
             raise ApiError(409, "validation_failed", f"no company {flow.company}")
+        if flow.key in await off_keys(tx):
+            # ⟨2026-11-14⟩ switched off on the board: n8n's call makes nothing
+            return {"order": "", "work": None, "publish_at": "", "why_fa": OFF_WHY_FA}
         tomorrow = datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
         the_day = day or tomorrow
         # one order per flow and day, whatever calls again (a key expires in 24 hours); a day

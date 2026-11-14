@@ -31,6 +31,8 @@ from hq_api.domain import automation_board as BOARD
 from hq_api.domain import automations as AU
 from hq_api.domain import flow_auto as FA
 from hq_api.domain import flow_shapes as FS
+from hq_api.domain import flow_view as FV
+from hq_api.domain import flows as FL
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model
 from hq_api.security import stepup
@@ -185,6 +187,9 @@ async def set_automation_state(
     standing publish (`SP:<group>:<company>`), a line, an archive rule or a
     routine (`{ref, state}`), else a rule as before."""
     async with ctx.tx() as tx:
+        if (flow := FV.flow_of(ref)) is not None:  # ⟨2026-11-14⟩ an n8n flow's switch (hub-side)
+            await FL.set_on(tx, ctx.who, flow.key, body.state == "on")
+            return await FV.render(tx, ctx.hub, ref)
         if await FA.kind_of(tx, ref) == "flow":
             return await FA.set_state(ctx, tx, ref, body.state)
         if await BOARD.switch(tx, ctx.hub, ref, body.state, ctx.who):
@@ -246,6 +251,8 @@ async def get_automation(
     action's result in plain Persian). ⟨1.37⟩ §59.7 a flow: its FlowAutomation
     (schedule, next and upcoming occurrences, budget, last run, n8n's clock)."""
     async with ctx.tx() as tx:
+        if FV.flow_of(ref) is not None:  # ⟨2026-11-14⟩ an n8n flow (`N8:<key>`)
+            return await FV.render(tx, ctx.hub, ref)
         if await FA.kind_of(tx, ref) == "flow":
             return await FA.render(tx, await FA.load(tx, ref))
         a = await AU.row_of(tx, ref)

@@ -33,6 +33,7 @@ from hq_api import idempotency
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import flow_auto as FA
 from hq_api.domain import flow_shapes as FS
+from hq_api.domain import flow_view as FV
 from hq_api.errors import ApiError, responses
 from hq_api.hub import Hub, get_hub
 from hq_api.lines import engine, signing
@@ -88,6 +89,8 @@ async def flow_runs(
     """⟨1.37⟩ §59.8 the flow's runs, newest first, each with its topic, cost and results;
     `before`: the previous page's `next_cursor`."""
     async with ctx.tx() as tx:
+        if FV.flow_of(ref) is not None:  # ⟨2026-11-14⟩ an n8n flow's days
+            return await FV.runs(tx, ctx.hub, ref, limit, before)
         return await FA.runs(tx, await FA.load(tx, ref), limit, before)
 
 
@@ -98,6 +101,8 @@ async def flow_run_now(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)
     """⟨1.37⟩ §59.7 a run now: today's occurrence when it has no run yet (it publishes at its
     hour), else an extra run, not the day's (it publishes at once). 409 `budget_reached` when
     the day's cap is spent. Requires `Idempotency-Key`."""
+    if FV.flow_of(ref) is not None:
+        raise FV.not_here()
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
@@ -115,6 +120,8 @@ async def flow_pause(
     ref: str, body: FS.FlowPauseIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """⟨1.37⟩ §59.7 `paused` till `until` (then on by itself), or till `state: on`."""
+    if FV.flow_of(ref) is not None:
+        raise FV.not_here()
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who)
         if idem and idem.replay:
@@ -130,6 +137,8 @@ async def flow_skip(
     ref: str, body: FS.FlowSkipIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """⟨1.37⟩ §59.7 the next occurrence (or the one at `at`) skipped; `skip: false` undoes it."""
+    if FV.flow_of(ref) is not None:
+        raise FV.not_here()
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who)
         if idem and idem.replay:
@@ -148,6 +157,8 @@ async def flow_patch(
     is a tap; raising one is a tap while the day's cap × 30 stays inside the company's USD month
     budget (§18.11), else 🔏 `automation.budget` on `<ref>:<per_day_usd>`. A run waiting on its
     budget looks again at once."""
+    if FV.flow_of(ref) is not None:
+        raise FV.not_here()
     async with ctx.tx() as tx:
         if await FA.kind_of(tx, ref) not in (None, "flow"):
             raise ApiError(409, "validation_failed", "only a flow is changed here",

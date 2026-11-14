@@ -578,6 +578,11 @@ async def get_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.LineRun
     day's topic, its results and minutes; each step its seat, helper, model,
     effort, cost and files (a `.txt` or `.md` with its first 4000 letters)."""
     async with ctx.tx() as tx:
+        from hq_api.domain import flow_view as FV
+
+        # ⟨2026-11-14⟩ a day of an n8n flow (its order `F-…`), step by step
+        if (day := await FV.day_run(tx, ctx.hub, ref)) is not None:
+            return day
         return await _run_out(tx, ref, ctx.hub.storage)
 
 

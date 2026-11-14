@@ -35,8 +35,8 @@ COMMENT = (
 )
 
 
-def a_flow(company: str) -> FL.Flow:
-    return FL.Flow(key="t", company=company, account="pro.chart", title_fa="ریلز آزمایشی",
+def a_flow(company: str, key: str = "t") -> FL.Flow:
+    return FL.Flow(key=key, company=company, account="pro.chart", title_fa="ریلز آزمایشی",
                    kit="/kit", start=START, hours=("09:30", "14:00", "19:30", None))  # fmt: skip
 
 
@@ -78,28 +78,29 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
 ) -> None:
     ig, pc = await new_company(), await new_company()
     ig_rn = await connected(client, hub, owner_session, ig, pc["code"])
-    monkeypatch.setattr(FL, "FLOWS", {"t": a_flow(pc["code"])})
+    fk = f"t{uuid.uuid4().hex[:8]}"  # (the test DB keeps earlier runs' days)
+    monkeypatch.setattr(FL, "FLOWS", {fk: a_flow(pc["code"], fk)})
     day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=1)
 
     # n8n's call must be signed
-    r = await client.post("/internal/v1/flows/t/run", json={"day": day.isoformat()})
+    r = await client.post(f"/internal/v1/flows/{fk}/run", json={"day": day.isoformat()})
     assert r.status_code == 401, r.text
     # the day's order: once per key
     key = idem()
     r = await client.post(
-        "/api/v1/flows/t/run", headers={**owner, **key}, json={"day": day.isoformat()}
+        f"/api/v1/flows/{fk}/run", headers={**owner, **key}, json={"day": day.isoformat()}
     )
     assert r.status_code == 201, r.text
     got = r.json()
     at = datetime.fromisoformat(got["publish_at"])
     assert at.astimezone(ZoneInfo(FL.TEHRAN)).strftime("%H:%M") in ("09:30", "14:00", "19:30")
     again = await client.post(
-        "/api/v1/flows/t/run", headers={**owner, **key}, json={"day": day.isoformat()}
+        f"/api/v1/flows/{fk}/run", headers={**owner, **key}, json={"day": day.isoformat()}
     )
     assert again.json()["order"] == got["order"]
     # another key, the same day: still the one order
     third = await client.post(
-        "/api/v1/flows/t/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
     )
     assert third.json()["order"] == got["order"] and third.json()["work"] == got["work"]
     order, work_ref = got["order"], got["work"]
@@ -209,7 +210,7 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
         w["id"],
     )
     fourth = await client.post(
-        "/api/v1/flows/t/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
     )
     assert fourth.json()["order"] == order and fourth.json()["work"] == work_ref, fourth.text
 
@@ -241,10 +242,11 @@ async def test_a_day_stops_at_its_cap_and_builds_on_the_highest_effort(
     from hq_api.domain import direct as DR
 
     pc = await new_company()
-    monkeypatch.setattr(FL, "FLOWS", {"t": a_flow(pc["code"])})
+    fk = f"t{uuid.uuid4().hex[:8]}"  # (the test DB keeps earlier runs' days)
+    monkeypatch.setattr(FL, "FLOWS", {fk: a_flow(pc["code"], fk)})
     day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=3)
     r = await client.post(
-        "/api/v1/flows/t/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
     )
     assert r.status_code == 201, r.text
     order, work_ref = r.json()["order"], r.json()["work"]

@@ -5136,7 +5136,8 @@
               "standing_publish",
               "line",
               "rule",
-              "archive"
+              "archive",
+              "n8n"
             ],
             "title": "Kind",
             "type": "string"
@@ -18558,8 +18559,15 @@
             ]
           },
           "line": {
-            "title": "Line",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
           },
           "mode": {
             "default": "auto",
@@ -18596,8 +18604,15 @@
             "title": "Paused Until"
           },
           "playbook": {
-            "title": "Playbook",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook"
           },
           "playbook_fa": {
             "default": "",
@@ -18650,8 +18665,15 @@
             "type": "array"
           },
           "version": {
-            "title": "Version",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
@@ -48643,6 +48665,45 @@
         "title": "Segment",
         "type": "object"
       },
+      "SelfWork": {
+        "properties": {
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "title": "SelfWork",
+        "type": "object"
+      },
+      "SelfWorkIn": {
+        "additionalProperties": false,
+        "properties": {
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "title": "SelfWorkIn",
+        "type": "object"
+      },
       "Sent": {
         "description": "POST /threads/{code}/messages (contract §16.3): the stored message and,\nwhen the thread's counterpart is an agent, its reply run (woken).",
         "properties": {
@@ -74261,7 +74322,8 @@
                     "standing_publish",
                     "line",
                     "rule",
-                    "archive"
+                    "archive",
+                    "n8n"
                   ],
                   "type": "string"
                 },
@@ -75120,7 +75182,7 @@
             "name": "ref",
             "required": true,
             "schema": {
-              "pattern": "^(AT-[0-9]{4,}|LN-[0-9]{4,}|AU-[0-9]{4,}|SP:[a-z][a-z0-9_]{1,40}:[A-Z][A-Z0-9]{1,9})$",
+              "pattern": "^(AT-[0-9]{4,}|LN-[0-9]{4,}|AU-[0-9]{4,}|SP:[a-z][a-z0-9_]{1,40}:[A-Z][A-Z0-9]{1,9}|N8:[a-z][a-z0-9_]{0,40})$",
               "title": "Ref",
               "type": "string"
             }
@@ -90042,6 +90104,178 @@
           }
         },
         "summary": "Set Kill Switch",
+        "tags": [
+          "audit and control"
+        ]
+      }
+    },
+    "/api/v1/control/self-work": {
+      "get": {
+        "description": "Whether the hub's schedules and agents start work by themselves. Off: only what the owner\nasked for runs (his orders, talk, sessions, the meetings he calls).",
+        "operationId": "get_self_work",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "on": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SelfWork"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Self Work",
+        "tags": [
+          "audit and control"
+        ]
+      },
+      "put": {
+        "description": "The owner's tap (audit `hub.self_work`, A2). Off: a run nobody asked for is refused at its\nclaim (`owner_only`, no model call) and its open work cancelled; nothing is deleted.",
+        "operationId": "put_self_work",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "on": false,
+                "reason": "دلیل"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SelfWorkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "on": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SelfWork"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Self Work",
         "tags": [
           "audit and control"
         ]

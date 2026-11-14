@@ -250,10 +250,11 @@ class FlowAutomation(BaseModel):
     kind: Literal["flow"] = "flow"
     company: str
     company_fa: str = ""
-    playbook: str
+    # ⟨2026-11-14⟩ none for an n8n flow (domain/flow_view.py, `N8:<key>`)
+    playbook: str | None
     playbook_fa: str = ""
-    version: int
-    line: str
+    version: int | None
+    line: str | None
     title_fa: str
     state: Literal["on", "off", "paused"]
     paused_until: datetime | None = None
@@ -384,7 +385,7 @@ class DaySummary(BaseModel):
 
 
 # --------------------------------------------------------------- §59.10 the board --
-BoardKind = Literal["flow", "routine", "standing_publish", "line", "rule", "archive"]
+BoardKind = Literal["flow", "routine", "standing_publish", "line", "rule", "archive", "n8n"]
 
 
 class BoardLast(BaseModel):
