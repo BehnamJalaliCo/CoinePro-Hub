@@ -42,12 +42,13 @@
 # (egress read the recipes only at its start and was not restarted: a test job still answered
 # 2026-11-04.1 from a temporary chat). Restarted, .13.1 made the image in a regular chat in 46 s
 # and still failed at 4:wait: the page's language is Persian, so no image's alt starts with
-# "Generated image". The image is now found by its source (the site's own file address,
-# estuary or oaiusercontent, a blob while it is drawn) inside the thread, and only once the
-# answer is finished: the stop button gone and the answer's action bar shown, like the text
-# task. The last such image is the made one (a cover's attached files come before it).
+# "Generated image". The image is now taken only once the answer is finished (the stop button
+# gone and the answer's action bar shown, like the text task), and found by its alt in both
+# languages: a read of the page (2026-11-14) showed <img alt="تصویر تولیدشده 1" src="blob:…">
+# and an unnamed twin of the same blob; the site's file addresses (estuary, oaiusercontent) stay
+# as a last fallback. The last such image is the made one (a cover's attached files come first).
 key: chatgpt-web
-version: "2026-11-14.1"
+version: "2026-11-14.2"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -117,8 +118,8 @@ tasks:
       - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 150}
       - do: wait
         selector: >-
-          main img[src*='/backend-api/estuary/content'], main img[src*='oaiusercontent.com'],
-          main img[alt^='Generated image']
+          img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
+          img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
         timeout_s: 30
       - do: wait
         selector: >-
@@ -129,8 +130,8 @@ tasks:
       - {do: pause, ms: 2000}
       - do: download_image
         selector: >-
-          main img[src*='/backend-api/estuary/content'], main img[src*='oaiusercontent.com'],
-          main img[alt^='Generated image']
+          img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
+          img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
         attr: src
   cover:
     timeout_s: 270
@@ -152,6 +153,6 @@ tasks:
       - {do: pause, ms: 2000}
       - do: download_image
         selector: >-
-          main img[src*='/backend-api/estuary/content'], main img[src*='oaiusercontent.com'],
-          main img[alt^='Generated image']
+          img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
+          img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
         attr: src

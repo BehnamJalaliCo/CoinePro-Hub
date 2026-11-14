@@ -64,13 +64,14 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
     assert any("DeepThink" in t for t in toggles) and any("Search" in t for t in toggles)
     # image <= 3 minutes, video <= 10 minutes
     assert got["chatgpt-web"].tasks["image"].timeout_s <= 180
-    # ⟨2026-11-14⟩ ChatGPT's page is in Persian: its made image is found by its source, not by
-    # an English alt, and taken only once the answer is finished (an image chat, never temporary)
+    # ⟨2026-11-14⟩ ChatGPT's page is in Persian: its made image is found by its alt in both
+    # languages, taken only once the answer is finished (an image chat, never temporary)
     for task in ("image", "cover"):
         steps = got["chatgpt-web"].tasks[task].steps
         assert steps[0].do == "goto" and "temporary" not in str(steps[0].url)
         last = steps[-1]
-        assert last.do == "download_image" and "estuary" in str(last.selector)
+        assert last.do == "download_image" and "تصویر تولیدشده" in str(last.selector)
+        assert "Generated image" in str(last.selector)
         assert any(s.do == "wait_gone" and not s.optional for s in steps)
     assert got["gemini-web"].tasks["video"].timeout_s <= 600
 
