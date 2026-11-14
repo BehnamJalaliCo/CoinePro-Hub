@@ -1,7 +1,14 @@
-{"2026-11-15": {
-  "what": "coin_profile", "symbol": "ZEC", "name_fa": "زی‌کش", "coingecko": "zcash", "lbank": "zec_usdt",
+{
+ "2026-11-15": {
+  "what": "coin_profile",
+  "symbol": "ZEC",
+  "name_fa": "زی‌کش",
+  "coingecko": "zcash",
+  "lbank": "zec_usdt",
   "claim": "معرفی زی‌کش (ZEC) — ریلز اول پیج",
-  "note_fa": "دستور مدیر کل (۲۴ آبان): ریلز زی‌کش از نو ساخته و منتشر شود؛ قبلی را خودش پاک کرد. این اولین ریلز پیج است. با انیمه و موشن‌گرافی پریمیوم، عکس‌ها با ChatGPT و جمنای، لوگوهای واقعی. ایرادهای ریلز قبلی: «ویکس» را «ویفنس» گفت، صدای ضربه در انتها، نقطه در آخر هر زیرنویس، کاور اختصاصی نداشت.",
-  "follow": "/home/studio/kits/zaribsad-coin/README.md (its rules and steps 2-14; the coin is fixed: ZEC)",
-  "exchange": "weex"
-}}
+  "note_fa": "دستور مدیر کل (۲۴ آبان): ریلز زی‌کش از نو ساخته و منتشر شود؛ قبلی را خودش پاک کرد. این اولین ریلز پیج است. با انیمه و موشن‌گرافی پریمیوم، عکس‌ها با ChatGPT و جمنای، لوگوهای واقعی. ایرادهای ریلز قبلی: «ویکس» را «ویفنس» گفت، صدای ضربه در انتها، نقطه در آخر هر زیرنویس، کاور اختصاصی نداشت. ⟨۲۵ آبان ۰۰:۱۰ UTC⟩ ساخت اول (F-0024) بی هیچ عکس هوش مصنوعی و بی انیمه تحویل شد، چون همه‌ی عکس‌ها به یک باگ هاب خوردند (درست شد): این بار دوباره ساخته می‌شود، با صدای تأییدشده‌ی همان ساخت؛ اول KIT/REDO_2026-11-15.md را بخوان.",
+  "follow": "/home/studio/kits/zaribsad-noon/REDO_2026-11-15.md FIRST (what to reuse, the hybrid anime track, the key art), then /home/studio/kits/zaribsad-coin/README.md (its rules; its steps 5-14, the voice is reused, not remade)",
+  "exchange": "weex",
+  "reuse": "/home/studio/kits/zec-redo-1115"
+ }
+}
