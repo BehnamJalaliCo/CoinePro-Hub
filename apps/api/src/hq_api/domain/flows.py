@@ -140,11 +140,13 @@ async def start(
         tomorrow = datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
         the_day = day or tomorrow
         # one order per flow and day, whatever calls again (a key expires in 24 hours); a day
-        # whose work failed or was cancelled may be made again
+        # whose work failed or was cancelled may be made again, unless its package went out
+        # (⟨2026-11-14⟩ F-0022: the session closed as the reel was scheduled, and closing it
+        # cancels a root still open: that day is made all the same)
         made = await tx.first(
             """SELECT ref, run_meta -> 'flow' AS flow FROM work.work
                WHERE run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d
-                 AND status NOT IN ('failed', 'cancelled')
+                 AND (status NOT IN ('failed', 'cancelled') OR run_meta -> 'flow' ? 'sent')
                ORDER BY created_at DESC LIMIT 1""",
             k=flow.key,
             d=the_day.isoformat(),

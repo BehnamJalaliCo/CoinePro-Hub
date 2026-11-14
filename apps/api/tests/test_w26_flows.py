@@ -202,6 +202,16 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
     from hq_api.domain import flows as FL2
 
     assert await FL2.after_delivered(hub, w["id"]) == "sent"
+    # F-0022: closing the session may cancel the day's root; a day whose package went out is made
+    await su.execute(
+        "UPDATE work.work SET status = 'cancelled', closed_at = now()"
+        " WHERE id = $1 AND status IN ('queued', 'in_progress', 'waiting')",
+        w["id"],
+    )
+    fourth = await client.post(
+        "/api/v1/flows/t/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert fourth.json()["order"] == order and fourth.json()["work"] == work_ref, fourth.text
 
     # IG-Hub published the reel: the owner hears it with its link
     taken = await take(client, ig_rn)
