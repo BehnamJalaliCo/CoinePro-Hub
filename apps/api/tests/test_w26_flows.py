@@ -66,6 +66,22 @@ async def test_the_four_weeks_have_their_hours(monkeypatch: pytest.MonkeyPatch) 
     assert "/kit/README.md" in text and "order.ask" in text and "story.mp4" in text
 
 
+def test_a_rotating_flow_names_the_days_kind_in_its_brief() -> None:
+    """⟨2026-11-14⟩ TradeYar's 12:00 reel turns (education, an exchange's campaign, the news and
+    the market): the day's kind goes in the order's text; a flow without a round says nothing."""
+    from dataclasses import replace
+
+    flow = replace(a_flow("TY"), cycle=("آموزش", "کمپین صرافی", "خبر و بازار"))
+    at = datetime(2026, 11, 15, 8, 30, tzinfo=UTC)
+    kinds = [FL.kind_of(flow, START + timedelta(days=d)) for d in range(4)]
+    assert kinds == ["آموزش", "کمپین صرافی", "خبر و بازار", "آموزش"]
+    assert "«کمپین صرافی»" in FL.brief_of(flow, START + timedelta(days=1), at)
+    assert "نوع ریلز امروز" not in FL.brief_of(a_flow("PC"), START, at)
+    real = FL.FLOWS["zaribsad_noon"]
+    assert real.company == "TY" and real.trigger_at == "07:00" and real.hours[0] == "12:00"
+    assert FL.FLOWS["zaribsad_coin"].trigger_at == "14:00" and FL.FLOWS["zaribsad_coin"].n8n
+
+
 async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
     client: httpx.AsyncClient,
     hub: Hub,

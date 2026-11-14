@@ -60,6 +60,9 @@ class Flow:
     # ⟨2026-11-14⟩ the day's cost cap (USD); the owner for TradeYar: «هزینه هیچ محدودیتی نیست»,
     # so its flows keep only a guard against a run that never ends
     usd_cap: Decimal = Decimal("10")
+    # ⟨2026-11-14⟩ a flow whose reel turns in a round (TradeYar's 12:00: education, an exchange's
+    # campaign, the news and the market): the day's kind, from the first day, goes in its brief
+    cycle: tuple[str, ...] = ()
 
 
 FLOWS = {
@@ -76,6 +79,23 @@ FLOWS = {
     # ⟨2026-11-14⟩ the owner: TradeYar's page @zaribsad, a coin-profile reel at 19:00 every day
     # (what the coin is, how it was built, its advantages, today's price, its year), the video made
     # by Claude alone in code, the end inviting to buy on WEEX or LBank; cost has no limit
+    # ⟨2026-11-14⟩ the owner: @zaribsad's 12:00 reel turns every day: education, an exchange's
+    # campaign with the referral link, the news and the market; the news cannot be made a day
+    # ahead, so every kind is made the same morning (n8n at 07:00 Tehran for that day)
+    "zaribsad_noon": Flow(
+        key="zaribsad_noon",
+        company="TY",
+        account="zaribsad",
+        title_fa="ریلز چرخشی ضریب صد",
+        kit="/home/studio/kits/zaribsad-noon",
+        start=date(2026, 11, 15),
+        hours=("12:00", "12:00", "12:00", "12:00"),
+        budget_tokens=10_000_000,  # (the route allows at most 10M; the USD cap is the guard)
+        n8n="hqFlowZaribsadNoon1",
+        trigger_at="07:00",
+        usd_cap=Decimal("100"),
+        cycle=("آموزش", "کمپین صرافی", "خبر و بازار"),
+    ),
     "zaribsad_coin": Flow(
         key="zaribsad_coin",
         company="TY",
@@ -85,6 +105,7 @@ FLOWS = {
         start=date(2026, 11, 15),
         hours=("19:00", "19:00", "19:00", "19:00"),
         budget_tokens=10_000_000,  # (the route allows at most 10M; the USD cap is the guard)
+        n8n="hqFlowZaribsadCoin1",
         trigger_at="14:00",
         usd_cap=Decimal("100"),
     ),
@@ -154,11 +175,20 @@ def at_fa(at: datetime) -> str:
     return f"{fa_day(local.date())} ساعت {local:%H:%M}".translate(FA_DIGITS)
 
 
+def kind_of(flow: Flow, day: date) -> str:
+    """The day's kind in a flow's round («» for a flow without one)."""
+    if not flow.cycle:
+        return ""
+    return flow.cycle[(day - flow.start).days % len(flow.cycle)]
+
+
 def brief_of(flow: Flow, day: date, at: datetime) -> str:
     """The order's text: what the day's session makes, from the kit, and when it goes out."""
+    kind = kind_of(flow, day)
     return (
         f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار {at_fa(at)} به وقت تهران)\n\n"
-        f"این فرمان را اتوماسیون روزانه (n8n) داده است، به دستور مدیر کل. کار خودکار است: از کسی "
+        + (f"نوع ریلز امروز: «{kind}» (کیت، بخش همین نوع).\n" if kind else "")
+        + "این فرمان را اتوماسیون روزانه (n8n) داده است، به دستور مدیر کل. کار خودکار است: از کسی "
         f"چیزی نپرس، order.ask نزن و منتظر تأیید نمان.\n"
         f"روند، قاعده‌ها و همه‌ی ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
         f"قدم‌به‌قدم انجام بده؛ چیز دیگری از کیت را جز به نیاز نخوان و هیچ فایلی از کیت را عوض نکن.\n"

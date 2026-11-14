@@ -1,5 +1,332 @@
 [
-  {"n": 1, "symbol": "ZEC", "name_fa": "زی‌کش", "name_en": "Zcash", "coingecko": "zcash", "lbank": "zec_usdt",
-   "angle": "حریم خصوصی واقعی در بلاکچین: zk-SNARKs، تراکنش محافظت‌شده، سقف ۲۱ میلیون",
-   "exchange": "weex"}
+ {
+  "n": 1,
+  "symbol": "ZEC",
+  "name_fa": "زی‌کش",
+  "name_en": "Zcash",
+  "coingecko": "zcash",
+  "lbank": "zec_usdt",
+  "angle": "حریم خصوصی واقعی در بلاکچین: zk-SNARKs، تراکنش محافظت‌شده، سقف ۲۱ میلیون",
+  "exchange": "weex"
+ },
+ {
+  "n": 2,
+  "symbol": "SOL",
+  "name_fa": "سولانا",
+  "name_en": "Solana",
+  "coingecko": "solana",
+  "lbank": "sol_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 3,
+  "symbol": "LINK",
+  "name_fa": "چین‌لینک",
+  "name_en": "Chainlink",
+  "coingecko": "chainlink",
+  "lbank": "link_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 4,
+  "symbol": "AVAX",
+  "name_fa": "اولانچ",
+  "name_en": "Avalanche",
+  "coingecko": "avalanche-2",
+  "lbank": "avax_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 5,
+  "symbol": "DOT",
+  "name_fa": "پولکادات",
+  "name_en": "Polkadot",
+  "coingecko": "polkadot",
+  "lbank": "dot_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 6,
+  "symbol": "ADA",
+  "name_fa": "کاردانو",
+  "name_en": "Cardano",
+  "coingecko": "cardano",
+  "lbank": "ada_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 7,
+  "symbol": "XRP",
+  "name_fa": "ریپل",
+  "name_en": "XRP",
+  "coingecko": "ripple",
+  "lbank": "xrp_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 8,
+  "symbol": "NEAR",
+  "name_fa": "نیر",
+  "name_en": "NEAR Protocol",
+  "coingecko": "near",
+  "lbank": "near_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 9,
+  "symbol": "APT",
+  "name_fa": "آپتوس",
+  "name_en": "Aptos",
+  "coingecko": "aptos",
+  "lbank": "apt_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 10,
+  "symbol": "SUI",
+  "name_fa": "سویی",
+  "name_en": "Sui",
+  "coingecko": "sui",
+  "lbank": "sui_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 11,
+  "symbol": "ARB",
+  "name_fa": "آربیتروم",
+  "name_en": "Arbitrum",
+  "coingecko": "arbitrum",
+  "lbank": "arb_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 12,
+  "symbol": "OP",
+  "name_fa": "آپتیمیزم",
+  "name_en": "Optimism",
+  "coingecko": "optimism",
+  "lbank": "op_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 13,
+  "symbol": "RENDER",
+  "name_fa": "رندر",
+  "name_en": "Render",
+  "coingecko": "render-token",
+  "lbank": "render_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 14,
+  "symbol": "INJ",
+  "name_fa": "اینجکتیو",
+  "name_en": "Injective",
+  "coingecko": "injective-protocol",
+  "lbank": "inj_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 15,
+  "symbol": "TIA",
+  "name_fa": "سلستیا",
+  "name_en": "Celestia",
+  "coingecko": "celestia",
+  "lbank": "tia_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 16,
+  "symbol": "LTC",
+  "name_fa": "لایت‌کوین",
+  "name_en": "Litecoin",
+  "coingecko": "litecoin",
+  "lbank": "ltc_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 17,
+  "symbol": "ETH",
+  "name_fa": "اتریوم",
+  "name_en": "Ethereum",
+  "coingecko": "ethereum",
+  "lbank": "eth_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 18,
+  "symbol": "BNB",
+  "name_fa": "بی‌ان‌بی",
+  "name_en": "BNB",
+  "coingecko": "binancecoin",
+  "lbank": "bnb_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 19,
+  "symbol": "DOGE",
+  "name_fa": "دوج‌کوین",
+  "name_en": "Dogecoin",
+  "coingecko": "dogecoin",
+  "lbank": "doge_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 20,
+  "symbol": "TRX",
+  "name_fa": "ترون",
+  "name_en": "TRON",
+  "coingecko": "tron",
+  "lbank": "trx_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 21,
+  "symbol": "HBAR",
+  "name_fa": "هدرا",
+  "name_en": "Hedera",
+  "coingecko": "hedera-hashgraph",
+  "lbank": "hbar_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 22,
+  "symbol": "ATOM",
+  "name_fa": "کازماس",
+  "name_en": "Cosmos Hub",
+  "coingecko": "cosmos",
+  "lbank": "atom_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 23,
+  "symbol": "FIL",
+  "name_fa": "فایل‌کوین",
+  "name_en": "Filecoin",
+  "coingecko": "filecoin",
+  "lbank": "fil_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 24,
+  "symbol": "GRT",
+  "name_fa": "گراف",
+  "name_en": "The Graph",
+  "coingecko": "the-graph",
+  "lbank": "grt_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 25,
+  "symbol": "AAVE",
+  "name_fa": "آوه",
+  "name_en": "Aave",
+  "coingecko": "aave",
+  "lbank": "aave_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 26,
+  "symbol": "UNI",
+  "name_fa": "یونی‌سواپ",
+  "name_en": "Uniswap",
+  "coingecko": "uniswap",
+  "lbank": "uni_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 27,
+  "symbol": "KAS",
+  "name_fa": "کسپا",
+  "name_en": "Kaspa",
+  "coingecko": "kaspa",
+  "lbank": "kas_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 28,
+  "symbol": "XLM",
+  "name_fa": "استلار",
+  "name_en": "Stellar",
+  "coingecko": "stellar",
+  "lbank": "xlm_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 29,
+  "symbol": "TAO",
+  "name_fa": "بیتنسور",
+  "name_en": "Bittensor",
+  "coingecko": "bittensor",
+  "lbank": "tao_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 30,
+  "symbol": "ONDO",
+  "name_fa": "اوندو",
+  "name_en": "Ondo",
+  "coingecko": "ondo-finance",
+  "lbank": "ondo_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 31,
+  "symbol": "ENA",
+  "name_fa": "اتنا",
+  "name_en": "Ethena",
+  "coingecko": "ethena",
+  "lbank": "ena_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 32,
+  "symbol": "PEPE",
+  "name_fa": "پپه",
+  "name_en": "Pepe",
+  "coingecko": "pepe",
+  "lbank": "pepe_usdt",
+  "angle": "",
+  "exchange": "weex"
+ },
+ {
+  "n": 33,
+  "symbol": "BTC",
+  "name_fa": "بیت‌کوین",
+  "name_en": "Bitcoin",
+  "coingecko": "bitcoin",
+  "lbank": "btc_usdt",
+  "angle": "",
+  "exchange": "weex"
+ }
 ]

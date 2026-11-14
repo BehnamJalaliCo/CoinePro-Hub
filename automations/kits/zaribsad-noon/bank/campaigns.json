@@ -1,0 +1,32 @@
+[
+ {
+  "exchange": "weex",
+  "name_fa": "ویکس",
+  "title": "کمپین «بیشتر ترید کن، بیشتر ببر» ویکس: تا ۴٬۲۱۰ تتر بونوس + قرعه‌کشی هفتگی",
+  "until": "1405-08-30",
+  "info": "https://trade-future.ir/campaigns/weex-trade-more-win-more",
+  "official": "https://www.weex.com/fa-IR/events/promo/trade-more-win-more",
+  "link": "https://trade-future.ir/go/weex?src=ig&goal=R&pl={slug}",
+  "button": "ثبت‌نام در ویکس"
+ },
+ {
+  "exchange": "lbank",
+  "name_fa": "ال‌بنک",
+  "title": "ثبت‌نام در ال‌بنک با کد رفرال TRADEYAR و ورود رایگان به VIP تریدیار",
+  "until": null,
+  "info": "https://trade-future.ir/guides/lbank-signup",
+  "official": "https://lbank.com/ref/TRADEYAR",
+  "link": "https://trade-future.ir/go/lbank?src=ig&goal=R&pl={slug}",
+  "button": "ثبت‌نام در ال‌بنک"
+ },
+ {
+  "exchange": "ourbit",
+  "name_fa": "اوربیت",
+  "title": "ثبت‌نام در اوربیت با کد دعوت Coinepro",
+  "until": null,
+  "info": "https://trade-future.ir/guides/ourbit-signup",
+  "official": "https://www.ourbit.com/fa-IR",
+  "link": "https://trade-future.ir/go/ourbit?src=ig&goal=R&pl={slug}",
+  "button": "ثبت‌نام در اوربیت"
+ }
+]
