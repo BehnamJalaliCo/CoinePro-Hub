@@ -64,6 +64,14 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
     assert any("DeepThink" in t for t in toggles) and any("Search" in t for t in toggles)
     # image <= 3 minutes, video <= 10 minutes
     assert got["chatgpt-web"].tasks["image"].timeout_s <= 180
+    # ⟨2026-11-14⟩ ChatGPT's page is in Persian: its made image is found by its source, not by
+    # an English alt, and taken only once the answer is finished (an image chat, never temporary)
+    for task in ("image", "cover"):
+        steps = got["chatgpt-web"].tasks[task].steps
+        assert steps[0].do == "goto" and "temporary" not in str(steps[0].url)
+        last = steps[-1]
+        assert last.do == "download_image" and "estuary" in str(last.selector)
+        assert any(s.do == "wait_gone" and not s.optional for s in steps)
     assert got["gemini-web"].tasks["video"].timeout_s <= 600
 
 
@@ -184,6 +192,27 @@ async def web(tmp_path: Path) -> AsyncIterator[tuple[httpx.AsyncClient, FakeWeb,
     transport = httpx.ASGITransport(app=build_app(state), client=("127.0.0.1", 5555))
     async with httpx.AsyncClient(transport=transport, base_url="http://egress") as c:
         yield c, fake, state
+
+
+async def test_a_changed_recipe_is_read_at_the_next_job(web: Any) -> None:
+    """⟨2026-11-14⟩ chatgpt-web 2026-11-13.1 never ran: egress read the recipes only at its
+    start. A changed file is read at the next job; a broken one keeps the last good set."""
+    import os
+
+    import yaml
+
+    c, _fake, state = web
+    path = Path(state.settings.recipes_dir) / "chatgpt-web.yaml"
+    assert state.recipes["chatgpt-web"].version == "2026-10-22.1"
+    data = yaml.safe_load(path.read_text())
+    data["version"] = "2026-11-14.1"
+    path.write_text(yaml.safe_dump(data))
+    os.utime(path, ns=(1, 1))  # (the same second as the first write: the stamp still differs)
+    r = (await c.post("/v1/substitutes/web", json={"account": "chatgpt-web", "task": "text",
+                                                   "prompt": "q", "timeout_s": 300})).json()  # fmt: skip
+    assert r["ok"] is True and r["recipe_version"] == "2026-11-14.1"
+    path.write_text("key: chatgpt-web\nversion: [broken\n")
+    assert state.recipes["chatgpt-web"].version == "2026-11-14.1"
 
 
 async def test_a_text_job_runs_its_recipe_in_the_profile_browser(web: Any) -> None:

@@ -165,6 +165,22 @@ class Recipe(BaseModel):
         }
 
 
+def stamp(directory: str | Path) -> tuple[tuple[str, int, int], ...]:
+    """⟨2026-11-14⟩ The recipe files as they stand (name, size, change time): egress reads
+    them again when this differs (app.State.recipes)."""
+    base = Path(directory)
+    if not base.is_dir():
+        return ()
+    out: list[tuple[str, int, int]] = []
+    for f in sorted(base.glob("*.yaml")):
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        out.append((f.name, st.st_size, st.st_mtime_ns))
+    return tuple(out)
+
+
 def load(directory: str | Path) -> dict[str, Recipe]:
     """Every recipe of the directory, by account; a bad one is an error at
     start (a reviewed file never fails silently)."""

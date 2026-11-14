@@ -192,12 +192,34 @@ class State:
         self.rates = K.Buckets()  # the connectors' rate limits, per account
         # The substitute players' reviewed recipes (prompt 12 §9.1), by account,
         # and one web job (or profile browse) per account at a time.
-        self.recipes: dict[str, RC.Recipe] = RC.load(settings.recipes_dir)
+        self._recipes: dict[str, RC.Recipe] = RC.load(settings.recipes_dir)
+        self._recipes_stamp = RC.stamp(settings.recipes_dir)
         self.web_locks: dict[str, asyncio.Lock] = {k: asyncio.Lock() for k in RC.ACCOUNTS}
         # The hub's own upstreams (SearXNG, the browser): fixed addresses, not agent input.
         self.internal = internal or httpx.AsyncClient(
             timeout=settings.browse_call_s + 15, trust_env=False
         )
+
+    @property
+    def recipes(self) -> dict[str, RC.Recipe]:
+        """The recipes as their files stand now: a reviewed change is read at the next job.
+        ⟨2026-11-14⟩ chatgpt-web 2026-11-13.1 never ran: egress read the recipes only at its
+        start and was not restarted, so every image job went on in a temporary chat. A file that
+        no longer loads keeps the last good set (logged); a new sign-in host still needs a
+        restart (the sign-in listener's hosts are fixed at the start, __main__)."""
+        now = RC.stamp(self.settings.recipes_dir)
+        if now != self._recipes_stamp:
+            self._recipes_stamp = now
+            try:
+                self._recipes = RC.load(self.settings.recipes_dir)
+            except Exception as exc:  # noqa: BLE001 - a bad file never stops the good ones
+                log.error("recipes not reloaded", extra={"error": type(exc).__name__})
+            else:
+                log.info(
+                    "recipes reloaded",
+                    extra={"versions": {k: r.version for k, r in self._recipes.items()}},
+                )
+        return self._recipes
 
 
 def answer(
