@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-11.1"
+version: "2026-11-14.1"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -37,6 +37,9 @@ hosts:
   - waa-pa.clients6.google.com
   - signaler-pa.clients6.google.com
   - play.google.com
+  # 2026-11-14.1 (owner's yes, story images by Gemini's «Argon»): the made image is served from
+  # here; refused until now, it stayed grey and its download failed (host_not_allowed).
+  - work.fife.usercontent.google.com
 login_hosts:
   - accounts.google.com
   # Google's consent pages after sign-in (the EU consent, the account bar)
@@ -72,10 +75,15 @@ tasks:
       - {do: goto, url: "{start_url}"}
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
+      # 2026-11-14.1 (owner: «اگر جمنای قراره بسازه مدل آرگون باید بسازه»): the model menu, then
+      # «4 Argon» (a chat model; with it chosen, Gemini's own image tool makes the picture); the
+      # full-size file through Gemini's download button (checked on the live page 2026-11-14)
+      - {do: click, selector: "[data-test-id=bard-mode-menu-button]"}
+      - {do: click, selector: "[role=menuitem]:has-text('Argon'), [role=menuitemradio]:has-text('Argon'), button:has-text('Argon')"}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "generated-image img", timeout_s: 170}
-      - {do: download_image, selector: "generated-image img", attr: src}
+      - {do: download, selector: "download-generated-image-button button", timeout_s: 60}
   video:
     timeout_s: 600
     steps:
