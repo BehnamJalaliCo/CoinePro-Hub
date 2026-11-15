@@ -24,6 +24,7 @@ from hq_api.db import Tx
 from hq_api.domain import flow_shapes as FS
 from hq_api.domain import flows as FL
 from hq_api.domain import order_report as OR
+from hq_api.domain import session_publish as SPB
 from hq_api.errors import ApiError
 from hq_api.lines import store
 
@@ -296,8 +297,9 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     )
     jobs = await tx.all(
         """SELECT args ->> 'kind' AS kind, args -> 'meta' ->> 'rule_for' IS NOT NULL
-                  OR args ? 'rule_for' AS rule, state, finished_at, result,
-                  lower(args -> 'session' ->> 'file_name') AS file_name
+                  OR args ? 'rule_for' AS rule, state, error_code, finished_at, result,
+                  lower(args -> 'session' ->> 'file_name') AS file_name,
+                  args -> 'session' ->> 'file_id' AS file_id
            FROM infra.server_jobs
            WHERE kind = 'publish' AND (args -> 'session' ->> 'order' = :o
                                        OR args -> 'rule_for' ->> 'order' = :o)
@@ -319,10 +321,18 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     newest: dict[str, dict[str, Any]] = {}
     for f in files:
         newest[str(f["name"])] = dict(f)
-    scheduled = [j for j in jobs if not j["rule"] and j["state"] == "done"
-                 and str((OR._j(j["result"]) or {}).get("external_id") or "").startswith("pub:")]  # fmt: skip
-    out = [j for j in jobs if not j["rule"] and j["state"] == "done"
-           and not str((OR._j(j["result"]) or {}).get("external_id") or "pub:").startswith("pub:")]  # fmt: skip
+    # ⟨2026-11-15⟩ one post is one record: its newest job (§46: IG-Hub's answer to the hub's
+    # question about a scheduled post is a new job of the same file), and a cancelled one is gone
+    post: dict[tuple[str, str], dict[str, Any]] = {}
+    for j in jobs:
+        if not j["rule"]:
+            post[(str(j["kind"]), str(j["file_id"] or j["file_name"] or ""))] = j
+    live = [j for j in post.values() if not _ext(j).startswith(SPB.CANCELLED)
+            and str(j["error_code"] or "") != SPB.CANCEL_CODE]  # fmt: skip
+    jobs = [j for j in jobs if j["rule"] or any(j is x for x in live)]
+    scheduled = [j for j in live if j["state"] == "done" and _ext(j).startswith(SPB.PENDING)]
+    out = [j for j in live if j["state"] == "done" and _ext(j)
+           and not _ext(j).startswith(SPB.PENDING)]  # fmt: skip
     failed = [j for j in jobs if j["state"] == "failed"]
     rules = [j for j in jobs if j["rule"]]
     reel_url = next((str((OR._j(j["result"]) or {}).get("url") or "") or None
@@ -330,7 +340,12 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     return {"meta": meta, "turns": [dict(t) for t in turns], "files": newest, "jobs": jobs,
             "scheduled": scheduled, "out": out, "failed": failed, "rules": rules,
             "said": [dict(x) for x in said], "usd": usd, "tokens": int(tokens or 0),
-            "reel_url": reel_url}  # fmt: skip
+            "reel_url": reel_url, "dropped": bool(post) and not live}  # fmt: skip
+
+
+def _ext(j: dict[str, Any]) -> str:
+    """A publish job's answer from IG-Hub: `pub:<id>` (held for its hour), the post's id, or ""."""
+    return str((OR._j(j["result"]) or {}).get("external_id") or "")
 
 
 def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
@@ -350,6 +365,8 @@ def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
         return "done", "منتشر شد"
     if f["failed"] and not f["scheduled"]:
         return "failed", "انتشار روی IG-Hub نشد"
+    if f["dropped"]:
+        return "cancelled", "انتشارش لغو شد"
     if meta.get("sent") or f["scheduled"]:
         at = meta.get("publish_at")
         when = FL.at_fa(datetime.fromisoformat(str(at))) if at else ""
@@ -489,6 +506,7 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
         co = await _company(tx, flow)
         days = await _days(tx, flow, 1)
         last = await run_ref(tx, hub, days[0]) if days else None
+        day = await day_run(tx, hub, last.ref, with_files=False) if last else None
         _, usd = await _today_cost(tx, flow)
         trig = next_trigger(flow)
         tomorrow = trig.astimezone(_tz()).date() + timedelta(days=0 if flow.same_day else 1)
@@ -496,7 +514,10 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
             ref=ref_of(key), kind="n8n", title_fa=flow.title_fa, company=flow.company,
             company_fa=co["name_fa"] or None, when_fa=when_fa(flow, tomorrow),
             state="off" if key in off else "on", switchable=True,
-            last=FS.BoardLast(at=last.at, state=last.state, note_fa=last.note_fa) if last else None,
+            last=FS.BoardLast(
+                at=last.at, state=last.state, note_fa=last.note_fa,
+                steps=[FS.BoardStep(key=s.key, state=s.state) for s in day.steps] if day else None,
+            ) if last else None,
             next_at=None if key in off else trig, cost_today_usd=usd,
             opens=f"automation/{ref_of(key)}",
         ))  # fmt: skip
@@ -504,8 +525,9 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
 
 
 # ------------------------------------------------------------ a day's page --
-async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
-    """`GET /line-runs/F-…` of a flow's day: each step's state, read by code. None: not a day."""
+async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> store.LineRunOut | None:
+    """`GET /line-runs/F-…` of a flow's day: each step's state, read by code. None: not a day.
+    `with_files=False` (the board's strip): the states only, no file read from the storage."""
     if not ORDER_REF.fullmatch(order):
         return None
     d = await _day_by_order(tx, order)
@@ -517,8 +539,12 @@ async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
     f = await _facts(tx, d)
     state, note = _state(d, f)
     co = await _company(tx, flow)
-    files = await store.step_files(
-        tx, [str(x["id"]) for x in f["files"].values()], getattr(hub, "storage", None)
+    files = (
+        await store.step_files(
+            tx, [str(x["id"]) for x in f["files"].values()], getattr(hub, "storage", None)
+        )
+        if with_files
+        else {}
     )
     turns = f["turns"]
     first = turns[0]["started_at"] if turns else None

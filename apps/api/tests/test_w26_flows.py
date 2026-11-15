@@ -552,4 +552,10 @@ async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule
     assert [states[f"s{i}"] for i in range(1, 8)].count("waiting") == 5
     assert states["compose"] == states["pictures"] == states["dm"] == "done"
     assert states["schedule"] == "done" and run.json()["state"] == "waiting"
+    # its card on the board carries the same day's node colours (the strip under the card)
+    board = await client.get("/api/v1/automations/board?kind=n8n", headers=owner)
+    assert board.status_code == 200, board.text
+    card = next(i for i in board.json()["items"] if i["ref"] == f"N8:{fk}")
+    assert card["last"]["steps"] == [{"key": x["key"], "state": x["state"]}
+                                     for x in run.json()["steps"]]  # fmt: skip
     assert SPB.view  # (the module is the one the hub runs)

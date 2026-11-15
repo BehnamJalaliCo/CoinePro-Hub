@@ -5263,9 +5263,42 @@
             "default": "",
             "title": "State",
             "type": "string"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BoardStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
           }
         },
         "title": "BoardLast",
+        "type": "object"
+      },
+      "BoardStep": {
+        "description": "⟨2026-11-15⟩ one node of the last day, for the strip under a board card (§59.10).",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "state"
+        ],
+        "title": "BoardStep",
         "type": "object"
       },
       "BoardToday": {
@@ -18542,6 +18575,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowGraph"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "kind": {
             "const": "flow",
             "default": "flow",
@@ -18719,6 +18762,133 @@
           }
         },
         "title": "FlowBudget",
+        "type": "object"
+      },
+      "FlowGraph": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/FlowGraphEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "lanes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lanes",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/FlowGraphNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "title": "FlowGraph",
+        "type": "object"
+      },
+      "FlowGraphEdge": {
+        "properties": {
+          "label_fa": {
+            "default": "",
+            "title": "Label Fa",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ],
+        "title": "FlowGraphEdge",
+        "type": "object"
+      },
+      "FlowGraphNode": {
+        "description": "⟨2026-11-15⟩ One node of an automation's map (the owner: «به صورت گرافیکی ببینم روند کار رو\nمثل خود n8n»): `key` is its step's key, so a day's run (`GET /line-runs/F-…`, its `steps[].key`)\ncolours it; `lane` is who does it (one row per lane on the canvas), `col` its place in time.",
+        "properties": {
+          "col": {
+            "minimum": 0.0,
+            "title": "Col",
+            "type": "integer"
+          },
+          "helper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helper"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lane": {
+            "enum": [
+              "n8n",
+              "hub",
+              "workshop",
+              "chatgpt",
+              "gemini",
+              "voice",
+              "ighub"
+            ],
+            "title": "Lane",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "note_fa": {
+            "default": "",
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "row": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Row",
+            "type": "integer"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "kind",
+          "lane",
+          "col"
+        ],
+        "title": "FlowGraphNode",
         "type": "object"
       },
       "FlowN8n": {
@@ -74356,7 +74526,8 @@
                       "last": {
                         "at": "2026-10-17T05:42:00Z",
                         "note_fa": "x",
-                        "state": "x"
+                        "state": "x",
+                        "steps": []
                       },
                       "next_at": "2026-10-17T05:42:00Z",
                       "opens": "x",
@@ -74993,6 +75164,31 @@
                   "company": "TY",
                   "company_fa": "x",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "graph": {
+                    "edges": [
+                      {
+                        "label_fa": "x",
+                        "source": "x",
+                        "target": "D-000123"
+                      }
+                    ],
+                    "lanes": [
+                      "x"
+                    ],
+                    "nodes": [
+                      {
+                        "col": 0,
+                        "helper": "x",
+                        "key": "x",
+                        "kind": "one_off",
+                        "lane": "n8n",
+                        "model": "claude-sonnet-5-5",
+                        "note_fa": "x",
+                        "row": 0,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ]
+                  },
                   "kind": "flow",
                   "last_run": {
                     "at": "2026-10-17T05:42:00Z",
@@ -75328,6 +75524,31 @@
                   "company": "TY",
                   "company_fa": "x",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "graph": {
+                    "edges": [
+                      {
+                        "label_fa": "x",
+                        "source": "x",
+                        "target": "D-000123"
+                      }
+                    ],
+                    "lanes": [
+                      "x"
+                    ],
+                    "nodes": [
+                      {
+                        "col": 0,
+                        "helper": "x",
+                        "key": "x",
+                        "kind": "one_off",
+                        "lane": "n8n",
+                        "model": "claude-sonnet-5-5",
+                        "note_fa": "x",
+                        "row": 0,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ]
+                  },
                   "kind": "flow",
                   "last_run": {
                     "at": "2026-10-17T05:42:00Z",
@@ -75572,6 +75793,31 @@
                   "company": "TY",
                   "company_fa": "x",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "graph": {
+                    "edges": [
+                      {
+                        "label_fa": "x",
+                        "source": "x",
+                        "target": "D-000123"
+                      }
+                    ],
+                    "lanes": [
+                      "x"
+                    ],
+                    "nodes": [
+                      {
+                        "col": 0,
+                        "helper": "x",
+                        "key": "x",
+                        "kind": "one_off",
+                        "lane": "n8n",
+                        "model": "claude-sonnet-5-5",
+                        "note_fa": "x",
+                        "row": 0,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ]
+                  },
                   "kind": "flow",
                   "last_run": {
                     "at": "2026-10-17T05:42:00Z",
@@ -76271,6 +76517,31 @@
                   "company": "TY",
                   "company_fa": "x",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "graph": {
+                    "edges": [
+                      {
+                        "label_fa": "x",
+                        "source": "x",
+                        "target": "D-000123"
+                      }
+                    ],
+                    "lanes": [
+                      "x"
+                    ],
+                    "nodes": [
+                      {
+                        "col": 0,
+                        "helper": "x",
+                        "key": "x",
+                        "kind": "one_off",
+                        "lane": "n8n",
+                        "model": "claude-sonnet-5-5",
+                        "note_fa": "x",
+                        "row": 0,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ]
+                  },
                   "kind": "flow",
                   "last_run": {
                     "at": "2026-10-17T05:42:00Z",
@@ -134405,6 +134676,31 @@
                     "company": "TY",
                     "company_fa": "x",
                     "created_at": "2026-10-17T05:42:00Z",
+                    "graph": {
+                      "edges": [
+                        {
+                          "label_fa": null,
+                          "source": null,
+                          "target": null
+                        }
+                      ],
+                      "lanes": [
+                        "x"
+                      ],
+                      "nodes": [
+                        {
+                          "col": null,
+                          "helper": null,
+                          "key": null,
+                          "kind": null,
+                          "lane": null,
+                          "model": null,
+                          "note_fa": null,
+                          "row": null,
+                          "title_fa": null
+                        }
+                      ]
+                    },
                     "kind": "flow",
                     "last_run": {
                       "at": "2026-10-17T05:42:00Z",
