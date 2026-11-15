@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-15.4"
+version: "2026-11-15.5"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -95,6 +95,9 @@ tasks:
       # page (TargetClosedError). The shown picture is now taken from its own pixels at its natural
       # size (browser-web's download_image, 2026-11-15); the download button is not used.
       - {do: download_image, selector: "generated-image img, single-image img.image", attr: src, timeout_s: 30}
+      - {do: click, selector: "download-generated-image-button button, button[aria-label*='Download full size' i], button[aria-label*='دانلود']", timeout_s: 10}
+      - {do: pause, ms: 5000}
+      - {do: wait, selector: "#diag-never-there", timeout_s: 1}
   video:
     timeout_s: 600
     steps:
