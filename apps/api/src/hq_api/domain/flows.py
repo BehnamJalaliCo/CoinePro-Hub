@@ -66,6 +66,9 @@ class Flow:
     # ⟨2026-11-15⟩ the model its workshop turns run on ("" = the workshop's own, Opus 5.5); a test
     # flow publishes nothing (account "")
     model: str = ""
+    # ⟨2026-11-15⟩ the first day the model makes (None = every day); the days before keep the
+    # workshop's own
+    model_from: date | None = None
 
 
 FLOWS = {
@@ -99,6 +102,10 @@ FLOWS = {
         trigger_at="07:00",
         usd_cap=Decimal("100"),
         cycle=("آموزش", "کمپین صرافی", "خبر و بازار"),
+        # ⟨2026-11-15⟩ the owner, after the two ZEC reels side by side: «با مدل فیبل ۵.۲ برای ضریب صد؛
+        # ریلز امروز رو که هیچ، ولی از فردا»
+        model="claude-fable-5-2",
+        model_from=date(2026, 11, 16),
     ),
     "zaribsad_coin": Flow(
         key="zaribsad_coin",
@@ -112,6 +119,8 @@ FLOWS = {
         n8n="hqFlowZaribsadCoin1",
         trigger_at="14:00",
         usd_cap=Decimal("100"),
+        model="claude-fable-5-2",  # (as the 12:00 one: from tomorrow)
+        model_from=date(2026, 11, 16),
     ),
     # ⟨2026-11-15⟩ the owner: «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»: the ZEC
     # reel once more on Claude Fable 5.2, to set beside the Opus 5.5 one. No account: nothing is
@@ -130,6 +139,11 @@ FLOWS = {
         model="claude-fable-5-2",
     ),
 }
+
+
+def model_on(flow: Flow, day: date) -> str:
+    """⟨2026-11-15⟩ The model a flow's day is made on ("" = the workshop's own)."""
+    return flow.model if flow.model_from is None or day >= flow.model_from else ""
 
 
 # ------------------------------------------------------------ the owner's switch --
@@ -274,9 +288,10 @@ async def start(
     got = out.model_dump() if hasattr(out, "model_dump") else json.loads(bytes(out.body))
     ref = str(got["ref"])
     work_ref = next((r.get("work_ref") for r in got.get("routes") or [] if r.get("work_ref")), None)
+    model = model_on(flow, the_day)
     meta = {"key": flow.key, "day": the_day.isoformat(), "publish_at": at.isoformat(),
             "account": flow.account, "story": flow.story, "order": ref,
-            **({"model": flow.model} if flow.model else {})}  # fmt: skip
+            **({"model": model} if model else {})}  # fmt: skip
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         if work_ref:
             await tx.exec(

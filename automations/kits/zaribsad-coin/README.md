@@ -17,7 +17,7 @@ That is the floor. Every reel from now on: rich AI key art, depth, light, camera
 transitions and sound, scored shot by shot.)
 
 ## The owner's rules (2026-11-14 — never change)
-- **Quality above everything; cost has no limit.** You are the director (Opus 5.5, highest effort).
+- **Quality above everything; cost has no limit.** You are the director (highest effort).
   The level must be clearly above the Pro-Chart reels: clean, premium, and DIFFERENT every time.
 - **The video is made ONLY by you, in code** (HTML/Canvas/SVG/WebGL rendered by headless Chromium +
   ffmpeg). NO video from Gemini, ChatGPT or any AI video model, ever.

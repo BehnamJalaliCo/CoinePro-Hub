@@ -12,7 +12,7 @@ PCKIT = /home/studio/kits/prochart-reels (reuse its TOOLS only — never its loo
 ## FIRST read COMMON/DIRECTION.md — the premium bar. It is the owner's rule, not a suggestion.
 
 ## The owner's rules (2026-11-14 — never change)
-- Quality above everything; cost has no limit. You are the director (Opus 5.5, highest effort).
+- Quality above everything; cost has no limit. You are the director (highest effort).
 - The video is made ONLY by you, in code (HTML/Canvas/SVG/WebGL in headless Chromium + ffmpeg).
   NO video from Gemini, ChatGPT or any AI video model, ever. AI STILL images are your key art.
 - The track (anime / cinematic motion graphics / hybrid) is chosen by you per topic.

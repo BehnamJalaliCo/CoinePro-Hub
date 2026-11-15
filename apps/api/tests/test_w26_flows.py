@@ -304,7 +304,8 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
 ) -> None:
     """⟨2026-11-15⟩ the owner: «مدل فیبل … رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز» (Fable 5.2): a flow
     that names a model runs its workshop turns on it (only a model of the workshop's list); every
-    other flow keeps the workshop's own (Opus 5.5)."""
+    other flow keeps the workshop's own (Opus 5.5). The owner's choice for @zaribsad: «از فردا»: a
+    model with a first day leaves the days before it on the workshop's own."""
     from dataclasses import replace
 
     from hq_api.domain import hands as HANDS
@@ -312,9 +313,19 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
     co = await new_company()
     ws = await workshop(client, hub, owner_session, su)
     day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=1)
-    for model, want in (("claude-fable-5-2", "claude-fable-5-2"), ("", HANDS.MODEL)):
+    fable = "claude-fable-5-2"
+    for key in ("zaribsad_noon", "zaribsad_coin"):
+        assert FL.model_on(FL.FLOWS[key], date(2026, 11, 15)) == ""
+        assert FL.model_on(FL.FLOWS[key], date(2026, 11, 16)) == fable
+    for model, since, want in (
+        (fable, None, fable),
+        ("", None, HANDS.MODEL),
+        (fable, day + timedelta(days=1), HANDS.MODEL),
+        (fable, day, fable),
+    ):
         fk = f"m{uuid.uuid4().hex[:8]}"
-        monkeypatch.setattr(FL, "FLOWS", {fk: replace(a_flow(co["code"], fk), model=model)})
+        flow = replace(a_flow(co["code"], fk), model=model, model_from=since)
+        monkeypatch.setattr(FL, "FLOWS", {fk: flow})
         r = await client.post(
             f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
         )
