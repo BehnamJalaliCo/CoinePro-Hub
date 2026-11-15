@@ -328,6 +328,8 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
     for key, flow in FL.FLOWS.items():
         if company and company != flow.company:
             continue
+        if not flow.account:
+            continue  # ⟨2026-11-15⟩ a test flow (it publishes nothing): not an automation of the board
         co = await _company(tx, flow)
         days = await _days(tx, flow, 1)
         last = await run_ref(tx, hub, days[0]) if days else None

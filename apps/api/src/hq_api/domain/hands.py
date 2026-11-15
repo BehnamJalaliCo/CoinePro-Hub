@@ -39,6 +39,9 @@ from hq_api.workshop import server_sessions as SS
 RUNNER_MIN = "0.3.2"  # the runner that sends `out/` back
 INPUTS_RUNNER_MIN = "0.3.3"  # the runner that takes the hub's files into `in/`
 MODEL = "claude-opus-5-5"
+# ⟨2026-11-15⟩ the models a workshop turn may run on (an automation names its own; the owner:
+# «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»)
+MODELS = ("claude-opus-5-5", "claude-fable-5-2")
 # ⟨1.31⟩ §53 the owner's order: «حتماً Opus 5.5 با بیشترین effort». Every turn of the workshop
 # thinks as hard as the model can unless the caller asks for less; the runner (>= 0.3.5) passes it
 # to Claude Code, an older one runs the turn as before
@@ -278,6 +281,15 @@ def compose(
     return "\n".join(lines)
 
 
+async def model_of(tx: Tx, w: dict[str, Any]) -> str:
+    """⟨2026-11-15⟩ The model of a work's turns: its automation's own when it names one of MODELS,
+    else the workshop's (Opus 5.5)."""
+    m = await tx.scalar(
+        "SELECT run_meta -> 'flow' ->> 'model' FROM work.work WHERE id = :w", w=w["id"]
+    )
+    return str(m) if m in MODELS else MODEL
+
+
 async def start(
     tx: Tx,
     who: Principal,
@@ -345,7 +357,7 @@ async def start(
     extra = {
         "workspace": w["ref"],
         "hands": True,
-        "model": MODEL,
+        "model": await model_of(tx, w),
         "effort": effort if effort in EFFORTS else EFFORT,
         "permission_mode": PERMISSION_MODE,
         "allowed_tools": [t for t in tools if t in ALLOWED_TOOLS] if tools else list(ALLOWED_TOOLS),

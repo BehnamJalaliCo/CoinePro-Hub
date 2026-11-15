@@ -290,3 +290,50 @@ async def test_a_day_stops_at_its_cap_and_builds_on_the_highest_effort(
         order,
     )
     assert len(said) == 1 and "سقف هزینه" in said[0]["title_fa"]
+
+
+async def test_a_flow_runs_its_turns_on_its_own_model(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-15⟩ the owner: «مدل فیبل … رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز» (Fable 5.2): a flow
+    that names a model runs its workshop turns on it (only a model of the workshop's list); every
+    other flow keeps the workshop's own (Opus 5.5)."""
+    from dataclasses import replace
+
+    from hq_api.domain import hands as HANDS
+
+    co = await new_company()
+    ws = await workshop(client, hub, owner_session, su)
+    day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=1)
+    for model, want in (("claude-fable-5-2", "claude-fable-5-2"), ("", HANDS.MODEL)):
+        fk = f"m{uuid.uuid4().hex[:8]}"
+        monkeypatch.setattr(FL, "FLOWS", {fk: replace(a_flow(co["code"], fk), model=model)})
+        r = await client.post(
+            f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+        )
+        assert r.status_code == 201, r.text
+        work_ref = r.json()["work"]
+        holder = await su.fetchval(
+            "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id "
+            "WHERE w.ref = $1",
+            work_ref,
+        )
+        wid = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", work_ref)
+        await refuse_queued(su, str(wid))
+        r = await run_ask(client, holder, {"work": work_ref, "brief": "بسته‌ی امروز"})
+        assert r.status_code == 201, r.text
+        job = await take(client, ws)
+        assert job["args"]["model"] == want, job["args"]
+        r = await client.post(
+            f"/api/v1/runners/jobs/{job['id']}/result",
+            json={"exit_code": 0, "summary_fa": "تمام."},
+            headers=ws["h"],
+        )
+        assert r.status_code == 200, r.text

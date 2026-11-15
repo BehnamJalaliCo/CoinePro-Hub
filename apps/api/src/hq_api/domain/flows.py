@@ -63,6 +63,9 @@ class Flow:
     # ⟨2026-11-14⟩ a flow whose reel turns in a round (TradeYar's 12:00: education, an exchange's
     # campaign, the news and the market): the day's kind, from the first day, goes in its brief
     cycle: tuple[str, ...] = ()
+    # ⟨2026-11-15⟩ the model its workshop turns run on ("" = the workshop's own, Opus 5.5); a test
+    # flow publishes nothing (account "")
+    model: str = ""
 
 
 FLOWS = {
@@ -109,6 +112,22 @@ FLOWS = {
         n8n="hqFlowZaribsadCoin1",
         trigger_at="14:00",
         usd_cap=Decimal("100"),
+    ),
+    # ⟨2026-11-15⟩ the owner: «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»: the ZEC
+    # reel once more on Claude Fable 5.2, to set beside the Opus 5.5 one. No account: nothing is
+    # published; no n8n: started by hand, never on the board
+    "zaribsad_fabletest": Flow(
+        key="zaribsad_fabletest",
+        company="TY",
+        account="",
+        title_fa="آزمایش فیبل ۵.۲: ریلز زی‌کش (منتشر نمی‌شود)",
+        kit="/home/studio/kits/zaribsad-fabletest",
+        start=date(2026, 11, 15),
+        hours=("12:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        usd_cap=Decimal("100"),
+        model="claude-fable-5-2",
     ),
 }
 
@@ -256,7 +275,8 @@ async def start(
     ref = str(got["ref"])
     work_ref = next((r.get("work_ref") for r in got.get("routes") or [] if r.get("work_ref")), None)
     meta = {"key": flow.key, "day": the_day.isoformat(), "publish_at": at.isoformat(),
-            "account": flow.account, "story": flow.story, "order": ref}  # fmt: skip
+            "account": flow.account, "story": flow.story, "order": ref,
+            **({"model": flow.model} if flow.model else {})}  # fmt: skip
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         if work_ref:
             await tx.exec(
