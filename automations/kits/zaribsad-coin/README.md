@@ -24,10 +24,8 @@ transitions and sound, scored shot by shot.)
 - **Still images from ChatGPT are allowed as assets** (characters, backgrounds, objects, key art) —
   only when relevant to the script and made from a precise brief; you do all motion, compositing,
   typography and the final render. No text inside AI images: every Persian word is drawn by you.
-- **Style is chosen per topic by you:** real-level anime (limited TV anime: cel shading, painted
-  backgrounds, multi-plane camera, on twos, anticipation/overshoot, speed lines, impact frames),
-  high-end motion graphics (kinetic Persian typography, data, charts, 3D-ish depth), or a mix (an
-  anime host with motion-graphics cards). Anime is NOT the permanent look.
+- **The style:** premium cinematic motion graphics ONLY — no anime, no anime host, no hybrid (owner, 2026-11-15; COMMON/DIRECTION.md §0.9): kinetic Persian typography, real data, charts, 3D-feeling depth,
+  photoreal / 3D-render key art. Ideas from Pinterest and top reels first (DIRECTION §1.1).
 - **This reel = a coin profile** (not a daily chart reading): what the coin is, how it was built
   (its technology, simply), its real advantages, today's price and its
   return over the past year. Facts must be true; numbers come ONLY from `facts.json` (step 2),
@@ -82,8 +80,8 @@ transitions and sound, scored shot by shot.)
    asset (subject, pose, framing 9:16 or a layer on a flat background, light, style anchors,
    "no text, no letters, no logos"). Pick a look not used in your previous reels if you can see them.
 6. **Key art (mandatory):** ≥ 6 AI images per reel (COMMON/DIRECTION.md §2): `substitute.call`
-   seat creative, kind image, placement other — player gpt for anime/illustration, player gemini
-   (its «Argon» model) for photoreal; one precise brief each, "no text, no letters, no logos".
+   seat creative, kind image, placement other — player gpt (photoreal or 3D render, never anime);
+   one precise brief each, "no text, no letters, no logos". Inspiration first: DIRECTION §1.1.
    Look at every image (Read it); regenerate a bad one (≤ 2 more tries) or redesign the shot. Cut
    subjects out to their own planes; upscale cleanly. Never a flat icon as a shot's main visual.
 7. **Build:** write the scene as `motion/engine5_template.html` (engine6 loads it from your folder;

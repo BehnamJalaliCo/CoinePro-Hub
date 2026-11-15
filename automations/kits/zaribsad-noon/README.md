@@ -15,7 +15,7 @@ PCKIT = /home/studio/kits/prochart-reels (reuse its TOOLS only — never its loo
 - Quality above everything; cost has no limit. You are the director (highest effort).
 - The video is made ONLY by you, in code (HTML/Canvas/SVG/WebGL in headless Chromium + ffmpeg).
   NO video from Gemini, ChatGPT or any AI video model, ever. AI STILL images are your key art.
-- The track (anime / cinematic motion graphics / hybrid) is chosen by you per topic.
+- The track: premium cinematic motion graphics ONLY — no anime, no anime host, no hybrid (owner, 2026-11-15; COMMON/DIRECTION.md §0.9); ideas from Pinterest and top reels first (DIRECTION §1.1).
 - Voice: `speech.make` with voice "Cruz" only, NO style, NO narrator.set. Casual Persian with «تو».
   No fixed slogan, no fixed sentence: every reel has its own words and its own call to action.
 - Caption: catchy and gripping (a first line that stops the scroll), SEO-aware, **exactly 3
@@ -34,7 +34,7 @@ reel is THAT one: read its `note_fa`, follow the kit it names (`follow`) for the
   trader saves it: a hook, the idea through a scene or a metaphor, one concrete example with
   numbers, the common mistake, the takeaway. Its call to action: a comment word → the DM sends a
   short step-by-step guide + a fitting link (a TradeYar guide on trade-future.ir with utm, or the
-  free VIP path https://trade-future.ir/guides/tradeyar-free-vip). A strong fit for ANIME.
+  free VIP path https://trade-future.ir/guides/tradeyar-free-vip).
 - **کمپین صرافی (an exchange's campaign):** KIT/bank/campaigns.json — WEEX first (its campaign runs
   until 1405-08-30), then LBank, then Ourbit, turning; open its `info` and `official` pages
   (curl) for today's real terms (amounts, dates, conditions; never invent). After its end date,
@@ -67,8 +67,8 @@ start (the steps below); mark each done with `order.progress`.
    word: remake ONLY that sentence) → `tools/assemble_voice.py` → `tools/audio_qc.py`
    → `qc/voice_final.wav`; word times → `direction/word_times.json` (same commands as the
    Pro-Chart kit's step 3–4; no slogan).
-4. **Key art:** ≥ 6 images (COMMON/DIRECTION.md §2), gpt for anime/illustration, gemini for
-   photoreal; check each by looking; cut-outs; upscale.
+4. **Inspiration, then key art:** DIRECTION §1.1 (Pinterest + top reels → direction/inspo/), then
+   ≥ 6 images (DIRECTION §2), gpt photoreal / 3D render; check each by looking; cut-outs; upscale.
 5. **Direction:** `direction/CONTRACT.md` — the track and why, the look of the day (DIRECTION §5),
    the shot list on the word times, camera, transitions, sound cues, the assets per shot.
 6. **Build** the scene as `motion/engine5_template.html` (engine6 loads it from your folder; read
