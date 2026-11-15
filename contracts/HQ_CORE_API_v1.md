@@ -21,6 +21,8 @@
 
 > **v1.35 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** تیم جلسه، یک نفر در هر بار (§۵۷): ردیف «تیم این جلسه»، گفتگوی کوتاه کنار جلسه با هر نفر، استخدام یک‌ضربه‌ای صندلی خالی، گوینده از همان ردیف، و نام درست هر تحویل با نسخه‌ها در یک خط.
 
+> **v1.38 (۲۰۲۶-۱۱-۱۵):** نقشه‌ی هر اتوماسیون، مثل n8n (§۵۹.۷.۱): لاین‌ها، گره‌ها و اتصال‌ها از `graph` هاب، و رنگ زنده‌ی هر گره در اجرای همان روز. اتوماسیون‌های n8n خود هاب (`N8:<key>`، نوع `n8n` در تابلو) هم ثبت شد: کنترلشان فقط کلید است. `last.steps` اختیاری در کارت تابلو برای نوار رنگی (§۵۹.۱۰). سمت هاب ساخته و زنده است (commit `cba9fbb4`).
+>
 > **v1.37 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۸):** کتابخانه‌ی کارگروه‌ها و بخش اتوماسیون‌ها (§۵۹): هر کارگروه نسخه، قدم‌ها، بسته و درس‌هایش را دارد؛ با یک فرم در هر شرکتی به کار میرود؛ روند روزانه‌اش یک اتوماسیون `flow` است که n8n تیک میزند و روی موتور خط تولید (§۳۰) اجرا میشود؛ لینک‌های شرکت با UTM هر مسیر، سیاست جواب کامنت و استوری و دایرکت، خط زمان هر اجرا، نتیجه‌ها، خلاصه‌ی روزانه، و تابلوی همه‌ی اتوماسیون‌ها با کلید یک‌ضربه‌ای مالک. §۵۸.۳ بازنویسی شد. قاعده‌ی پست منتشرشده (۳۷.۱ و ۳۷.۲) هم ثبت شد (§۵۹.۶).
 
 > **v1.36 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** جای نوشتن هنگام سؤال، کارگروه جلسه‌ی بسته در کتابخانه، انتشار خودکار همان مُهر کارگروه، بایگانی بسته‌ی منتشرشده و پاک شدن بقیه پس از ۷۲ ساعت، و میز انتشار در صفحه‌ی خودش (§۵۸).
@@ -5590,6 +5592,61 @@ FlowRunRef { ref, at, state, topic_fa | null, note_fa, cost_usd | null }
   `skipped` «تأیید نشد؛ منتشر نشد».
 - **The kill switch, a freeze, a paused member, a retired version** stop a run before its next step (`skipped` with why).
 
+### 59.7.1 An automation's map, as n8n draws one ⟨1.38⟩ (2026-11-15)
+The owner: «بخش اتوماسیون‌ها … که من به صورت گرافیکی ببینم روند کار رو، مثل خود n8n». Built on the hub (commit `cba9fbb4`).
+```
+FlowAutomation += { graph: FlowGraph | null }      # null: no map (a §59 playbook's line); the apps show the steps' list
+FlowGraph     { lanes: [lane], nodes: [FlowGraphNode], edges: [FlowGraphEdge] }
+FlowGraphNode { key, title_fa, kind, helper | null, lane, col: int ≥ 0, row: int ≥ 0 = 0, note_fa, model | null }
+FlowGraphEdge { source, target, label_fa }         # node keys; label_fa may be ""
+lane: "n8n" | "hub" | "workshop" | "chatgpt" | "gemini" | "voice" | "ighub"   # who does the step
+```
+- **A node's `key` is its step's key.** The same key is in `FlowAutomation.steps[]` (what it does: `title_fa`,
+  `input_fa`, `output_fa`, `rules_fa`, `model`, `effort`) and in each day's `LineRun.steps[]` (§59.8: `state`,
+  `started_at`, `ended_at`, `error_fa`, `model`, `helper`, `outputs`). A node with no step in a day is `pending` that day.
+- **`lanes`:** the bands of the canvas in order, top to bottom; only lanes that hold a node. A node whose lane is not
+  in `lanes` (a newer hub) goes in a band after them, in the order it first appears.
+- **`col`** is the node's place in time, 0 first. **`row`** stacks nodes of one lane in one column (a fan-out: the
+  seven stories that open from «schedule», rows 0–6). A band is as tall as its most rows.
+- **`edges`** are drawn as given. An edge whose source or target is not a node is left out. A label is short (a story's
+  hour, «وقتی اولین استوری رفت»).
+- **`model`** on a workshop node is its id (`claude-opus-5-5`, `claude-fable-5-2`); the apps name it («Opus 5.5»,
+  «Fable 5.2»).
+- **Nothing of a map is written in the apps.** A new automation the hub makes has its map without a new app.
+
+**The hub's own n8n flows** (⟨2026-11-14⟩, `domain/flow_view.py`):
+- `ref` `N8:<key>`, `kind: "flow"`, `playbook`, `version` and `line` null, `mode: "auto"`; on the board, kind `n8n`.
+- Its days are `F-…` (the day's order): `GET /automations/{ref}/runs` and `GET /line-runs/F-…` as §59.8, `trigger: "n8n"`.
+  Each step's state is read by code from what the day left (its turns, its files, IG-Hub's answers, the notices); no model call.
+- Day states: `queued` · `running` · `waiting` · `done` · `failed` · `cancelled`. Step states: `pending` · `running` ·
+  `waiting` (held in IG-Hub until its hour) · `done` · `failed` · `skipped` (its hour had gone when the day was ready).
+- **Its one control is the switch** (`POST /automations/{ref}/state`; while off, n8n still calls and the hub makes
+  nothing). `run-now`, `pause`, `skip`, `PATCH` and `PUT …/replies` answer 409 `validation_failed`, `message_fa`
+  «این اتوماسیون را Claude سرور هاب تنظیم میکند؛ همین را در گفتگو بگو.» The apps do not offer them.
+
+**The apps (Android 1.2.0):**
+- A flow's page opens on «نقشه» when `graph` is there, beside «قدم‌ها».
+- Above the canvas, the days: the latest seven of `runs`, newest first and chosen.
+- Lanes are faint bands with their names. A node is a card with its doer's mark, `title_fa` and `note_fa`, and a model
+  chip on a workshop node. An edge is a curve with an arrow and its label. Right to left: col 0 on the right.
+- Each node takes that day's state:
+  - pending: grey;
+  - running: lapis, with a pulse (the app's colour for «در کار»; its green is already turquoise, and «done» is green);
+  - waiting: amber, with a clock;
+  - done: green, with a tick;
+  - failed: red;
+  - skipped: dashed.
+- Dots flow along the edges into a running node. While the day is `queued`, `running` or `waiting`, the page reads it
+  again every 15 s.
+- Pinch to zoom, drag to move, «همه در صفحه», and a full-screen view. A node keeps its size; the canvas scrolls.
+- A tap on a node opens its sheet:
+  - what it does (from `steps`);
+  - that day: state, start, end, minutes, model, `error_fa`;
+  - its files (`outputs`; a picture or a video opens on a tap);
+  - «خط زمان همین روز» (§59.8).
+- **On the board:** under an `n8n` card, a thin strip of the last day's node colours when the hub sends `last.steps`
+  (§59.10). Without it there is no strip and nothing else changes.
+
 ### 59.8 A run's timeline (`GET /api/v1/line-runs/{ref}`, §30.5 additive)
 - `LineRun += {automation, playbook, playbook_fa, version, company_fa, topic_fa, published: [Published + {permalink,
   kind}], results: RunResults | null, cost: {tokens, usd_equiv, usd}, minutes}`.
@@ -5620,14 +5677,16 @@ DaySummary { day, line_fa, items: [{automation, title_fa, company_fa, state, pub
 One list for everything that runs by itself.
 ```
 AutomationBoard { items: [BoardItem], health: [Health], today: {runs, published, cost_usd} }
-BoardItem { ref, kind: "flow"|"routine"|"standing_publish"|"line"|"rule"|"archive",
+BoardItem { ref, kind: "flow"|"routine"|"standing_publish"|"line"|"rule"|"archive"|"n8n",   # ⟨1.38⟩ n8n: §59.7.1
             title_fa, company | null, company_fa | null, playbook | null, playbook_fa | null, version | null,
             when_fa, state: "on"|"off"|"paused"|"proposed", switchable: bool,
-            last: {at, state, note_fa} | null, next_at | null, cost_today_usd | null, opens: str }
+            last: {at, state, note_fa, steps?: [{key, state}]} | null,   # ⟨1.38⟩ steps: optional, the last day's nodes in col order
+            next_at | null, cost_today_usd | null, opens: str }
 Health { key: "n8n"|"ighub"|"publish_path"|"helpers_browser"|"aistudio"|"workshop", state: "ok"|"warn"|"down", note_fa }
 ```
 - `kind`: `flow` (§59.7), `routine` (§50), `standing_publish` (§45: one per member with `auto`; its ref
-  `SP:<group>:<company>`), `line` (§30, a line not under a flow), `rule` (§31.7), `archive` (§23.7, the ref `AU-…`).
+  `SP:<group>:<company>`), `line` (§30, a line not under a flow), `rule` (§31.7), `archive` (§23.7, the ref `AU-…`),
+  ⟨1.38⟩ `n8n` (§59.7.1, the hub's own n8n flows, ref `N8:<key>`, `opens` `automation/N8:<key>`).
 - `opens`: the app's place for it (`automation/<ref>`, `lines/<ref>`, `groups/<key>`, an order for a routine, `archive-settings`).
 - **The switch is the owner's, one tap** (`POST /automations/{ref}/state`, every kind): `standing_publish` off = its mode
   `ask` (§45.1), on = `auto`; `archive` on/off is its status (no step-up: he sealed it once); `rule` from `proposed` still
