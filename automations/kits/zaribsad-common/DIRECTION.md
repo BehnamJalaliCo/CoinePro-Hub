@@ -32,15 +32,19 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
 6. **(2026-11-15) The cover follows the cover pack** (COMMON/cover/COVER_PACK.md): the brand's three
    colours, the title in our font, one element of the topic.
 
+7. **(2026-11-15) Crisp picture, no hits.** The ZEC draft had particles/rain/grain and blur that
+   made it look low quality, and percussive hits between paragraphs: §3 and §4 forbid both now;
+   check the stills for haze and every sentence boundary for a jump.
+
 ## 1. Choose the track per topic (write it and why in direction/CONTRACT.md)
 - **ANIME** (a story, a person, fear and greed, a lesson told as a scene, news drama): limited-TV
   anime done for real — AI key art of a consistent cast and painted backgrounds; cel-shaded look;
   multi-plane parallax (3–5 planes); camera push, pan, shake on impacts; speed lines, impact frames,
   smears; character changes on twos; anticipation and overshoot; mouth flaps from the voice
-  loudness (closed in silence), blinks; light effects (rim light, glow, sparkles, dust).
+  loudness (closed in silence), blinks; light effects (rim light, glow) — sharp, never hazy.
 - **CINEMATIC MOTION GRAPHICS** (how a thing works, data, prices, a coin, a mechanism): 3D-feeling
-  depth (perspective, layered glass cards, depth-of-field blur), volumetric light and light sweeps,
-  particles and bokeh, bloom, a colour grade, film grain; real data visualised (animated charts and
+  depth (perspective, layered glass cards, parallax), light sweeps and a clean glow, a colour grade;
+  every plate SHARP (no depth-of-field blur, no particles, no grain); real data visualised (animated charts and
   counters from the facts); photoreal or 3D-render key art as the world behind the graphics.
 - **HYBRID**: an anime host or guide character leading the viewer through motion-graphics cards.
 
@@ -68,8 +72,12 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
 - **Camera:** never static. Push-in, dolly, parallax drift, slow rotation, rack focus, a whip on the
   transition. Eased curves (cubic/expo), never linear. Motion blur on fast moves (average 3–4
   sub-frames per frame, or a directional blur).
-- **Depth and light:** at least 3 planes; foreground particles, dust or bokeh; glow and light
-  sweeps; vignette; subtle film grain; ONE colour grade across the reel.
+- **Depth and light:** at least 3 planes moving at their own rates (parallax); clean glow and light
+  sweeps; a light vignette; ONE colour grade across the reel. **Crisp, never hazy** (owner,
+  2026-11-15, on the ZEC draft: «یه تاری… یه ذراتی توی ویدیو هست که کیفیت رو خیلی پایین آورده»):
+  NO particle, dust, rain, snow, bokeh or film-grain overlay; NO depth-of-field or gaussian blur on
+  a key-art plate or a card; motion blur only for the few frames of a fast whip. The key art shows
+  at its full sharpness (upscaled cleanly, never softened).
 - **Typography:** IRANYekanX Eco only (/home/studio/kits/fonts-eco; Bold for headlines). Kinetic
   Persian captions word by word, the key word of each sentence popped in the accent colour; big
   numbers count up and LAND exactly on the fact (hold ≥ 1.2 s); captions in the safe area (keep
@@ -81,9 +89,13 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
   and a line that makes them stay); the payoff before the call to action.
 
 ## 4. Sound
-A music bed whose energy follows the edit (rise into the hook and the CTA), whooshes on the
-transitions, hits on reveals and numbers, a riser before the CTA, the music ducked under the
-voice, the voice always clear, about −14 LUFS. (Use motion/audio4.py; write your own cue list.)
+A music bed whose energy follows the edit (rise into the hook and the CTA), the music ducked under
+the voice, the voice always clear, about −14 LUFS. (Use motion/audio4.py; write your own cue list.)
+**No hits, ever** (owner, 2026-11-15, on the ZEC draft: between paragraphs «یه صدایی مثل انتهای صدایی
+که توی ویدیو قبلی بود میاد»): no taiko, boom, impact, sub-drop, thump or any percussive cue on a
+transition, a reveal, a number or between sentences; at most a very soft airy swish (≥ 12 dB under
+the voice) on a big transition. Check EVERY sentence boundary of the final mix: astats on a 0.6 s
+window around each pause between sentences — the peak must not jump above the music bed's level.
 
 ## 5. Different every time — the day's look (deterministic, so two days never match)
 Let N = the day of the year. Take: transition family = N mod 7, camera language = N mod 6,
