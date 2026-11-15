@@ -330,13 +330,13 @@ internal class V59Demo(private val v40: V40Demo) {
             return 200 to jo("items" to JsonArray(items), "health" to health, "today" to jo("runs" to 3, "published" to 1, "cost_usd" to 2.39))
         }
         if (path == "/automations/today" && method == "GET") return 200 to jo(
-            "day" to LocalDate.now(tehran).toString(), "line_fa" to "امروز: ریلز «بازپخش جلسه‌ی زنده‌ی طلا» منتشر شد، ۱۲ کامنت، ۹ دایرکت، ۴ کلیک",
+            "day" to now.atZone(tehran).toLocalDate().toString(), "line_fa" to "امروز: ریلز «بازپخش جلسه‌ی زنده‌ی طلا» منتشر شد، ۱۲ کامنت، ۹ دایرکت، ۴ کلیک",
             "items" to JsonArray(listOf(jo("automation" to "AT-0700", "title_fa" to "ریلز روزانه‌ی پروچارت", "company_fa" to "پرو-چارت", "state" to "done",
                 "published" to JsonArray(listOf(jo("kind" to "reel", "url" to "https://www.instagram.com/reel/Dfq-Zc4lNve/"))), "comments" to 12, "dms_sent" to 9, "clicks" to 4, "cost_usd" to 3.21, "note_fa" to ""))),
             "cost_usd" to 3.21,
         )
         if (path == "/automations/calendar" && method == "GET") {
-            val start = LocalDate.now(tehran)
+            val start = now.atZone(tehran).toLocalDate()
             return 200 to jo("days" to JsonArray((0..13).map { d ->
                 val day = start.plusDays(d.toLong())
                 val t = day.atTime(19, 0).atZone(tehran).toInstant().toString()
