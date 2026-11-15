@@ -98,6 +98,19 @@ document.querySelector('[data-testid=send-button]').onclick = send;
 </script></body></html>""".encode()
 LOGIN = b"<html><body><button data-testid='login-button'>Log in</button></body></html>"
 BROKEN = b"<html><body><p>a redesigned page without the prompt box</p></body></html>"
+# ⟨2026-11-15⟩ Gemini: the generated picture is a blob: URL the page revokes once it is drawn
+REVOKED = b"""<html><body><div id='out'></div><script>
+const c = document.createElement('canvas'); c.width = 40; c.height = 30;
+const g = c.getContext('2d'); g.fillStyle = '#d02020'; g.fillRect(0, 0, 40, 30);
+c.toBlob((b) => {
+  const u = URL.createObjectURL(b);
+  const img = document.createElement('img');
+  img.className = 'gen';
+  img.onload = () => { URL.revokeObjectURL(u); img.dataset.ready = '1'; };
+  img.src = u;
+  document.getElementById('out').appendChild(img);
+}, 'image/png');
+</script></body></html>"""
 
 
 class Site:
@@ -138,6 +151,8 @@ class Site:
             body = LOGIN
         elif path == "/broken":
             body = BROKEN
+        elif path == "/revoked":
+            body = REVOKED
         elif path == "/api/answer":
             ctype, body = "text/plain; charset=utf-8", b"answer to: " + body_in[:40]
         elif path == "/img/1.png":
@@ -245,6 +260,25 @@ async def test_a_recipe_downloads_the_original_image(world: Any) -> None:
     assert COOKIE not in json.dumps(got)  # never a cookie in a result
     # The tracker on another host never left (the route and the bucket both refuse it).
     assert not [s for s in site.seen if s["host"] == "other.test"]
+
+
+async def test_a_revoked_blob_image_is_taken_from_its_pixels(world: Any) -> None:
+    """⟨2026-11-15⟩ Gemini revokes the blob: URL of its picture once it is drawn; the step takes
+    the picture from the element itself (a PNG at its natural size), not a failed fetch."""
+    import base64
+    import struct
+
+    site, d, buckets, server, _ = world
+    steps = [
+        {"do": "goto", "url": "{start_url}"},
+        {"do": "wait", "selector": "img.gen[data-ready='1']", "timeout_s": 10},
+        {"do": "download_image", "selector": "img.gen", "attr": "src"},
+    ]
+    got = await d.job(_job(site, buckets, server, "/revoked", steps=steps))
+    assert got["ok"] is True, got
+    png = base64.b64decode(got["file"]["b64"])
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">II", png[16:24]) == (40, 30)  # the IHDR: its own full size
 
 
 async def test_the_profile_persists_its_files_are_600_and_logout_wipes_it(world: Any) -> None:

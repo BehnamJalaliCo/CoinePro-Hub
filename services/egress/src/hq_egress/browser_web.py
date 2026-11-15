@@ -82,6 +82,21 @@ B64_JS = """async (u) => {
   for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode(...b.subarray(i, i + 32768));
   return btoa(s);
 }"""
+# ⟨2026-11-15⟩ The picture an <img> shows, from its own pixels at its natural size, as a PNG: Gemini
+# revokes the image's blob: URL once it is drawn, so fetching the URL fails (the page's own
+# blob, so the canvas is never tainted).
+PIXELS_JS = """async (img) => {
+  if (!img.complete || !img.naturalWidth) await img.decode();
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  c.getContext('2d').drawImage(img, 0, 0);
+  const blob = await new Promise((ok, no) =>
+    c.toBlob(x => (x ? ok(x) : no(new Error('no pixels'))), 'image/png'));
+  const b = new Uint8Array(await blob.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode(...b.subarray(i, i + 32768));
+  return btoa(s);
+}"""
 
 
 class Proxy(BaseModel):
@@ -552,7 +567,11 @@ async def _image(
         _, _, b64 = src.partition(",")
         data = base64.b64decode(b64)
     elif src.startswith("blob:"):
-        data = base64.b64decode(await page.evaluate(B64_JS, src))
+        try:
+            data = base64.b64decode(await page.evaluate(B64_JS, src))
+        except Error:
+            # the blob is revoked (Gemini): the shown picture itself, from its element
+            data = base64.b64decode(await loc.nth(n - 1).evaluate(PIXELS_JS, timeout=ms))
     else:
         url = src if "://" in src else urljoin(page.url, src)
         host = (urlsplit(url).hostname or "").lower()
