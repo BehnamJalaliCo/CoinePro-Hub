@@ -619,3 +619,83 @@ async def test_a_big_picture_is_composed_through_the_childs_stdin(tmp_path: Path
     out = tmp_path / "direct.png"
     O.compose_job(svg.encode(), str(out), str(FONTS))
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+# ======================= ⟨2026-11-15⟩ a cover pack goes with ChatGPT's image ==
+async def test_a_cover_pack_goes_with_a_chatgpt_image(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """The owner (2026-11-15): every zaribsad cover is made by ChatGPT from the page's cover pack
+    (its colours, its title font): an agent's image call with reference pictures of its own
+    company goes to ChatGPT with them attached (the worker runs its `cover` task) and its brief
+    keeps its title (no «no text» line); Gemini (its image task attaches nothing) and another
+    company's file: 422."""
+    from hq_api.domain import substitutes as S
+
+    from .test_p12a_substitutes import FakeEgress, bench, per_day
+    from .test_p12a_substitutes import png as png_b64
+
+    co = await new_company()
+
+    async def an_image(company_id: Any) -> str:
+        tmp = hub.storage.scratch()
+        tmp.write_bytes(b"\x89PNG\r\n\x1a\n-board")
+        key, sha, size = await hub.storage.commit(tmp)
+        return str(await su.fetchval(
+            """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                   created_by_kind, created_by_code, kind)
+               VALUES ($1, 'cover_board', 'image/png', $2, $3, $4, 'service', 'kit', 'image')
+               RETURNING id""",
+            company_id, size, sha, key,
+        ))  # fmt: skip
+
+    async def made(r: httpx.Response) -> dict[str, Any]:
+        assert r.status_code == 200, r.text
+        return dict(await su.fetchrow(
+            """SELECT k.*, c.prompt_md FROM substitutes.creatives c
+               JOIN substitutes.calls k ON k.id = c.call_id WHERE c.ref = $1""",
+            r.json()["creative"],
+        ))  # fmt: skip
+
+    board = await an_image(co["id"])
+    out = await post_order(client, owner, f"برای {co['code']} کاور ریلز بساز {words()}")
+    [route] = out["routes"]
+    holder = await run_on(su, route["to"], route["work_ref"])
+    call = {"seat": "creative", "kind": "image", "placement": "other", "file_ids": [board],
+            "input_md": "A 9:16 reel cover from the attached board, title «پول نامرئی»"}  # fmt: skip
+    async with bench(su, hub, web=("gpt", "gemini")):
+        await per_day(su, "gpt", "creative", 10)
+        await per_day(su, "gemini", "creative", 10)
+        c = await made(
+            await client.post("/internal/v1/substitutes/call", headers=holder, json=call)
+        )
+        assert (c["task"], [str(f) for f in c["file_ids"]], c["player"]) == (
+            "image",
+            [board],
+            "gpt",
+        )
+        assert S.NO_TEXT not in c["prompt_md"] and "پول نامرئی" in c["prompt_md"]
+        # the worker runs it as ChatGPT's `cover` task, the board attached (named with its type)
+        fake = FakeEgress({"ok": True, "file": {"name": "c.png", "mime": "image/png",
+                                                "b64": png_b64(941, 1672)}})  # fmt: skip
+        c = dict(await su.fetchrow("SELECT * FROM substitutes.calls WHERE id = $1", c["id"]))
+        assert await S._web_job(hub, fake, c, "chatgpt-web") == 1
+        [sent] = fake.calls
+        assert sent["task"] == "cover" and [f["name"] for f in sent["files"]] == ["cover_board.png"]
+        # Gemini cannot take it; another company's picture is not this agent's to send
+        r = await client.post("/internal/v1/substitutes/call", headers=holder,
+                              json={**call, "player": "gemini"})  # fmt: skip
+        assert r.status_code == 422, r.text
+        other = await new_company()
+        r = await client.post("/internal/v1/substitutes/call", headers=holder,
+                              json={**call, "file_ids": [await an_image(other["id"])]})  # fmt: skip
+        assert r.status_code == 422 and "file_ids" in r.text
+        # a plain image keeps the hub's «no text» line and its own task
+        plain = await made(await client.post("/internal/v1/substitutes/call", headers=holder,
+                                             json={**call, "file_ids": []}))  # fmt: skip
+        assert plain["task"] == "image" and S.NO_TEXT in plain["prompt_md"]

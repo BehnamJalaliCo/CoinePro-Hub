@@ -2112,6 +2112,9 @@ def template_prompt(brief: str, placement: str, kind: str, duration: int | None)
     return f"{what} for an ad ({placement}, aspect {aspect}): {scrub(brief)[:3000]}\n{NO_TEXT}"
 
 
+REFERENCE_MAX = 4  # ⟨2026-11-15⟩ a creative's reference pictures (a cover pack)
+
+
 async def create_creative(
     tx: Tx,
     hub: Any,
@@ -2127,12 +2130,25 @@ async def create_creative(
     player: str | None,
     work_id: UUID | None = None,
     source_creative: dict[str, Any] | None = None,
+    reference_files: list[UUID] | None = None,
 ) -> dict[str, Any]:
     """⟨1.9⟩ `source_creative`: a picked image this video is made from
-    (contract §27.2 animate): its file goes with the call."""
+    (contract §27.2 animate): its file goes with the call. ⟨2026-11-15⟩ `reference_files`: an
+    image's reference pictures (a brand's cover pack: its colours and its title font), attached to
+    ChatGPT's chat (the worker runs it as its `cover` task; Gemini's image task attaches nothing)."""
     if kind == "video" and player == "gpt":
         raise ApiError(422, "validation_failed", fields={"player": "videos are Gemini's"})
-    prompt = prompt_md if NO_TEXT in prompt_md else f"{prompt_md.rstrip()}\n{NO_TEXT}"
+    refs = list(reference_files or [])[:REFERENCE_MAX]
+    if refs:
+        if kind != "image" or player not in (None, "gpt"):
+            raise ApiError(422, "validation_failed",
+                           fields={"file_ids": "reference pictures go with a ChatGPT image only"},
+                           message_fa="عکس راهنما فقط همراه ساخت تصویر با ChatGPT می‌رود.")  # fmt: skip
+        player = "gpt"
+    # a cover from a pack: its brief names the one title ChatGPT sets (the owner's order,
+    # 2026-11-15); every other picture is made without text, the hub's or the session's own type
+    # goes on it later
+    prompt = prompt_md if refs or NO_TEXT in prompt_md else f"{prompt_md.rstrip()}\n{NO_TEXT}"
     found = await holder(tx, "creative", player, kind)
     p_name = found[0]["player"] if found else (player or "gpt")
     model = found[1]["model"] if found else DEFAULT_PLAYERS[p_name]["models"][0]["id"]
@@ -2169,7 +2185,7 @@ async def create_creative(
         purpose=("creative", row["ref"]),
         player=p_name,
         task=kind,
-        file_ids=_source_files(source_creative),
+        file_ids=refs or _source_files(source_creative),
     )
     state = "queued" if call["state"] == "queued" else "failed"
     row = await tx.one(
@@ -2811,7 +2827,11 @@ async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> in
                 extra["reload"] = True
             answer = await egress.web(
                 account=account,
-                task=c["task"],
+                # ⟨2026-11-15⟩ an image with pictures attached (a cover pack) is ChatGPT's `cover`
+                # task, the one whose recipe attaches files
+                task="cover"
+                if files and c["task"] == "image" and c["player"] == "gpt"
+                else c["task"],
                 prompt=(c["input_md"] or "")[:WEB_PROMPT_LIMIT],
                 timeout_s=c["timeout_s"],
                 **extra,

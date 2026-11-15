@@ -439,6 +439,19 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
                 # ⟨1.18⟩ §36.3 a font of the order this run works on, or of its own company
                 await CO.font_for(tx, body.overlay.font_file_id, run_id=who.run_id,
                                   company_id=who.company_id)  # fmt: skip
+            refs = list(dict.fromkeys(body.file_ids))
+            if refs:
+                # ⟨2026-11-15⟩ reference pictures (a cover pack): images of the agent's own company
+                own = await tx.scalar(
+                    """SELECT count(*) FROM files.files WHERE id = ANY(CAST(:ids AS uuid[]))
+                           AND company_id = :co AND kind = 'image'""",
+                    ids=[str(f) for f in refs],
+                    co=who.company_id,
+                )
+                if own != len(refs):
+                    raise ApiError(422, "validation_failed",
+                                   fields={"file_ids": "images of this company only"},
+                                   message_fa="عکس راهنما باید عکسی از همین شرکت باشد.")  # fmt: skip
             row = await S.create_creative(
                 tx,
                 hub,
@@ -452,6 +465,7 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
                 duration_s=body.duration_s,
                 player=body.player if body.player in ("gpt", "gemini") else None,
                 work_id=mine,
+                reference_files=refs or None,
             )
             if row["state"] == "failed":
                 call = await tx.one(
