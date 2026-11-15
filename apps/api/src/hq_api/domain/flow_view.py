@@ -65,46 +65,186 @@ def _step(key: str, title: str, kind: str, helper: str, out: str = "", inp: str 
     )  # fmt: skip
 
 
-def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
-    """What the flow does, in order (the kit's README for the workshop's part)."""
-    hours = "، ".join(h or "پربازدیدترین ساعت" for h in flow.hours)
+def _model(flow: FL.Flow) -> str:
+    """The model its workshop turns run on today (⟨2026-11-15⟩ a flow may name its own)."""
+    return FL.model_on(flow, datetime.now(_tz()).date()) or OPUS
+
+
+def recipe(flow: FL.Flow) -> str:
+    """⟨2026-11-15⟩ Which steps a flow has: «stories», a Zarib×100 reel, or the Pro-Chart reel."""
+    if flow.stories:
+        return "stories"
+    return "zaribsad" if "/zaribsad-" in flow.kit else "reel"
+
+
+# the lane (who does it) of each step: one row per lane on the app's canvas
+LANE = {
+    "n8n": "n8n", "order": "hub", "package": "hub", "report": "hub",
+    "schedule": "ighub", "publish": "ighub", "replies": "ighub", "rule": "ighub",
+    "script": "chatgpt", "keyart": "chatgpt", "cover_gpt": "chatgpt", "pictures": "chatgpt",
+    "voice": "voice",
+}  # fmt: skip
+
+
+def _head(flow: FL.Flow) -> list[FS.FlowStep]:
     at = flow.trigger_at.translate(FA_DIGITS)
+    day = "همان روز" if flow.same_day else "روز بعد"
+    if flow.stories:
+        when = f"{len(flow.stories)} استوری، از {flow.stories[0]} تا {flow.stories[-1]}"
+    else:
+        when = "ساعت انتشار در دور چهار هفته‌ای: " + "، ".join(
+            h or "پربازدیدترین ساعت" for h in flow.hours
+        )
+    cap = f"سقف هزینه‌ی هر روز {int(flow.usd_cap)} دلار؛ بیشتر شد، کار میایستد و خبر میرسد"
+    rules = [when.translate(FA_DIGITS), cap.translate(FA_DIGITS)]
+    if flow.cycle:
+        rules.append("نوع روز به نوبت: " + "، ".join(flow.cycle))
+    if flow.pair:
+        rules.append("ریلز دوم روز؛ هیچ‌وقت هم‌ساعت ریلز اول نیست")
     return [
         _step("n8n", "n8n روند را روشن میکند", "n8n", "code", inp=f"هر روز ساعت {at} تهران",
-              out="درخواست امضاشده به هاب برای روز بعد"),
+              out=f"درخواست امضاشده به هاب برای {day}"),
         _step("order", "سفارش روز در هاب", "order", "code",
-              out="یک جلسه‌ی خودکار برای مدیرعامل شرکت؛ بی پرسش و بی انتظار",
-              rules=(f"ساعت انتشار در دور چهار هفته‌ای: {hours}".translate(FA_DIGITS),
-                     "سقف هزینه‌ی هر روز ۱۰ دلار؛ بیشتر شد، کار میایستد و خبر میرسد")),
-        _step("topic", "موضوع روز از بانک موضوع‌ها", "workshop", "workshop", out="topic.txt",
-              model=OPUS),
-        _step("script", "سناریو", "workshop", "gpt", out="متن گوینده",
-              rules=("اگر ChatGPT جواب نداد، Claude خودش مینویسد",)),
-        _step("voice", "صدای گوینده", "workshop", "gemini", out="فایل صدا"),
-        _step("voice_check", "بازبینی صدا و زمان هر کلمه", "workshop", "code"),
-        _step("direction", "کارگردانی و تدوین روی کاغذ", "workshop", "workshop", model=OPUS),
-        _step("render", "ساخت ویدیو، یک بار رندر", "workshop", "workshop", out="video.mp4",
-              model=OPUS),
-        _step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)"),
-        _step("cover", "کاور با المان همان روز", "workshop", "workshop", out="cover.jpg",
-              model=OPUS),
-        _step("texts", "کپشن و متن کامنت", "workshop", "workshop",
-              out="caption.txt، comment.txt", model=OPUS),
+              out=f"یک جلسه‌ی خودکار در کارگاه، روی {_model(flow)}؛ بی پرسش و بی انتظار",
+              rules=tuple(rules)),
+    ]  # fmt: skip
+
+
+def _tail(flow: FL.Flow) -> list[FS.FlowStep]:
+    what = f"ریلز و استوری @{flow.account}" if flow.story else f"ریلز @{flow.account}"
+    return [
         _step("package", "بسته‌ی کامل", "package", "code",
               rules=("تا هر شش فایل نرسیده، چیزی منتشر نمیشود",)),
-        _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub",
-              out=f"ریلز و استوری @{flow.account}" if flow.story else f"ریلز @{flow.account}"),
+        _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub", out=what),
         _step("publish", "انتشار در ساعت خودش", "publish", "ighub"),
-        _step("replies", "کامنت هوشمند و جواب استوری", "publish", "ighub"),
+        _step("replies", "کامنت هوشمند و جواب استوری", "publish", "ighub",
+              out="دایرکت با دکمه‌ی لینک، ده جواب عمومی"),
         _step("report", "خبر به مدیر کل", "report", "code",
               out="«آماده شد» و «منتشر شد» با لینک"),
     ]  # fmt: skip
 
 
+def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
+    """What the flow does, in order (the kit's README for the workshop's part)."""
+    m = _model(flow)
+    kind = recipe(flow)
+    if kind == "stories":
+        n = len(flow.stories)
+        posts = [
+            _step(f"s{i}", f"استوری {i}".translate(FA_DIGITS), "publish", "ighub",
+                  inp=f"ساعت {hm}".translate(FA_DIGITS), out=f"story_{i}.jpg")
+            for i, hm in enumerate(flow.stories, 1)
+        ]  # fmt: skip
+        return [
+            *_head(flow),
+            _step("data", "داده‌ی بازار و کارنامه‌ی VIP", "workshop", "code",
+                  out="قیمت‌ها، ترس و طمع، آمار سیگنال‌ها از سایت تریدیار"),
+            _step("word", "کلمه‌ی امروز", "workshop", "workshop", model=m,
+                  rules=("کلمه‌ی تازه؛ هیچ‌وقت کلمه‌ای که پیش از این گرفته شده",)),
+            _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop", "gpt",
+                  out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
+            _step("compose", "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
+                  out=f"story_1.jpg تا story_{n}.jpg".translate(FA_DIGITS)),
+            _step("dm", "جواب دایرکت با سه دکمه", "workshop", "workshop", model=m,
+                  out="comment.txt: ورود رایگان VIP، ثبت‌نام LBank، راهنما"),
+            _step("package", "بسته‌ی روز", "package", "code",
+                  rules=("تا همه‌ی عکس‌ها و جواب دایرکت نرسیده، چیزی منتشر نمیشود",)),
+            _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub",
+                  out=f"هر استوری در ساعت خودش روی @{flow.account}",
+                  rules=("ساعتی که بیش از نیم ساعت گذشته باشد جا میماند",)),
+            *posts,
+            _step("rule", "جواب دایرکت استوری‌ها", "publish", "ighub",
+                  out="هر کس کلمه‌ی امروز را بفرستد، دعوت VIP با سه دکمه میگیرد"),
+            _step("report", "خبر به مدیر کل", "report", "code", out="«آماده شد» با کلمه‌ی امروز"),
+        ]  # fmt: skip
+    if kind == "zaribsad":
+        topic = ("ارز روز و داده‌های واقعی آن" if "coin" in flow.key
+                 else "موضوع روز به نوع روز، با داده‌ی همان لحظه")  # fmt: skip
+        return [
+            *_head(flow),
+            _step("topic", topic, "workshop", "workshop", out="topic.txt", model=m),
+            _step("inspire", "ایده از پینترست و ریلزهای تاپ", "workshop", "workshop", model=m,
+                  out="۳ تا ۶ نمونه‌ی سطح بالا، هر روز تازه"),
+            _step("script", "سناریو با ChatGPT", "workshop", "gpt", out="متن گوینده",
+                  rules=("بی جمله‌ی هشدار؛ هر عدد از داده‌ی همان روز",)),
+            _step("voice", "صدای گوینده (Cruz)", "workshop", "aistudio", out="فایل صدا"),
+            _step("voice_check", "بازبینی صدا، نام برندها و زمان هر کلمه", "workshop", "code"),
+            _step("keyart", "تصویرهای کلیدی با ChatGPT", "workshop", "gpt",
+                  out="دست‌کم شش تصویر واقعی یا سه‌بعدی، بی متن"),
+            _step("direction", "کارگردانی: نماها، دوربین، ترنزیشن و صدا", "workshop", "workshop",
+                  model=m),
+            _step("render", "موشن‌گرافی پرمیوم، یک بار رندر ۶۰ فریم", "workshop", "workshop",
+                  out="video.mp4", model=m, rules=("تمیز و شارپ؛ بی ذره و تاری، بی ضربه‌ی صدا",)),
+            _step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)"),
+            _step("cover", "کاور از پک کاور با ChatGPT", "workshop", "gpt", out="cover.jpg",
+                  rules=("سه رنگ پیج، عنوان با فونت خودمان، یک المان از موضوع",)),
+            _step("texts", "کپشن، کلمه‌ی کامنت و دایرکت", "workshop", "workshop",
+                  out="caption.txt، comment.txt", model=m),
+            *_tail(flow),
+        ]  # fmt: skip
+    return [
+        *_head(flow),
+        _step("topic", "موضوع روز از بانک موضوع‌ها", "workshop", "workshop", out="topic.txt",
+              model=m),
+        _step("script", "سناریو", "workshop", "gpt", out="متن گوینده",
+              rules=("اگر ChatGPT جواب نداد، Claude خودش مینویسد",)),
+        _step("voice", "صدای گوینده", "workshop", "gemini", out="فایل صدا"),
+        _step("voice_check", "بازبینی صدا و زمان هر کلمه", "workshop", "code"),
+        _step("direction", "کارگردانی و تدوین روی کاغذ", "workshop", "workshop", model=m),
+        _step("render", "ساخت ویدیو، یک بار رندر", "workshop", "workshop", out="video.mp4",
+              model=m),
+        _step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)"),
+        _step("cover", "کاور با المان همان روز", "workshop", "workshop", out="cover.jpg",
+              model=m),
+        _step("texts", "کپشن و متن کامنت", "workshop", "workshop",
+              out="caption.txt، comment.txt", model=m),
+        *_tail(flow),
+    ]  # fmt: skip
+
+
+LANES = ("n8n", "hub", "workshop", "chatgpt", "voice", "ighub")
+
+
+def _lane(s: FS.FlowStep) -> str:
+    if s.key in LANE:
+        return LANE[s.key]
+    return {"gpt": "chatgpt", "ighub": "ighub"}.get(str(s.helper), "workshop")
+
+
+def graph_of(flow: FL.Flow) -> FS.FlowGraph:
+    """⟨2026-11-15⟩ The flow's map, as n8n draws one: a node per step on its lane, left to right
+    in time; a stories flow fans out from its schedule to its stories, one row each, and its reply
+    rule follows the first that goes out."""
+    steps = steps_of(flow)
+    posts = [s.key for s in steps if s.key[0] == "s" and s.key[1:].isdigit()]
+    nodes: list[FS.FlowGraphNode] = []
+    edges: list[FS.FlowGraphEdge] = []
+    col, prev = 0, None
+    for s in steps:
+        if s.key in posts:
+            row = posts.index(s.key)
+            nodes.append(FS.FlowGraphNode(key=s.key, title_fa=s.title_fa, kind=s.kind,
+                                          helper=s.helper, lane="ighub", col=col, row=row,
+                                          note_fa=s.input_fa))  # fmt: skip
+            edges.append(FS.FlowGraphEdge(source="schedule", target=s.key, label_fa=s.input_fa))
+            if s.key == posts[-1]:
+                col, prev = col + 1, posts[0]
+            continue
+        nodes.append(FS.FlowGraphNode(key=s.key, title_fa=s.title_fa, kind=s.kind, helper=s.helper,
+                                      lane=_lane(s), col=col, note_fa=s.output_fa, model=s.model))  # fmt: skip
+        if prev is not None:
+            label = "وقتی اولین استوری رفت" if posts and prev == posts[0] else ""
+            edges.append(FS.FlowGraphEdge(source=prev, target=s.key, label_fa=label))
+        prev, col = s.key, col + 1
+    return FS.FlowGraph(lanes=[x for x in LANES if any(n.lane == x for n in nodes)],
+                        nodes=nodes, edges=edges)  # fmt: skip
+
+
 WORKSHOP = ("topic", "script", "voice", "voice_check", "direction", "render", "story", "cover",
-            "texts")  # fmt: skip
+            "texts", "inspire", "keyart", "data", "word", "pictures", "compose", "dm")  # fmt: skip
 FILE_OF = {"topic": ("topic.txt",), "render": ("video.mp4",), "story": ("story.mp4",),
-           "cover": ("cover.jpg", "cover.png"), "texts": ("caption.txt", "comment.txt")}  # fmt: skip
+           "cover": ("cover.jpg", "cover.png"), "texts": ("caption.txt", "comment.txt"),
+           "dm": ("comment.txt",)}  # fmt: skip
 
 
 # ---------------------------------------------------------------- the days --
@@ -156,7 +296,8 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     )
     jobs = await tx.all(
         """SELECT args ->> 'kind' AS kind, args -> 'meta' ->> 'rule_for' IS NOT NULL
-                  OR args ? 'rule_for' AS rule, state, finished_at, result
+                  OR args ? 'rule_for' AS rule, state, finished_at, result,
+                  lower(args -> 'session' ->> 'file_name') AS file_name
            FROM infra.server_jobs
            WHERE kind = 'publish' AND (args -> 'session' ->> 'order' = :o
                                        OR args -> 'rule_for' ->> 'order' = :o)
@@ -186,7 +327,7 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     rules = [j for j in jobs if j["rule"]]
     reel_url = next((str((OR._j(j["result"]) or {}).get("url") or "") or None
                      for j in out if j["kind"] == "reel"), None)  # fmt: skip
-    return {"meta": meta, "turns": [dict(t) for t in turns], "files": newest,
+    return {"meta": meta, "turns": [dict(t) for t in turns], "files": newest, "jobs": jobs,
             "scheduled": scheduled, "out": out, "failed": failed, "rules": rules,
             "said": [dict(x) for x in said], "usd": usd, "tokens": int(tokens or 0),
             "reel_url": reel_url}  # fmt: skip
@@ -196,6 +337,15 @@ def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
     """The day as a run: queued · running · waiting · done · failed · cancelled, and one line."""
     meta = f["meta"]
     running = any(t["state"] in ("queued", "running") for t in f["turns"])
+    flow = FL.FLOWS.get(str(meta.get("key")))
+    if flow is not None and flow.stories and (f["out"] or f["scheduled"]):
+        # ⟨2026-11-15⟩ the day's stories: done when none is still waiting for its hour
+        posts = [j for j in f["jobs"] if j["kind"] == "story" and not j["rule"]]
+        n_out = len([j for j in posts if j in f["out"]])
+        n_wait = len([j for j in posts if j not in f["out"] and j["state"] != "failed"])
+        if not n_wait:
+            return "done", f"{n_out} استوری منتشر شد".translate(FA_DIGITS)
+        return "waiting", f"{n_out} از {n_out + n_wait} استوری منتشر شد".translate(FA_DIGITS)
     if f["reel_url"]:
         return "done", "منتشر شد"
     if f["failed"] and not f["scheduled"]:
@@ -264,8 +414,12 @@ def next_trigger(flow: FL.Flow, now: datetime | None = None) -> datetime:
 
 
 def when_fa(flow: FL.Flow, day: date | None = None) -> str:
+    if flow.stories:
+        return (f"هر روز {flow.trigger_at} ساخت، {len(flow.stories)} استوری از {flow.stories[0]} "
+                f"تا {flow.stories[-1]}").translate(FA_DIGITS)  # fmt: skip
     hm = flow.hours[FL.week_of(flow, day)] if day else None
-    publish = f"، انتشار فردا {hm}" if hm else "، انتشار فردا"
+    when = "امروز" if flow.same_day else "فردا"
+    publish = f"، انتشار {when} {hm}" if hm else f"، انتشار {when}"
     return f"هر روز {flow.trigger_at} ساخت{publish}".translate(FA_DIGITS)
 
 
@@ -298,7 +452,9 @@ async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
     trig = next_trigger(flow)
     upcoming = []
     for i in range(14):
-        day = (trig.astimezone(_tz()) + timedelta(days=i)).date() + timedelta(days=1)
+        day = (trig.astimezone(_tz()) + timedelta(days=i)).date() + timedelta(
+            days=0 if flow.same_day else 1
+        )
         if co["id"] is not None:
             at, _ = await FL.slot_of(tx, flow, day, co["id"])
             upcoming.append(FS.FlowOccurrence(at=at))
@@ -306,7 +462,7 @@ async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
     made = await tx.scalar(
         "SELECT min(created_at) FROM work.work WHERE run_meta -> 'flow' ->> 'key' = :k", k=flow.key
     )
-    tomorrow = (trig.astimezone(_tz())).date() + timedelta(days=1)
+    tomorrow = (trig.astimezone(_tz())).date() + timedelta(days=0 if flow.same_day else 1)
     return FS.FlowAutomation(
         ref=ref, kind="flow", company=flow.company, company_fa=co["name_fa"] or "",
         playbook=None, version=None, line=None, title_fa=flow.title_fa,
@@ -315,7 +471,7 @@ async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
         account=flow.account, story=flow.story, mode="auto",
         budget=FS.FlowBudget(per_run_usd=float(flow.usd_cap), per_day_usd=float(flow.usd_cap),
                              spent_today_usd=usd),
-        steps=steps_of(flow), next=upcoming[0] if upcoming and not off else None,
+        steps=steps_of(flow), graph=graph_of(flow), next=upcoming[0] if upcoming and not off else None,
         upcoming=[] if off else upcoming, last_run=last, today=FS.FlowToday(runs=n, cost_usd=usd),
         n8n=FS.FlowN8n(workflow=flow.n8n or "n8n", last_tick_at=tick),
         created_at=made or datetime.now(UTC), by_fa="Claude سرور هاب، به دستور مدیر کل",
@@ -335,7 +491,7 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
         last = await run_ref(tx, hub, days[0]) if days else None
         _, usd = await _today_cost(tx, flow)
         trig = next_trigger(flow)
-        tomorrow = trig.astimezone(_tz()).date() + timedelta(days=1)
+        tomorrow = trig.astimezone(_tz()).date() + timedelta(days=0 if flow.same_day else 1)
         out.append(FS.BoardItem(
             ref=ref_of(key), kind="n8n", title_fa=flow.title_fa, company=flow.company,
             company_fa=co["name_fa"] or None, when_fa=when_fa(flow, tomorrow),
@@ -368,7 +524,12 @@ async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
     first = turns[0]["started_at"] if turns else None
     last_end = max((t["finished_at"] for t in turns if t["finished_at"]), default=None)
     running = any(t["state"] in ("queued", "running") for t in turns)
-    have_video = "video.mp4" in f["files"]
+    n_stories = len(flow.stories)
+    pics = [next((f["files"][f"story_{i}{e}"] for e in FL.PICTURE_EXT
+                  if f"story_{i}{e}" in f["files"]), None) for i in range(1, n_stories + 1)]  # fmt: skip
+    have_video = ("video.mp4" in f["files"]) if not n_stories else all(pics)
+    final_at = (f["files"]["video.mp4"]["created_at"] if not n_stories
+                else max(x["created_at"] for x in pics if x)) if have_video else None  # fmt: skip
     stopped = state in ("failed", "cancelled") and not f["scheduled"]
     sent_at = f["meta"].get("sent")
     sent = datetime.fromisoformat(str(sent_at)) if sent_at else None
@@ -384,8 +545,12 @@ async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
             if got and len(got) >= (1 if key == "cover" else len(names)):
                 shown = [files[str(g["id"])] for g in got if str(g["id"]) in files]
                 return "done", max(g["created_at"] for g in got), shown
+        elif key == "compose" and n_stories:
+            if have_video:
+                shown = [files[str(x["id"])] for x in pics if x and str(x["id"]) in files]
+                return "done", final_at, shown
         elif have_video:
-            return "done", f["files"]["video.mp4"]["created_at"], []
+            return "done", final_at, []
         if stopped:
             return "failed", None, []
         return ("running" if running else "pending"), None, []
@@ -410,14 +575,35 @@ async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
             elif stopped:
                 st, err = "failed", note
         elif s.key == "schedule":
-            if f["scheduled"]:
-                st, end = "done", sched_at
+            if f["scheduled"] or f["out"]:  # (once out, it is no longer in IG-Hub's queue)
+                st, end = "done", sched_at or sent
             elif f["failed"]:
                 st, err = "failed", "IG-Hub نپذیرفت"
         elif s.key == "publish":
             if f["out"]:
                 st, end = "done", out_at
             elif f["scheduled"]:
+                st = "waiting"
+        elif s.key[0] == "s" and s.key[1:].isdigit():
+            # ⟨2026-11-15⟩ one story at its own hour
+            i = int(s.key[1:])
+            mine = [j for j in f["jobs"] if j["kind"] == "story" and not j["rule"]
+                    and str(j["file_name"] or "").startswith(f"story_{i}.")]  # fmt: skip
+            if any(j in f["out"] for j in mine):
+                st, end = "done", max(j["finished_at"] for j in mine if j in f["out"])
+            elif any(j["state"] == "failed" for j in mine) and not any(
+                j in f["scheduled"] for j in mine
+            ):
+                st, err = "failed", "IG-Hub نپذیرفت"
+            elif mine:  # (on its way to IG-Hub, or held there for its hour)
+                st = "waiting"
+            elif sent:
+                st = "skipped"  # (its hour had gone by when the day was ready)
+        elif s.key == "rule":
+            if rules_done:
+                st, end = "done", max((j["finished_at"] for j in rules_done if j["finished_at"]),
+                                      default=None)  # fmt: skip
+            elif f["scheduled"] or f["out"]:
                 st = "waiting"
         elif s.key == "replies":
             if f["out"] and (rules_done or not flow.story):

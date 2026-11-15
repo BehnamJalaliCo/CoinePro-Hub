@@ -513,11 +513,11 @@ async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule
     out = first["session"]["output"]
     rules_sql = (
         "SELECT args FROM infra.server_jobs WHERE args -> 'rule_for' ->> 'trigger' = 'story_reply'"
-        " AND args ->> 'account' = $1"
+        " AND args ->> 'account' = $1 AND args -> 'rule_for' ->> 'output' = $2 ORDER BY created_at"
     )
-    before = len(await su.fetch(rules_sql, "pro.chart"))
+    before = len(await su.fetch(rules_sql, "pro.chart", out))
     await answer(client, ig_rn, first_job, {"external_id": "17900000000000001", "url": None})
-    made = await su.fetch(rules_sql, "pro.chart")
+    made = await su.fetch(rules_sql, "pro.chart", out)
     assert len(made) == before + 1
     rule = [m["args"] if isinstance(m["args"], dict) else __import__("json").loads(m["args"])
             for m in made][-1]["meta"]["rule"]  # fmt: skip
@@ -526,8 +526,30 @@ async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule
     second = next(str(j["id"]) for j, a in zip(jobs, args, strict=True)
                   if a["session"]["output"] == out and a is not first)  # fmt: skip
     await answer(client, ig_rn, second, {"external_id": "17900000000000002", "url": None})
-    assert len(await su.fetch(rules_sql, "pro.chart")) == before + 1
+    assert len(await su.fetch(rules_sql, "pro.chart", out)) == before + 1
     # the next day's brief names the word as taken
     async with hub.db.tx(await hub.companies.ids()) as tx:
         assert "الماس" in await FL.story_words(tx, "pro.chart")
+    # the owner sees it as a map (the owner: «به صورت گرافیکی ببینم روند کار رو مثل خود n8n»): a
+    # node per step on its lane, the seven stories fanned out, the day's run colouring each one
+    page = await client.get(f"/api/v1/automations/N8:{fk}", headers=owner)
+    assert page.status_code == 200, page.text
+    g = page.json()["graph"]
+    posts = [n for n in g["nodes"] if n["key"][0] == "s" and n["key"][1:].isdigit()]
+    assert [n["key"] for n in posts] == [f"s{i}" for i in range(1, 8)]
+    assert {n["col"] for n in posts} == {posts[0]["col"]} and [n["row"] for n in posts] == list(
+        range(7)
+    )
+    assert {(e["source"], e["target"]) for e in g["edges"]} >= {("schedule", "s7"), ("s1", "rule")}
+    assert g["lanes"][0] == "n8n" and "chatgpt" in g["lanes"] and "ighub" in g["lanes"]
+    run = await client.get(f"/api/v1/line-runs/{order}", headers=owner)
+    assert run.status_code == 200, run.text
+    states = {x["key"]: x["state"] for x in run.json()["steps"]}
+    assert {n["key"] for n in g["nodes"]} == set(states)
+    assert (
+        states["s1"] == "done" and sorted(states[f"s{i}"] for i in range(1, 8)).count("done") == 2
+    )
+    assert [states[f"s{i}"] for i in range(1, 8)].count("waiting") == 5
+    assert states["compose"] == states["pictures"] == states["dm"] == "done"
+    assert states["schedule"] == "done" and run.json()["state"] == "waiting"
     assert SPB.view  # (the module is the one the hub runs)

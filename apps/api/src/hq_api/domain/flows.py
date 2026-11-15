@@ -75,6 +75,9 @@ class Flow:
     # ⟨2026-11-15⟩ a stories flow (the owner: «استوری ضریب صد روزانه ۷ عدد»): the hours (Tehran) of
     # the day's picture stories, one each; the day's reply rule answers the account's story replies
     stories: tuple[str, ...] = ()
+    # ⟨2026-11-15⟩ n8n makes the day it is called on (the page's news cannot wait a day); else
+    # the next day
+    same_day: bool = False
 
 
 FLOWS = {
@@ -127,6 +130,7 @@ FLOWS = {
         # ریلز امروز رو که هیچ، ولی از فردا»
         model="claude-fable-5-2",
         model_from=date(2026, 11, 16),
+        same_day=True,
     ),
     "zaribsad_coin": Flow(
         key="zaribsad_coin",
@@ -142,6 +146,7 @@ FLOWS = {
         usd_cap=Decimal("100"),
         model="claude-fable-5-2",  # (as the 12:00 one: from tomorrow)
         model_from=date(2026, 11, 16),
+        same_day=True,
     ),
     # ⟨2026-11-15⟩ the owner: «اتوماسیون استوری ضریب صد روزانه ۷ عدد که مطالبی باشه که برای کاربر
     # جذاب باشه که وارد کانال سیگنال بشه و جواب‌های دایرکت استوری طوری باشه که کاربر رو ترغیب بکنه
@@ -161,6 +166,7 @@ FLOWS = {
         usd_cap=Decimal("60"),
         model="claude-fable-5-2",
         stories=("08:30", "10:30", "13:30", "15:30", "17:30", "20:30", "22:30"),
+        same_day=True,
     ),
     # ⟨2026-11-15⟩ the owner: «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»: the ZEC
     # reel once more on Claude Fable 5.2, to set beside the Opus 5.5 one. No account: nothing is

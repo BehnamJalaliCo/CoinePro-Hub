@@ -245,6 +245,34 @@ class FlowN8n(BaseModel):
     last_tick_at: datetime | None = None
 
 
+class FlowGraphNode(BaseModel):
+    """⟨2026-11-15⟩ One node of an automation's map (the owner: «به صورت گرافیکی ببینم روند کار رو
+    مثل خود n8n»): `key` is its step's key, so a day's run (`GET /line-runs/F-…`, its `steps[].key`)
+    colours it; `lane` is who does it (one row per lane on the canvas), `col` its place in time."""
+
+    key: str
+    title_fa: str
+    kind: str
+    helper: str | None = None
+    lane: Literal["n8n", "hub", "workshop", "chatgpt", "gemini", "voice", "ighub"]
+    col: int = Field(ge=0)
+    row: int = Field(default=0, ge=0)
+    note_fa: str = ""
+    model: str | None = None
+
+
+class FlowGraphEdge(BaseModel):
+    source: str
+    target: str
+    label_fa: str = ""
+
+
+class FlowGraph(BaseModel):
+    lanes: list[str] = Field(default_factory=list)
+    nodes: list[FlowGraphNode] = Field(default_factory=list)
+    edges: list[FlowGraphEdge] = Field(default_factory=list)
+
+
 class FlowAutomation(BaseModel):
     ref: str
     kind: Literal["flow"] = "flow"
@@ -272,6 +300,8 @@ class FlowAutomation(BaseModel):
     n8n: FlowN8n = Field(default_factory=FlowN8n)
     created_at: datetime
     by_fa: str = ""
+    # ⟨2026-11-15⟩ the map of the steps (an n8n flow's own): none for a playbook line
+    graph: FlowGraph | None = None
 
 
 class FlowRuns(BaseModel):
