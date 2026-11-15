@@ -81,8 +81,10 @@ start (the steps below); mark each done with `order.progress`.
 9. **Render once** at 1080×1920 60 fps → encode with the mix → `out/video.mp4`; check 8 random
    frames of the final file; remove build/seg* temp folders.
 10. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -crf 17 -c:a aac out/story.mp4`
-11. **Cover — dedicated (COMMON/DIRECTION.md §0.4):** its own key-art image made for the cover, a
-    bold 2–4 word Persian title (IRANYekanX Eco Bold), 1080×1920 `out/cover.jpg`; never a video frame.
+11. **Cover — from the cover pack (owner, 2026-11-15): COMMON/cover/COVER_PACK.md.** ChatGPT makes it
+    with the pack's board attached: the page's three colours, the 2–4 word title in our font, one
+    element of the topic; you check every letter (fallback: the title set by you in Eco Bold).
+    1080×1920 `out/cover.jpg`; never a video frame; no TradeYar logo.
 12. **Texts:** `out/caption.txt` (exactly 3 hashtags; the comment-word ask; the risk line).
     `out/comment.txt`, one `label: value` a line: `keyword: <the word said in the video>` ·
     `match: any` · `reply: <DM line>` (one per line: greeting, numbered steps, a guide line with

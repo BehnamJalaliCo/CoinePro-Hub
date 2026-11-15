@@ -21,10 +21,16 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
 3. **No full stop at the end of on-screen captions.** Kinetic captions and titles never end with
    «.», «،» or «؛» (Reel 1 put a dot after every line). Questions and exclamations only when the
    line truly is one. The voice text keeps its punctuation; the screen does not.
-4. **A dedicated cover, every reel.** Not a frame of the video: its own design — its own key-art
-   image made for the cover (one more AI image, the reel's subject at its most striking), a bold
-   2–4 word Persian title in IRANYekanX Eco Bold, the reel's accent, a clean composition that
+4. **A dedicated cover, every reel.** Not a frame of the video: made by ChatGPT from the cover pack
+   (COMMON/cover/COVER_PACK.md, owner 2026-11-15) — the page's three colours (navy, teal, white),
+   a bold 2–4 word Persian title in our font, one element of the topic; a clean composition that
    reads at grid size (also check it cropped to 1:1 and 4:5: the title must survive both crops).
+
+5. **(2026-11-15) No TradeYar logo, anywhere.** The first reel ended on the trade-future.ir logo; the
+   owner: it is not Zarib×100's. The page's mark is its round profile photo + «Zarib×100» +
+   «بهنام جلالی» (COMMON/brand/). Check the last 3 seconds and the cover for any other logo.
+6. **(2026-11-15) The cover follows the cover pack** (COMMON/cover/COVER_PACK.md): the brand's three
+   colours, the title in our font, one element of the topic.
 
 ## 1. Choose the track per topic (write it and why in direction/CONTRACT.md)
 - **ANIME** (a story, a person, fear and greed, a lesson told as a scene, news drama): limited-TV
@@ -51,8 +57,12 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
   move them on their own plane. Upscale to fit 1080×1920 cleanly (Lanczos), never blurry.
 - AI images are STILL assets only. Every motion is yours, in code. No AI video, ever.
 - **Logos are REAL, never AI-drawn:** the coin's official logo from its facts (`logo`, CoinGecko),
-  the exchange's logo from its own site (or its official press kit), TradeYar's from trade-future.ir.
-  Download with curl; vectorise or clean the edges if needed; place it as its own layer.
+  the exchange's logo from its own site (or its official press kit). Download with curl; vectorise
+  or clean the edges if needed; place it as its own layer.
+- **The page's own mark — NEVER TradeYar's logo** (owner, 2026-11-15: the trade-future.ir /
+  coinepro.com «TY» logo is not Zarib×100's). When a reel wants the page's mark (its last seconds):
+  COMMON/brand/profile_round.png (the page's round profile photo) + «Zarib×100» (Eco Bold) and
+  «بهنام جلالی» (Eco Regular) — nothing else. See COMMON/brand/README.md.
 
 ## 3. Every shot
 - **Camera:** never static. Push-in, dolly, parallax drift, slow rotation, rack focus, a whip on the
