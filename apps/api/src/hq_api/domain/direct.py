@@ -385,6 +385,21 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
         l=HANDS.INPUTS_MAX,
     )
     ids += [str(r["id"]) for r in made if str(r["id"]) not in ids]
+    # ⟨2026-11-15⟩ and the pictures its works asked the image players for (substitute.call, kind
+    # image): a made creative's original, newest first. F-0024 and F-0025 never saw theirs (a
+    # creative's file names no order), so a reel's key art waited in the hub's store
+    refs = [str(r) for r in rep.get("work_refs") or []]
+    if refs:
+        art = await tx.all(
+            """SELECT c.file_ids[1] AS id FROM substitutes.creatives c
+               JOIN work.work w ON w.id = c.work_id
+               WHERE w.ref = ANY(:refs) AND c.state IN ('review', 'accepted')
+                 AND cardinality(c.file_ids) > 0
+               ORDER BY c.updated_at DESC LIMIT :l""",
+            refs=refs,
+            l=HANDS.INPUTS_MAX * 4,
+        )
+        ids += [str(r["id"]) for r in art if r["id"] is not None and str(r["id"]) not in ids]
     if not ids:
         return []
     sent: set[str] = set()

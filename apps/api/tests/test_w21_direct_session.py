@@ -881,3 +881,51 @@ async def test_a_session_whose_account_is_full_starts_afresh_on_the_other_one(
             await su.execute(
                 "UPDATE llm.connections SET status = $2 WHERE key = $1", r["key"], r["status"]
             )
+
+
+async def test_a_picture_the_session_asked_for_reaches_its_next_turn(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-15⟩ F-0024/F-0025: the twelve key-art pictures ChatGPT made for the reel never
+    reached the session's folder (a creative's file names no order): a made creative of the
+    session's work goes into `in/` with the next turn, under a name with its extension."""
+    from hq_api.domain import creative_overlay as O
+
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    await result(client, rn, job["id"], "نوبت اول.")
+    name = O._named("CR-9001-6d9a3e5d", "image/png")
+    assert name == "CR-9001-6d9a3e5d.png" and O._named(name, "image/png") == name
+    fid = await su.fetchval(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code, kind)
+           VALUES ($1, $2, 'image/png', 10, repeat('b', 64), gen_random_uuid()::text, 'service',
+                   'substitutes', 'image')
+           RETURNING id""",
+        o["emp"]["company_id"], name,
+    )  # fmt: skip
+    for state, files in (("review", [fid]), ("failed", [])):
+        await su.execute(
+            """INSERT INTO substitutes.creatives (company_id, kind, brief_md, placement, aspect,
+                   player, model, state, requested_by_kind, requested_by_code, work_id, file_ids)
+               VALUES ($1, 'image', 'a host', 'other', '9:16', 'gpt', 'gpt', $2, 'agent', $3, $4,
+                       $5::uuid[])""",
+            o["emp"]["company_id"], state, o["holder"], o["work_id"], files,
+        )  # fmt: skip
+    run = await queued_run(su, o, reason=f"owner_reply:{o['ref']}")
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    nxt = await take(client, rn)
+    names = {i["file_id"]: i["name"] for i in nxt["args"].get("inputs") or []}
+    assert names.get(str(fid), "").endswith(".png"), names

@@ -369,6 +369,17 @@ async def _title_font(hub: Any, file_id: Any) -> dict[str, Any] | None:
     return dict(row) if row is not None and row["mime"] in OVERLAY_FONTS else None
 
 
+EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "video/mp4": ".mp4"}
+
+
+def _named(name: str, mime: str) -> str:
+    """⟨2026-11-15⟩ The download's name with its type's extension (egress names a picture by a bare
+    id; a session finds it in `in/` by its name)."""
+    ext = EXT.get(mime, "")
+    stem = name[: 255 - len(ext)]
+    return stem if not ext or stem.lower().endswith(ext) else stem + ext
+
+
 async def store_result(
     hub: Any, creative: dict[str, Any], data: bytes, name: str
 ) -> tuple[UUID, UUID | None]:
@@ -423,7 +434,7 @@ async def store_result(
         cw, ch = CANVAS[creative["placement"]]
         async with hub.db.tx([company_id]) as tx:
             original = await F.insert(
-                tx, company_id=company_id, name=f"{creative['ref']}-{name}"[:255], mime=mime,
+                tx, company_id=company_id, name=_named(f"{creative['ref']}-{name}", mime), mime=mime,
                 size=size, sha256=sha, storage_key=key, kind="image", width=img.width,
                 height=img.height, by_kind="service", by_code="substitutes",
             )  # fmt: skip
@@ -444,7 +455,7 @@ async def store_result(
     key, sha, size = await hub.storage.commit(src)
     async with hub.db.tx([company_id]) as tx:
         original = await F.insert(
-            tx, company_id=company_id, name=f"{creative['ref']}-{name}"[:255], mime=mime, size=size,
+            tx, company_id=company_id, name=_named(f"{creative['ref']}-{name}", mime), mime=mime, size=size,
             sha256=sha, storage_key=key, kind="video", width=info.get("width"),
             height=info.get("height"), duration_s=info.get("duration_s"), by_kind="service",
             by_code="substitutes",
