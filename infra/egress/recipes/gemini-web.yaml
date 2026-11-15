@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-15.6"
+version: "2026-11-15.7"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -94,14 +94,10 @@ tasks:
       # picture's blob: URL once it is drawn (fetching it fails), and its download button closed the
       # page (TargetClosedError). The shown picture is now taken from its own pixels at its natural
       # size (browser-web's download_image, 2026-11-15); the download button is not used.
+      # 2026-11-15.7 = .4 again after diagnostic calls .5/.6: the button's full-size download takes
+      # the whole browser down 5-10 s after the click (its profile lock left behind; browser-web's
+      # memory at its 1 GiB ceiling), so the shown picture stays the answer (572x1024 for now).
       - {do: download_image, selector: "generated-image img, single-image img.image", attr: src, timeout_s: 30}
-      - {do: click, selector: "download-generated-image-button button, button[aria-label*='Download full size' i], button[aria-label*='دانلود']", timeout_s: 10}
-      - {do: pause, ms: 5000}
-      - {do: pause, ms: 5000}
-      - {do: pause, ms: 5000}
-      - {do: pause, ms: 5000}
-      - {do: pause, ms: 5000}
-      - {do: wait, selector: "#diag-never-there", timeout_s: 1}
   video:
     timeout_s: 600
     steps:
