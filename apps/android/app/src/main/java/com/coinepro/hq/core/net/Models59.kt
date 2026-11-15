@@ -255,9 +255,41 @@ data class FlowAutomation(
     val n8n: FlowN8n = FlowN8n(),
     val createdAt: String? = null,
     val byFa: String? = null,
+    /** ⟨1.38⟩ §59.7.1 the map of its steps; null: no map (a playbook's line), the steps' list as before. */
+    val graph: FlowGraph? = null,
 ) {
     val on: Boolean get() = state == "on"
+
+    /** ⟨1.38⟩ §59.7.1 one of the hub's own n8n flows (`N8:<key>`): its only control is the switch; the rest answers 409. */
+    val hubOwn: Boolean get() = ref.startsWith("N8:")
 }
+
+// ------------------------------------------------------------ §59.7.1 the map ⟨1.38⟩ --
+/** One node of an automation's map: [key] is its step's key (in [FlowAutomation.steps] and in each day's [LineRun.steps]); [lane] is who
+ *  does it (one band per lane), [col] its place in time (0 first), [row] stacks nodes of one lane in one column (a fan-out). */
+@Serializable
+data class FlowGraphNode(
+    val key: String = "",
+    val titleFa: String = "",
+    val kind: String = "",
+    val helper: String? = null,
+    /** n8n · hub · workshop · chatgpt · gemini · voice · ighub */
+    val lane: String = "hub",
+    val col: Int = 0,
+    val row: Int = 0,
+    val noteFa: String = "",
+    val model: String? = null,
+)
+
+@Serializable
+data class FlowGraphEdge(val source: String = "", val target: String = "", val labelFa: String = "")
+
+@Serializable
+data class FlowGraph(
+    val lanes: List<String> = emptyList(),
+    val nodes: List<FlowGraphNode> = emptyList(),
+    val edges: List<FlowGraphEdge> = emptyList(),
+)
 
 @Serializable
 data class FlowRuns(val items: List<FlowRunRef> = emptyList(), val nextCursor: String? = null)
@@ -319,13 +351,23 @@ data class DaySummary(val day: String = "", val lineFa: String = "", val items: 
 
 // --------------------------------------------------------------- §59.10 the board --
 @Serializable
-data class BoardLast(val at: String? = null, val state: String = "", val noteFa: String = "")
+data class BoardLast(
+    val at: String? = null,
+    val state: String = "",
+    val noteFa: String = "",
+    /** ⟨1.38⟩ §59.10 optional: the last day's nodes in col order, for the strip under an `n8n` card (absent: no strip). */
+    val steps: List<NodeState> = emptyList(),
+)
+
+/** ⟨1.38⟩ One node's state on a day: pending · running · waiting · done · failed · skipped. */
+@Serializable
+data class NodeState(val key: String = "", val state: String = "pending")
 
 /** One thing that runs by itself: a flow, a routine (§50), a standing publish (§45), a line (§30), a rule (§31.7), an archive rule (§23.7). */
 @Serializable
 data class BoardItem(
     val ref: String = "",
-    /** flow · routine · standing_publish · line · rule · archive */
+    /** flow · routine · standing_publish · line · rule · archive · ⟨1.38⟩ n8n (the hub's own n8n flows, `N8:<key>`) */
     val kind: String = "",
     val titleFa: String = "",
     val company: String? = null,

@@ -357,6 +357,8 @@ fun dmButtonsFor(buttons: List<DmButton>): List<String> = buttons.filter { it.ti
 // ============================================================== the automations ==
 /** The board's kinds, in the order it shows them, with their names. */
 val BOARD_KINDS: List<Pair<String, String>> = listOf(
+    // ⟨1.38⟩ §59.7.1 the hub's own n8n flows: the ones that run every day, first
+    "n8n" to "روندهای روزانه",
     "flow" to "کارگروه‌های خودکار",
     "standing_publish" to "انتشار خودکار",
     "routine" to "روال‌های دائمی",
@@ -369,6 +371,7 @@ fun boardKindFa(kind: String): String = BOARD_KINDS.firstOrNull { it.first == ki
 
 /** One automation's kind, in a row's facts: «کارگروه خودکار» · «انتشار خودکار» · «روال دائمی» · «خط تولید» · «از یک جمله» · «بایگانی». */
 fun boardKindOneFa(kind: String): String? = when (kind) {
+    "n8n" -> "روند n8n"
     "flow" -> "کارگروه خودکار"
     "standing_publish" -> "انتشار خودکار"
     "routine" -> "روال دائمی"

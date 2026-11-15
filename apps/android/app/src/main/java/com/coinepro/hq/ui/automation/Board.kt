@@ -226,7 +226,9 @@ private fun BoardRow(it: BoardItem, onChanged: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val last = it.last
                 if (last != null && last.state.isNotBlank()) {
-                    Pill(lineRunStateFa(last.state), lineRunStateTone(last.state), dot = last.state != "running", live = last.state == "running")
+                    // ⟨1.38⟩ an n8n day waits for its posts' hours, never for his seal
+                    if (it.kind == "n8n") Pill(com.coinepro.hq.core.data.flowDayStateFa(last.state), com.coinepro.hq.core.data.flowDayStateTone(last.state), dot = last.state != "running", live = last.state == "running")
+                    else Pill(lineRunStateFa(last.state), lineRunStateTone(last.state), dot = last.state != "running", live = last.state == "running")
                     Text(
                         remember(it) { facts(last.at?.let { a -> ago(a) }, last.noteFa.ifBlank { null }) },
                         style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
@@ -238,6 +240,8 @@ private fun BoardRow(it: BoardItem, onChanged: () -> Unit) {
             }
             val tail = facts(it.nextAt?.let { n -> "بعدی ${jWeekday(n)} ${jTime(n)}" }, it.costTodayUsd?.let { x -> "امروز ${usd(x)}" })
             if (tail.isNotEmpty()) Text(tail, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
+            // ⟨1.38⟩ §59.10 the last day's nodes as a thin strip, when the hub sends them
+            it.last?.steps?.takeIf { s -> s.isNotEmpty() }?.let { s -> NodeStrip(s, Modifier.padding(top = 4.dp)) }
         }
         if (it.switchable) HqSwitch(on, { want ->
             on = want

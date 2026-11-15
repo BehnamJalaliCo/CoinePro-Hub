@@ -198,7 +198,10 @@ data class LineRun(
     val topicFa: String? = null,
     val results: RunResults? = null,
     val minutes: Double? = null,
-)
+) {
+    /** ⟨1.38⟩ §59.7.1 a day (`F-…`) of the hub's own n8n flow (`N8:<key>`): its states are read by code, and it is not run again from a step. */
+    val hubDay: Boolean get() = automation?.startsWith("N8:") == true
+}
 
 /** §30.1 Asset: a library entry of a company (or of the holding when [company] is null). */
 @Serializable

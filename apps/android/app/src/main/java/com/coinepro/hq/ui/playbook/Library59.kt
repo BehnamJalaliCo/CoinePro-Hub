@@ -172,21 +172,38 @@ internal fun LibraryFilters(
 /** §59.2 the flow, step by step: each step's number, name and seat, its helper or model and effort; opened, its in and out and rules. */
 @Composable
 internal fun FlowSection(pb: Playbook) {
+    StepsCard(
+        pb.steps, "روند، قدم‌به‌قدم", "${faNum(pb.steps.size)} قدم، به همین ترتیب", "playbook-flow", "${pb.ref}:${pb.version}",
+        seatOf = { s -> stepSeatFa(pb, s).takeIf { s.seat.isNotBlank() } },
+    )
+}
+
+/**
+ * Steps in order, each opening to its in, out and rules. ⟨1.38⟩ Shared by a playbook's flow and an automation's «قدم‌ها» (§59.7.1), where
+ * [states] colours each step with the chosen day's state (a pill at its end).
+ */
+@Composable
+internal fun StepsCard(
+    steps: List<FlowStep>, title: String, note: String?, tag: String, openKey: String,
+    seatOf: (FlowStep) -> String? = { null }, states: Map<String, String> = emptyMap(),
+) {
     val c = Divan.colors
-    var open by rememberSaveable(pb.ref, pb.version) { mutableStateOf<String?>(null) }
-    HqCard(Modifier.fillMaxWidth().testTag("playbook-flow")) {
-        SectionTitle("روند، قدم‌به‌قدم", note = "${faNum(pb.steps.size)} قدم، به همین ترتیب")
+    var open by rememberSaveable(openKey) { mutableStateOf<String?>(null) }
+    HqCard(Modifier.fillMaxWidth().testTag(tag)) {
+        SectionTitle(title, note = note)
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            pb.steps.forEachIndexed { i, s ->
+            steps.forEachIndexed { i, s ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
-                StepRow(pb, i + 1, s, open == s.key) { open = if (open == s.key) null else s.key }
+                StepRow(i + 1, s, seatOf(s), states[s.key] ?: if (states.isEmpty()) null else com.coinepro.hq.core.data.NODE_PENDING, open == s.key) {
+                    open = if (open == s.key) null else s.key
+                }
             }
         }
     }
 }
 
 @Composable
-private fun StepRow(pb: Playbook, n: Int, s: FlowStep, open: Boolean, onToggle: () -> Unit) {
+private fun StepRow(n: Int, s: FlowStep, seat: String?, state: String?, open: Boolean, onToggle: () -> Unit) {
     val c = Divan.colors
     val tool = remember(s) { stepToolFa(s.helper, s.model, s.effort) }
     Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "ببند" else "باز کن", onClick = onToggle).padding(vertical = 10.dp)) {
@@ -199,32 +216,40 @@ private fun StepRow(pb: Playbook, n: Int, s: FlowStep, open: Boolean, onToggle: 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DIcon(stepKindIcon(s.kind), size = 13.dp, tint = c.textMuted)
                     Text(
-                        remember(s, pb) { facts(stepSeatFa(pb, s).takeIf { s.seat.isNotBlank() }, tool) },
+                        remember(s, seat) { facts(seat, tool) },
                         style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                     )
                     ToolMark(s)
                 }
             }
             if (s.gate == "ask") Pill("با تأیید تو", Tone.GOLD)
+            if (state != null) Pill(com.coinepro.hq.core.data.nodeStateFa(state), com.coinepro.hq.core.data.nodeStateTone(state), dot = state != "running", live = state == "running")
             DIcon(DivanIcon.CHEVRON, size = 14.dp, tint = c.textMuted)
         }
         Expand(open) {
             Column(Modifier.padding(start = 36.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (s.inputFa.isNotBlank()) InOut("میگیرد", s.inputFa)
-                if (s.outputFa.isNotBlank()) InOut("میدهد", s.outputFa)
-                if (s.rulesFa.isNotEmpty()) {
-                    Text("قاعده‌ی این قدم", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
-                    for (r in s.rulesFa) RuleLine(r)
-                }
+                StepWhat(s)
                 if (s.maxAttempts > 1) Text("اگر نشد تا ${faNum(s.maxAttempts)} بار دوباره", style = Divan.type.micro, color = c.textMuted)
             }
         }
     }
 }
 
+/** A step's in, out and rules, as the owner reads them. */
+@Composable
+internal fun StepWhat(s: FlowStep) {
+    val c = Divan.colors
+    if (s.inputFa.isNotBlank()) InOut("میگیرد", s.inputFa)
+    if (s.outputFa.isNotBlank()) InOut("میدهد", s.outputFa)
+    if (s.rulesFa.isNotEmpty()) {
+        Text("قاعده‌ی این قدم", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
+        for (r in s.rulesFa) RuleLine(r)
+    }
+}
+
 /** The helper's or the model's logo beside a step (ChatGPT, Google, Anthropic); nothing for the hub's own code. */
 @Composable
-private fun ToolMark(s: FlowStep) {
+internal fun ToolMark(s: FlowStep) {
     val provider = when {
         s.helper == "gpt" -> "openai"
         s.helper == "gemini" || s.helper == "aistudio" || s.model?.startsWith("gemini") == true -> "google"

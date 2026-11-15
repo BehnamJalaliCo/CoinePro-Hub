@@ -526,6 +526,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     page("automations/calendar") { com.coinepro.hq.ui.automation.AutomationsCalendarScreen() }
                     page("automation/{ref}") { com.coinepro.hq.ui.automation.FlowScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("automation/{ref}/replies") { com.coinepro.hq.ui.automation.RepliesScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("automation/{ref}/map") { com.coinepro.hq.ui.automation.FlowMapScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("flow-run/{ref}") { com.coinepro.hq.ui.automation.FlowRunScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("kits") { com.coinepro.hq.ui.v31.KitsScreen() }
                     page("library") { com.coinepro.hq.ui.v30.LibraryScreen() }

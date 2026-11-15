@@ -35,6 +35,8 @@ import com.coinepro.hq.core.data.dollarsOf
 import com.coinepro.hq.core.data.dollarsText
 import com.coinepro.hq.core.data.faNum
 import com.coinepro.hq.core.data.flowLineFa
+import com.coinepro.hq.core.data.flowDayStateFa
+import com.coinepro.hq.core.data.flowDayStateTone
 import com.coinepro.hq.core.data.flowModeFa
 import com.coinepro.hq.core.data.autoStateFa
 import com.coinepro.hq.core.data.lineRunStateFa
@@ -70,6 +72,8 @@ import com.coinepro.hq.designsystem.MeterBar
 import com.coinepro.hq.designsystem.PageHeader
 import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.ScrollRow
+import com.coinepro.hq.designsystem.SegOption
+import com.coinepro.hq.designsystem.Segmented
 import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.SpringSheet
@@ -127,10 +131,15 @@ fun FlowScreen(ref: String) {
     val patch = rememberAction()
     val on = com.coinepro.hq.ui.v29.served(HubFeature.AUTOMATIONS)
     fun changed(out: FlowAutomation, said: String) { q.set(out); env.cache.invalidate("automations"); toasts.ok(said) }
+    // ⟨1.38⟩ §59.7.1 the map: its days (only when there is a map) and the node opened
+    val g = f?.graph
+    var tab by rememberSaveable(ref) { mutableStateOf("map") }
+    var node by rememberSaveable(ref) { mutableStateOf<String?>(null) }
+    val day = rememberMapDay(ref, if (g != null) runs.data?.items.orEmpty() else emptyList()) { runs.refresh() }
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item(key = "head") {
-            PageHeader(f?.titleFa?.ifBlank { null } ?: "اتوماسیون", eyebrow = f?.let { facts("کارگروه خودکار", it.companyFa.ifBlank { null }).text } ?: "کارگروه خودکار")
+            PageHeader(f?.titleFa?.ifBlank { null } ?: "اتوماسیون", eyebrow = f?.let { facts(if (it.hubOwn) "روند خودکار روزانه" else "کارگروه خودکار", it.companyFa.ifBlank { null }).text } ?: "اتوماسیون")
         }
         when {
             f == null && q.error != null -> item(key = "err") { ErrorBlock(q.error, { q.refresh() }) }
@@ -149,7 +158,10 @@ fun FlowScreen(ref: String) {
                                     if (f.state == "paused" && f.pausedUntil != null) Text(plain("تا ${jDateTime(f.pausedUntil)}"), style = Divan.type.micro, color = c.textMuted)
                                 }
                                 Text(
-                                    remember(f) { facts(scheduleFa(f.schedule), f.account?.let { "@$it" }, if (f.story) "استوری هم" else null, flowModeFa(f.mode)) },
+                                    remember(f) {
+                                        if (f.hubOwn) facts(f.schedule.whenFa.ifBlank { scheduleFa(f.schedule) }, f.account?.let { "@$it" })
+                                        else facts(scheduleFa(f.schedule), f.account?.let { "@$it" }, if (f.story) "استوری هم" else null, flowModeFa(f.mode))
+                                    },
                                     style = Divan.type.caption, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                 )
                             }
@@ -166,12 +178,14 @@ fun FlowScreen(ref: String) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 DIcon(DivanIcon.TIME, size = 16.dp, tint = c.silverInk)
                                 Column(Modifier.weight(1f)) {
-                                    Text(plain(if (n.skip) "نوبت ${jWeekday(n.at)} رد میشود" else "اجرای بعد: ${jWeekday(n.at)}، ${jTime(n.at)}"), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                                    Text(plain(n.topicFa?.let { "موضوع: $it" } ?: "موضوع روز اجرا از دفتر موضوع‌ها انتخاب میشود"), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(plain(if (n.skip) "نوبت ${jWeekday(n.at)} رد میشود" else "${if (f.hubOwn) "انتشار بعد" else "اجرای بعد"}: ${jWeekday(n.at)}، ${jTime(n.at)}"), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                                    if (!f.hubOwn) Text(plain(n.topicFa?.let { "موضوع: $it" } ?: "موضوع روز اجرا از دفتر موضوع‌ها انتخاب میشود"), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
-                        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // ⟨1.38⟩ the hub's own n8n flow: its one control is the switch (§59.7.1); the rest is said to the hub's Claude
+                        if (f.hubOwn) Text("ساعت و قاعده‌های این روند را Claude سرور هاب تنظیم میکند؛ اگر چیزی باید عوض شود، در گفتگو بگو.", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(top = 10.dp))
+                        if (!f.hubOwn) Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             HqButton("همین حالا اجرا کن", {
                                 now.run {
                                     val run = env.api.runFlowNow(ref, UUID.randomUUID().toString())
@@ -182,15 +196,33 @@ fun FlowScreen(ref: String) {
                             if (f.state == "paused") HqButton("ادامه", { toggle.run { env.api.switchAutomation(ref, true); q.refresh(); toasts.ok("از مکث درآمد.") } }, variant = BtnVariant.TEXT, size = BtnSize.MD)
                             else HqButton("مکث", { sheet = FlowSheet.PAUSE }, variant = BtnVariant.TEXT, size = BtnSize.MD, enabled = f.state == "on")
                         }
-                        f.next?.let { n ->
+                        f.next?.takeIf { !f.hubOwn }?.let { n ->
                             HqButton(if (n.skip) "نوبت بعد را برگردان" else "نوبت بعد را رد کن", {
                                 skip.run { changed(env.api.skipFlow(ref, n.at, !n.skip, UUID.randomUUID().toString()), if (n.skip) "نوبت بعد برگشت." else "نوبت بعد رد میشود؛ بعدی‌اش سر جایش است.") }
                             }, Modifier.fillMaxWidth().padding(top = 4.dp), variant = BtnVariant.TEXT, size = BtnSize.SM, loading = skip.busy)
                         }
                     }
                 }
+                if (g != null) {
+                    item(key = "tabs") {
+                        Segmented(
+                            listOf(SegOption("map", "نقشه", DivanIcon.DEPARTMENT), SegOption("steps", "قدم‌ها", DivanIcon.TASK)), tab, { tab = it },
+                            Modifier.fillMaxWidth().testTag("flow-tabs"),
+                        )
+                    }
+                    item(key = "days") { MapDays(day) { nav.go("flow-run/$it") } }
+                    if (tab == "map") item(key = "map") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowCanvas(g, day.states, Modifier.fillMaxWidth().height(460.dp), focusOn = day.ref, onNode = { node = it }, onFull = { nav.go("automation/$ref/map") })
+                            MapLegend(g.nodes, day.states)
+                        }
+                    }
+                    else item(key = "steps") {
+                        com.coinepro.hq.ui.playbook.StepsCard(f.steps, "قدم‌ها", "${faNum(f.steps.size)} قدم، به همین ترتیب", "flow-steps-list", ref, states = day.states)
+                    }
+                }
                 item(key = "today") { TodayBudget(f) }
-                item(key = "settings") {
+                if (!f.hubOwn) item(key = "settings") {
                     HqCard(Modifier.fillMaxWidth().testTag("flow-settings"), padding = PaddingValues(vertical = 4.dp)) {
                         SettingRow(DivanIcon.TIME, "ساعت انتشار", scheduleFa(f.schedule)) { sheet = FlowSheet.TIME }
                         SettingRow(DivanIcon.OWNER, "حساب", f.account?.let { "@$it" } ?: "حساب ثبت‌شده‌ی شرکت") { sheet = FlowSheet.ACCOUNT }
@@ -212,9 +244,11 @@ fun FlowScreen(ref: String) {
                         SettingRow(DivanIcon.GLOBE, "لینک‌های شرکت", "سایت، بخش‌ها و UTM هر مسیر") { sheet = FlowSheet.LINKS }
                     }
                 }
-                item(key = "runs") { RunsCard(runs.data?.items ?: listOfNotNull(f.lastRun), runs.loading) { nav.go("flow-run/$it") } }
-                if (f.upcoming.isNotEmpty()) item(key = "upcoming") { UpcomingFold(f) { at, skipIt -> skip.run { changed(env.api.skipFlow(ref, at, skipIt, UUID.randomUUID().toString()), if (skipIt) "این نوبت رد میشود." else "این نوبت برگشت.") } } }
-                item(key = "flow") {
+                item(key = "runs") { RunsCard(runs.data?.items ?: listOfNotNull(f.lastRun), runs.loading, f.hubOwn) { nav.go("flow-run/$it") } }
+                if (f.upcoming.isNotEmpty()) item(key = "upcoming") {
+                    UpcomingFold(f, if (f.hubOwn) null else { at, skipIt -> skip.run { changed(env.api.skipFlow(ref, at, skipIt, UUID.randomUUID().toString()), if (skipIt) "این نوبت رد میشود." else "این نوبت برگشت.") } })
+                }
+                if (g == null) item(key = "flow") {
                     Fold("روند", remember(f) { facts(f.playbookFa?.let { "کارگروه «$it»" }, f.version?.let { versionFa(it) }, "${faNum(f.steps.size)} قدم") }, tag = "flow-steps") {
                         Para(flowLineFa(f.steps), style = Divan.type.caption, color = c.textSecondary)
                         f.playbook?.let { pb -> HqButton("صفحه‌ی کارگروه", { nav.go("playbook/$pb") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.DEPARTMENT) }
@@ -226,6 +260,7 @@ fun FlowScreen(ref: String) {
         }
     }
     val f0 = f ?: return
+    node?.let { k -> NodeSheet(f0, k, day.run, { node = null }) { node = null; nav.go("flow-run/$it") } }
     when (sheet) {
         FlowSheet.NONE -> Unit
         FlowSheet.TIME -> TimeSheet(f0, { sheet = FlowSheet.NONE }) { body, said -> patch.run { changed(env.api.patchFlow(ref, body), said); sheet = FlowSheet.NONE } }
@@ -281,7 +316,7 @@ private fun TodayBudget(f: FlowAutomation) {
 
 /** The runs, newest first: the day, the state, the topic, the figures, the cost; each opens its timeline. */
 @Composable
-private fun RunsCard(items: List<FlowRunRef>, loading: Boolean, onOpen: (String) -> Unit) {
+private fun RunsCard(items: List<FlowRunRef>, loading: Boolean, hubOwn: Boolean, onOpen: (String) -> Unit) {
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth().testTag("flow-runs"), padding = PaddingValues(vertical = 4.dp)) {
         Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) { SectionTitle("اجراها و نتیجه‌ها") }
@@ -295,7 +330,8 @@ private fun RunsCard(items: List<FlowRunRef>, loading: Boolean, onOpen: (String)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(run.at?.let { jWeekday(it) } ?: "—", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                        Pill(lineRunStateFa(run.state), lineRunStateTone(run.state), live = run.state == "running", dot = run.state != "running")
+                        if (hubOwn) Pill(flowDayStateFa(run.state), flowDayStateTone(run.state), live = run.state == "running", dot = run.state != "running")
+                        else Pill(lineRunStateFa(run.state), lineRunStateTone(run.state), live = run.state == "running", dot = run.state != "running")
                     }
                     run.topicFa?.let { Text(plain(it), style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     Text(
@@ -311,7 +347,7 @@ private fun RunsCard(items: List<FlowRunRef>, loading: Boolean, onOpen: (String)
 
 /** The next fourteen days: each its day and hour, its topic once planned, and «رد کن» / «برگردان». */
 @Composable
-private fun UpcomingFold(f: FlowAutomation, onSkip: (String, Boolean) -> Unit) {
+private fun UpcomingFold(f: FlowAutomation, onSkip: ((String, Boolean) -> Unit)?) {
     val c = Divan.colors
     Fold("تقویم اجراهای پیش رو", remember(f.upcoming) { facts("${faNum(f.upcoming.size)} نوبت", f.upcoming.count { it.skip }.takeIf { it > 0 }?.let { "${faNum(it)} رد" }) }, tag = "flow-upcoming") {
         f.upcoming.forEachIndexed { i, o ->
@@ -319,9 +355,9 @@ private fun UpcomingFold(f: FlowAutomation, onSkip: (String, Boolean) -> Unit) {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text(plain("${jWeekday(o.at)}، ${jTime(o.at)}"), style = Divan.type.small, color = if (o.skip) c.textMuted else c.textPrimary)
-                    Text(plain(o.topicFa ?: "موضوع روز اجرا انتخاب میشود"), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (onSkip != null || o.topicFa != null) Text(plain(o.topicFa ?: "موضوع روز اجرا انتخاب میشود"), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                HqButton(if (o.skip) "برگردان" else "رد کن", { onSkip(o.at, !o.skip) }, variant = BtnVariant.TEXT, size = BtnSize.SM)
+                if (onSkip != null) HqButton(if (o.skip) "برگردان" else "رد کن", { onSkip(o.at, !o.skip) }, variant = BtnVariant.TEXT, size = BtnSize.SM)
             }
         }
     }

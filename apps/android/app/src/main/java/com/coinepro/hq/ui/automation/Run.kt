@@ -115,7 +115,7 @@ fun FlowRunScreen(ref: String) {
                         Column(Modifier.padding(top = 8.dp)) {
                             run.steps.forEachIndexed { i, s ->
                                 StepNode(
-                                    s, last = i == run.steps.lastIndex,
+                                    s, last = i == run.steps.lastIndex, hubDay = run.hubDay,
                                     onRetry = { which = s.key; retry.run { val out = env.api.rerunLineRun(ref, s.key); env.cache.invalidate("automations"); toasts.ok("از «${s.titleFa ?: stepKindFa(s.kind)}» دوباره شروع شد."); nav.go("flow-run/${out.ref}") } },
                                     onSkip = { which = s.key; skip.run { q.set(env.api.skipLineRun(ref)); env.cache.invalidate("automations"); toasts.ok("این نوبت رد شد؛ موضوعش برای روز دیگری آزاد شد.") } },
                                     busy = (retry.busy || skip.busy) && which == s.key,
@@ -134,7 +134,9 @@ private fun RunHead(run: LineRun) {
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth().testTag("run-head")) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill(lineRunStateFa(run.state), lineRunStateTone(run.state), live = run.state == "running", dot = run.state != "running")
+            // ⟨1.38⟩ a day of the hub's own n8n flow waits for its posts' hours, never for his seal
+            if (run.hubDay) Pill(com.coinepro.hq.core.data.flowDayStateFa(run.state), com.coinepro.hq.core.data.flowDayStateTone(run.state), live = run.state == "running", dot = run.state != "running")
+            else Pill(lineRunStateFa(run.state), lineRunStateTone(run.state), live = run.state == "running", dot = run.state != "running")
             Text(
                 remember(run) { facts(run.at?.let { jDateTime(it) }, run.minutes?.let { "${faNum(Math.round(it).toInt())} دقیقه" }, (run.cost.usd)?.let { usd(it) }) },
                 style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -167,10 +169,10 @@ private fun ResultsCard(run: LineRun) {
 
 /** One step on the timeline: a dot on the line (tinted by its state), its name, who and with what, when and how much; what it left. */
 @Composable
-private fun StepNode(s: StepRun, last: Boolean, onRetry: () -> Unit, onSkip: () -> Unit, busy: Boolean) {
+private fun StepNode(s: StepRun, last: Boolean, hubDay: Boolean, onRetry: () -> Unit, onSkip: () -> Unit, busy: Boolean) {
     val c = Divan.colors
     var open by rememberSaveable(s.key) { mutableStateOf(s.state == "failed" || s.state == "running") }
-    val ink = when (s.state) { "done" -> c.positive; "failed" -> c.negative; "running", "waiting" -> c.silverInk; else -> c.lineDivider }
+    val ink = when (s.state) { "done" -> c.positive; "failed" -> c.negative; "running" -> if (hubDay) c.lapis else c.silverInk; "waiting" -> if (hubDay) c.warning else c.silverInk; else -> c.lineDivider }
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).testTag("run-step"), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Column(Modifier.width(18.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.padding(top = 4.dp).size(12.dp).clip(CircleShape).background(ink))
@@ -183,7 +185,8 @@ private fun StepNode(s: StepRun, last: Boolean, onRetry: () -> Unit, onSkip: () 
             ) {
                 DIcon(stepKindIcon(s.kind), size = 14.dp, tint = c.textMuted)
                 Text(plain(s.titleFa?.ifBlank { null } ?: stepKindFa(s.kind)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Pill(stepStateFa(s.state), stepStateTone(s.state), live = s.state == "running", dot = s.state != "running")
+                if (hubDay) Pill(com.coinepro.hq.core.data.nodeStateFa(s.state), com.coinepro.hq.core.data.nodeStateTone(s.state), live = s.state == "running", dot = s.state != "running")
+                else Pill(stepStateFa(s.state), stepStateTone(s.state), live = s.state == "running", dot = s.state != "running")
             }
             Text(
                 remember(s) { facts(s.seatFa, stepToolFa(s.helper ?: s.via, s.model, s.effort), stepCostFa(s.costUsd, s.startedAt, s.endedAt), s.attempt.takeIf { it > 1 }?.let { "بار ${faNum(it)}" }) },
@@ -191,23 +194,28 @@ private fun StepNode(s: StepRun, last: Boolean, onRetry: () -> Unit, onSkip: () 
             )
             if (s.state == "failed") {
                 Text(plain(s.errorFa?.ifBlank { null } ?: "این قدم انجام نشد."), style = Divan.type.caption, color = c.negative, modifier = Modifier.testTag("step-error"))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // ⟨1.38⟩ a day of the hub's own n8n flow is not run again from a step here (§59.7.1): Claude سرور هاب sees it and says so
+                if (!hubDay) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     HqButton("دوباره از همین قدم", onRetry, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = busy)
                     HqButton("رد کردن این نوبت", onSkip, variant = BtnVariant.TEXT, size = BtnSize.SM)
                 }
             }
-            if (open) StepOutputs(s)
+            if (open) {
+                if (hubDay) s.output.text?.takeIf { it.isNotBlank() && s.outputs.isEmpty() }?.let { Text(plain("میدهد: $it"), style = Divan.type.micro, color = c.textMuted) }
+                StepOutputs(s, legacyText = !hubDay)
+            }
         }
     }
 }
 
 /** What a step left: text files read in place (scrolling inside a short box), media as tiles that play or open. */
 @Composable
-private fun StepOutputs(s: StepRun) {
+internal fun StepOutputs(s: StepRun, legacyText: Boolean = true) {
     val c = Divan.colors
     val texts = s.outputs.filter { !it.text.isNullOrBlank() }
     val media = s.outputs.filter { it.text.isNullOrBlank() && it.id.isNotBlank() }
-    val legacy = s.output.text?.takeIf { it.isNotBlank() && texts.isEmpty() }
+    // ⟨1.38⟩ an n8n day's `output.text` is what the step makes, said in words (its `output_fa`), not a file: never drawn as one
+    val legacy = s.output.text?.takeIf { legacyText && it.isNotBlank() && texts.isEmpty() }
     for (t in texts) TextOut(t.name, t.text.orEmpty())
     if (legacy != null) TextOut(null, legacy)
     if (media.isNotEmpty()) {
