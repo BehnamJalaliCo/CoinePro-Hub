@@ -462,6 +462,17 @@ def clean_comment(raw: Any) -> dict[str, Any] | None:
         out["link"] = link
         if str(raw.get("button") or "").strip():
             out["button"] = str(raw["button"]).strip()[:20]
+    # ⟨2026-11-15⟩ up to three buttons, each its own title and link (IG-Hub's button template):
+    # the story's DM opens the free VIP, the exchange's sign-up and the guide side by side
+    buttons = [
+        {"title": str(b.get("title") or "").strip()[:20], "url": str(b.get("url") or "").strip()}
+        for b in raw.get("buttons") or []
+        if isinstance(b, dict)
+        and str(b.get("title") or "").strip()
+        and re.fullmatch(r"https://\S{3,1900}", str(b.get("url") or "").strip())
+    ][:3]
+    if buttons:
+        out["buttons"] = buttons
     public = raw.get("public_replies") or []
     if isinstance(public, str):
         public = [public]
@@ -486,6 +497,12 @@ def parse_comment(text: str | None) -> dict[str, Any] | None:
             if label in names:
                 if key == "public":
                     got.setdefault("public_replies", []).append(value)
+                elif key == "button" and "|" in value:
+                    # ⟨2026-11-15⟩ «button: ورود رایگان VIP | https://…», up to three
+                    title, _, url = value.partition("|")
+                    got.setdefault("buttons", []).append(
+                        {"title": title.strip(), "url": url.strip()}
+                    )
                 elif key == "reply" and "reply" in got:
                     got["reply"] = f"{got['reply']}\n{value}"  # a reply over several lines
                 else:
@@ -688,6 +705,10 @@ async def _send(
         meta["scheduled_at"] = scheduled_at.isoformat()
     if comment and what != "story":
         meta["comment"] = with_public(comment)
+    elif comment and comment.get("keywords"):
+        # ⟨2026-11-15⟩ a story of its own (a stories flow): the account's story replies with its
+        # words are answered by this rule once it is out (`_story_rule`)
+        meta["story_rule"] = comment
     if (first_comment or "").strip() and what != "story":
         meta["first_comment"] = str(first_comment).strip()[:CAPTION_MAX]
     j = await SV.create_job(
@@ -1540,6 +1561,8 @@ async def _story_rule(tx: Tx, args: dict[str, Any]) -> None:
         (r for r in rows if r["args"].get("kind") == "story" and view(r).state == "published"),
         None,
     )
+    if not comment and story is not None:
+        comment = (story["args"].get("meta") or {}).get("story_rule")
     # a story reply is answered on its words alone: a rule for every comment has none to give
     if comment and comment.get("keywords") and story is not None:
         await queue_rule(tx, SERVICE, story["id"], "story_reply", {**comment, "match": "contains"})

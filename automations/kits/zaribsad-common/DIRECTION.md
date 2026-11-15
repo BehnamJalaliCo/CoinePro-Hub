@@ -35,6 +35,10 @@ light, camera, designed transitions, sound design. If a shot would not stop a th
 7. **(2026-11-15) Crisp picture, no hits.** The ZEC draft had particles/rain/grain and blur that
    made it look low quality, and percussive hits between paragraphs: §3 and §4 forbid both now;
    check the stills for haze and every sentence boundary for a jump.
+8. **(2026-11-15) No warning or disclaimer lines — this is advertising.** The owner, on a story that
+   said «عملکرد گذشته تضمین آینده نیست»: «رو نذار، از این نوع کلمات نذار؛ ما داریم تبلیغات میکنیم».
+   No risk line, no «توصیه‌ی مالی نیست», no «تضمینی نیست» on screen, in the voice, the caption or the
+   DM. Still: every number is real (from the day's data) and nothing promises a sure profit.
 
 ## 1. Choose the track per topic (write it and why in direction/CONTRACT.md)
 - **ANIME** (a story, a person, fear and greed, a lesson told as a scene, news drama): limited-TV

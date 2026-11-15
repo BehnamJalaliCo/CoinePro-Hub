@@ -29,9 +29,9 @@ transitions and sound, scored shot by shot.)
   high-end motion graphics (kinetic Persian typography, data, charts, 3D-ish depth), or a mix (an
   anime host with motion-graphics cards). Anime is NOT the permanent look.
 - **This reel = a coin profile** (not a daily chart reading): what the coin is, how it was built
-  (its technology, simply), its real advantages (and one honest risk), today's price and its
+  (its technology, simply), its real advantages, today's price and its
   return over the past year. Facts must be true; numbers come ONLY from `facts.json` (step 2),
-  said as «در لحظه‌ی ساخت این ویدیو». No promise of profit; one short risk line.
+  said as «در لحظه‌ی ساخت این ویدیو». No promise of profit. No warning or disclaimer lines (owner, 2026-11-15: «ما داریم تبلیغات میکنیم»; DIRECTION §0.8).
 - **The ending invites the viewer to buy on an exchange** (WEEX first, LBank second) and to comment
   ONE word to get the exchange link and the buying guide in DM. The word changes every reel.
 - Voice: `speech.make` with voice "Cruz" only, NO style, NO narrator.set. Casual Persian with «تو».
@@ -63,7 +63,7 @@ transitions and sound, scored shot by shot.)
 3. **Script** (ChatGPT in the loop; if it is down, write it yourself): `substitute.call` seat
    (the writer's seat), player gpt, ONE ask with the facts and the angle, for: a 160–200 word casual
    script (60–80 s) — hook in the first 2 seconds, what/how/why, today's price and the 1-year return
-   from the facts, one risk line, and the ending: buy on WEEX (or LBank) + «کلمه‌ی «…» رو کامنت کن تا
+   from the facts, and the ending: buy on WEEX (or LBank) + «کلمه‌ی «…» رو کامنت کن تا
    لینک صرافی و راهنمای خرید رو برات دایرکت کنم»; the comment word (one word, new); the caption
    (exactly 3 hashtags); the DM reply (≤600 chars, warm, emoji, numbered steps: sign up with the
    link, verify, deposit, buy the coin); 10 short public replies, all different. Its answer comes
@@ -106,11 +106,10 @@ transitions and sound, scored shot by shot.)
     with the pack's board attached: the page's three colours, the 2–4 word title in our font, one
     element of the coin; you check every letter (fallback: the title set by you in Eco Bold).
     1080×1920 `out/cover.jpg`; never a video frame; no TradeYar logo.
-13. **Texts:** `out/caption.txt` (exactly 3 hashtags; ends with the comment-word ask and the risk
-    line). `out/comment.txt`, one `label: value` a line: `keyword: <the word said in the video>` ·
+13. **Texts:** `out/caption.txt` (exactly 3 hashtags; ends with the comment-word ask). `out/comment.txt`, one `label: value` a line: `keyword: <the word said in the video>` ·
     `match: any` · `reply: <the DM text>` (one `reply:` line per line: a greeting, a line per
     numbered step, the guide line «راهنمای قدم‌به‌قدم: https://trade-future.ir/campaigns/weex-trade-more-win-more?utm_source=instagram&utm_medium=dm&utm_campaign=<slug>»
-    (for LBank: https://trade-future.ir/guides/lbank-signup?utm_source=instagram&utm_medium=dm&utm_campaign=<slug>), the risk line) ·
+    (for LBank: https://trade-future.ir/guides/lbank-signup?utm_source=instagram&utm_medium=dm&utm_campaign=<slug>)) ·
     `link: https://trade-future.ir/go/weex?src=ig&goal=R&pl=<slug>` (LBank: `/go/lbank?...`) ·
     `button: ثبت‌نام در ویکس` (≤20 chars) · ten `public: <reply>` lines. `<slug>` = `zs<NNN>_<symbol>`.
 14. **Deliver:** out/ holds ONLY video.mp4, story.mp4, cover.jpg, caption.txt, comment.txt,

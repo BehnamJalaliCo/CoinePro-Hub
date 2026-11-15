@@ -348,3 +348,186 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
             headers=ws["h"],
         )
         assert r.status_code == 200, r.text
+
+
+async def test_the_second_reel_of_a_page_never_shares_the_first_ones_hour(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-15⟩ The owner: «پرو چارت رو روزی دو تا بکنیم»: the second flow of the page takes the
+    other tried hours; on the best-hour week, the tried hour farthest from the first reel's."""
+    from hq_api.domain import best_hour as BH
+
+    async def best(*_: Any, **__: Any) -> Any:
+        return SimpleNamespace(enough=True, hour="19:30")
+
+    monkeypatch.setattr(BH, "best", best)
+    one, two = FL.FLOWS["prochart_reels"], FL.FLOWS["prochart_reels_2"]
+    assert two.pair == one.key and two.account == one.account and two.kit == one.kit
+    tz = ZoneInfo(FL.TEHRAN)
+    for offset in range(56):
+        day = one.start + timedelta(days=offset)
+        a, _ = await FL.slot_of(None, one, day, None)  # type: ignore[arg-type]
+        b, why = await FL.slot_of(None, two, day, None)  # type: ignore[arg-type]
+        assert a.astimezone(tz).strftime("%H:%M") != b.astimezone(tz).strftime("%H:%M"), offset
+        if FL.week_of(one, day) == 3:
+            assert b.astimezone(tz).strftime("%H:%M") == "09:30" and "دور" in why
+
+
+def test_a_story_dm_carries_up_to_three_buttons() -> None:
+    from hq_api.domain import session_publish as SPB
+
+    got = SPB.parse_comment(STORIES_COMMENT)
+    assert got is not None and got["keywords"] == ["الماس"]
+    assert [b["title"] for b in got["buttons"]] == ["ورود رایگان VIP", "ثبت‌نام LBank", "راهنما"]
+    body = SPB.rule_body("story_reply", got, "zaribsad", [], "k")
+    assert body["match"] == "contains" and len(body["buttons"]) == 3
+    assert body["buttons"][0]["url"].startswith("https://trade-future.ir/go/vip")
+    # a fourth, or one that is no https link, is left out
+    more = STORIES_COMMENT + "\nbutton: چهارم | https://x.test/4\nbutton: بد | http://x.test"
+    assert len(SPB.parse_comment(more)["buttons"]) == 3  # type: ignore[index]
+
+
+def a_pic(i: int) -> bytes:
+    """A picture of its own for each of seven (a_png's colour tops out after four)."""
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 36), (20 * i, 90, 140)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+STORIES_COMMENT = (
+    "keyword: الماس\nreply: سلام 👋 کانال VIP تریدیار رایگان است\nreply: 1️⃣ با لینک ما حساب بساز\n"
+    "button: ورود رایگان VIP | https://trade-future.ir/go/vip?src=ig&goal=V&pl=story-t\n"
+    "button: ثبت‌نام LBank | https://trade-future.ir/go/lbank?src=ig&goal=R&pl=story-t\n"
+    "button: راهنما | https://trade-future.ir/guides/tradeyar-free-vip"
+)
+
+
+async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-15⟩ The owner: «اتوماسیون استوری ضریب صد روزانه (هفت عدد) … جواب‌های دایرکت استوری
+    طوری باشه که کاربر رو ترغیب بکنه برای ورود به کانال سیگنال vip»."""
+    from dataclasses import replace
+
+    from hq_api.domain import session_publish as SPB
+
+    ig, ty = await new_company(), await new_company()
+    ig_rn = await connected(client, hub, owner_session, ig, ty["code"])
+    fk = f"s{uuid.uuid4().hex[:8]}"
+    hours = ("08:30", "10:30", "13:30", "15:30", "17:30", "20:30", "22:30")
+    flow = replace(a_flow(ty["code"], fk), story=False, stories=hours, hours=("08:30",))
+    monkeypatch.setattr(FL, "FLOWS", {fk: flow})
+    day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=1)
+    r = await client.post(
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert r.status_code == 201, r.text
+    got = r.json()
+    order, work_ref = got["order"], got["work"]
+    assert datetime.fromisoformat(got["publish_at"]) == FL.story_times(flow, day)[0]
+    brief = await su.fetchval("SELECT text FROM owner.orders WHERE ref = $1", order)
+    assert "story_7.jpg" in brief and "کلمه‌ی امروز باید تازه باشد" in brief
+    wid = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", work_ref)
+    holder = await su.fetchval(
+        "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id WHERE w.ref = $1",
+        work_ref,
+    )
+    ws = await workshop(client, hub, owner_session, su)
+    await refuse_queued(su, str(wid))
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "استوری‌های امروز"})
+    assert r.status_code == 201, r.text
+    job = await take(client, ws)
+    sent = [(f"story_{i}.png", "image/png", a_pic(i)) for i in range(1, 7)]  # one is missing
+    sent += [("comment.txt", "text/plain", STORIES_COMMENT.encode()),
+             ("topic.txt", "text/plain", "کارنامه‌ی هفته".encode())]  # fmt: skip
+    files = []
+    for name, ctype, data in sent:
+        r = await send_file(client, ws, job["id"], name, ctype, data)
+        assert r.status_code == 201, r.text
+        files.append(r.json()["id"])
+    await refuse_queued(su, str(wid))
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 0, "summary_fa": "شش تا.",
+              "data": {"session_id": "cs-st-1", "result_fa": "شش.", "files": files}},
+        headers=ws["h"],
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    count_sql = (
+        "SELECT count(*) FROM infra.server_jobs WHERE kind = 'publish'"
+        " AND args -> 'session' ->> 'order' = $1"
+    )
+    assert await su.fetchval(count_sql, order) == 0  # nothing before the seventh
+    await refuse_queued(su, str(wid))
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "هفتمی"})
+    assert r.status_code == 201, r.text
+    job = await take(client, ws)
+    r = await send_file(client, ws, job["id"], "story_7.png", "image/png", a_pic(7))
+    assert r.status_code == 201, r.text
+    await refuse_queued(su, str(wid))
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 0, "summary_fa": "هفتمی.",
+              "data": {"session_id": "cs-st-1", "result_fa": "تمام.", "files": [r.json()["id"]]}},
+        headers=ws["h"],
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    jobs = await su.fetch(
+        "SELECT id, args FROM infra.server_jobs WHERE kind = 'publish'"
+        " AND args -> 'session' ->> 'order' = $1",
+        order,
+    )
+    args = [j["args"] if isinstance(j["args"], dict) else __import__("json").loads(j["args"])
+            for j in jobs]  # fmt: skip
+    assert len(args) == 7 and {a["kind"] for a in args} == {"story"}
+    when = sorted(datetime.fromisoformat(a["meta"]["scheduled_at"]) for a in args)
+    assert when == FL.story_times(flow, day)
+    by_time = {a["meta"]["scheduled_at"]: a for a in args}
+    first = by_time[FL.story_times(flow, day)[0].isoformat()]
+    assert first["session"]["file_name"] == "story_1.png" and first["caption"] == ""
+    assert first["files"][0]["mime"] == "image/jpeg"  # (every picture goes as a JPEG)
+    assert "comment" not in first["meta"]
+    assert first["meta"]["story_rule"]["keywords"] == ["الماس"]
+    assert len(first["meta"]["story_rule"]["buttons"]) == 3
+    said = await su.fetchval(
+        "SELECT body_fa FROM notify.notifications WHERE source_code = 'flow' AND link_ref = $1",
+        order,
+    )
+    assert said is not None and "الماس" in said and "۷ استوری" in said
+    assert await su.fetchval(
+        "SELECT closed_at IS NOT NULL FROM owner.order_reports WHERE ref = $1", order
+    )
+    # the first story is out: the day's reply rule, with its three buttons; one rule a day
+    first_job = next(str(j["id"]) for j, a in zip(jobs, args, strict=True) if a is first)
+    out = first["session"]["output"]
+    rules_sql = (
+        "SELECT args FROM infra.server_jobs WHERE args -> 'rule_for' ->> 'trigger' = 'story_reply'"
+        " AND args ->> 'account' = $1"
+    )
+    before = len(await su.fetch(rules_sql, "pro.chart"))
+    await answer(client, ig_rn, first_job, {"external_id": "17900000000000001", "url": None})
+    made = await su.fetch(rules_sql, "pro.chart")
+    assert len(made) == before + 1
+    rule = [m["args"] if isinstance(m["args"], dict) else __import__("json").loads(m["args"])
+            for m in made][-1]["meta"]["rule"]  # fmt: skip
+    assert rule["trigger"] == "story_reply" and rule["keywords"] == ["الماس"]
+    assert rule["buttons"][0]["title"] == "ورود رایگان VIP"
+    second = next(str(j["id"]) for j, a in zip(jobs, args, strict=True)
+                  if a["session"]["output"] == out and a is not first)  # fmt: skip
+    await answer(client, ig_rn, second, {"external_id": "17900000000000002", "url": None})
+    assert len(await su.fetch(rules_sql, "pro.chart")) == before + 1
+    # the next day's brief names the word as taken
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert "الماس" in await FL.story_words(tx, "pro.chart")
+    assert SPB.view  # (the module is the one the hub runs)

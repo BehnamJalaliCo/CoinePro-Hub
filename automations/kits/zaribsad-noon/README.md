@@ -21,7 +21,7 @@ PCKIT = /home/studio/kits/prochart-reels (reuse its TOOLS only — never its loo
 - Caption: catchy and gripping (a first line that stops the scroll), SEO-aware, **exactly 3
   hashtags** (one broad, one on the topic, one brand-ish such as #ضریب_صد). Comment/DM: no hashtags.
 - Topics and writing with ChatGPT's help (`substitute.call`, player gpt); you check every fact.
-  No promise of profit; one short honest risk line. Font: IRANYekanX Eco only. 1080×1920, 55–80 s.
+  No promise of profit. No warning or disclaimer lines (owner, 2026-11-15: «ما داریم تبلیغات میکنیم»; DIRECTION §0.8). Font: IRANYekanX Eco only. 1080×1920, 55–80 s.
 
 ## The owner's override comes first
 If KIT/bank/override.json has an entry for TODAY's date (Tehran, the day of your order), today's
@@ -39,7 +39,7 @@ reel is THAT one: read its `note_fa`, follow the kit it names (`follow`) for the
   until 1405-08-30), then LBank, then Ourbit, turning; open its `info` and `official` pages
   (curl) for today's real terms (amounts, dates, conditions; never invent). After its end date,
   the referral sign-up itself is the offer. `topic.claim` «کمپین: <exchange> <date>». Make the
-  offer clear, honest and exciting; how to join in 3 steps; the risk line. Call to action: a
+  offer clear, honest and exciting; how to join in 3 steps. Call to action: a
   comment word → the DM sends the steps + the referral button (the bank's `link` and `button`).
 - **خبر و بازار (news and the market):** `python3 -I KIT/tools/news_today.py qc/news.json` (BTC,
   ETH, total market, dominance, fear & greed, Cointelegraph's headlines, TradeYar's own Persian
@@ -85,10 +85,10 @@ start (the steps below); mark each done with `order.progress`.
     with the pack's board attached: the page's three colours, the 2–4 word title in our font, one
     element of the topic; you check every letter (fallback: the title set by you in Eco Bold).
     1080×1920 `out/cover.jpg`; never a video frame; no TradeYar logo.
-12. **Texts:** `out/caption.txt` (exactly 3 hashtags; the comment-word ask; the risk line).
+12. **Texts:** `out/caption.txt` (exactly 3 hashtags; the comment-word ask).
     `out/comment.txt`, one `label: value` a line: `keyword: <the word said in the video>` ·
     `match: any` · `reply: <DM line>` (one per line: greeting, numbered steps, a guide line with
-    its utm link, the risk line) · `link: <the button's link>` · `button: <≤20 chars>` · ten
+    its utm link) · `link: <the button's link>` · `button: <≤20 chars>` · ten
     `public: <reply>`. Links: utm_source=instagram&utm_medium=dm&utm_campaign=zn<NNN>_<slug>;
     referral links from KIT/bank/campaigns.json with `{slug}` filled.
 13. **Deliver:** out/ holds ONLY video.mp4, story.mp4, cover.jpg, caption.txt, comment.txt,

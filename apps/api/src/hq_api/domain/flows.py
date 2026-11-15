@@ -69,6 +69,12 @@ class Flow:
     # ⟨2026-11-15⟩ the first day the model makes (None = every day); the days before keep the
     # workshop's own
     model_from: date | None = None
+    # ⟨2026-11-15⟩ the owner: «پرو چارت رو روزی دو تا بکنیم»: a second flow of the same page names
+    # the first; its hour never falls on the first one's
+    pair: str = ""
+    # ⟨2026-11-15⟩ a stories flow (the owner: «استوری ضریب صد روزانه ۷ عدد»): the hours (Tehran) of
+    # the day's picture stories, one each; the day's reply rule answers the account's story replies
+    stories: tuple[str, ...] = ()
 
 
 FLOWS = {
@@ -81,6 +87,21 @@ FLOWS = {
         start=date(2026, 11, 14),
         hours=("09:30", "14:00", "19:30", None),
         n8n="hqFlowProchartReels1",
+    ),
+    # ⟨2026-11-15⟩ the owner: «اگر بخواییم پرو چارت رو روزی دو تا بکنیم … اگر آره اونم هر روز دو تا
+    # باشه»: the bank holds 730 topics (two a day for a year); the same kit, made later in the day,
+    # at an hour of its own (each of the three hours tried two weeks of four)
+    "prochart_reels_2": Flow(
+        key="prochart_reels_2",
+        company="PC",
+        account="theprochart",
+        title_fa="ریلز دوم پروچارت",
+        kit="/home/studio/kits/prochart-reels",
+        start=date(2026, 11, 14),  # (the first flow's weeks)
+        hours=("19:30", "09:30", "14:00", None),
+        n8n="hqFlowProchartReels2",
+        trigger_at="16:30",
+        pair="prochart_reels",
     ),
     # ⟨2026-11-14⟩ the owner: TradeYar's page @zaribsad, a coin-profile reel at 19:00 every day
     # (what the coin is, how it was built, its advantages, today's price, its year), the video made
@@ -121,6 +142,25 @@ FLOWS = {
         usd_cap=Decimal("100"),
         model="claude-fable-5-2",  # (as the 12:00 one: from tomorrow)
         model_from=date(2026, 11, 16),
+    ),
+    # ⟨2026-11-15⟩ the owner: «اتوماسیون استوری ضریب صد روزانه ۷ عدد که مطالبی باشه که برای کاربر
+    # جذاب باشه که وارد کانال سیگنال بشه و جواب‌های دایرکت استوری طوری باشه که کاربر رو ترغیب بکنه
+    # برای ورود به کانال سیگنال vip»: seven photoreal picture stories a day, made the same morning
+    "zaribsad_stories": Flow(
+        key="zaribsad_stories",
+        company="TY",
+        account="zaribsad",
+        title_fa="استوری‌های روزانه‌ی ضریب صد",
+        kit="/home/studio/kits/zaribsad-stories",
+        start=date(2026, 11, 16),
+        hours=("08:30",),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowZaribsadStories1",
+        trigger_at="06:00",
+        usd_cap=Decimal("60"),
+        model="claude-fable-5-2",
+        stories=("08:30", "10:30", "13:30", "15:30", "17:30", "20:30", "22:30"),
     ),
     # ⟨2026-11-15⟩ the owner: «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»: the ZEC
     # reel once more on Claude Fable 5.2, to set beside the Opus 5.5 one. No account: nothing is
@@ -189,8 +229,8 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
     """When the day's post goes out (UTC) and how it was chosen, in Persian. The fourth week takes
     the hour the account's posts did best at (§49); too little data yet: the first week's hour."""
     tz = ZoneInfo(TEHRAN)
-    hm = flow.hours[week_of(flow, day)]
-    why = "ساعت ثابت این هفته"
+    hm = flow.stories[0] if flow.stories else flow.hours[week_of(flow, day)]
+    why = "ساعت ثابت این هفته" if not flow.stories else "ساعت اولین استوری روز"
     if hm is None:
         from hq_api.domain import best_hour as BH
 
@@ -199,9 +239,34 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
             hm, why = str(got.hour), "پربازدیدترین ساعت"
         else:
             hm, why = flow.hours[0] or "09:30", "داده‌ی بازدید هنوز کم است؛ ساعت هفته‌ی اول"
+    sibling = FLOWS.get(flow.pair) if flow.pair else None
+    if sibling is not None and not sibling.pair:
+        theirs, _ = await slot_of(tx, sibling, day, company_id)
+        their_hm = theirs.astimezone(tz).strftime("%H:%M")
+        if _minutes(their_hm) == _minutes(str(hm)):
+            # (both on the best hour) the tried hour farthest from the first one's
+            hm = max(
+                (h for h in sibling.hours if h), key=lambda h: abs(_minutes(h) - _minutes(their_hm))
+            )
+            why = "ساعت دور از ریلز اول روز"
     hh, mm = (int(x) for x in str(hm).split(":"))
     at = datetime.combine(day, time(hh, mm), tz).astimezone(UTC)
     return at, why
+
+
+def _minutes(hm: str) -> int:
+    hh, mm = (int(x) for x in hm.split(":"))
+    return hh * 60 + mm
+
+
+def story_times(flow: Flow, day: date) -> list[datetime]:
+    """⟨2026-11-15⟩ When each of a stories flow's pictures goes out (UTC)."""
+    tz = ZoneInfo(TEHRAN)
+    out = []
+    for hm in flow.stories:
+        hh, mm = (int(x) for x in hm.split(":"))
+        out.append(datetime.combine(day, time(hh, mm), tz).astimezone(UTC))
+    return out
 
 
 def at_fa(at: datetime) -> str:
@@ -216,8 +281,31 @@ def kind_of(flow: Flow, day: date) -> str:
     return flow.cycle[(day - flow.start).days % len(flow.cycle)]
 
 
-def brief_of(flow: Flow, day: date, at: datetime) -> str:
+def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
+    """⟨2026-11-15⟩ A stories flow's order: the day's pictures, their hours, the words taken."""
+    n = len(flow.stories)
+    hours = "، ".join(f"{i}) {hm}" for i, hm in enumerate(flow.stories, 1)).translate(FA_DIGITS)
+    taken = "، ".join(f"«{w}»" for w in used) if used else "هنوز هیچ"
+    return (
+        f"{flow.title_fa}، {fa_day(day)}: {n} استوری عکس، هر کدام در ساعت خودش (تهران): {hours}.\n\n"
+        "این فرمان را اتوماسیون روزانه (n8n) داده است، به دستور مدیر کل. کار خودکار است: از کسی "
+        "چیزی نپرس، order.ask نزن و منتظر تأیید نمان.\n"
+        f"روند، قاعده‌ها و ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
+        "قدم‌به‌قدم انجام بده؛ هیچ فایلی از کیت را عوض نکن.\n"
+        f"تحویل: فقط این‌ها در out/: story_1.jpg تا story_{n}.jpg (۱۰۸۰×۱۹۲۰، به ترتیب ساعت‌ها)، "
+        "comment.txt (کلمه‌ی امروز، جواب دایرکت و دکمه‌ها) و topic.txt. وقتی همه در out/ بود، ستاد "
+        "هر استوری را برای ساعت خودش روی "
+        f"@{flow.account} زمان‌بندی میکند، جواب دایرکت استوری را با کلمه‌ی امروز روشن میکند، به "
+        "مدیر کل خبر میدهد و این جلسه را میبندد.\n"
+        f"کلمه‌هایی که پیش از این برای جواب استوری‌های این پیج گرفته شده و دیگر کار نمیکند: {taken}. "
+        "کلمه‌ی امروز باید تازه باشد."
+    )
+
+
+def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None) -> str:
     """The order's text: what the day's session makes, from the kit, and when it goes out."""
+    if flow.stories:
+        return stories_brief(flow, day, used or [])
     kind = kind_of(flow, day)
     return (
         f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار {at_fa(at)} به وقت تهران)\n\n"
@@ -272,8 +360,9 @@ async def start(
             return {"order": str(m.get("order") or ""), "work": str(made["ref"]),
                     "publish_at": str(m.get("publish_at") or ""), "why_fa": "پیش از این ساخته شده"}  # fmt: skip
         at, why = await slot_of(tx, flow, the_day, co["id"])
+        used = await story_words(tx, flow.account) if flow.stories else []
     body = OrderIn(
-        text=brief_of(flow, the_day, at),
+        text=brief_of(flow, the_day, at, used),
         company=flow.company,
         route=D.Route(
             companies=[flow.company],
@@ -307,6 +396,20 @@ async def start(
             summary=f"{flow.key} for {the_day} (publish {at.isoformat()}, {why}); work {work_ref}",
         )  # fmt: skip
     return {"order": ref, "work": work_ref, "publish_at": at.isoformat(), "why_fa": why}
+
+
+STORY_WORDS_SQL = """SELECT DISTINCT kw FROM infra.server_jobs j,
+        jsonb_array_elements_text(j.args -> 'meta' -> 'rule' -> 'keywords') AS kw
+    WHERE j.kind = 'publish' AND j.args ->> 'account' = :a
+      AND j.args -> 'rule_for' ->> 'trigger' = 'story_reply' AND j.state IN ('queued', 'running', 'done')"""
+
+
+async def story_words(tx: Tx, account: str) -> list[str]:
+    """⟨2026-11-15⟩ The words the account's story replies are already answered on. IG-Hub answers
+    a story reply with the OLDEST rule that has its word: a taken word never reaches a new rule."""
+    rows = await tx.all(STORY_WORDS_SQL, a=account)
+    words = sorted({str(r["kw"]).replace("\u200c", "").replace(" ", "") for r in rows})
+    return [w for w in words if w][:500]
 
 
 def _json(x: Any) -> str:
@@ -423,6 +526,9 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
             finished_later = True
         for f in await SPB._files(tx, d):
             newest.setdefault(str(f["name"] or "").strip().lower(), (dict(f), d))
+    flow = FLOWS.get(str((w.get("flow") or {}).get("key") or ""))
+    if flow is not None and flow.stories:
+        return _stories_package(flow, newest)
     files = [f for f, _ in newest.values()]
     reel, story = _split(files)
     caption = next((newest[n] for n in SPB.CAPTION_NAMES if n in newest), None)
@@ -440,6 +546,34 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
         "cover": covers[0] if covers else None,
         "caption_d": caption[1],
         "comment_d": comment[1] if comment else None,
+        "topic_d": topic[1] if topic else None,
+    }
+
+
+PICTURE_EXT = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def _stories_package(
+    flow: Flow, newest: dict[str, tuple[dict[str, Any], dict[str, Any]]]
+) -> dict[str, Any] | None:
+    """⟨2026-11-15⟩ A stories flow's day: `story_1` … `story_N` (pictures) and `comment.txt`, each
+    with the output it came in. None until every one is there."""
+    pics = []
+    for i in range(1, len(flow.stories) + 1):
+        got = next(
+            (newest[f"story_{i}{e}"] for e in PICTURE_EXT if f"story_{i}{e}" in newest), None
+        )
+        if got is None or not str(got[0]["mime"]).startswith("image/"):
+            return None
+        pics.append(got)
+    comment = next((newest[n] for n in SPB.COMMENT_NAMES if n in newest), None)
+    if comment is None:
+        return None
+    topic = newest.get("topic.txt")
+    return {
+        "d": pics[0][1],
+        "stories": pics,
+        "comment_d": comment[1],
         "topic_d": topic[1] if topic else None,
     }
 
@@ -475,11 +609,13 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
     pkg = await package(tx, w)
     if pkg is None:
         return "open"
-    d, reel, story = pkg["d"], pkg["reel"], pkg["story"]
     route = await SPB._route(tx, w["company_id"])
     account = str(meta.get("account") or "")
     if not route["ready"] or account not in route["accounts"]:
         return "route"
+    if "stories" in pkg:
+        return await _publish_stories(tx, hub, w, meta, pkg, route, account)
+    d, reel, story = pkg["d"], pkg["reel"], pkg["story"]
     caption = (await SPB._text_of(tx, hub, pkg["caption_d"], SPB.CAPTION_NAMES) or "").strip()
     comment = await SPB.comment_of(tx, hub, pkg["comment_d"]) if pkg["comment_d"] else None
     topic_d = pkg["topic_d"]
@@ -545,6 +681,88 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
         rep = await OR.ensure(tx, order)
         if rep is not None and rep.get("closed_at") is None:
             await SE.close(tx, order, "ok", "اتوماسیون روزانه: بسته زمان‌بندی شد", hub=hub)
+    return "scheduled"
+
+
+LATE = timedelta(minutes=30)
+STORIES_READY_TITLE_FA = "{title} آماده شد"
+STORIES_READY_BODY_FA = (
+    "{n} استوری امروز زمان‌بندی شد (اولی {at} به وقت تهران). کلمه‌ی جواب دایرکت: «{word}». "
+    "موضوع روز: {topic}"
+)
+
+
+async def _publish_stories(
+    tx: Tx, hub: Any, w: dict[str, Any], meta: dict[str, Any], pkg: dict[str, Any],
+    route: dict[str, Any], account: str,
+) -> str:  # fmt: skip
+    """⟨2026-11-15⟩ Each picture of a stories flow at its own hour, with the day's reply rule (made
+    when the first of them is out); an hour already gone by more than half an hour is left out."""
+    flow = FLOWS[str(meta["key"])]
+    comment = await SPB.comment_of(tx, hub, pkg["comment_d"])
+    topic_d = pkg["topic_d"]
+    topic = (
+        (await SPB._text_of(tx, hub, topic_d, ("topic.txt",)) or "").strip().splitlines()
+        if topic_d
+        else []
+    )
+    times = story_times(flow, date.fromisoformat(str(meta["day"])))
+    now = datetime.now(UTC)
+    order = str(meta.get("order") or "") or None
+    sent, late = [], []
+    for i, ((f, d), at) in enumerate(zip(pkg["stories"], times, strict=False), 1):
+        if at < now - LATE:
+            late.append(i)
+            continue
+        await SPB.lock_publication(tx, d["ref"], str(f["id"]), account, "story")
+        if await SPB.last_of(tx, d["ref"], str(f["id"]), account, "story") is not None:
+            continue
+        j = await SPB._send(
+            tx, FLOW, d, f, None, hub=hub, what="story", account=account, caption="",
+            route=route, order=order, scheduled_at=at if at > now + timedelta(minutes=2) else None,
+            comment=comment,
+        )  # fmt: skip
+        sent.append((i, str(j["id"])))
+    meta["sent"] = now.isoformat()
+    await tx.exec(
+        """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))
+           WHERE id = :w""",
+        w=w["id"],
+        m=_json(meta),
+    )
+    from hq_api.domain import notify
+
+    first = times[sent[0][0] - 1] if sent else times[0]
+    await notify.raise_notification(
+        tx,
+        company_id=w["company_id"],
+        company_code=str(w["company"]),
+        level="report",
+        title_fa=STORIES_READY_TITLE_FA.format(title=flow.title_fa)[:300],
+        body_fa=STORIES_READY_BODY_FA.format(
+            n=str(len(sent)).translate(FA_DIGITS),
+            at=at_fa(first),
+            word=((comment or {}).get("keywords") or ["—"])[0],
+            topic=topic[0] if topic else "—",
+        )[:1000],
+        link_kind="order" if order else "deliverable",
+        link_ref=order or str(pkg["d"]["ref"]),
+        source_kind="system",
+        source_code="flow",
+    )
+    await audit.record(
+        tx, FLOW, company_id=w["company_id"], action="flow.publish", action_class="A3",
+        target_kind="order" if order else "deliverable", target_ref=order or str(pkg["d"]["ref"]),
+        summary=f"{meta.get('key')} {meta.get('day')}: stories {', '.join(f'{i} {j}' for i, j in sent)}"
+        f"{f' (late, left out: {late})' if late else ''} to @{account}; rule word "
+        f"{((comment or {}).get('keywords') or ['-'])[0]} (the owner's order of 2026-11-15)"[:500],
+    )  # fmt: skip
+    if order:
+        from hq_api.domain import sessions as SE
+
+        rep = await OR.ensure(tx, order)
+        if rep is not None and rep.get("closed_at") is None:
+            await SE.close(tx, order, "ok", "اتوماسیون روزانه: استوری‌ها زمان‌بندی شد", hub=hub)
     return "scheduled"
 
 
