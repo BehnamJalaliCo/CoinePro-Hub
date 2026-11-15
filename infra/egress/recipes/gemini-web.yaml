@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-15.2-diag"
+version: "2026-11-15.2"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
