@@ -41,8 +41,10 @@ it; copy what you change into your own folder).
 0. **Setup** (in your folder):
    `mkdir -p script qc direction build out in && cp -r KIT/motion KIT/tools ./ && cp KIT/direction/edit_template.py direction/edit.py`
    `ln -sfn KIT/asr build/asr && ln -sfn KIT/venv-render build/.venv`
-1. **Topic:** take the next title of KIT/bank/bank.json (day, series, title, angle, anchor) that is not
-   used: `topic.claim` it (the hub refuses a repeat: take the next). Write `out/topic.txt` (the title).
+1. **Topic:** take the next title of KIT/bank/bank.json (day, series, title, angle, anchor), in FILE
+   order, that is not used: `topic.claim` it (the hub refuses a repeat: take the next). The page makes
+   two reels a day (owner, 2026-11-15): the bank's 730 topics alternate a first-year and a second-year
+   kind, so the day's two reels are never of one kind. Write `out/topic.txt` (the title).
 2. **Script** (ChatGPT in the loop when it answers; if it is down, write it yourself and go on):
    `substitute.call` with player gpt, ONE ask for: a 140–160 word casual
    script for 60–75 s on the topic (with the angle and the anchor), the comment keyword said in the
@@ -50,7 +52,8 @@ it; copy what you change into your own folder).
    steps), 10 public replies under a comment (short, warm, each with an emoji, all different).
    Its answer comes later (queued): do the setup and the inspiration meanwhile; don't poll.
    Fix the script yourself (facts about Pro-Chart from KIT/examples and the anchor; no promise of
-   profit; the risk line). Keep it in `script/voice.txt`; the video must SAY the keyword.
+   profit; no warning or disclaimer line — the owner, 2026-11-15: «از این نوع کلمات نذار؛ ما داریم
+   تبلیغات میکنیم»). Keep it in `script/voice.txt`; the video must SAY the keyword.
 3. **Voice:** `speech.make` (voice Cruz, the script). The file lands in `in/`. Then:
    `build/asr/venv/bin/python -I tools/asr_words.py build/asr/models <voice> qc/asr.txt qc/asr.json`
    `python3 -I tools/qc_compare.py script/voice.txt qc/asr.txt qc/qc.json` — a wrong word: remake ONLY
@@ -85,7 +88,7 @@ it; copy what you change into your own folder).
     line and the slogan). `out/comment.txt`, one `label: value` a line:
     `keyword: <the word said in the video>` · `match: any` (every comment on the reel gets the DM; the
     story and DM replies answer the keyword only) · `reply: <the DM text>` (one `reply:` line per line of
-    the message: a greeting, a line per numbered step 1️⃣ 2️⃣ …, the risk line) · `link: <the utm link>` ·
+    the message: a greeting, a line per numbered step 1️⃣ 2️⃣ …) · `link: <the utm link>` ·
     `button: <≤20 chars, e.g. ورود به پرو چارت>` · ten `public: <reply>` lines.
 12. **Deliver:** out/ holds ONLY video.mp4, story.mp4, cover.jpg, caption.txt, comment.txt, topic.txt.
     `order.progress` done; the hub takes it from there. Say one short Persian line; no links.
@@ -94,4 +97,5 @@ it; copy what you change into your own folder).
 - motion/engine6.py (render), engine5_template.html (motion graphics), toon.js (the character), audio4.py (music + mix)
 - tools/: asr_words, qc_compare, word_probe, word_times, assemble_voice, audio_qc, cover2, pin_* (Pinterest)
 - examples/day1/: the first reel's script, edit, word times, T, caption, comment, topic, cover, frames sheet, NOTES
-- bank/: 365 topics (bank.json) and check_dupes.py
+- bank/: 730 topics (bank.json: two a day for a year, built by build_bank.py from data_app.py,
+  data_general.py and data_year2.py, grounded in site_features.md) and check_dupes.py
