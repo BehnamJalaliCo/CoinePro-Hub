@@ -549,6 +549,10 @@ def preview_fa(
     """What this rule really does, in plain Persian, built from the validated rule (never from
     the model's words); `titles` names a role by its charter's title, `notes` says what code
     changed (a role nobody holds)."""
+    if not isinstance(rule.get("trigger"), dict):
+        # ⟨2026-11-15⟩ a row with no compiled rule (it never runs, §31.7): one plain line, so one
+        # such row never takes the owner's whole list down with it
+        return "این قاعده هنوز کامل نیست و اجرا نمیشود."
     t = rule["trigger"]
     if t["kind"] == "schedule":
         when = when_fa(t["rrule"]) + " (به وقت تو)"
