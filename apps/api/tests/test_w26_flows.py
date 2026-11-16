@@ -559,3 +559,71 @@ async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule
     assert card["last"]["steps"] == [{"key": x["key"], "state": x["state"]}
                                      for x in run.json()["steps"]]  # fmt: skip
     assert SPB.view  # (the module is the one the hub runs)
+
+
+IPOXXO_COMMENT = (
+    "keyword: لینک\nmatch: any\nreply: سلام 👋 اینم کانال رایگان آی‌پی‌اکسو\n"
+    "reply: پروکسی تلگرام و کانفیگ V2Ray رایگان\nbutton: ورود به کانال | https://t.me/ipoxxo\n"
+    "public: دایرکتت رو ببین 📩"
+)
+
+
+def test_ipoxxos_flows_are_ig_hubs_with_a_fixed_story_word() -> None:
+    """⟨2026-11-16⟩ The owner: @ipoxxo.vpn (the free proxy/VPN channel t.me/ipoxxo), «ثبت زیر
+    ig-hub»: two reels a day at hours of their own, made on Opus 5.5 the evening before, no story cut
+    (three picture stories a day instead, always answered on «لینک»); the first reel publishes
+    nothing (the owner sees it first)."""
+    one, two, st, pilot = (FL.FLOWS[k] for k in
+                           ("ipoxxo_reels", "ipoxxo_reels_2", "ipoxxo_stories", "ipoxxo_pilot"))  # fmt: skip
+    for f in (one, two, st, pilot):
+        assert f.company == "IG" and f.model == "claude-opus-5-5" and not f.story
+        assert f.kit.startswith("/home/studio/kits/ipoxxo-")
+    assert one.account == two.account == st.account == "ipoxxo.vpn" and pilot.account == ""
+    assert two.pair == "ipoxxo_reels" and not one.same_day and st.same_day
+    assert len(st.stories) == 3 and st.story_word == "لینک" and not pilot.n8n
+    assert {one.n8n, two.n8n, st.n8n} == {"hqFlowIpoxxoReels1", "hqFlowIpoxxoReels2",
+                                          "hqFlowIpoxxoStories1"}  # fmt: skip
+    # a week never puts the second reel on the first one's hour
+    assert all(a != b for a, b in zip(one.hours, two.hours, strict=True) if a and b)
+
+
+def test_a_fixed_story_word_and_a_reel_without_its_story_in_the_brief() -> None:
+    at = datetime(2026, 11, 17, 9, 0, tzinfo=UTC)
+    st = FL.FLOWS["ipoxxo_stories"]
+    text = FL.brief_of(st, date(2026, 11, 17), at, ["الماس"])
+    assert "«لینک»" in text and "کلمه‌ی تازه نساز" in text and "الماس" not in text
+    assert "story_3.jpg" in text and "@ipoxxo.vpn" in text
+    # the fresh-word flows keep their list of taken words
+    from dataclasses import replace
+
+    fresh = replace(st, story_word="")
+    assert "«الماس»" in FL.brief_of(fresh, date(2026, 11, 17), at, ["الماس"])
+    reel = FL.brief_of(FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), at)
+    assert "story.mp4" not in reel and "استوری نه" in reel and "video.mp4" in reel
+    assert "story.mp4" in FL.brief_of(a_flow("PC"), START, at)
+
+
+def test_ipoxxos_map_shows_its_own_steps() -> None:
+    from hq_api.domain import flow_view as FV
+
+    reel = [s.key for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"])]
+    assert FV.recipe(FL.FLOWS["ipoxxo_reels"]) == "zaribsad"
+    assert {"inspire", "keyart", "cover", "render"} <= set(reel) and "story" not in reel
+    assert "story" in [s.key for s in FV.steps_of(FL.FLOWS["zaribsad_noon"])]
+    st = {s.key: s for s in FV.steps_of(FL.FLOWS["ipoxxo_stories"])}
+    assert "«لینک»" in st["word"].title_fa and "s3" in st and "s4" not in st
+    assert "کانال" in st["dm"].title_fa and "VIP" not in st["rule"].output_fa
+    ty = {s.key: s for s in FV.steps_of(FL.FLOWS["zaribsad_stories"])}
+    assert "VIP" in ty["data"].title_fa and ty["word"].title_fa == "کلمه‌ی امروز"
+    FV.graph_of(FL.FLOWS["ipoxxo_stories"])  # (the canvas builds)
+    FV.graph_of(FL.FLOWS["ipoxxo_reels_2"])
+
+
+def test_ipoxxos_dm_opens_the_telegram_channel_on_any_comment() -> None:
+    from hq_api.domain import session_publish as SPB
+
+    got = SPB.parse_comment(IPOXXO_COMMENT)
+    assert got is not None and got["match"] == "any" and got["keywords"][0] == "لینک"
+    assert [b["title"] for b in got["buttons"]] == ["ورود به کانال"]
+    body = SPB.rule_body("comment", got, "ipoxxo.vpn", [], "k")
+    assert body["buttons"][0]["url"].startswith("https://t.me/ipoxxo")

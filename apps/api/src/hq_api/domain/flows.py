@@ -78,6 +78,12 @@ class Flow:
     # ⟨2026-11-15⟩ n8n makes the day it is called on (the page's news cannot wait a day); else
     # the next day
     same_day: bool = False
+    # ⟨2026-11-16⟩ a stories flow whose replies are always answered on ONE word (the owner for
+    # ipoxxo: «لینک رو ریپلای کن»): every day's rule has it; IG-Hub answers with the oldest one,
+    # whose reply is the same channel link ("" = a fresh word every day)
+    story_word: str = ""
+    # ⟨2026-11-16⟩ the steps the automations map shows («zaribsad», «ipoxxo»; "" = by the kit)
+    recipe: str = ""
 
 
 FLOWS = {
@@ -183,6 +189,80 @@ FLOWS = {
         budget_tokens=10_000_000,
         usd_cap=Decimal("100"),
         model="claude-fable-5-2",
+    ),
+    # ⟨2026-11-16⟩ the owner: the page @ipoxxo.vpn (on IG-Hub) for the free proxy and VPN channel
+    # t.me/ipoxxo, registered under IG-Hub (the owner: «ثبت زیر ig-hub»; its CEO holds the sessions,
+    # with the voice and the creative tools): two reels a day, each different, at hours of my
+    # choosing, each naming the channel and asking for a comment (every comment gets the link in a
+    # DM); three picture stories a day. «سبک ویدیو هم دقیقا عین ضریب صد»، «ساخت با اوپس ۵.۵». The
+    # first reel is shown to the owner before anything goes out (ipoxxo_pilot): the three daily
+    # flows stay switched off on the board until he says yes.
+    "ipoxxo_reels": Flow(
+        key="ipoxxo_reels",
+        company="IG",
+        account="ipoxxo.vpn",
+        title_fa="ریلز اول آی‌پی‌اکسو",
+        kit="/home/studio/kits/ipoxxo-reels",
+        start=date(2026, 11, 17),
+        hours=("12:30", "11:00", "14:00", None),
+        story=False,  # (the owner: three stories a day, the picture ones)
+        budget_tokens=10_000_000,
+        n8n="hqFlowIpoxxoReels1",
+        trigger_at="21:00",  # (the evening before: the workshop is free then)
+        usd_cap=Decimal("100"),
+        model="claude-opus-5-5",
+        recipe="ipoxxo",
+    ),
+    "ipoxxo_reels_2": Flow(
+        key="ipoxxo_reels_2",
+        company="IG",
+        account="ipoxxo.vpn",
+        title_fa="ریلز دوم آی‌پی‌اکسو",
+        kit="/home/studio/kits/ipoxxo-reels",
+        start=date(2026, 11, 17),
+        hours=("21:30", "19:30", "23:00", None),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowIpoxxoReels2",
+        trigger_at="23:30",
+        usd_cap=Decimal("100"),
+        model="claude-opus-5-5",
+        pair="ipoxxo_reels",
+        recipe="ipoxxo",
+    ),
+    "ipoxxo_stories": Flow(
+        key="ipoxxo_stories",
+        company="IG",
+        account="ipoxxo.vpn",
+        title_fa="استوری‌های روزانه‌ی آی‌پی‌اکسو",
+        kit="/home/studio/kits/ipoxxo-stories",
+        start=date(2026, 11, 17),
+        hours=("10:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowIpoxxoStories1",
+        trigger_at="02:30",
+        usd_cap=Decimal("40"),
+        model="claude-opus-5-5",
+        stories=("10:00", "16:30", "21:00"),
+        same_day=True,
+        story_word="لینک",
+        recipe="ipoxxo",
+    ),
+    # the first reel, for the owner's eyes only: no account (nothing is published), no n8n
+    "ipoxxo_pilot": Flow(
+        key="ipoxxo_pilot",
+        company="IG",
+        account="",
+        title_fa="ریلز نمونه‌ی آی‌پی‌اکسو برای مدیر کل (منتشر نمی‌شود)",
+        kit="/home/studio/kits/ipoxxo-reels",
+        start=date(2026, 11, 16),
+        hours=("21:30",),
+        story=False,
+        budget_tokens=10_000_000,
+        usd_cap=Decimal("100"),
+        model="claude-opus-5-5",
+        recipe="ipoxxo",
     ),
 }
 
@@ -292,6 +372,13 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
     n = len(flow.stories)
     hours = "، ".join(f"{i}) {hm}" for i, hm in enumerate(flow.stories, 1)).translate(FA_DIGITS)
     taken = "، ".join(f"«{w}»" for w in used) if used else "هنوز هیچ"
+    word = (
+        f"کلمه‌ی ریپلای این پیج ثابت است و هر روز همین است: «{flow.story_word}». همان را در "
+        "comment.txt (keyword) و روی هر استوری بگذار؛ کلمه‌ی تازه نساز."
+        if flow.story_word
+        else f"کلمه‌هایی که پیش از این برای جواب استوری‌های این پیج گرفته شده و دیگر کار نمیکند: "
+        f"{taken}. کلمه‌ی امروز باید تازه باشد."
+    )
     return (
         f"{flow.title_fa}، {fa_day(day)}: {n} استوری عکس، هر کدام در ساعت خودش (تهران): {hours}.\n\n"
         "این فرمان را اتوماسیون روزانه (n8n) داده است، به دستور مدیر کل. کار خودکار است: از کسی "
@@ -302,9 +389,7 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
         "comment.txt (کلمه‌ی امروز، جواب دایرکت و دکمه‌ها) و topic.txt. وقتی همه در out/ بود، ستاد "
         "هر استوری را برای ساعت خودش روی "
         f"@{flow.account} زمان‌بندی میکند، جواب دایرکت استوری را با کلمه‌ی امروز روشن میکند، به "
-        "مدیر کل خبر میدهد و این جلسه را میبندد.\n"
-        f"کلمه‌هایی که پیش از این برای جواب استوری‌های این پیج گرفته شده و دیگر کار نمیکند: {taken}. "
-        "کلمه‌ی امروز باید تازه باشد."
+        "مدیر کل خبر میدهد و این جلسه را میبندد.\n" + word
     )
 
 
@@ -320,10 +405,18 @@ def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None)
         f"چیزی نپرس، order.ask نزن و منتظر تأیید نمان.\n"
         f"روند، قاعده‌ها و همه‌ی ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
         f"قدم‌به‌قدم انجام بده؛ چیز دیگری از کیت را جز به نیاز نخوان و هیچ فایلی از کیت را عوض نکن.\n"
-        f"تحویل: فقط این‌ها در out/: video.mp4 (ریلز)، story.mp4 (همان ویدیو، حداکثر ۵۹٫۸ ثانیه)، "
-        f"cover.jpg، caption.txt، comment.txt و topic.txt. وقتی همه در out/ بود، ستاد خودش ریلز و "
-        f"استوری را برای {at_fa(at)} روی @{flow.account} زمان‌بندی میکند، کامنت هوشمند و جواب "
-        f"استوری را روشن میکند، به مدیر کل خبر میدهد و این جلسه را میبندد."
+        + (
+            f"تحویل: فقط این‌ها در out/: video.mp4 (ریلز)، story.mp4 (همان ویدیو، حداکثر ۵۹٫۸ ثانیه)، "
+            f"cover.jpg، caption.txt، comment.txt و topic.txt. وقتی همه در out/ بود، ستاد خودش ریلز و "
+            f"استوری را برای {at_fa(at)} روی @{flow.account} زمان‌بندی میکند، کامنت هوشمند و جواب "
+            f"استوری را روشن میکند، به مدیر کل خبر میدهد و این جلسه را میبندد."
+            if flow.story
+            # ⟨2026-11-16⟩ a page whose stories are their own flow: the reel goes out alone
+            else f"تحویل: فقط این‌ها در out/: video.mp4 (ریلز)، cover.jpg، caption.txt، comment.txt و "
+            f"topic.txt (استوری نه). وقتی همه در out/ بود، ستاد خودش ریلز را برای {at_fa(at)} روی "
+            f"@{flow.account} زمان‌بندی میکند، کامنت هوشمند را روشن میکند، به مدیر کل خبر میدهد و "
+            f"این جلسه را میبندد."
+        )
     )
 
 
@@ -366,7 +459,7 @@ async def start(
             return {"order": str(m.get("order") or ""), "work": str(made["ref"]),
                     "publish_at": str(m.get("publish_at") or ""), "why_fa": "پیش از این ساخته شده"}  # fmt: skip
         at, why = await slot_of(tx, flow, the_day, co["id"])
-        used = await story_words(tx, flow.account) if flow.stories else []
+        used = await story_words(tx, flow.account) if flow.stories and not flow.story_word else []
     body = OrderIn(
         text=brief_of(flow, the_day, at, used),
         company=flow.company,

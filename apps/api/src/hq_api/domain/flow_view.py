@@ -75,7 +75,30 @@ def recipe(flow: FL.Flow) -> str:
     """⟨2026-11-15⟩ Which steps a flow has: «stories», a Zarib×100 reel, or the Pro-Chart reel."""
     if flow.stories:
         return "stories"
+    if flow.recipe:  # ⟨2026-11-16⟩ ipoxxo: Zarib×100's premium recipe on its own page
+        return "zaribsad" if flow.recipe == "ipoxxo" else flow.recipe
     return "zaribsad" if "/zaribsad-" in flow.kit else "reel"
+
+
+# ⟨2026-11-16⟩ what a stories flow's own steps say, by its page (the default: Zarib×100's)
+STORY_TEXT: dict[str, dict[str, tuple[str, str]]] = {
+    "": {
+        "data": ("داده‌ی بازار و کارنامه‌ی VIP", "قیمت‌ها، ترس و طمع، آمار سیگنال‌ها از سایت تریدیار"),
+        "dm": ("جواب دایرکت با سه دکمه", "comment.txt: ورود رایگان VIP، ثبت‌نام LBank، راهنما"),
+        "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، دعوت VIP با سه دکمه میگیرد"),
+    },
+    "ipoxxo": {
+        "data": (
+            "ایده‌های روز از بانک ایده‌ها",
+            "سه ایده‌ی تبلیغی تازه برای جذب از اینستاگرام به کانال",
+        ),
+        "dm": ("جواب دایرکت با دکمه‌ی کانال", "comment.txt: لینک کانال تلگرام t.me/ipoxxo"),
+        "rule": (
+            "جواب دایرکت استوری‌ها",
+            "هر کس «لینک» را ریپلای کند، لینک کانال رایگان را در دایرکت میگیرد",
+        ),
+    },
+}
 
 
 # the lane (who does it) of each step: one row per lane on the app's canvas
@@ -115,11 +138,11 @@ def _tail(flow: FL.Flow) -> list[FS.FlowStep]:
     what = f"ریلز و استوری @{flow.account}" if flow.story else f"ریلز @{flow.account}"
     return [
         _step("package", "بسته‌ی کامل", "package", "code",
-              rules=("تا هر شش فایل نرسیده، چیزی منتشر نمیشود",)),
+              rules=(f"تا هر {'شش' if flow.story else 'پنج'} فایل نرسیده، چیزی منتشر نمیشود",)),
         _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub", out=what),
         _step("publish", "انتشار در ساعت خودش", "publish", "ighub"),
-        _step("replies", "کامنت هوشمند و جواب استوری", "publish", "ighub",
-              out="دایرکت با دکمه‌ی لینک، ده جواب عمومی"),
+        _step("replies", "کامنت هوشمند و جواب استوری" if flow.story else "کامنت هوشمند",
+              "publish", "ighub", out="دایرکت با دکمه‌ی لینک، ده جواب عمومی"),
         _step("report", "خبر به مدیر کل", "report", "code",
               out="«آماده شد» و «منتشر شد» با لینک"),
     ]  # fmt: skip
@@ -136,30 +159,36 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
                   inp=f"ساعت {hm}".translate(FA_DIGITS), out=f"story_{i}.jpg")
             for i, hm in enumerate(flow.stories, 1)
         ]  # fmt: skip
+        txt = STORY_TEXT.get(flow.recipe) or STORY_TEXT[""]
+        word = (
+            _step("word", f"کلمه‌ی ثابت «{flow.story_word}»", "workshop", "workshop", model=m,
+                  rules=("هر روز همین کلمه؛ جواب همیشه همان لینک است",))
+            if flow.story_word
+            else _step("word", "کلمه‌ی امروز", "workshop", "workshop", model=m,
+                       rules=("کلمه‌ی تازه؛ هیچ‌وقت کلمه‌ای که پیش از این گرفته شده",))
+        )  # fmt: skip
         return [
             *_head(flow),
-            _step("data", "داده‌ی بازار و کارنامه‌ی VIP", "workshop", "code",
-                  out="قیمت‌ها، ترس و طمع، آمار سیگنال‌ها از سایت تریدیار"),
-            _step("word", "کلمه‌ی امروز", "workshop", "workshop", model=m,
-                  rules=("کلمه‌ی تازه؛ هیچ‌وقت کلمه‌ای که پیش از این گرفته شده",)),
+            _step("data", txt["data"][0], "workshop", "code", out=txt["data"][1]),
+            word,
             _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop", "gpt",
                   out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
             _step("compose", "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
                   out=f"story_1.jpg تا story_{n}.jpg".translate(FA_DIGITS)),
-            _step("dm", "جواب دایرکت با سه دکمه", "workshop", "workshop", model=m,
-                  out="comment.txt: ورود رایگان VIP، ثبت‌نام LBank، راهنما"),
+            _step("dm", txt["dm"][0], "workshop", "workshop", model=m, out=txt["dm"][1]),
             _step("package", "بسته‌ی روز", "package", "code",
                   rules=("تا همه‌ی عکس‌ها و جواب دایرکت نرسیده، چیزی منتشر نمیشود",)),
             _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub",
                   out=f"هر استوری در ساعت خودش روی @{flow.account}",
                   rules=("ساعتی که بیش از نیم ساعت گذشته باشد جا میماند",)),
             *posts,
-            _step("rule", "جواب دایرکت استوری‌ها", "publish", "ighub",
-                  out="هر کس کلمه‌ی امروز را بفرستد، دعوت VIP با سه دکمه میگیرد"),
+            _step("rule", txt["rule"][0], "publish", "ighub", out=txt["rule"][1]),
             _step("report", "خبر به مدیر کل", "report", "code", out="«آماده شد» با کلمه‌ی امروز"),
         ]  # fmt: skip
     if kind == "zaribsad":
         topic = ("ارز روز و داده‌های واقعی آن" if "coin" in flow.key
+                 else "ایده‌ی تبلیغی تازه برای کانال رایگان ipoxxo، از بانک ایده‌ها"
+                 if flow.recipe == "ipoxxo"
                  else "موضوع روز به نوع روز، با داده‌ی همان لحظه")  # fmt: skip
         return [
             *_head(flow),
@@ -176,7 +205,8 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
                   model=m),
             _step("render", "موشن‌گرافی پرمیوم، یک بار رندر ۶۰ فریم", "workshop", "workshop",
                   out="video.mp4", model=m, rules=("تمیز و شارپ؛ بی ذره و تاری، بی ضربه‌ی صدا",)),
-            _step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)"),
+            *([_step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)")]
+              if flow.story else []),
             _step("cover", "کاور از پک کاور با ChatGPT", "workshop", "gpt", out="cover.jpg",
                   rules=("سه رنگ پیج، عنوان با فونت خودمان، یک المان از موضوع",)),
             _step("texts", "کپشن، کلمه‌ی کامنت و دایرکت", "workshop", "workshop",
