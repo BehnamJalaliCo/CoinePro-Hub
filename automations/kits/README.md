@@ -14,3 +14,8 @@ prochart-reels: born from session F-0018 (2026-11-13); see docs/ops/reports/F-00
 ipoxxo-reels, ipoxxo-stories (+ ipoxxo-common): the page @ipoxxo.vpn for the free Telegram channel
 t.me/ipoxxo, under IG-Hub (owner, 2026-11-16): two premium motion-graphics reels a day (Opus 5.5, the
 Zarib×100 bar) and three photoreal stories a day; original Instagram ads, never the channel's posts.
+
+dotcoin-reels (+ dotcoin-common): the page @dotcoin.me («Dot Coin | بهنام جلالی»), under IG-Hub (owner,
+2026-11-16), designed anew: educational / informational reels, each with its own look from its own
+Pinterest references, Fable 5.2 at extra-high effort, the narrator Arlo, IRANYekanX Pro
+(/home/studio/kits/fonts-pro), mustard + black, and the owner's own cover system (he is on every cover).
