@@ -648,3 +648,34 @@ def test_ipoxxos_dm_opens_the_telegram_channel_on_any_comment() -> None:
     assert [b["title"] for b in got["buttons"]] == ["ورود به کانال"]
     body = SPB.rule_body("comment", got, "ipoxxo.vpn", [], "k")
     assert body["buttons"][0]["url"].startswith("https://t.me/ipoxxo")
+
+
+async def test_dotcoins_pilot_is_a_ten_second_sample_on_fable_at_extra_high_effort() -> None:
+    """⟨2026-11-16⟩ The owner, for the fourth page DotCoin.me (the maker Fable 5.2 at extra-high
+    effort; first a 10-second sample and a sample cover): the pilot publishes nothing, runs on
+    Fable 5.2 at xhigh, and its order says its size."""
+    from hq_api.domain import direct as DR
+
+    pilot = FL.FLOWS["dotcoin_pilot"]
+    assert pilot.company == "IG" and pilot.account == "" and not pilot.n8n and not pilot.story
+    assert (pilot.model, pilot.effort) == ("claude-fable-5-2", "xhigh")
+    assert pilot.kit == "/home/studio/kits/dotcoin-reels"
+    text = FL.brief_of(pilot, date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC))
+    assert text.endswith(pilot.note_fa) and "۱۰ ثانیه" in text and "Arlo" in text
+    # the others keep their order as it was
+    assert "۱۰ ثانیه" not in FL.brief_of(
+        FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC)
+    )
+
+    class Tx:
+        def __init__(self, row: dict[str, Any] | None) -> None:
+            self.row = row
+
+        async def first(self, *_: Any, **__: Any) -> dict[str, Any] | None:
+            return self.row
+
+    w = {"id": None}
+    assert await DR.effort_of(Tx({"flow": True, "effort": "xhigh"}), w) == "xhigh"  # type: ignore[arg-type]
+    assert await DR.effort_of(Tx({"flow": True, "effort": None}), w) == DR.BUILD_EFFORT  # type: ignore[arg-type]
+    assert await DR.effort_of(Tx({"flow": True, "effort": "low"}), w) == DR.BUILD_EFFORT  # type: ignore[arg-type]
+    assert await DR.effort_of(Tx({"flow": False, "effort": None}), w) == DR.DIRECT_EFFORT  # type: ignore[arg-type]

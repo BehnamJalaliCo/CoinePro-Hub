@@ -84,6 +84,11 @@ class Flow:
     story_word: str = ""
     # ⟨2026-11-16⟩ the steps the automations map shows («zaribsad», «ipoxxo»; "" = by the kit)
     recipe: str = ""
+    # ⟨2026-11-16⟩ the effort of its workshop turns ("" = the build's own, max); the owner for
+    # DotCoin.me: «سازنده ویدیو مدل فیبل ۵.۲ افورت اکسترا» (xhigh)
+    effort: str = ""
+    # ⟨2026-11-16⟩ a line of its own at the end of the order (a pilot's size, say)
+    note_fa: str = ""
 
 
 FLOWS = {
@@ -250,6 +255,32 @@ FLOWS = {
         same_day=True,
         story_word="لینک",
         recipe="ipoxxo",
+    ),
+    # ⟨2026-11-16⟩ the owner: the fourth page, DotCoin.me (@dotcoin.me, «Dot Coin | بهنام جلالی»),
+    # designed anew, unlike the other three: two educational / informational reels a day at fixed
+    # hours, each with its own look from its own Pinterest search (the references downloaded and
+    # given to the maker), the maker Fable 5.2 at extra-high effort, the narrator Arlo (Cruz's
+    # settings), IRANYekanX Pro, mustard #F3C242 and black, the page's round photo as its mark, and
+    # a cover from the owner's cover system (the owner himself, a new suit and accessories every
+    # time). First a 10-second sample and its cover for the owner's eyes (nothing is published).
+    "dotcoin_pilot": Flow(
+        key="dotcoin_pilot",
+        company="IG",
+        account="",
+        title_fa="نمونه‌ی ۱۰ ثانیه‌ای دات‌کوین برای مدیر کل (منتشر نمی‌شود)",
+        kit="/home/studio/kits/dotcoin-reels",
+        start=date(2026, 11, 16),
+        hours=("12:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        usd_cap=Decimal("100"),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        note_fa=(
+            "این نوبت فقط نمونه‌ی ۱۰ ثانیه‌ای برای دیدن مدیر کل است و منتشر نمیشود: ویدیو ۹ تا ۱۱ ثانیه، "
+            "با همه‌ی قدم‌های کیت در همان اندازه (جستجو و دانلود نمونه‌های پینترست، صدای Arlo، کاور طبق "
+            "سیستم کاور مدیر کل). comment.txt لازم نیست."
+        ),
     ),
     # the first reel, for the owner's eyes only: no account (nothing is published), no n8n
     "ipoxxo_pilot": Flow(
@@ -421,6 +452,7 @@ def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None)
             f"@{flow.account} زمان‌بندی میکند، کامنت هوشمند را روشن میکند، به مدیر کل خبر میدهد و "
             f"این جلسه را میبندد."
         )
+        + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
     )
 
 
@@ -483,7 +515,8 @@ async def start(
     model = model_on(flow, the_day)
     meta = {"key": flow.key, "day": the_day.isoformat(), "publish_at": at.isoformat(),
             "account": flow.account, "story": flow.story, "order": ref,
-            **({"model": model} if model else {})}  # fmt: skip
+            **({"model": model} if model else {}),
+            **({"effort": flow.effort} if flow.effort else {})}  # fmt: skip
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         if work_ref:
             await tx.exec(

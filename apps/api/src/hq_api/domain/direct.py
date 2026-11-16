@@ -589,11 +589,19 @@ async def _hand_over(
 # whole session: changing it mid-session would throw the prompt cache away.
 DIRECT_EFFORT = "xhigh"
 BUILD_EFFORT = "max"
+FLOW_EFFORTS = ("high", "xhigh", "max")
 
 
 async def effort_of(tx: Tx, w: dict[str, Any]) -> str:
-    flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
-    return BUILD_EFFORT if flow else DIRECT_EFFORT
+    row = await tx.first(
+        "SELECT run_meta ? 'flow' AS flow, run_meta -> 'flow' ->> 'effort' AS effort"
+        " FROM work.work WHERE id = :w",
+        w=w["id"],
+    )
+    if row is None or not row["flow"]:
+        return DIRECT_EFFORT
+    # ⟨2026-11-16⟩ a flow may name its own (DotCoin.me: xhigh, the owner's word)
+    return str(row["effort"]) if row["effort"] in FLOW_EFFORTS else BUILD_EFFORT
 
 
 # ------------------------------------------------------- a lean session (2026-11-13) --
