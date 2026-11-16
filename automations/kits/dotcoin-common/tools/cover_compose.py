@@ -12,10 +12,13 @@ usage: cover_compose.py <spec.json> <outdir>
   -> outdir/cover_4k.png (2160x3840), outdir/cover.jpg (1080x1920, q92), outdir/cover_crops.jpg
      (the grid's 3:4 and 1:1 crops, to check)
 
-spec.json (all positions in 1080x1920 units; the master is x2). Only "subject" is required.
+spec.json (all positions in 1080x1920 units; the master is x2). "subject" or "background".
 {
   "palette": "B",                       B: black ground + mustard words (the owner's samples)
                                         A: mustard ground + black words
+  "background": "assets/gpt_cover.png", optional: a finished picture under everything, filling the
+                                        frame (ChatGPT's cover made without its Persian text: the
+                                        title is then set here); "subject" may then be omitted
   "subject": "assets/me_cut.png",       the cut-out (tools/cutout.py --trim), RGBA
   "subject_side": "right",              right | left | center
   "subject_height": 0.80,               its height / the frame's (0.45-0.98)
@@ -108,9 +111,15 @@ def page(spec: dict, root: str) -> str:
     shift = int(spec.get("subject_shift", 0))
     place = {"right": f"right:{-30 + shift}px", "left": f"left:{-30 + shift}px",
              "center": "left:50%;transform:translateX(-50%)"}[side]
-    subj = data_url(os.path.join(root, spec["subject"]))
-    subject = (f'<div style="position:absolute;bottom:{int(spec.get("subject_bottom", 0))}px;{place};'
-               f'height:{sh:.0f}px;z-index:4"><img src="{subj}" style="height:100%;display:block"></div>')
+    subject = ""
+    if spec.get("subject"):
+        subj = data_url(os.path.join(root, spec["subject"]))
+        subject = (f'<div style="position:absolute;bottom:{int(spec.get("subject_bottom", 0))}px;{place};'
+                   f'height:{sh:.0f}px;z-index:4"><img src="{subj}" style="height:100%;display:block"></div>')
+    if spec.get("background"):
+        bg = data_url(os.path.join(root, spec["background"]))
+        subject = (f'<img src="{bg}" style="position:absolute;inset:0;width:{W}px;height:{H}px;'
+                   f'object-fit:cover;z-index:1">') + subject
     # --- the giant English words
     eng_font = {"anton": "Anton", "bebas": "Bebas"}.get(str(spec.get("english_font", "Anton")).lower(), "Anton")
     ex, ey, ew = spec.get("english_box", [26, 110, W - 52])

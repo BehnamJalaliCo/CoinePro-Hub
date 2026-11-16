@@ -67,9 +67,10 @@ mark each step done with `order.progress`.
    said right; the audio tail; no full stops on screen.
 10. **Render once** at 1080×1920 60 fps → encode with the mix → `out/video.mp4`; check 8 random
     frames of the final file; remove build/seg* temp folders.
-11. **Cover — the owner's cover system (COMMON/cover/COVER_SYSTEM.md):** the brief line, his
-    picture by ChatGPT with his six references, cut-out, one element, `cover_compose.py` →
-    `out/cover.jpg`; check the crops and every letter.
+11. **Cover — the owner's cover system (COMMON/cover/COVER_SYSTEM.md):** ChatGPT makes the WHOLE
+    cover from his folder (his six photos + his two covers, the eight files) and your precise brief
+    (style, layout, his suit and accessories, the exact text); check his face and every letter;
+    → `out/cover.jpg`.
 12. **Caption** `out/caption.txt`: a first line that stops the scroll, 2–4 short lines of the
     lesson or the news, the call to action, **3 to 5 hashtags** (#دات_کوین always, then the topic's).
 13. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, topic.txt (+ comment.txt only
