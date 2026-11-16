@@ -10,3 +10,7 @@ Playwright's Chromium (`ms-playwright`).
     automations/kits/sync.sh prochart-reels    # this source -> the workshop's copy (code and texts only)
 
 prochart-reels: born from session F-0018 (2026-11-13); see docs/ops/reports/F-0018_SESSION_DISTILLED.md.
+
+ipoxxo-reels, ipoxxo-stories (+ ipoxxo-common): the page @ipoxxo.vpn for the free Telegram channel
+t.me/ipoxxo, under IG-Hub (owner, 2026-11-16): two premium motion-graphics reels a day (Opus 5.5, the
+Zarib×100 bar) and three photoreal stories a day; original Instagram ads, never the channel's posts.
