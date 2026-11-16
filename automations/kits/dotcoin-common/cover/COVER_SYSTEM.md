@@ -6,18 +6,40 @@ The owner is on every cover. «هر کاور یک کت و شلوار خاص بر
 him (he overlaps them), the Persian title low in a bar. Minimal, high contrast, readable as a small
 square in the grid.
 
+## THE TARGET LOOK — the owner's own two sample covers (2026-11-16)
+`/home/studio/kits/dotcoin-common/cover/samples/owner_sample_1_crypto.jpg` and
+`owner_sample_2_forex.jpg` (he made them with ChatGPT from his pack). READ BOTH before every cover.
+What they show:
+- a black ground (B), the giant mustard English words EDGE TO EDGE (`CRYPTO CHANNEL`,
+  `FOREX CHANNEL`), him in front of them;
+- the Persian title set STRAIGHT ON THE GROUND (no bar): big and heavy, one line mustard or white,
+  the key word in a **rounded mustard chip with black letters** («کریپتو», «فارکس»);
+- the call to action in a **pill with a mustard outline** («کلمه «فارکس» را اینجا بفرست», the word in
+  mustard) and a **hand-drawn mustard arrow** down toward the comments;
+- sample 1: waist up, arms crossed, glasses, the title centred under him; sample 2: full body on
+  the right, hands in pockets, the title in the free column on his left.
+
+**The layout changes cover to cover** (the owner: «نه صرفا کلمه پشت سر باشه، میتونه متفاوت هم
+باشه جای نوشته»): the words behind him, in front of him, as an outline over him, at the top, at
+the bottom, or in a column; the title under him, beside him, or at the top; him on the left, the
+right or the centre, full body, knees up or waist up. Never the same layout twice in a row; the
+samples set the bar for craft, not one fixed template. `cover_compose.py` takes any of them.
+
 ## The fixed rules (his pack)
 - **Two colours only for the design:** mustard **#F3C242** and black **#000000** (white only small).
   - **A:** mustard ground + black English words + black title bar (white Persian, mustard key word).
   - **B:** black ground + mustard English words + mustard title bar (black Persian, white key word).
   - The covers alternate A/B/A/B in the grid: **the day's first reel = A, the second = B** (a pilot
-    = A).
+    = B, like the owner's samples).
 - **English backdrop:** ultra-bold condensed UPPERCASE (Anton or Bebas Neue), 1–2 lines, 2–12
   letters a line, behind the subject; one line may be drawn again as an outline in front of him
   (the reference's «PAGE»). Short and strong: `COLD WALLET`, `SEED PHRASE`, `HALVING`, `NEWS`, `DCA`.
 - **Persian title:** IRANYekanX Pro (Black / ExtraBlack / Heavy; the owner gives this font freer
-  hands), 1–2 short lines, 72–105 px at 1080, ONE key word or number highlighted. Never typed by an
-  AI: set by `cover_compose.py`.
+  hands), 1–3 short lines, 72–110 px at 1080, ONE key word in a chip (or a number highlighted),
+  set on the ground as in the samples (a solid bar only now and then, for variety). Never typed by
+  an AI: set by `cover_compose.py`.
+- **The call to action on the cover** when the reel has one (a comment word): the pill + the arrow
+  of sample 2; otherwise the title alone.
 - **Anatomy:** natural proportions — head : full body ≈ 1 : 7.2 (6.9–7.5), shoulders 2.6–3.0 head
   widths; never a big head; normal hands.
 - **Identity:** his face exactly — bald head, eye spacing, eyebrows, nose, beard shape and density,
@@ -50,11 +72,13 @@ square in the grid.
    was wrong.
 4. **Cut out:** `COMMON/tools/cutout.py assets/cover_me.png assets/cover_me_cut.png --trim`. The
    element: its own picture (gpt or gemini, plain background) → cutout.py; or your SVG/PNG.
-5. **Compose:** write `direction/cover.json` (the spec in `COMMON/tools/cover_compose.py`'s header)
-   → `cover_compose.py direction/cover.json out/` → out/cover.jpg (+ cover_4k.png, cover_crops.jpg).
-   Read `out/cover_crops.jpg`: his face and the title inside the 3:4 crop, the words readable small,
-   the Persian letter by letter. Tune the spec (subject height, side, words' top, title size) and
-   compose again until it is right. Remove cover_4k.png and cover_crops.jpg from out/ at the end.
+5. **Compose:** choose today's layout (above; different from the page's last cover), write
+   `direction/cover.json` (the spec in `COMMON/tools/cover_compose.py`'s header: english_box and
+   english_layer, title_box, chip, cta, arrow …) → `cover_compose.py direction/cover.json out/` →
+   out/cover.jpg (+ cover_4k.png, cover_crops.jpg). Read `out/cover_crops.jpg` beside the owner's
+   samples: as clean and strong as they are, his face and the title inside the 3:4 crop, the words
+   readable small, the Persian letter by letter. Tune and compose again until it is right. Remove
+   cover_4k.png and cover_crops.jpg from out/ at the end.
 
 ### The references (IG-Hub files; the originals in /home/studio/kits/dotcoin-common/cover/refs)
 | id | what |
