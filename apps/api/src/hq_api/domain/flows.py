@@ -204,7 +204,9 @@ FLOWS = {
         title_fa="ریلز اول آی‌پی‌اکسو",
         kit="/home/studio/kits/ipoxxo-reels",
         start=date(2026, 11, 17),
-        hours=("12:30", "11:00", "14:00", None),
+        # ⟨2026-11-16⟩ the owner, approving the pilot: «اتوماسیونشو بذار برای ساعت ۱۲ ظهر هر روز»:
+        # the first reel at 12:00 Tehran every day, no rotation, no best-hour week
+        hours=("12:00", "12:00", "12:00", "12:00"),
         story=False,  # (the owner: three stories a day, the picture ones)
         budget_tokens=10_000_000,
         n8n="hqFlowIpoxxoReels1",
@@ -330,9 +332,11 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
         theirs, _ = await slot_of(tx, sibling, day, company_id)
         their_hm = theirs.astimezone(tz).strftime("%H:%M")
         if _minutes(their_hm) == _minutes(str(hm)):
-            # (both on the best hour) the tried hour farthest from the first one's
+            # (both on the best hour) the tried hour farthest from the first one's, of both flows'
+            # hours (⟨2026-11-16⟩ ipoxxo's first reel has one fixed hour)
             hm = max(
-                (h for h in sibling.hours if h), key=lambda h: abs(_minutes(h) - _minutes(their_hm))
+                (h for h in (*sibling.hours, *flow.hours) if h),
+                key=lambda h: abs(_minutes(h) - _minutes(their_hm)),
             )
             why = "ساعت دور از ریلز اول روز"
     hh, mm = (int(x) for x in str(hm).split(":"))

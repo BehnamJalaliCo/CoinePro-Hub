@@ -587,6 +587,27 @@ def test_ipoxxos_flows_are_ig_hubs_with_a_fixed_story_word() -> None:
     assert all(a != b for a, b in zip(one.hours, two.hours, strict=True) if a and b)
 
 
+async def test_ipoxxos_first_reel_is_at_noon_every_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨2026-11-16⟩ The owner, approving the pilot: «اتوماسیونشو بذار برای ساعت ۱۲ ظهر هر روز»: the
+    first reel at 12:00 Tehran every day; the second never on it, also when the best hour is noon."""
+    from hq_api.domain import best_hour as BH
+
+    async def best(*_: Any, **__: Any) -> Any:
+        return SimpleNamespace(enough=True, hour="12:00")
+
+    monkeypatch.setattr(BH, "best", best)
+    one, two = FL.FLOWS["ipoxxo_reels"], FL.FLOWS["ipoxxo_reels_2"]
+    tz = ZoneInfo(FL.TEHRAN)
+    for offset in range(56):
+        day = one.start + timedelta(days=offset)
+        a, _ = await FL.slot_of(None, one, day, None)  # type: ignore[arg-type]
+        b, _ = await FL.slot_of(None, two, day, None)  # type: ignore[arg-type]
+        assert a.astimezone(tz).strftime("%H:%M") == "12:00", offset
+        assert b.astimezone(tz).strftime("%H:%M") != "12:00", offset
+        if FL.week_of(two, day) == 3:
+            assert b.astimezone(tz).strftime("%H:%M") == "23:00", offset
+
+
 def test_a_fixed_story_word_and_a_reel_without_its_story_in_the_brief() -> None:
     at = datetime(2026, 11, 17, 9, 0, tzinfo=UTC)
     st = FL.FLOWS["ipoxxo_stories"]
