@@ -674,8 +674,8 @@ def test_the_price_table_changes_on_its_day_and_warns_14_days_before() -> None:
         flash["source_url"].startswith("https://ai.google.dev/") and flash["as_of"] == "2026-11-04"
     )
     assert (
-        flash["audio_tokens_per_s"] == 25 and len(catalog.load().gemini_voices) == 32
-    )  # ⟨2026-11-13⟩ + Cruz, Elio
+        flash["audio_tokens_per_s"] == 25 and len(catalog.load().gemini_voices) == 33
+    )  # ⟨2026-11-13⟩ + Cruz, Elio; ⟨2026-11-16⟩ + Arlo
 
 
 # --------------------------------------------------------------- the meter --
@@ -905,7 +905,7 @@ async def test_the_owner_can_set_and_reset_a_price(
 
 async def test_the_voices_of_each_engine(client: httpx.AsyncClient, owner: dict[str, str]) -> None:
     flash = (await client.get(f"/api/v1/voice/engines/{FLASH}/voices", headers=owner)).json()
-    assert len(flash) == 32 and {  # ⟨2026-11-13⟩ + Cruz, Elio
+    assert len(flash) == 33 and {  # ⟨2026-11-13⟩ + Cruz, Elio; ⟨2026-11-16⟩ + Arlo
         "Kore",
         "Zephyr",
         "Puck",

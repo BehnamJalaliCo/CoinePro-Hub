@@ -501,6 +501,9 @@ async def _select(page: Page, sel: str, option: str | None, ms: float) -> None:
     await page.get_by_role("option", name=option, exact=False).first.click(timeout=ms)
 
 
+ATTACH_GAP_MS = 2500  # between two files put one by one: the site takes each in
+
+
 async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
     """The job's files into a file input (decoded here; none outside the job)."""
     if not j.files:
@@ -512,7 +515,20 @@ async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
             raise StepFailed("attach", "a file is over its cap")
         name = Path(str(f.get("name") or "file")).name[:120] or "file"
         payload.append({"name": name, "mimeType": _mime_of(name), "buffer": data})
-    await page.locator(sel).first.set_input_files(payload, timeout=ms)
+    if len(payload) == 1:
+        await page.locator(sel).first.set_input_files(payload, timeout=ms)
+        return
+    # ⟨2026-11-16⟩ several files (DotCoin.me's cover: the owner's six reference photos): the
+    # page's first file input takes ONE file (Playwright: "Non-multiple file input can only accept
+    # single file"), so a multiple input is used when there is one, else the files go one by one
+    # into the same input (the composer keeps each as its own attachment)
+    multi = page.locator(f"{sel}[multiple]")
+    if await multi.count():
+        await multi.first.set_input_files(payload, timeout=ms)
+        return
+    for one in payload:
+        await page.locator(sel).first.set_input_files([one], timeout=ms)
+        await page.wait_for_timeout(ATTACH_GAP_MS)
 
 
 def _mime_of(name: str) -> str:

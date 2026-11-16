@@ -87,6 +87,8 @@ gemini_voices:
   # male voices; Cruz is the owner's narrator for Pro-Chart (session F-0018)
   - {name: Cruz, gender_fa: مرد, trait_fa: آرام و حرفه‌ای، صدای بم}
   - {name: Elio, gender_fa: مرد, trait_fa: آرام و دلگرم‌کننده}
+  # ⟨2026-11-16⟩ Arlo: the owner's narrator for DotCoin.me (Cruz's settings, another voice)
+  - {name: Arlo, gender_fa: مرد, trait_fa: گرم و آموزشی، صدای بم‌تر}
   - {name: Zephyr, gender_fa: زن, trait_fa: روشن}
   - {name: Puck, gender_fa: مرد, trait_fa: سرزنده}
   - {name: Charon, gender_fa: مرد, trait_fa: اطلاع‌رسان}

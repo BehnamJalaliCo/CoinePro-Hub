@@ -40,8 +40,11 @@ API_ENGINE = "gemini-3.8-flash-tts"  # §59.2: the API's and the page's model; n
 # ⟨2026-11-13⟩ Since 2026-11 AI Studio (Gemini 3.8 Flash TTS) has a library of 2,000+ voices: the
 # male voices of its "Professional" use case (besides Schedar) come first, Cruz the owner's choice
 # for Pro-Chart (session F-0018: Masculine, Professional, Cruz, style Narration).
+# ⟨2026-11-16⟩ Arlo: the owner's narrator for DotCoin.me («همون تنظیمات ولی … Arlo به جای Cruz»);
+# the API speaks it (a probe on the live key, 2026-11-16: a voice of its own, deeper than Cruz).
 LIBRARY = (
     ("Cruz", "male", "آرام و حرفه‌ای، صدای بم"), ("Elio", "male", "آرام و دلگرم‌کننده"),
+    ("Arlo", "male", "گرم و آموزشی، صدای بم‌تر"),
 )  # fmt: skip
 DOCUMENTED = (
     *LIBRARY,
