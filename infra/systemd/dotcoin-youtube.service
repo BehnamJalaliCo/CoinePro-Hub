@@ -1,0 +1,19 @@
+[Unit]
+Description=DotCoin.me: each reel published on Instagram, once, as a public YouTube Short on @DotCoin-me (browser profile youtube-web)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+# the content worktree (branch site/dotcoin-content) runs its own copy of the script; state and lock in
+# /home/Hub/sites. It runs the site sync after setting an article's link (deploy.sh needs sudo -u studio,
+# so no NoNewPrivileges here).
+WorkingDirectory=/home/Hub/sites/dotcoin-content
+ExecStart=/usr/bin/python3 -I /home/Hub/sites/dotcoin-content/automations/sites/dotcoin/youtube.py
+TimeoutStartSec=3600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
