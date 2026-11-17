@@ -747,6 +747,10 @@ async def due(hub: Any, now: datetime | None = None, *, source: str = "n8n") -> 
     for ref in made:
         await engine.kick(hub, ref)
     out["made"] = len(made)
+    # ⟨1.39⟩ §61.2 the same clock starts the rows of automations.flows (domain/flows.clock)
+    from hq_api.domain import flows as FL
+
+    out["orders"] = await FL.clock(hub, now)
     return out
 
 
@@ -754,8 +758,11 @@ async def fallback(hub: Any, now: datetime | None = None) -> dict[str, Any]:
     """The hub's own clock (its lines tick): what n8n would have started, when n8n is silent."""
     try:
         out = await due(hub, now, source="fallback")
-        if out.get("made") or out.get("skipped"):
-            log.warning("n8n is silent: the hub started the flows due", extra={"runs": out["runs"]})
+        if out.get("made") or out.get("skipped") or out.get("orders"):
+            log.warning(
+                "n8n is silent: the hub started the flows due",
+                extra={"runs": out["runs"], "orders": out.get("orders")},
+            )
         return out
     except Exception as exc:  # noqa: BLE001 - the lines tick goes on
         log.warning("the flows' fallback failed", extra={"error": type(exc).__name__})

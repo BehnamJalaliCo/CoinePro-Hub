@@ -92,7 +92,7 @@ async def put_replies(
     them, the policy's own first, in the order given (the order they go out in)."""
     from hq_api.domain import flow_view as FV
 
-    if FV.flow_of(ref) is not None:  # ⟨2026-11-14⟩ an n8n flow's replies come from its kit
+    if FV.key_of(ref) is not None:  # ⟨2026-11-14⟩ an n8n flow's replies come from its kit
         raise FV.not_here()
     async with ctx.tx() as tx:
         row = await _flow(tx, ref, lock=True)

@@ -52,6 +52,8 @@ deny_reasons contains "step_up_required" if {
 # ⟨1.37⟩ flow (contract §59.4, §59.7): a working group's daily flow runs on a line; the use form
 # and the flow's controls are the owner's taps (no step-up), except a budget raised past the
 # company's month envelope: 🔏 automation.budget (the api consumed it and says so in step_up).
+# ⟨1.39⟩ §61.3 the automations as data (`AF-…`, automations.flows) take the same ops: the switch,
+# the pause, the skip, run-now and a save (over_envelope: its month estimate past the envelope).
 flow_ops := {"flow.use", "flow.state", "flow.run", "flow.pause", "flow.skip", "flow.update"}
 
 deny_reasons contains "step_up_required" if {

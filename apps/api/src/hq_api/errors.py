@@ -126,6 +126,9 @@ CODES: dict[str, tuple[int, str, str]] = {
     ),
     # ⟨1.37⟩ §59.11 a flow's run-now past the day's cap
     "budget_reached": (409, "Budget reached", "به سقف بودجه‌ی امروز رسید."),
+    # ⟨1.39⟩ §61.3, §61.4 an automation's save with a field it may not hold; a second run of a day
+    "invalid_flow": (422, "Invalid flow", "بعضی از تنظیم‌ها درست نیست."),
+    "already_ran": (409, "Already ran", "این روز پیش از این اجرا شده است."),
     "company_locked": (423, "Company locked", "این شرکت فعلاً قفل است (کلید توقف یا توقف deploy)."),
     "decision_not_pending": (409, "Decision not pending", "این تصمیم قبلاً گرفته شده است."),
     "policy_denied": (403, "Policy denied", "طبق سیاست‌های هلدینگ این کار مجاز نیست."),
@@ -299,6 +302,10 @@ class Problem(BaseModel):
     request_id: str | None = None
     # ⟨1.4.6⟩ 409 not_ready: what is still missing (§18.8, e.g. ["brand"])
     missing: list[str] | None = None
+    # ⟨1.39⟩ §61.4 422 invalid_flow: [{field, message_fa}], one Persian line per field
+    errors: list[dict[str, Any]] | None = None
+    # ⟨1.39⟩ §61.3 409 already_ran: the day's run
+    run: dict[str, Any] | None = None
 
 
 class ApiError(Exception):
@@ -312,6 +319,8 @@ class ApiError(Exception):
         message_fa: str | None = None,
         headers: dict[str, str] | None = None,
         missing: list[str] | None = None,
+        errors: list[dict[str, Any]] | None = None,
+        run: dict[str, Any] | None = None,
     ) -> None:
         default_status, _, _ = CODES.get(code, CODES["internal_error"])
         self.status = status or default_status
@@ -321,6 +330,8 @@ class ApiError(Exception):
         self.message_fa = message_fa
         self.headers = headers
         self.missing = missing
+        self.errors = errors
+        self.run = run
         super().__init__(f"{code}: {detail or ''}")
 
 
@@ -348,6 +359,8 @@ def problem_response(request: Request, err: ApiError) -> JSONResponse:
         fields=err.fields,
         request_id=getattr(request.state, "request_id", None),
         missing=err.missing,
+        errors=err.errors,
+        run=err.run,
     )
     return JSONResponse(
         body.model_dump(exclude_none=True),

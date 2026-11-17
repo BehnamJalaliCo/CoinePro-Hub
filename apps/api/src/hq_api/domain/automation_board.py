@@ -1155,9 +1155,15 @@ async def _subject(tx: Tx, hub: Any, ref: str) -> tuple[list[str], list[UUID], d
         return [ref], [row["company_id"], holding.id], row["created_at"]
     from hq_api.domain import flow_view as FV
 
-    if (flow := FV.flow_of(ref)) is not None:
+    if ref.startswith("AF-"):  # ⟨1.39⟩ §61 a flow's row: the same subject as its `N8:<key>`
+        from hq_api.domain import flow_defs as FD
+
+        ref = FV.ref_of((await FD.load(tx, ref)).key)
+    if (flow := await FV.flow_of(tx, ref)) is not None:
         company = await hub.companies.by_code(flow.company)
-        return [ref], [company.id, holding.id], datetime(2026, 11, 13, tzinfo=UTC)
+        # ⟨1.39⟩ its row's changes are audited on its AF- ref (automation.flow.<verb>)
+        refs = [ref, flow.ref] if flow.ref else [ref]
+        return refs, [company.id, holding.id], datetime(2026, 11, 13, tzinfo=UTC)
     raise ApiError(404, "not_found", f"no automation {ref}")
 
 
