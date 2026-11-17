@@ -104,7 +104,7 @@ def parse_doc(path: Path) -> tuple[dict, str]:
 
 def inline(s: str) -> str:
     s = html.escape(s, quote=False)
-    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    s = re.sub(r"`([^`]+)`", r'<code dir="ltr">\1</code>', s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
     s = re.sub(r"(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?![*\w])", r"<em>\1</em>", s)
 
@@ -142,10 +142,26 @@ def markdown(md: str, h2_numbers: bool = True) -> tuple[str, list[dict]]:
         quote.clear()
 
     quote: list[str] = []
+    fence: list[str] | None = None
     for raw in md.split("\n"):
         line = raw.strip()
+        if fence is not None:  # inside ``` … ```: kept verbatim
+            if line.startswith("```"):
+                out.append(code_block("\n".join(fence)))
+                fence = None
+            else:
+                fence.append(raw.rstrip())
+            continue
+        if line.startswith("```"):
+            flush()
+            fence = []
+            continue
         if not line:
             flush()
+            continue
+        m = re.fullmatch(r"`([^`]+)`", line)
+        if m and not para and not items and not rows and kind != "quote":  # a line that is one code span
+            out.append(code_block(m.group(1)))
             continue
         m = re.match(r"^(#{2,3})\s+(.*)$", line)
         if m:
@@ -156,7 +172,7 @@ def markdown(md: str, h2_numbers: bool = True) -> tuple[str, list[dict]]:
                 hid = f"s{n}"
                 toc.append({"level": 2, "text": text, "id": hid})
                 num = f'<span class="h-num" aria-hidden="true">{two(n)}</span>' if h2_numbers else ""
-                out.append(f'<h2 id="{hid}">{num}{inline(text)}</h2>')
+                out.append(f'<h2 id="{hid}">{num}<span>{inline(text)}</span></h2>')  # one flex item
             else:
                 out.append(f"<h3>{inline(text)}</h3>")
             continue
@@ -185,7 +201,14 @@ def markdown(md: str, h2_numbers: bool = True) -> tuple[str, list[dict]]:
             flush()
         para.append(line)
     flush()
+    if fence:
+        out.append(code_block("\n".join(fence)))
     return "\n".join(out), toc
+
+
+def code_block(text: str) -> str:
+    """A hash, an address, a command: LTR, left-aligned, wraps inside its own box (site.css .cb)."""
+    return f'<pre class="cb" dir="ltr"><code dir="ltr">{html.escape(text, quote=False)}</code></pre>'
 
 
 FAQ_HEAD = "## پرسش‌های پرتکرار"
@@ -416,12 +439,119 @@ def org_ld() -> dict:
             "sameAs": [SITE["instagram"], SITE["youtube"]]}
 
 
-_LAT = re.compile(r"(?<![\w/.\-])([A-Za-z][A-Za-z\-]*(?: ?\d)[\w\-]*)")
+# ---------------------------------------------------------------- bidi: Latin runs inside Persian text
+# Every page is RTL. A Latin run inside a Persian sentence (SHA-256, DotCoin, USDT TRC20, a URL) is an
+# LTR island for the Unicode bidi algorithm, and next to neutral punctuation, digits or a line break it
+# can land in the wrong place (the owner saw «هش SHA-256 کلمه‌ی DotCoin» scrambled on an iPhone).
+# isolate_html() runs over the <body> of every written page and OG card: each Latin run becomes
+# <bdi dir="ltr">…</bdi> (an isolate that keeps its place in the RTL sentence), with class "lat" when
+# it has digits (the FaNum font would draw them Persian). Punctuation around a run (، ؛ : . « ») stays
+# outside it, on the RTL side. Text under dir="ltr", <code>, <pre>, <svg>, <script> is left alone.
+# lint_dist() reads the written pages back and fails the build on any un-isolated Latin run or any
+# <code>/<pre> without dir="ltr", so no page (the hub's daily articles included) ships the bug again.
+_TOK = re.compile(r"(?<![A-Za-z0-9])(?:\([$@#]?[A-Za-z0-9][^()\n\u0600-\u06FF]*\)"
+                  r"|[$@#]?[A-Za-z0-9](?:[A-Za-z0-9]|[-+./:@#%&=~?_'’,]+(?=[A-Za-z0-9]))*(?:%|\+\+?)?)")
+_GAP = re.compile(r"[ \u00a0]+|[ \u00a0]*[-–—&/+,][ \u00a0]*")
+_HAS_LAT = re.compile(r"[A-Za-z]")
+_TAG = re.compile(r"<!--.*?-->|<(/?)([a-zA-Z][\w-]*)([^>]*)>", re.S)
+_DIR_LTR = re.compile(r"""\bdir\s*=\s*["']?(?:ltr|auto)\b""", re.I)
+_VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+_LTR_TAGS = {"bdi", "code", "pre", "kbd", "samp", "svg", "math", "script", "style", "textarea", "title", "template"}
 
 
-def latin_digits(h: str) -> str:
-    """Latin names with digits (BIP39, Layer 2) keep Latin digits: the FaNum font draws Persian ones."""
-    return re.sub(r">([^<]+)<", lambda m: ">" + _LAT.sub(r'<span class="lat">\1</span>', m.group(1)) + "<", h)
+def latin_runs(text: str) -> list[tuple[int, int]]:
+    """(start, end) of each Latin run that has a letter. Words join over spaces or a dash, slash, &
+    or Latin comma into one run (Binance Smart Chain (BSC), USDT TRC20, Layer 2); a number before a word does not
+    (۱۰ BTC keeps the RTL order); a run ends before its trailing punctuation."""
+    runs: list[list] = []  # [start, end, has_letter]
+    for m in _TOK.finditer(text):
+        lat = bool(_HAS_LAT.search(m.group()))
+        if runs:
+            prev, gap = runs[-1], text[runs[-1][1]:m.start()]
+            if prev[2] and gap and _GAP.fullmatch(gap) and (lat or (not gap.strip() and m.group()[0].isdigit())):
+                prev[1] = m.end()
+                continue
+        runs.append([m.start(), m.end(), lat])
+    return [(a, b) for a, b, lat in runs if lat]
+
+
+def _nodes(page: str):
+    """Yield (kind, chunk, ltr) over a page: kind "raw" (head, script/style text), "tag" or "text";
+    ltr is True inside an LTR or isolated context (dir="ltr"/"auto", code, pre, bdi, svg, …)."""
+    body = max(page.find("<body"), 0)
+    yield "raw", page[:body], True
+    low, stack, pos = page.lower(), [], body
+    while True:
+        m = _TAG.search(page, pos)
+        ltr = any(s[1] for s in stack)
+        if not m:
+            yield "text", page[pos:], ltr
+            return
+        if m.start() > pos:
+            yield "text", page[pos:m.start()], ltr
+        yield "tag", m.group(0), ltr
+        pos = m.end()
+        close, name, attrs = m.group(1), (m.group(2) or "").lower(), m.group(3) or ""
+        if not name:
+            continue
+        if close:
+            for k in range(len(stack) - 1, -1, -1):
+                if stack[k][0] == name:
+                    del stack[k:]
+                    break
+        elif name in _VOID or attrs.rstrip().endswith("/"):
+            continue
+        elif name in ("script", "style"):
+            end = low.find(f"</{name}", pos)
+            end = len(page) if end < 0 else end
+            yield "raw", page[pos:end], True
+            pos = end
+        else:
+            stack.append((name, name in _LTR_TAGS or bool(_DIR_LTR.search(attrs))))
+
+
+def _isolate_text(chunk: str) -> str:
+    text = html.unescape(chunk)
+    runs = latin_runs(text) if _HAS_LAT.search(text) else []
+    if not runs:
+        return chunk
+    out, i = [], 0
+    for a, b in runs:
+        run = text[a:b]
+        cls = ' class="lat"' if re.search(r"[0-9]", run) else ""
+        out += [html.escape(text[i:a], quote=False), f'<bdi dir="ltr"{cls}>{html.escape(run, quote=False)}</bdi>']
+        i = b
+    out.append(html.escape(text[i:], quote=False))
+    return "".join(out)
+
+
+def isolate_html(page: str) -> str:
+    return "".join(_isolate_text(c) if kind == "text" and not ltr else c for kind, c, ltr in _nodes(page))
+
+
+def lint_html(page: str, name: str) -> list[str]:
+    problems = []
+    for kind, chunk, ltr in _nodes(page):
+        if kind == "text" and not ltr:
+            text = html.unescape(chunk)
+            m = _HAS_LAT.search(text)
+            if m:
+                ctx = " ".join(text[max(0, m.start() - 30):m.start() + 40].split())
+                problems.append(f"{name}: a Latin run not isolated in RTL text: «{ctx}»")
+        elif kind == "tag":
+            t = _TAG.match(chunk)
+            if t and not t.group(1) and (t.group(2) or "").lower() in ("code", "pre") and not _DIR_LTR.search(t.group(3) or ""):
+                problems.append(f"{name}: <{t.group(2)}> without dir=\"ltr\": {chunk[:80]}")
+    return problems
+
+
+def lint_dist() -> list[str]:
+    """Every written page (and OG card source) read back from dist/."""
+    problems = []
+    for p in sorted(DIST.rglob("*.html")):
+        if "media" not in p.relative_to(DIST).parts:
+            problems += lint_html(p.read_text("utf-8"), "/" + str(p.relative_to(DIST)))
+    return problems
 
 
 def render(path: str, meta: dict, main: str, *, kind: str, ld: list[dict], og: dict, og_type: str = "website",
@@ -436,7 +566,6 @@ def render(path: str, meta: dict, main: str, *, kind: str, ld: list[dict], og: d
     OG_JOBS.append({"key": key, "en": og.get("en") or meta.get("og_en") or "DOTCOIN",
                     "title": meta.get("og_title") or title, "kicker": og.get("kicker") or meta.get("og_kicker") or SITE["tagline"]})
     graph = {"@context": "https://schema.org", "@graph": ld} if ld else None
-    main = latin_digits(main)
     nav = "".join(
         f'<a href="{href}"{" aria-current=page" if path.startswith(href) else ""}>{name}</a>' for href, name in NAV)
     drawer = '<a href="/"><span>خانه</span><i dir="ltr">HOME</i></a>' + "".join(
@@ -458,7 +587,7 @@ def render(path: str, meta: dict, main: str, *, kind: str, ld: list[dict], og: d
     })
     out = DIST / (path.lstrip("/") + ("index.html" if path.endswith("/") else ""))
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(page, "utf-8")
+    out.write_text(isolate_html(page), "utf-8")
     if meta.get("noindex") != "true":
         PAGES.append({"loc": canonical, "lastmod": meta.get("lastmod") or meta.get("updated") or LATEST})
 
@@ -741,7 +870,7 @@ def page_learn(arts):
 def page_article(a, arts):
     crumbs = [("/", "خانه"), ("/learn/", "آموزش‌ها"), (a["url"], a["title"])]
     toc_items = a["toc"] + ([{"level": 2, "text": "پرسش‌های پرتکرار", "id": "faq"}] if a["faqs"] else [])
-    toc = "".join(f'<li><a href="#{t["id"]}"><i>{two(k + 1)}</i>{esc(t["text"])}</a></li>' for k, t in enumerate(toc_items))
+    toc = "".join(f'<li><a href="#{t["id"]}"><i>{two(k + 1)}</i><span>{esc(t["text"])}</span></a></li>' for k, t in enumerate(toc_items))
     summary = "".join(f"<li>{inline(s)}</li>" for s in a["summary"])
     same = [b for b in arts if b["slug"] != a["slug"] and b["pillar"] == a["pillar"]]
     other = [b for b in arts if b["slug"] != a["slug"] and b["pillar"] != a["pillar"]]
@@ -1031,8 +1160,9 @@ def write_og_sources():
         giant_size = min(300, int(1088 * float(fit(en))))
         title = j["title"]
         title_size = 80 if len(title) <= 24 else 66 if len(title) <= 40 else 56
-        (od / f"{j['key']}.html").write_text(fill(_OG, {"en": esc(en), "kicker": esc(j["kicker"]), "title": esc(title),
-                                                        "giant_size": giant_size, "title_size": title_size}), "utf-8")
+        (od / f"{j['key']}.html").write_text(isolate_html(fill(_OG, {
+            "en": esc(en), "kicker": esc(j["kicker"]), "title": esc(title),
+            "giant_size": giant_size, "title_size": title_size})), "utf-8")
     (od / "jobs.json").write_text(json.dumps([j["key"] for j in OG_JOBS]), "utf-8")
 
 
@@ -1083,6 +1213,12 @@ def main() -> int:
     page_404(arts)
     write_meta_files(arts)
     write_og_sources()
+    problems = lint_dist()
+    if problems:
+        print(f"bidi lint: {len(problems)} problem(s); the build stops (see the bidi notes in build.py):", file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return 1
     print(f"built {len(PAGES) + 1} pages ({len(arts)} lessons, {len(xs)} exchanges, {len(terms)} terms) -> {DIST}")
     for a in arts:
         print(f"  {a['slug']}: {a['words']} words, {len(a['faqs'])} FAQ")

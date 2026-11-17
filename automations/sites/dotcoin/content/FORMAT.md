@@ -34,6 +34,9 @@ steps:
 ## <section heading>
 Paragraphs, **bold**, lists (`- ` / `1. `), blockquotes (`> `), links `[text](url)`.
 Tables: `| a | b |` rows, the first row is the header, a `|---|---|` row is skipped.
+Inline code `x` is LTR. A line that is only one `code` span, or a ``` fence, becomes an LTR code block
+that wraps inside its box (a hash, an address). Latin terms (SHA-256, USDT TRC20, a URL) need no markup:
+the build isolates every Latin run in the Persian text and fails on a page it could not fix (build.py, bidi).
 
 ## پرسش‌های پرتکرار
 
