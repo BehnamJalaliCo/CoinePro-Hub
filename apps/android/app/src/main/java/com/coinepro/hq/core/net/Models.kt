@@ -716,6 +716,8 @@ data class Problem(
     val missing: List<String> = emptyList(),
     /** ⟨1.5⟩ `422 send_blocked`: the outbound guard's refusal codes (§19.6). */
     val blockedReasons: List<String> = emptyList(),
+    /** ⟨1.39⟩ §61.4 `422 invalid_flow`: one Persian line per field (`[{field, message_fa}]`), read into [ApiException.fields]. */
+    val errors: List<FieldError> = emptyList(),
 )
 
 /** One event of the holding stream (contract §7). */

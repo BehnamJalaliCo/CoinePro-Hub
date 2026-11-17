@@ -2040,6 +2040,62 @@ class Api(
         get("/automations/calendar", mapOf("from" to from, "to" to to, "company" to company))
     suspend fun automationAudit(ref: String): List<AuditLine> = get("/automations/${seg(ref)}/audit", mapOf("limit" to 50))
 
+    // --------------------------------------------- ⟨1.39⟩ §60 the publish centre --
+    /** §60.2 the owner's day in Tehran: sets grouped, what the automations still make, the next one, the counts. */
+    suspend fun publicationsToday(company: String? = null, account: String? = null, channel: String? = null): PublishToday =
+        get("/publications/today", mapOf("company" to company, "account" to account, "channel" to channel))
+    /** Every company and account with a row between [from] and [to] (default the last 30 days). */
+    suspend fun publicationsTree(from: String? = null, to: String? = null): PublishTree = get("/publications/tree", mapOf("from" to from, "to" to to))
+    /** A page of rows, newest first; [q] through the hub's Persian normaliser (each hit with `match` and `snippet_fa`); [set] gives a
+     *  slide set as one card. */
+    suspend fun publications(
+        company: String? = null, account: String? = null, channel: String? = null, kind: String? = null, state: String? = null,
+        from: String? = null, to: String? = null, q: String? = null, automation: String? = null, set: Boolean = true,
+        cursor: String? = null, limit: Int = 30,
+    ): PublicationPage = get("/publications", mapOf(
+        "company" to company, "account" to account, "channel" to channel, "kind" to kind, "state" to state, "from" to from, "to" to to,
+        "q" to q?.trim()?.ifEmpty { null }, "automation" to automation, "group" to "set".takeIf { set }, "cursor" to cursor, "limit" to limit.coerceIn(1, 100),
+    ))
+    suspend fun publication(ref: String): Publication = get("/publications/${seg(ref)}")
+    suspend fun publicationsCalendar(from: String, to: String, company: String? = null, account: String? = null): PublishCalendar =
+        get("/publications/calendar", mapOf("from" to from, "to" to to, "company" to company, "account" to account))
+    /** «منتظر شما»: empty means the centre hides it. */
+    suspend fun publicationsWaiting(): WaitingList = get("/publications/waiting")
+    /** One of a waiting item's actions: his tap, no step-up. */
+    suspend fun actOnWaiting(id: String, key: String): JsonObject? = writeLoose("POST", "/publications/waiting/${seg(id)}/${seg(key)}", JsonObject(emptyMap()))
+
+    // --------------------------------------------- ⟨1.39⟩ §61 the automations as data --
+    suspend fun flows(company: String? = null, account: String? = null, channel: String? = null): FlowList =
+        get("/automations/flows", mapOf("company" to company, "account" to account, "channel" to channel))
+    suspend fun flowOptions(): FlowOptions = get("/automations/flows/options")
+    suspend fun flowDef(ref: String): FlowDef = get("/automations/flows/${seg(ref)}")
+    /** A save: a new version. [version] goes as If-Match (a moved version is `409 version_conflict`); a field the hub refuses is
+     *  `422 invalid_flow` with one Persian line per field. */
+    suspend fun patchFlowDef(ref: String, version: Int, body: JsonObject): FlowDef =
+        send("PATCH", "/automations/flows/${seg(ref)}", json.encodeToString(JsonElement.serializer(), body), ifMatch = version)
+    suspend fun flowDefState(ref: String, on: Boolean, key: String): FlowDef =
+        call(write("POST", "/automations/flows/${seg(ref)}/state", buildJsonObject { put("state", if (on) "on" else "off") }, null, key), serializer())
+    suspend fun pauseFlowDef(ref: String, until: String, key: String): FlowDef =
+        call(write("POST", "/automations/flows/${seg(ref)}/pause", buildJsonObject { put("until", until) }, null, key), serializer())
+    suspend fun skipFlowDay(ref: String, day: String, skip: Boolean, key: String): FlowDef =
+        call(write("POST", "/automations/flows/${seg(ref)}/skip", buildJsonObject { put("day", day); put("skip", skip) }, null, key), serializer())
+    /** A run now (one per flow and day: a second one is `409 already_ran`). */
+    suspend fun runFlowDefNow(ref: String, day: String?, key: String): JsonObject? =
+        writeLoose("POST", "/automations/flows/${seg(ref)}/run-now", buildJsonObject { if (day != null) put("day", day) }, key = key)
+    // P2
+    suspend fun flowVersions(ref: String): List<FlowVersion> = get("/automations/flows/${seg(ref)}/versions")
+    suspend fun rollbackFlow(ref: String, version: Int, key: String): FlowDef =
+        call(write("POST", "/automations/flows/${seg(ref)}/rollback", buildJsonObject { put("version", version) }, null, key), serializer())
+    suspend fun flowRunDays(ref: String, before: String? = null): FlowRunDays = get("/automations/flows/${seg(ref)}/runs", mapOf("limit" to 30, "before" to before))
+    suspend fun flowHealth(ref: String): FlowHealthReport = get("/automations/flows/${seg(ref)}/health")
+    suspend fun kitGraph(key: String): FlowGraph = get("/automations/kits/${seg(key)}/graph")
+    /** A new automation from a kit: `on`, version 1, checked as every save. */
+    suspend fun newFlow(body: JsonObject, key: String): FlowDef = call(write("POST", "/automations/flows", body, null, key), serializer())
+    /** «کیت تازه»: a direct session with the workshop; the answer names it. */
+    suspend fun requestKit(account: String, noteFa: String, key: String): JsonObject? =
+        writeLoose("POST", "/automations/kits/request", buildJsonObject { put("account", account); put("note_fa", noteFa) }, key = key)
+    suspend fun flowWeek(from: String? = null): FlowWeek = get("/automations/week", mapOf("from" to from))
+
     // --------------------------------------------- ⟨1.31⟩ §47–§51 what the reels order still lacked --
     /** §47.4 a page of what [company] already said in the working group [group], newest first: [kind] `topic` · `reference`, [q] a
      *  search in the titles. The counts are of the whole ledger. */
@@ -2190,7 +2246,8 @@ class Api(
         val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
         throw ApiException(
             r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p), p.fields?.keys?.filter { it != "items" }.orEmpty(),
-            p.fields?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap().orEmpty(),
+            p.fields?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap().orEmpty() +
+                p.errors.filter { it.field.isNotBlank() }.associate { it.field to it.messageFa },
             p.detail,
         ).also { it.logged = logged }
     }

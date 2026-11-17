@@ -100,6 +100,13 @@ enum class HubFeature {
     AUTOMATIONS,
     /** ⟨1.37⟩ §59.5 `/companies/{code}/site-links`; without it the form's links are left out (the hub keeps the company's own). */
     SITE_LINKS,
+    /** ⟨1.39⟩ §60 `/publications…`; without it the home keeps its desk line and the publish centre is the desk of §55.2, as before. */
+    PUBLICATIONS,
+    /** ⟨1.39⟩ §61 P1 `/automations/flows…` (list, options, one, edit, switch, pause, skip, run-now); without it the board is §59.10's. */
+    FLOWS,
+    /** ⟨1.39⟩ §61 P2: a flow's versions, rollback, runs, health, kits, a new automation and the week; without them those tabs and the
+     *  wizard say they come with the next hub update, and «برگشت» saves the earlier version's body as an edit. */
+    FLOWS_MORE,
 }
 
 /**

@@ -115,6 +115,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             v42.handle(req.method, path)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.37⟩ §59 the library and the automations, before §40's playbooks, §31's automations and §30's runs.
             // ⟨1.38⟩ §59.7.1 the hub's own n8n flows and their maps, before §59 (the board gets them first).
+            // ⟨1.39⟩ §60 the publish centre and §61 the automations as data, before §59.7.1 and §59.
+            v60.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             map.handle(req.method, path)?.let { Thread.sleep(60); return respond(req, it) }
             v59.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, map.board(path, req.method, it)) }
             // ⟨1.33⟩ §55 the limits of the treasury, and the command sheet's order when the demo is asked to refuse it.
@@ -331,6 +333,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     /** ⟨1.37⟩ §59 the library of working groups and the automations: PB-0004, AT-0700 and the board. */
     private val v59 = V59Demo(v40)
     private val map = MapDemo()
+    private val v60 = V60Demo()
     /** ⟨1.35⟩ §57 the session's team: F-0094's seats, side talk and narrator; the holder and the people present of every other session. */
     private val v57 = V57Demo(v35) { company -> v47.teamNarrator(company) }
     /** ⟨1.24⟩ §42 the holding live: `/live/summary` and the live views' script on the stream. */
