@@ -225,7 +225,11 @@ def set_field(text: str, key: str, value: str) -> str:
 def local_slugs(skip: Path | None = None) -> set[str]:
     out = set()
     for d in (SITE / "content" / "articles", AUTO):
-        for p in d.glob("*.md"):
+        try:
+            files = sorted(d.glob("*.md"))
+        except OSError:  # --check as the studio user: no access to the hub's worktree
+            continue
+        for p in files:
             if skip is not None and p == skip:
                 continue
             try:
