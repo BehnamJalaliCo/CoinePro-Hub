@@ -3,8 +3,11 @@
 
 usage (python3 -I KIT/tools/topic.py …; stdlib only):
   next --slot noon|evening        the first `free` row of the slot's lane (the other lane when it is used up)
+  mark <#> --slot noon|evening --publish "۲۸ آبان"
+                                  the topic is taken for that publish day: the day and month exactly as the order
+                                  writes them (Jalali; the nearest such date to today) -> used:<YYYY-MM-DD>:<slot>
   mark <#> <status>               set a row's status: used:<YYYY-MM-DD>:<noon|evening> · taken · free · sample:<date>
-  day <YYYY-MM-DD>                the topics marked for that publish day (the stories' teaser reads it)
+  day today|<YYYY-MM-DD>|"۲۸ آبان"  the topics marked for that publish day (the stories' teaser: `day today`)
   check                           the table is sound (columns, numbers, statuses); exit 1 otherwise
   merge <old topics.md>           (sync.sh) this file with every non-free status of the old copy, to stdout
   --file PATH                     another topics.md (default: the kit's own)
@@ -17,12 +20,59 @@ import os
 import re
 import sys
 import tempfile
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROW = re.compile(r"^\|\s*(\d+)\s*\|")
 STATUS = re.compile(r"^(free|taken|used:\d{4}-\d{2}-\d{2}:(noon|evening)|sample:\d{4}-\d{2}-\d{2})$")
 LANES = ("noon", "evening")
 COLS = ("#", "status", "lane", "topic", "hook", "payoff", "source")
+
+
+MONTHS_FA = ("فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند")
+FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def to_jalali(d):
+    """Gregorian -> Jalali, the hub's own algorithm (apps/api/src/hq_api/worker/jalali.py)."""
+    gy, gm, gd = d.year, d.month, d.day
+    gy2 = gy + 1 if gm > 2 else gy
+    days = (355666 + 365 * gy + (gy2 + 3) // 4 - (gy2 + 99) // 100 + (gy2 + 399) // 400 + gd
+            + (0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)[gm - 1])
+    jy = -1595 + 33 * (days // 12053)
+    days %= 12053
+    jy += 4 * (days // 1461)
+    days %= 1461
+    if days > 365:
+        jy += (days - 1) // 365
+        days = (days - 1) % 365
+    if days < 186:
+        return jy, 1 + days // 31, 1 + days % 31
+    return jy, 7 + (days - 186) // 30, 1 + (days - 186) % 30
+
+
+def tehran_today():
+    return datetime.now(ZoneInfo("Asia/Tehran")).date()
+
+
+def day_of(text):
+    """«۲۸ آبان» (the order's words) / «today» / YYYY-MM-DD -> a date; the Jalali day nearest to today."""
+    t = text.strip()
+    if t == "today":
+        return tehran_today()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", t):
+        return date.fromisoformat(t)
+    m = re.search(r"(\d{1,2})\s*(" + "|".join(MONTHS_FA) + ")", t.translate(FA_DIGITS))
+    if not m:
+        sys.exit(f"cannot read the day «{text}» (e.g. «۲۸ آبان», today, 2026-11-19)")
+    jd, jm = int(m.group(1)), MONTHS_FA.index(m.group(2)) + 1
+    base = tehran_today()
+    for k in range(0, 200):
+        for d in (base + timedelta(days=k), base - timedelta(days=k)):
+            if to_jalali(d)[1:] == (jm, jd):
+                return d
+    sys.exit(f"no date near today is {jd} {MONTHS_FA[jm - 1]}")
 
 
 def path_of(args):
@@ -120,7 +170,14 @@ def main():
         print(show(pick))
         return
     if cmd == "mark":
-        n, st = int(args[1]), args[2]
+        n = int(args[1])
+        if "--publish" in args:
+            slot = args[args.index("--slot") + 1] if "--slot" in args else ""
+            if slot not in LANES:
+                sys.exit("--slot noon|evening")
+            st = f"used:{day_of(args[args.index('--publish') + 1]).isoformat()}:{slot}"
+        else:
+            st = args[2]
         if not STATUS.match(st):
             sys.exit(f"bad status «{st}» (used:<YYYY-MM-DD>:<noon|evening> · taken · free · sample:<date>)")
         lines = text.splitlines()
@@ -134,7 +191,7 @@ def main():
                 return
         sys.exit(f"no row #{n}")
     if cmd == "day":
-        day = args[1]
+        day = day_of(" ".join(args[1:])).isoformat()
         for r in rows(text):
             if r["cells"][1].startswith(f"used:{day}:"):
                 print(f"{r['cells'][1].split(':')[2]}: #{r['n']} {r['cells'][3]} | {r['cells'][4]}")

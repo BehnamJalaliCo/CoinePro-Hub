@@ -58,7 +58,8 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
 1. **Topic:** the order's «ریلز اول» → `--slot noon` (science, curiosity, how it works), «ریلز دوم» → `--slot evening`
    (true story, mystery, entertainment): `python3 -I KIT/tools/topic.py next --slot <slot>` → `topic.claim`
    «ipoxxo: <topic>»; refused = `topic.py mark <#> taken`, then `next` again. Claimed:
-   `topic.py mark <#> used:<the order's publish date>:<slot>`. → `out/topic.txt` (line 1 the topic; line 2
+   `topic.py mark <#> --slot <slot> --publish "<the day and month of your order's «انتشار خودکار …», e.g. ۲۸ آبان>"`
+   (→ `used:<YYYY-MM-DD>:<slot>`; the stories' 10:00 teaser reads it). → `out/topic.txt` (line 1 the topic; line 2
    «سبک: <the look, 3–6 words>»). Used up: invent one in the same spirit, add it at the end of topics.md with
    the next number and its source (`topic.py check` must pass), then claim and mark it.
 2. **Facts:** ONE `substitute.call` seat `quick_search` (player deepseek) asking for the topic's key facts and

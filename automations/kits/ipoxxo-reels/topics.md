@@ -10,10 +10,10 @@ No politics, sanctions, legal matters, wars as a subject, religion or fear-monge
 - `python3 -I KIT/tools/topic.py next --slot noon|evening` prints the first `free` row of the slot's lane (the
   other lane when it is used up), then `topic.claim` «ipoxxo: <topic>»; refused (said before) →
   `topic.py mark <#> taken` and `next` again.
-- Claimed: `python3 -I KIT/tools/topic.py mark <#> used:<publish date>:<slot>` (the order's publish day,
-  Tehran, e.g. `used:2026-11-19:noon`). That writes this file's status column on the workshop (the ONE kit
-  file a session changes; `sync.sh` keeps every status that is not `free`).
-- `topic.py day <date>` lists the topics of a day (the stories' teaser reads it).
+- Claimed: `python3 -I KIT/tools/topic.py mark <#> --slot <slot> --publish "۲۸ آبان"` (the day and month of the
+  order's «انتشار خودکار …») → `used:2026-11-19:noon`. That writes this file's status column on the workshop
+  (the ONE kit file a session changes; `sync.sh` keeps every status that is not `free`).
+- `topic.py day today` lists the topics published today, Tehran (the stories' 10:00 teaser reads it).
 - Statuses: `free` · `used:<date>:<slot>` · `taken` (the hub's ledger refused it) · `sample:<date>`.
 - New topics go at the END with the next number; never reorder, renumber or delete a row.
 

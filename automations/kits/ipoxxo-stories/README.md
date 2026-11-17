@@ -32,7 +32,7 @@ the DM text must be timeless (no date, no "today").
 ## The day's three (hours fixed by the hub; the idea and the picture are yours, new every day)
 1. **10:00 تیزر ریلز ظهر** (⟨2026-11-17⟩ the page's reels are gripping edutainment now, the channel their
    sponsor; this story sends viewers to today's 12:00 reel): `python3 -I
-   /home/studio/kits/ipoxxo-reels/tools/topic.py day <today, Tehran>` prints the `noon:` row the reel's
+   /home/studio/kits/ipoxxo-reels/tools/topic.py day today` prints the `noon:` row the reel's
    session took the evening before (its topic and hook). The picture: the topic's own world, photoreal, in
    its true colours (the same brief to both players, step 2); `kicker` «ساعت ۱۲ توی پیج»; the headline: the
    hook as a question, ≤ 7 words, NEVER the answer; one line that deepens the mystery; the CTA bar with
