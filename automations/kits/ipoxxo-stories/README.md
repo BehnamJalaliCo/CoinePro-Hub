@@ -30,9 +30,15 @@ the DM text must be timeless (no date, no "today").
 - The CTA bar with «لینک» on EVERY story (`cta_word: "لینک"`).
 
 ## The day's three (hours fixed by the hub; the idea and the picture are yours, new every day)
-1. **10:00 مشکل و راه‌حل** — one everyday connection problem a viewer feels (Telegram stuck on
-   «Connecting…», a voice message that won't download, slow Instagram at night, a video call that
-   drops …) and the free fix in one line. A real moment in the picture (a person, a phone, a place).
+1. **10:00 تیزر ریلز ظهر** (⟨2026-11-17⟩ the page's reels are gripping edutainment now, the channel their
+   sponsor; this story sends viewers to today's 12:00 reel): `python3 -I
+   /home/studio/kits/ipoxxo-reels/tools/topic.py day <today, Tehran>` prints the `noon:` row the reel's
+   session took the evening before (its topic and hook). The picture: the topic's own world, photoreal, in
+   its true colours (the same brief to both players, step 2); `kicker` «ساعت ۱۲ توی پیج»; the headline: the
+   hook as a question, ≤ 7 words, NEVER the answer; one line that deepens the mystery; the CTA bar with
+   «لینک» stays as on every story. No `noon:` row for today (the reel was not made): this slot is
+   **مشکل و راه‌حل** as before — one everyday connection problem a viewer feels (Telegram stuck on
+   «Connecting…», a voice message that won't download …) and the free fix in one line.
 2. **16:30 آموزش یک‌لمسی** — one tiny how-to in 2–3 numbered steps on the data card (`rows`: the step,
    its number): connect a Telegram proxy with one tap; put a V2Ray config in v2rayNG / Hiddify /
    Streisand; keep two proxies saved; try the next one if one is slow … A new one every day.
@@ -43,8 +49,9 @@ reason); never two days alike.
 
 ## Steps
 0. `mkdir -p build out in`; `order.ack` with these steps (the hub wakes you while steps are open).
-1. **The three ideas** (above) → write them in build/ideas.md, and `topic.claim` «استوری: <idea>» for
-   each (refused = choose another).
+1. **The three ideas** (above; the 10:00 one from the noon reel when it is marked) → write them in
+   build/ideas.md, and `topic.claim` «استوری: <idea>» for each (refused = choose another; the teaser claims
+   «استوری تیزر: <the reel's topic>»).
 2. **Pictures — ChatGPT AND Gemini for every story; send all six calls at once** (~100 s each, one
    job at a time): for each story the SAME brief twice, `substitute.call` seat **creative**, kind
    **image**, placement **other**, once with player **gpt** and once with player **gemini** (the

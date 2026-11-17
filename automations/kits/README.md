@@ -12,8 +12,11 @@ Playwright's Chromium (`ms-playwright`).
 prochart-reels: born from session F-0018 (2026-11-13); see docs/ops/reports/F-0018_SESSION_DISTILLED.md.
 
 ipoxxo-reels, ipoxxo-stories (+ ipoxxo-common): the page @ipoxxo.vpn for the free Telegram channel
-t.me/ipoxxo, under IG-Hub (owner, 2026-11-16): two premium motion-graphics reels a day (Opus 5.5, the
-Zarib×100 bar) and three photoreal stories a day; original Instagram ads, never the channel's posts.
+t.me/ipoxxo, under IG-Hub (owner, 2026-11-16): two premium reels a day (Opus 5.5, the Zarib×100 bar) and
+three photoreal stories a day; never the channel's posts. ⟨2026-11-17⟩ the reels are gripping edutainment
+(science and curiosity at noon, stories and mysteries in the evening; topics.md, 175 topics with sources) with
+ipoxxo as their sponsor, built on the kit's own stage (motion/stage.html, reel.py, sound.py); the stories stay
+ads for the channel. A kit with a topic bank keeps the workshop's topic statuses on `sync.sh`.
 
 dotcoin-reels (+ dotcoin-common): the page @dotcoin.me («Dot Coin | بهنام جلالی»), under IG-Hub (owner,
 2026-11-16), designed anew: educational / informational reels, each with its own look from its own

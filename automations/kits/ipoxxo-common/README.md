@@ -9,5 +9,9 @@ The page @ipoxxo.vpn (Instagram, on IG-Hub) brings people to the FREE proxy and 
 
 **The content is made for Instagram, on its own** (the owner, 2026-11-16: «محتوای اون مناسب تلگرام و
 تبلیغات کانال نیست، ما میخواییم از اینستاگرام کاربر جذب کنیم برای کانال تلگرامی»): never copy or
-retell the channel's posts (its hourly news, its proxy lists). Every reel and story is an original
-ad for the channel, written for an Instagram viewer who does not know it yet.
+retell the channel's posts (its hourly news, its proxy lists).
+
+**⟨2026-11-17⟩ The reels are gripping edutainment, the channel their sponsor** (the owner: «محتوا سرگرمی یا علمی
+بسازیم … و آخرش بگیم اسپانسر این ویدیو ipoxxo»): a badge on the video, the sponsor line after the payoff, an end
+card and the link in the caption (ipoxxo-reels/README.md). The stories stay original ads for the channel; the
+10:00 one teases the noon reel.
