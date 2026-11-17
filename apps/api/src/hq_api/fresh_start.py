@@ -179,6 +179,7 @@ KEEP: tuple[str, ...] = (
     # ⟨1.31⟩ §47, §48: what was already said stays said (the posts are still out there), and a
     # company's narrator is the owner's setting
     "growth.topics", "media.narrators",
+    "media.publications",  # ⟨1.39⟩ §60.1 every publication is kept for good
     "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
     # ⟨1.15⟩ §33.2, §33.4, §33.5: the sources the owner configured, the companies' lead stages,
     # what the owner said an exchange paid
@@ -312,6 +313,7 @@ REF_KEEP: tuple[str, ...] = (
     "growth.rule_ref_seq", "growth.template_ref_seq",
     "knowledge.entry_ref_seq", "knowledge.skill_ref_seq",
     "lines.line_ref_seq",  # the lines stay
+    "media.publication_ref_seq",  # ⟨1.39⟩ §60.1 the publications stay, and so do their refs
     "owner.playbook_ref_seq",  # ⟨1.22⟩ the playbooks stay
     "ops.incident_ref_seq",
     "provisioning.plan_ref_seq",

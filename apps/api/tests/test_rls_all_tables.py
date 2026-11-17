@@ -1602,6 +1602,13 @@ async def _fill_w20(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO files.opened (file_id, company_id) VALUES (gen_random_uuid(), $1)", c
     )
+    # ⟨1.39⟩ §60.1 (migration 0069): a publication, kept for good
+    await su.execute(
+        """INSERT INTO media.publications (company_id, account, kind, state, title_fa, chain)
+           VALUES ($1, 'rls.account', 'reel', 'published', 'سه سطح طلا',
+                   ARRAY[gen_random_uuid()])""",
+        c,
+    )
     # ⟨1.37⟩ §59.5, §59.9 (migration 0066): a company's links, and what a flow run's post did
     await su.execute(
         """INSERT INTO growth.site_links (company_id, site)

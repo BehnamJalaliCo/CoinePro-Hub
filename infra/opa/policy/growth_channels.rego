@@ -27,3 +27,13 @@ owner_only_board_ops := {
 }
 
 deny_reasons contains "owner_only_board" if op in owner_only_board_ops
+
+# ⟨1.39⟩ the publish centre (contract §60.2, prompt 39): today, the archive's tree, the list and
+# its search, one publication, the calendar, «منتظر شما» and its actions are the OWNER's routes
+# (/api/v1, owner session). No agent or service op of /internal/v1 ever reaches them.
+owner_only_publication_ops := {
+	"publication.today", "publication.tree", "publication.list", "publication.read",
+	"publication.calendar", "publication.waiting", "publication.waiting_act",
+}
+
+deny_reasons contains "owner_only_publications" if op in owner_only_publication_ops

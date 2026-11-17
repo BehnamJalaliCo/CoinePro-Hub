@@ -72,3 +72,28 @@ test_the_board_refusal_names_the_reason if {
 	}
 	r.owner_only_board
 }
+
+# ⟨1.39⟩ the publish centre
+test_no_agent_or_service_reaches_the_publish_centre if {
+	every op in internal.owner_only_publication_ops {
+		not internal.allow with input as {
+			"principal": channel_agent("TY-CEO", "ceo", "CEO"),
+			"op": op,
+			"target": {"company": "TY"},
+		}
+		not internal.allow with input as {
+			"principal": {"kind": "service", "code": "n8n", "role": "service"},
+			"op": op,
+			"target": {"company": "TY"},
+		}
+	}
+}
+
+test_the_publish_centre_refusal_names_the_reason if {
+	r := internal.deny_reasons with input as {
+		"principal": channel_agent("TY-CEO", "ceo", "CEO"),
+		"op": "publication.waiting_act",
+		"target": {"company": "TY"},
+	}
+	r.owner_only_publications
+}
