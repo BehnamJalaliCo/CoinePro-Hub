@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DotCoin long video sound: our own editorial bed (no licence issue) under the chapter voices.
+"""DotCoin long video sound (engine v2: every cut has its sound, the bed's energy follows the chapter): our own editorial bed (no licence issue) under the chapter voices.
 
 Music: 90 BPM, two progressions that alternate by chapter (Dm9-Bbmaj7-Fmaj7-C6 / Fmaj7-Am7-Bbmaj7-C), a soft pad,
 muted plucks, a round sub bass, a soft kick and light hats; each chapter card gets a swell and a soft bell; the
@@ -131,6 +131,59 @@ def swell(d=1.6):
     return x * e.astype(np.float32) * 3
 
 
+def whoosh(d=0.45, seed=3):
+    """a soft air sweep (band-limited noise whose band rises), peaking at its end"""
+    r = np.random.default_rng(seed)
+    m = int(d * SR)
+    x = r.standard_normal(m).astype(np.float32)
+    out = np.zeros(m, dtype=np.float32)
+    k0, k1 = 40, 6  # a moving average: from dark to bright
+    for a in range(0, m, 2400):
+        k = int(lerp(k0, k1, a / m))
+        seg = x[a:a + 2400 + k]
+        out[a:a + 2400] = np.convolve(seg, np.ones(k) / k, mode="same")[:len(out[a:a + 2400])]
+    e = np.linspace(0, 1, m) ** 2.2
+    e[-int(0.06 * SR):] *= np.linspace(1, 0, int(0.06 * SR))
+    return out * e * 2.2
+
+
+def lerp(a, b, t):
+    return a + (b - a) * t
+
+
+def hit(seed=5):
+    """a round low impact (no click: its attack is 6 ms) with a short soft tail"""
+    t = np.arange(int(0.7 * SR)) / SR
+    f = 46 + 50 * np.exp(-t * 18)
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 6.5)
+    r = np.random.default_rng(seed)
+    air = np.convolve(r.standard_normal(len(t)), np.ones(30) / 30, mode="same") * np.exp(-t * 22) * 0.25
+    return ((body + air) * np.minimum(1, t / 0.006)).astype(np.float32)
+
+
+def heartbeat():
+    t = np.arange(int(0.9 * SR)) / SR
+    one = lambda t0: np.sin(2 * np.pi * 52 * (t - t0)) * np.exp(-np.clip(t - t0, 0, None) * 14) * (t >= t0) * np.minimum(1, np.clip(t - t0, 0, None) / 0.008)
+    return (one(0.0) + 0.7 * one(0.28)).astype(np.float32)
+
+
+def effects(tl, n, offs):
+    L = np.zeros(n, dtype=np.float32)
+    cues = json.load(open(os.path.join(ROOT, "build/timeline.json"), encoding="utf-8")).get("cues") or []
+    for i, c in enumerate(cues):
+        t = offs[c["ch"]] + c["t"]
+        if c["type"] == "chapter":
+            continue
+        if c["tr"] in ("whip", "zoom", "push", "wipe"):
+            w = whoosh(0.42, seed=i + 7)
+            add(L, t - 0.32, w * 0.55)
+        if c["tr"] in ("slam", "flash", "cut") or c["type"] in ("hook", "bignumber", "cliff"):
+            add(L, t - 0.01, hit(seed=i) * (0.9 if c["type"] in ("bignumber", "cliff") else 0.6))
+        if c["type"] == "cliff":
+            add(L, t + 0.9, heartbeat() * 0.5)
+    return L
+
+
 def music(tl, n):
     L, R = np.zeros(n, dtype=np.float32), np.zeros(n, dtype=np.float32)
     total = n / SR
@@ -147,18 +200,21 @@ def music(tl, n):
             p = pad([hz(m) for m in ch[:4]], d) * 0.55
             add(L, t0, p)
             add(R, t0, p)
-            add(L, t0, bass(hz(ch[0] - 12), BAR) * 0.7)
-            add(R, t0, bass(hz(ch[0] - 12), BAR) * 0.7)
+            en = float(c.get("energy", 0.9))
+            add(L, t0, bass(hz(ch[0] - 12), BAR) * 0.7 * en)
+            add(R, t0, bass(hz(ch[0] - 12), BAR) * 0.7 * en)
             arp = [ch[1] + 12, ch[3] + 12, ch[2] + 12, ch[4] + 12, ch[2] + 12, ch[3] + 12, ch[1] + 12, ch[4]]
             for j, m in enumerate(arp):
                 tt = t0 + j * BEAT / 2
                 if tt > stop:
                     break
-                pl = pluck(hz(m)) * (0.32 if j % 2 == 0 else 0.22)
+                if en < 0.55:
+                    break
+                pl = pluck(hz(m)) * (0.32 if j % 2 == 0 else 0.22) * en
                 pan = 0.35 if j % 2 else -0.35
                 add(L, tt, pl * (1 - pan))
                 add(R, tt, pl * (1 + pan))
-            if c["id"] not in (0,) or t0 > start + 6:
+            if en >= 0.75 and (c["id"] not in (0,) or t0 > start + 6):
                 for b in range(4):
                     tt = t0 + b * BEAT
                     if tt > stop:
@@ -216,7 +272,20 @@ def main():
     act = np.clip((10 * np.log10(pw + 1e-12) + 45) / 15, 0, 1)
     act = np.convolve(act, np.ones(int(0.15 * SR)) / int(0.15 * SR), mode="same").astype(np.float32)
     mus *= (1 - 0.4 * act)[:, None]
-    mix = mus + v[:, None]
+    offs, o = {}, 0.0
+    for c in tl:
+        offs[c["id"]] = o
+        o += c["end"]
+    fx = effects(tl, n, offs)
+    fx *= 10 ** ((-16.0 - 20.0 - lufs(fx)) / 20) if np.abs(fx).max() > 0 else 1
+    for c in tl:  # a cliffhanger: the bed drops away under it
+        for sh in c.get("shots") or []:
+            if sh["type"] == "cliff":
+                a, b = int((offs[c["id"]] + sh["t0"]) * SR), int((offs[c["id"]] + sh["t0"] + sh["d"]) * SR)
+                ramp = np.ones(max(0, b - a), dtype=np.float32) * 0.35
+                ramp[:min(len(ramp), 4800)] = np.linspace(1, 0.35, min(len(ramp), 4800))
+                mus[a:b] *= ramp[:, None][:len(mus[a:b])]
+    mix = mus + (v + fx)[:, None]
     tmp = os.path.join(ROOT, "build/mix.pre.wav")
     write(tmp, mix)
     g = -14.0 - lufs_of(tmp)[0]

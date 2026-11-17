@@ -96,3 +96,24 @@ Before any design, for THIS reel only:
    clarity, brand). Under 8 is redone; at least 2 rounds.
 3. Render once (1080×1920, 60 fps); look at the final file at 8 random times.
 4. In your last line to the hub: the topic, the look and its references (pin links), the scores.
+
+## 5. Long videos (YouTube, 8–10 minutes): attention to the last second (the owner, 2026-11-17)
+The owner after the first long video: «قابل قبوله ولی جذابیت ویدیو باید تا لحظه آخر برای مخاطب باشه». A long video
+is not a slideshow of one layout. Its rules (the kit dotcoin-longform makes them; its builder refuses a shot over
+8.5 s):
+1. **Structure:** a cold-open hook in the first 5 s (a surprising true fact, a number or a question, shown and
+   said at once); a «coming up» teaser; open loops that are closed later; a re-hook on every chapter card; a mini
+   cliffhanger at the end of every chapter; the chapter bar always on screen.
+2. **Pace:** a pattern interrupt every 6–10 s (a layout change, a camera move, a scale jump, a colour-layer
+   switch, a full-bleed picture, a kinetic-type beat); no layout held longer than about 8 s; a new shot every
+   4–6 s on average; nothing empty while a sentence is spoken.
+3. **Range:** at least 12 scene types a video (kinetic type, a big number, data that builds, a split screen, a
+   dive into a detail, a network or a map, a timeline, a before/after wipe, a phone or a page, a full-bleed AI
+   picture from ChatGPT AND Gemini, a character moment, an isometric object, …).
+4. **Colour layers on purpose:** brand (mustard/black) for hooks, numbers, statements and cards; the topic's
+   own palette for diagrams and pictures; paper for explanations; green up / red down. Never three shots in a
+   row on one layer.
+5. **Camera:** every move eased, settling with a small overshoot; depth from parallax, scale and the whip's
+   motion blur. The picture itself stays crisp (rule 8): no blurred or defocused content.
+6. **Sound:** a whoosh or a hit on every cut, the bed's energy changing by chapter (it builds in the cold
+   open, drops under a cliffhanger), the voice always clear; 0 clicks, cuts and bursts (rule 10).
