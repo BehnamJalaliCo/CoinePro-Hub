@@ -29,8 +29,13 @@ cover. If anything you make could pass for a Pro-Chart, Zarib×100 or ipoxxo ree
   for them — facts only from the file (say «در لحظه‌ی ساخت این ویدیو» for any price). `topic.claim`
   «دات‌کوین خبر: <headline> <date>».
 - **Length:** 30–50 s, the length the idea needs (a pilot: what its order says). 1080×1920, 60 fps.
-- **Call to action:** follow @dotcoin.me and save the reel (the owner sets a comment-word DM later;
-  until then no comment.txt).
+- **Call to action — the comment word (the owner, 2026-11-17: «کامنت ها جواب دایرکت بگیرند»):**
+  - Every reel has ONE Persian word tied to its topic («بلاک‌چین», «کیف‌پول», «هاوینگ» …; a news reel:
+    «خبر» plus a word of the story, e.g. «ای‌تی‌اف»), never the word of the page's last reel.
+  - Arlo's last line asks for it: «کلمه‌ی «…» رو کامنت کن تا خلاصه‌ش رو برات دایرکت کنم». The end
+    card shows it, together with follow @dotcoin.me. The cover's pill says «کلمه‌ی «…» رو کامنت کن».
+  - Every comment with the word gets the summary in a DM (comment.txt; the site's link joins it
+    later).
 
 ## Render safely
 At most 2 Chromium workers (the workshop has 4 GB); close Chromium after each use:
@@ -70,10 +75,22 @@ mark each step done with `order.progress`.
     frames of the final file; remove build/seg* temp folders.
 11. **Cover — the owner's cover system (COMMON/cover/COVER_SYSTEM.md):** ChatGPT makes the WHOLE
     cover from his folder (his six photos + his two covers, the eight files) and your precise brief
-    (style, layout, his suit and accessories, the exact text); check his face and every letter;
-    → `out/cover.jpg`.
+    (style, layout, his suit and accessories, the exact text; the pill «کلمه‌ی «<word>» رو کامنت کن»
+    with the word in mustard); check his face and every letter; → `out/cover.jpg`. Send all
+    eight file_ids (the hub takes up to ten).
 12. **Caption** `out/caption.txt`: a first line that stops the scroll, 2–4 short lines of the
-    lesson or the news, the call to action, **3 to 5 hashtags** (#دات_کوین always, then the topic's).
-13. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, topic.txt (+ comment.txt only
-    when your order asks for one). `order.progress` done: the topic, the look and its pin links,
-    the shot scores — one short Persian line.
+    lesson or the news, «کلمه‌ی «<word>» رو کامنت کن تا خلاصه‌ش برات بیاد», **3 to 5 hashtags**
+    (#دات_کوین always, then the topic's).
+13. **comment.txt** `out/comment.txt` (the DM every comment with the word gets; the hub makes the
+    rule), one `label: value` a line:
+    ```
+    keyword: <the reel's word>
+    reply: <a warm one-line hello tied to the reel>
+    reply: <the lesson (or the news and what it means) in 4–6 short lines, 1️⃣ 2️⃣ 3️⃣ …>
+    reply: <«برای درس‌های بیشتر @dotcoin.me رو فالو کن»>
+    public: <a short public answer, e.g. «دایرکتت رو ببین 📩»>   (ten different ones)
+    ```
+    ≤ 900 characters for the reply, no hashtags, no link yet.
+14. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, comment.txt, topic.txt (a pilot:
+    what its order says). `order.progress` done: the topic, the look and its pin links, the shot
+    scores — one short Persian line.
