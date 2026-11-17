@@ -124,12 +124,18 @@ a coin's logo only as its real file from its official site, e.g. ethereum.org/en
     1–3 primary sources, 3–8 contextual links to live lessons and glossary anchors, written Persian.
     Front matter as the brief's §3 plus `youtube:` (left empty: the hub fills it after the upload) and
     `duration: PT<m>M<s>S`. `python3 -I REELS/site/sync.py --check out/article.md` must print `ok`.
-13. **Deliver:** out/ holds ONLY video.mp4, thumbnail.jpg, meta.json, subtitles.fa.srt, chapters.txt,
-    article.md and topic.txt (line 1 the title; line 2 «سبک: <the look>»). `order.progress` done: the
+13. **Deliver:** out/ holds ONLY thumbnail.jpg, meta.json, subtitles.fa.srt, chapters.txt, caption.txt
+    (written by yt_meta.py: the description), article.md and topic.txt (line 1 the title; line 2
+    «سبک: <the look>»), and **video.mp4, copied in LAST**: the hub takes a video and caption.txt as
+    the day's package, closes the session and queues the video for YouTube at the hour. `order.progress` done: the
     topic, the length, the look and its pins, the scene scores, one short Persian line.
 
 ## What the hub does with it (not the session)
-- **YouTube:** `automations/sites/dotcoin/youtube_long.py --video out/video.mp4 --thumb out/thumbnail.jpg
+- **YouTube, automatic (flow `dotcoin_long`, AF-0015):** at the hour, `youtube_long.py --due`
+  (dotcoin-longform.timer) reads this session's out/, refuses the video unless its soundtrack has 0
+  clicks, cuts and bursts and the article passes `sync.py --check` and the site build's lint, uploads
+  it Public once, puts the article on the site with the video in it, then sets the tags, the language
+  and the subtitles. By hand: `youtube_long.py --video out/video.mp4 --thumb out/thumbnail.jpg
   --meta out/meta.json --unlisted` on the hub (the browser profile `youtube-web`, egress task
   `upload_long`; the YouTube Data API is NOT used: an unaudited project's uploads are locked private).
   One upload per video, ever: the key `youtube:@DotCoin-me|long:<slug>` and the file's sha256 in

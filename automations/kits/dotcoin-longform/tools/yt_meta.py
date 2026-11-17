@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The long video's YouTube package from the script and the real timeline: out/meta.json (title, description with
 chapters, tags, category, slug, topic), out/subtitles.fa.srt (sidecar Persian subtitles from the word times) and
-out/chapters.txt.
+out/chapters.txt and out/caption.txt (the description).
 
 usage: python3 -I tools/yt_meta.py   (reads script/chapters.json, script/youtube.json, build/timeline.json)
 script/youtube.json: {"title", "intro": [lines], "learn": [lines], "tags": [..], "hashtags": [3 tags]}
@@ -89,6 +89,8 @@ def main():
         for i, (a, b, t) in enumerate(subs, 1):
             f.write(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{t}\n\n")
     open(os.path.join(ROOT, "out/chapters.txt"), "w", encoding="utf-8").write("\n".join(chap_lines) + "\n")
+    # the hub knows the day's package by a video and its caption: the caption is the description
+    open(os.path.join(ROOT, "out/caption.txt"), "w", encoding="utf-8").write(desc + "\n")
     print(f"title {len(title)} chars, description {len(desc)} chars, {len(tags)} tags, {len(subs)} subtitle cues, "
           f"{len(chap_lines)} chapters, total {stamp(total)} ({total:.1f} s)")
 
