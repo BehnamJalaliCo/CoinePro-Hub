@@ -33,11 +33,13 @@ a coin's logo only as its real file from its official site, e.g. ethereum.org/en
 
 ## Turn 1 — topic, script, voice
 1. **Topic, never a repeat** (the owner: no duplicate reel, article or YouTube video, ever):
-   - the first entry of `KIT/bank/topics.json` with `"used": null` whose slug is NOT live
+   - the first row of `KIT/topics.md` with status `free` whose slug is NOT live
      (`curl -s -4 https://dotcoin.me/sitemap.xml | grep -o '/learn/[a-z0-9-]*/'`), not in the hub's
      long-video state (your order lists the slugs already uploaded) and not a cornerstone
      (`cryptocurrency`, `bitcoin`, `crypto-wallet`, `how-to-buy-crypto`, `usdt-networks`);
-   - claim it: `topic.claim` «دات‌کوین ویدیو بلند: <title>» (refused = the next entry);
+   - claim it: `topic.claim` «دات‌کوین ویدیو بلند: <title>» (refused = the next row); after the upload its
+     status becomes `used:<YYYY-MM-DD>` in KIT/topics.md (never reused); its keyword, angle and links
+     are the article's `keyword:`, the video's hook and the lessons it links to;
    - a deep, high-value topic that carries 8–10 minutes and a full article of its own; link it to the
      related live lessons (the article does it, step 11).
    → `script/chapters.json` (the shape of `KIT/example/chapters.json`): `slug`, `topic`, `title` and

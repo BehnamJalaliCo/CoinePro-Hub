@@ -1,21 +1,4 @@
 {
- "note": "Long YouTube videos (8-10 min), one new lesson each. A topic is used once, ever: `used` = the upload day; never a slug that is live on dotcoin.me (sitemap) or already uploaded (dotcoin-youtube.json, key youtube:@DotCoin-me|long:<slug>). Cornerstones (cryptocurrency, bitcoin, crypto-wallet, how-to-buy-crypto, usdt-networks) and the other live lessons are linked, never remade.",
- "topics": [
-  {"id": 1, "slug": "ethereum", "title": "اتریوم چیست؟ از قرارداد هوشمند تا گس و اثبات سهام", "query": "اتریوم چیست", "pillar": "basics", "links": ["blockchain", "bitcoin", "usdt-networks", "crypto-wallet"], "used": "2026-11-17"},
-  {"id": 2, "slug": "coin-vs-token", "title": "کوین و توکن چه فرقی دارند؟ استانداردها، شبکه‌ها و نمونه‌ها", "query": "تفاوت کوین و توکن", "pillar": "basics", "links": ["blockchain", "ethereum", "stablecoin", "usdt-networks"], "used": null},
-  {"id": 3, "slug": "seed-phrase", "title": "عبارت بازیابی (سید فریز) چیست و کجا نگهش داریم؟", "query": "سید فریز چیست", "pillar": "security", "links": ["crypto-wallet", "cold-wallet", "hash"], "used": null},
-  {"id": 4, "slug": "market-cap", "title": "مارکت کپ و عرضه: ارزش بازار یک ارز را درست بخوان", "query": "مارکت کپ چیست", "pillar": "market", "links": ["cryptocurrency", "bitcoin", "stablecoin"], "used": null},
-  {"id": 5, "slug": "cex-vs-dex", "title": "صرافی متمرکز و غیرمتمرکز چه فرقی دارند؟", "query": "صرافی غیرمتمرکز", "pillar": "exchange", "links": ["how-to-buy-crypto", "crypto-wallet", "ethereum"], "used": null},
-  {"id": 6, "slug": "risk-management", "title": "مدیریت ریسک در ارز دیجیتال: حد ضرر، اندازه‌ی پوزیشن و یک قانون ساده", "query": "مدیریت ریسک و سرمایه", "pillar": "market", "links": ["how-to-buy-crypto", "cryptocurrency"], "used": null},
-  {"id": 7, "slug": "leverage", "title": "لوریج چیست و لیکویید شدن یعنی چه؟", "query": "لوریج چیست", "pillar": "market", "links": ["how-to-buy-crypto"], "used": null},
-  {"id": 8, "slug": "candlestick", "title": "کندل‌شناسی از صفر: نمودار شمعی را بخوان", "query": "کندل شناسی", "pillar": "market", "links": ["bitcoin"], "used": null},
-  {"id": 9, "slug": "staking", "title": "استیکینگ چیست؟ پاداش، دوره‌ی قفل و ریسک‌ها", "query": "استیکینگ چیست", "pillar": "defi", "links": ["ethereum", "crypto-wallet"], "used": null},
-  {"id": 10, "slug": "crypto-phishing", "title": "فیشینگ و کلاهبرداری‌های رایج ارز دیجیتال را بشناس", "query": "فیشینگ ارز دیجیتال", "pillar": "security", "links": ["crypto-wallet", "cold-wallet"], "used": null},
-  {"id": 11, "slug": "defi", "title": "دیفای چیست؟ وام، تبادل و پس‌انداز بدون بانک", "query": "دیفای چیست", "pillar": "defi", "links": ["ethereum", "stablecoin", "crypto-wallet"], "used": null},
-  {"id": 12, "slug": "tether", "title": "تتر چیست و پشتوانه‌اش چیست؟", "query": "تتر چیست", "pillar": "basics", "links": ["stablecoin", "usdt-networks"], "used": null},
-  {"id": 13, "slug": "network-fee", "title": "کارمزد شبکه چیست و چرا گاهی گران می‌شود؟", "query": "کارمزد شبکه", "pillar": "basics", "links": ["ethereum", "usdt-networks", "bitcoin"], "used": null},
-  {"id": 14, "slug": "support-resistance", "title": "حمایت و مقاومت چیست؟ با نمودارهای واقعی", "query": "حمایت و مقاومت چیست", "pillar": "market", "links": ["candlestick"], "used": null},
-  {"id": 15, "slug": "dca", "title": "خرید پله‌ای (DCA) چیست و چه زمانی به کار می‌آید؟", "query": "استراتژی dca چیست", "pillar": "market", "links": ["how-to-buy-crypto", "risk-management"], "used": null},
-  {"id": 16, "slug": "bitcoin-dominance", "title": "دامیننس بیت‌کوین و شاخص ترس و طمع: دو نشانگر بازار", "query": "دامیننس بیت کوین", "pillar": "market", "links": ["bitcoin", "market-cap"], "used": null}
- ]
+ "note": "Retired 2026-11-17: the long-form bank is ../topics.md (the first row with status `free`). ethereum was used 2026-11-17.",
+ "topics": []
 }
