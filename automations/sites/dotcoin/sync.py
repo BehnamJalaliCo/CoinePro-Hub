@@ -15,6 +15,8 @@ State: /home/Hub/sites/dotcoin-sync.json. One lock; idempotent; never prints a s
     sync.py                                       one pass
     sync.py --dry-run                             find and validate only; write nothing
     sync.py --import FILE --workspace W-000583    take a local article as if the hub had made it
+    sync.py --check FILE                          the session's self-check (kit dotcoin-reels): exit 1 on
+                                                  an error; needs no worktree, no hub, no lock
 """
 from __future__ import annotations
 
@@ -437,7 +439,18 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--import", dest="import_file")
     ap.add_argument("--workspace")
+    ap.add_argument("--check")
     args = ap.parse_args()
+    if args.check:
+        text = Path(args.check).read_text("utf-8").replace("\r\n", "\n").lstrip("\ufeff")
+        live = live_slugs()
+        _, errs, warns = validate(text, (live or set()) | local_slugs())
+        for w in warns:
+            log(f"warn: {w}")
+        for e in errs:
+            log(f"error: {e}")
+        log("ok" if not errs else "NOT OK: fix the errors (an invalid article never reaches the site)")
+        return 1 if errs else 0
     if not SITE.is_dir():
         log(f"no content worktree at {WT}")
         return 1
