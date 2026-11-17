@@ -661,6 +661,45 @@ async def test_a_late_day_notifies_the_owner_once_after_an_hour_then_closes(
         await all_off(su, key)
 
 
+async def test_a_day_whose_work_was_wiped_but_went_out_is_not_late(
+    hub: Hub, su: Any, new_company: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨2026-11-17⟩ live: the owner's wipe took the morning's works; the first sweep read 7 days as
+    unsent and told the owner 7 times. A day counts as sent from its page's publication too (§60.1):
+    a reel of the page at its hour, no flow on the row (a backfilled one); another flow's post does
+    not count for it."""
+    from hq_api.domain import flow_alerts as AL
+
+    co = await new_company()
+    key, other = fk(), fk()
+    page = f"p39.{key}"
+    ref = (await seed(su, monkeypatch, a_flow(co["code"], key, account=page, hours=("14:00",) * 4),
+                      a_flow(co["code"], other, account=page, hours=("17:00",) * 4)))[key]  # fmt: skip
+    day = datetime.now(TZ).date()
+    at = datetime.combine(day, datetime.min.time(), TZ).replace(hour=14)
+    late = """SELECT count(*) FROM automations.alerts a JOIN automations.flows f ON f.id = a.flow_id
+              WHERE f.ref = $1 AND a.kind = 'late' AND a.closed_at IS NULL"""
+    pub = """INSERT INTO media.publications (company_id, account, kind, state, title_fa, chain,
+                 published_at, source)
+             VALUES ($1, $2, 'reel', 'published', 'p39', ARRAY[gen_random_uuid()], $3, $4::jsonb)"""
+    try:
+        # another flow's reel of the same page, near the hour: not this day's
+        await su.execute(pub, co["id"], page, at + timedelta(minutes=5),
+                         json.dumps({"flow_key": other, "day": day.isoformat()}))  # fmt: skip
+        await AL.sweep(hub, at + timedelta(minutes=20))
+        assert await su.fetchval(late, ref) == 1
+        # the page's reel at its hour (a backfilled row: no flow on it): sent, the alert closes
+        await su.execute(pub, co["id"], page, at + timedelta(minutes=3), "{}")
+        await AL.sweep(hub, at + timedelta(minutes=70))
+        assert await su.fetchval(late, ref) == 0
+        assert not await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_kind = 'automation' AND link_ref = $1",
+            ref,
+        )
+    finally:
+        await all_off(su, key, other)
+
+
 async def test_the_p2_pages_kits_a_new_automation_and_the_week(
     client: httpx.AsyncClient,
     hub: Hub,
