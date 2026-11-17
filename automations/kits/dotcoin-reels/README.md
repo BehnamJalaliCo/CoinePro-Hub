@@ -34,8 +34,8 @@ cover. If anything you make could pass for a Pro-Chart, Zarib×100 or ipoxxo ree
     «خبر» plus a word of the story, e.g. «ای‌تی‌اف»), never the word of the page's last reel.
   - Arlo's last line asks for it: «کلمه‌ی «…» رو کامنت کن تا خلاصه‌ش رو برات دایرکت کنم». The end
     card shows it, together with follow @dotcoin.me. The cover's pill says «کلمه‌ی «…» رو کامنت کن».
-  - Every comment with the word gets the summary in a DM (comment.txt; the site's link joins it
-    later).
+  - Every comment with the word gets the summary in a DM (comment.txt); an educational reel's DM
+    ends with a button to its full lesson on dotcoin.me (step 12b).
 
 ## Render safely
 At most 2 Chromium workers (the workshop has 4 GB); close Chromium after each use:
@@ -81,6 +81,25 @@ mark each step done with `order.progress`.
 12. **Caption** `out/caption.txt`: a first line that stops the scroll, 2–4 short lines of the
     lesson or the news, «کلمه‌ی «<word>» رو کامنت کن تا خلاصه‌ش برات بیاد», **3 to 5 hashtags**
     (#دات_کوین always, then the topic's).
+12b. **Article — «آموزشی» only** (`out/article.md`; a news reel has none for now). The same
+    lesson as the reel, expanded into a full SEO lesson on https://dotcoin.me/learn/<slug>/: true,
+    checkable, beginner friendly, plain written Persian. The rules are KIT/site/ARTICLE_BRIEF.md
+    (read it whole: keyword step §2, front matter §3, structure and length §4, links §5, slug §6);
+    the model is KIT/site/example.md; the idea's slug and queries: KIT/site/PAGE_PLAN.md §4–§5;
+    the glossary anchors: KIT/site/glossary.txt (KIT/site/README.md).
+    - **Front matter:** exactly the brief's §3 fields, in its order: title, seo_title, slug, pillar,
+      idea, date (today, Tehran), updated (= date), keyword, keywords, en, motif, description, lead,
+      answer, `reel:` left empty (the hub fills it once the reel is out), sources, summary, steps.
+    - **Slug:** brief §6 (English kebab-case topic noun, PAGE_PLAN's slug when the idea is listed),
+      never one already on the site: `curl -s -4 https://dotcoin.me/sitemap.xml | grep -o
+      '/learn/[a-z0-9-]*/'`. Taken (a lesson on the topic exists): the narrower angle of today's
+      reel with its own slug and query (brief §2.4), never a second page for the same query.
+    - **Links:** only to pages that exist (that sitemap, `/glossary/#<slug>` from glossary.txt,
+      `/exchanges/`), in the canonical form; never `/go/`.
+    - **Self-check:** brief §9, then `python3 -I KIT/site/sync.py --check out/article.md` must
+      print `ok` (fix every error; an invalid article never reaches the site and the DM's button
+      would open nothing). The hub puts it on the site within about ten minutes of delivery, long
+      before the reel goes out.
 13. **comment.txt** `out/comment.txt` (the DM every comment with the word gets; the hub makes the
     rule), one `label: value` a line:
     ```
@@ -88,9 +107,14 @@ mark each step done with `order.progress`.
     reply: <a warm one-line hello tied to the reel>
     reply: <the lesson (or the news and what it means) in 4–6 short lines, 1️⃣ 2️⃣ 3️⃣ …>
     reply: <«برای درس‌های بیشتر @dotcoin.me رو فالو کن»>
+    reply: <«آموزشی» only, the last line: it points to the button, e.g. «مقاله‌ی کامل این درس، با مثال و پرسش‌های پرتکرار، روی سایت دات‌کوین 👇»>
     public: <a short public answer, e.g. «دایرکتت رو ببین 📩»>   (ten different ones)
+    link: https://dotcoin.me/learn/<slug>/     («آموزشی» only: the article's slug, with the slash)
+    button: مقاله‌ی کامل                       («آموزشی» only; ≤ 20 characters)
     ```
-    ≤ 900 characters for the reply, no hashtags, no link yet.
-14. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, comment.txt, topic.txt (a pilot:
+    ≤ 900 characters for the reply, no hashtags, no link inside the reply text (the link is the
+    button). A news reel: no `link:` / `button:` lines.
+14. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, comment.txt, topic.txt, and for
+    «آموزشی» also article.md (allowed, though the order's list predates it) (a pilot:
     what its order says). `order.progress` done: the topic, the look and its pin links, the shot
     scores — one short Persian line.
