@@ -6089,6 +6089,24 @@
         "title": "BudgetsPut",
         "type": "object"
       },
+      "Button": {
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url"
+        ],
+        "title": "Button",
+        "type": "object"
+      },
       "By": {
         "properties": {
           "code": {
@@ -7691,6 +7709,36 @@
           "state"
         ],
         "title": "CardKpi",
+        "type": "object"
+      },
+      "CardSet": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          }
+        },
+        "required": [
+          "n",
+          "done"
+        ],
+        "title": "CardSet",
         "type": "object"
       },
       "Cards": {
@@ -14480,7 +14528,8 @@
               "failed",
               "cancelled",
               "waiting_setup",
-              "waiting_seal"
+              "waiting_seal",
+              "held"
             ],
             "title": "State",
             "type": "string"
@@ -22602,63 +22651,6 @@
           "due_in_hours"
         ],
         "title": "InquiryIn",
-        "type": "object"
-      },
-      "Insights": {
-        "description": "§31.1 a line's published runs ranked by its template's metric (code only).",
-        "properties": {
-          "best": {
-            "$ref": "#/components/schemas/InsightsBest"
-          },
-          "lessons_fa": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Lessons Fa",
-            "type": "array"
-          },
-          "line": {
-            "title": "Line",
-            "type": "string"
-          },
-          "metric": {
-            "title": "Metric",
-            "type": "string"
-          },
-          "top_hooks": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Top Hooks",
-            "type": "array"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
-          "window_runs": {
-            "title": "Window Runs",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "line",
-          "metric",
-          "window_runs",
-          "best",
-          "top_hooks",
-          "lessons_fa",
-          "updated_at"
-        ],
-        "title": "Insights",
         "type": "object"
       },
       "InsightsBest": {
@@ -38976,6 +38968,70 @@
         "title": "PlanPrice",
         "type": "object"
       },
+      "PlannedItem": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "automation": {
+            "title": "Automation",
+            "type": "string"
+          },
+          "automation_fa": {
+            "title": "Automation Fa",
+            "type": "string"
+          },
+          "build_at": {
+            "format": "date-time",
+            "title": "Build At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "story",
+              "post",
+              "carousel",
+              "short",
+              "video",
+              "tg_post",
+              "article"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "publish_at": {
+            "format": "date-time",
+            "title": "Publish At",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "planned",
+              "building"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automation",
+          "automation_fa",
+          "account",
+          "kind",
+          "title_fa",
+          "build_at",
+          "publish_at",
+          "state"
+        ],
+        "title": "PlannedItem",
+        "type": "object"
+      },
       "Planner": {
         "properties": {
           "days": {
@@ -41722,6 +41778,298 @@
         "title": "ProvisionRun",
         "type": "object"
       },
+      "PubComment": {
+        "properties": {
+          "buttons": {
+            "items": {
+              "$ref": "#/components/schemas/Button"
+            },
+            "title": "Buttons",
+            "type": "array"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "match": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match"
+          },
+          "public_replies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Public Replies",
+            "type": "array"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          }
+        },
+        "title": "PubComment",
+        "type": "object"
+      },
+      "PubFile": {
+        "properties": {
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "enum": [
+              "video",
+              "cover",
+              "slide",
+              "image",
+              "thumb"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          }
+        },
+        "required": [
+          "role",
+          "file_id"
+        ],
+        "title": "PubFile",
+        "type": "object"
+      },
+      "PubSeo": {
+        "properties": {
+          "canonical": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical"
+          },
+          "meta_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta Description"
+          },
+          "meta_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta Title"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "title": "PubSeo",
+        "type": "object"
+      },
+      "PubSource": {
+        "properties": {
+          "automation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation"
+          },
+          "automation_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation Fa"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "flow_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow Key"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "PubSource",
+        "type": "object"
+      },
       "PublicKeyCredential": {
         "additionalProperties": true,
         "description": "A WebAuthn credential as the browser / Credential Manager returns it (JSON).",
@@ -41772,6 +42120,487 @@
           "response"
         ],
         "title": "PublicKeyCredential",
+        "type": "object"
+      },
+      "Publication": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "channel": {
+            "enum": [
+              "instagram",
+              "youtube",
+              "telegram",
+              "website"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PubComment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/PubFile"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "insights": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/hq_api__domain__publications__Insights"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "story",
+              "post",
+              "carousel",
+              "short",
+              "video",
+              "tg_post",
+              "article"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          },
+          "seo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PubSeo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "set": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SetItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set"
+          },
+          "set_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Key"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PubSource"
+          },
+          "state": {
+            "enum": [
+              "scheduled",
+              "publishing",
+              "published",
+              "held",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "state_note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Note Fa"
+          },
+          "story_word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Word"
+          },
+          "thumb_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumb File Id"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "topic_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Fa"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "ref",
+          "company",
+          "company_fa",
+          "channel",
+          "account",
+          "kind",
+          "state",
+          "at",
+          "title_fa",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Publication",
+        "type": "object"
+      },
+      "PublicationCard": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "automation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation"
+          },
+          "automation_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation Fa"
+          },
+          "channel": {
+            "enum": [
+              "instagram",
+              "youtube",
+              "telegram",
+              "website"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "files_n": {
+            "default": 0,
+            "title": "Files N",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "story",
+              "post",
+              "carousel",
+              "short",
+              "video",
+              "tg_post",
+              "article"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "match": {
+            "anyOf": [
+              {
+                "enum": [
+                  "title",
+                  "topic",
+                  "caption",
+                  "word"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "set": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "set_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Key"
+          },
+          "snippet_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet Fa"
+          },
+          "state": {
+            "enum": [
+              "scheduled",
+              "publishing",
+              "published",
+              "held",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "state_note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Note Fa"
+          },
+          "thumb_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumb File Id"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "ref",
+          "company",
+          "company_fa",
+          "channel",
+          "account",
+          "kind",
+          "state",
+          "at",
+          "title_fa"
+        ],
+        "title": "PublicationCard",
+        "type": "object"
+      },
+      "PublicationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationCard"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          }
+        },
+        "title": "PublicationPage",
+        "type": "object"
+      },
+      "PublishCalendar": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__domain__publications__CalendarDay"
+            },
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "title": "PublishCalendar",
         "type": "object"
       },
       "PublishComment": {
@@ -41844,6 +42673,13 @@
               "$ref": "#/components/schemas/DeskCard"
             },
             "title": "Done",
+            "type": "array"
+          },
+          "held": {
+            "items": {
+              "$ref": "#/components/schemas/DeskCard"
+            },
+            "title": "Held",
             "type": "array"
           },
           "queue": {
@@ -42129,6 +42965,60 @@
           "keywords"
         ],
         "title": "PublishRuleOut",
+        "type": "object"
+      },
+      "PublishToday": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/TodayCounts"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationCard"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicationCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planned": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedItem"
+            },
+            "title": "Planned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day"
+        ],
+        "title": "PublishToday",
+        "type": "object"
+      },
+      "PublishTree": {
+        "properties": {
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/TreeCompany"
+            },
+            "title": "Companies",
+            "type": "array"
+          }
+        },
+        "title": "PublishTree",
         "type": "object"
       },
       "Published": {
@@ -51055,6 +51945,60 @@
         "title": "SessionTeam",
         "type": "object"
       },
+      "SetItem": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "scheduled",
+              "publishing",
+              "published",
+              "held",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "at",
+          "state"
+        ],
+        "title": "SetItem",
+        "type": "object"
+      },
       "ShadowDisagreement": {
         "properties": {
           "case": {
@@ -57280,6 +58224,32 @@
         "title": "Today",
         "type": "object"
       },
+      "TodayCounts": {
+        "properties": {
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "held": {
+            "default": 0,
+            "title": "Held",
+            "type": "integer"
+          },
+          "published": {
+            "default": 0,
+            "title": "Published",
+            "type": "integer"
+          },
+          "scheduled": {
+            "default": 0,
+            "title": "Scheduled",
+            "type": "integer"
+          }
+        },
+        "title": "TodayCounts",
+        "type": "object"
+      },
       "TodayMeter": {
         "properties": {
           "cap": {
@@ -57971,6 +58941,99 @@
           "engine"
         ],
         "title": "Transcript",
+        "type": "object"
+      },
+      "TreeAccount": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "automations": {
+            "default": 0,
+            "title": "Automations",
+            "type": "integer"
+          },
+          "avatar_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar File Id"
+          },
+          "by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Kind",
+            "type": "object"
+          },
+          "channel": {
+            "enum": [
+              "instagram",
+              "youtube",
+              "telegram",
+              "website"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel",
+          "account",
+          "total"
+        ],
+        "title": "TreeAccount",
+        "type": "object"
+      },
+      "TreeCompany": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/TreeAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "mark_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mark File Id"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name_fa",
+          "total"
+        ],
+        "title": "TreeCompany",
         "type": "object"
       },
       "TreeEvent": {
@@ -60077,6 +61140,139 @@
           "gender_fa"
         ],
         "title": "VoiceVoiceOut",
+        "type": "object"
+      },
+      "Waiting": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingAction"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "publish_ask",
+              "budget_cap"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "publication": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicationCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title_fa",
+          "at"
+        ],
+        "title": "Waiting",
+        "type": "object"
+      },
+      "WaitingAction": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          },
+          "primary": {
+            "default": false,
+            "title": "Primary",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "label_fa"
+        ],
+        "title": "WaitingAction",
+        "type": "object"
+      },
+      "WaitingIn": {
+        "description": "`raise_cap`: the day's new cap (USD, 1 to 500).",
+        "properties": {
+          "usd_cap": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd Cap"
+          }
+        },
+        "title": "WaitingIn",
+        "type": "object"
+      },
+      "WaitingList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Waiting"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "WaitingList",
         "type": "object"
       },
       "Wal": {
@@ -64032,6 +65228,125 @@
         "title": "StepIn",
         "type": "object"
       },
+      "hq_api__domain__publications__CalendarDay": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "held": {
+            "default": 0,
+            "title": "Held",
+            "type": "integer"
+          },
+          "planned": {
+            "default": 0,
+            "title": "Planned",
+            "type": "integer"
+          },
+          "published": {
+            "default": 0,
+            "title": "Published",
+            "type": "integer"
+          },
+          "scheduled": {
+            "default": 0,
+            "title": "Scheduled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day"
+        ],
+        "title": "CalendarDay",
+        "type": "object"
+      },
+      "hq_api__domain__publications__Insights": {
+        "properties": {
+          "best_hour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Hour"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          },
+          "dms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms"
+          },
+          "likes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Likes"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "views": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Views"
+          }
+        },
+        "title": "Insights",
+        "type": "object"
+      },
       "hq_api__domain__readiness__Check": {
         "properties": {
           "detail_fa": {
@@ -64243,6 +65558,63 @@
           }
         },
         "title": "BudgetIn",
+        "type": "object"
+      },
+      "hq_api__lines__store__Insights": {
+        "description": "§31.1 a line's published runs ranked by its template's metric (code only).",
+        "properties": {
+          "best": {
+            "$ref": "#/components/schemas/InsightsBest"
+          },
+          "lessons_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lessons Fa",
+            "type": "array"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "top_hooks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Top Hooks",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "window_runs": {
+            "title": "Window Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line",
+          "metric",
+          "window_runs",
+          "best",
+          "top_hooks",
+          "lessons_fa",
+          "updated_at"
+        ],
+        "title": "Insights",
         "type": "object"
       },
       "hq_api__routes__academy__DraftIn": {
@@ -111663,7 +113035,7 @@
                   "window_runs": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Insights"
+                  "$ref": "#/components/schemas/hq_api__lines__store__Insights"
                 }
               }
             },
@@ -135947,6 +137319,1231 @@
         ]
       }
     },
+    "/api/v1/publications": {
+      "get": {
+        "description": "⟨1.39⟩ §60.2 the archive, newest first. `q` searches the title, the topic, the caption, the\ncomment's words and the story word, Persian-folded (ی/ي، ک/ك، spaces and ZWNJ, digits), so\n«بلاکچین», «بلاک چین» and «بلاک‌چین» find the same; each item then says `match` and gives a\n`snippet_fa` (≤ 80 characters). `group=set`: a set of slides as one card.",
+        "operationId": "publications_list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^@?[A-Za-z0-9._]{1,100}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "instagram",
+                    "youtube",
+                    "telegram",
+                    "website"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "reel",
+                    "story",
+                    "post",
+                    "carousel",
+                    "short",
+                    "video",
+                    "tg_post",
+                    "article"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "scheduled",
+                    "publishing",
+                    "published",
+                    "held",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "automation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Automation"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^set$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "automation": "x",
+                      "automation_fa": "x",
+                      "channel": "instagram",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "files_n": 1,
+                      "kind": "reel",
+                      "match": "title",
+                      "ref": "W-000789",
+                      "set": {
+                        "done": 1,
+                        "n": 1,
+                        "next_at": "2026-10-17T05:42:00Z"
+                      },
+                      "set_key": "x",
+                      "snippet_fa": "x",
+                      "state": "scheduled",
+                      "state_note_fa": "x",
+                      "thumb_file_id": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "url": "x"
+                    }
+                  ],
+                  "next": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publications List",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/v1/publications/calendar": {
+      "get": {
+        "description": "⟨1.39⟩ §60.2 each Tehran day of the range (default 14 days back and ahead, at most 62): its\npublications by state, the pages, and for today and the days ahead what the flows will make.\nA day's list is `GET /publications?from=day&to=day`.",
+        "operationId": "publications_calendar",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^@?[A-Za-z0-9._]{1,100}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "days": [
+                    {
+                      "accounts": [
+                        "x"
+                      ],
+                      "day": "2026-10-17",
+                      "failed": 1,
+                      "held": 1,
+                      "planned": 1,
+                      "published": 1,
+                      "scheduled": 1
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublishCalendar"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publications Calendar",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/v1/publications/today": {
+      "get": {
+        "description": "⟨1.39⟩ §60.2 the owner's day in Tehran: every publication of the day in time order (a set\nof story slides as one card with its progress), `planned` (what the automations will still\nmake today, not yet a row), `next` (the next to go out) and the day's counts.",
+        "operationId": "publications_today",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^@?[A-Za-z0-9._]{1,100}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "instagram",
+                    "youtube",
+                    "telegram",
+                    "website"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "counts": {
+                    "failed": 1,
+                    "held": 1,
+                    "published": 1,
+                    "scheduled": 1
+                  },
+                  "day": "2026-10-17",
+                  "items": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "automation": "x",
+                      "automation_fa": "x",
+                      "channel": "instagram",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "files_n": 1,
+                      "kind": "reel",
+                      "match": "title",
+                      "ref": "W-000789",
+                      "set": {
+                        "done": 1,
+                        "n": 1,
+                        "next_at": "2026-10-17T05:42:00Z"
+                      },
+                      "set_key": "x",
+                      "snippet_fa": "x",
+                      "state": "scheduled",
+                      "state_note_fa": "x",
+                      "thumb_file_id": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "url": "x"
+                    }
+                  ],
+                  "next": {
+                    "account": "x",
+                    "at": "2026-10-17T05:42:00Z",
+                    "automation": "x",
+                    "automation_fa": "x",
+                    "channel": "instagram",
+                    "company": "TY",
+                    "company_fa": "x",
+                    "files_n": 1,
+                    "kind": "reel",
+                    "match": "title",
+                    "ref": "W-000789",
+                    "set": {
+                      "done": 1,
+                      "n": 1,
+                      "next_at": "2026-10-17T05:42:00Z"
+                    },
+                    "set_key": "x",
+                    "snippet_fa": "x",
+                    "state": "scheduled",
+                    "state_note_fa": "x",
+                    "thumb_file_id": "x",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "url": "x"
+                  },
+                  "planned": [
+                    {
+                      "account": "x",
+                      "automation": "x",
+                      "automation_fa": "x",
+                      "build_at": "2026-10-17T05:42:00Z",
+                      "kind": "reel",
+                      "publish_at": "2026-10-17T05:42:00Z",
+                      "state": "planned",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublishToday"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publications Today",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/v1/publications/tree": {
+      "get": {
+        "description": "⟨1.39⟩ §60.2 the archive's tree: every company and page with at least one publication in\nthe range (default the last 30 days), totals by kind and how many automations made them.",
+        "operationId": "publications_tree",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "companies": [
+                    {
+                      "accounts": [
+                        {
+                          "account": "x",
+                          "automations": 1,
+                          "avatar_file_id": "x",
+                          "by_kind": {},
+                          "channel": "instagram",
+                          "total": 1
+                        }
+                      ],
+                      "code": "TY",
+                      "mark_file_id": "x",
+                      "name_fa": "تریدیار",
+                      "total": 1
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublishTree"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publications Tree",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/v1/publications/waiting": {
+      "get": {
+        "description": "⟨1.39⟩ §60.2 «منتظر شما»: only what cannot move without the owner: a working group or a flow\nin `ask` mode at its publish step (`publish_ask`: `publish`, `skip`) and a run at its day's\ncap (`budget_cap`: `raise_cap` with `usd_cap`, `skip`). Empty: the app hides the place.",
+        "operationId": "publications_waiting",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "account": "x",
+                      "actions": [
+                        {
+                          "key": "x",
+                          "label_fa": "x",
+                          "primary": false
+                        }
+                      ],
+                      "at": "2026-10-17T05:42:00Z",
+                      "deadline_at": "2026-10-17T05:42:00Z",
+                      "id": "x",
+                      "kind": "publish_ask",
+                      "publication": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "automation": "x",
+                        "automation_fa": "x",
+                        "channel": "instagram",
+                        "company": "TY",
+                        "company_fa": "x",
+                        "files_n": 1,
+                        "kind": "reel",
+                        "match": "title",
+                        "ref": "W-000789",
+                        "set": {
+                          "done": null,
+                          "n": null,
+                          "next_at": null
+                        },
+                        "set_key": "x",
+                        "snippet_fa": "x",
+                        "state": "scheduled",
+                        "state_note_fa": "x",
+                        "thumb_file_id": "x",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "url": "x"
+                      },
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/WaitingList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publications Waiting",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/v1/publications/waiting/{wid}/{key}": {
+      "post": {
+        "description": "⟨1.39⟩ §60.2 runs one waiting item's action, as a tap; raising a cap above the company's\nmonth envelope (the day's cap × 30 over its USD month budget, or no such budget) needs\n🔏 `automation.budget` on `<ref>:<usd_cap>`. Answers what still waits.",
+        "operationId": "publications_waiting_act",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "pattern": "^(ask|line|cap):[A-Za-z0-9_.:-]{1,80}$",
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^(publish|skip|raise_cap)$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "usd_cap": 1.0
+              },
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WaitingIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "account": "x",
+                      "actions": [
+                        {
+                          "key": "x",
+                          "label_fa": "x",
+                          "primary": false
+                        }
+                      ],
+                      "at": "2026-10-17T05:42:00Z",
+                      "deadline_at": "2026-10-17T05:42:00Z",
+                      "id": "x",
+                      "kind": "publish_ask",
+                      "publication": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "automation": "x",
+                        "automation_fa": "x",
+                        "channel": "instagram",
+                        "company": "TY",
+                        "company_fa": "x",
+                        "files_n": 1,
+                        "kind": "reel",
+                        "match": "title",
+                        "ref": "W-000789",
+                        "set": {
+                          "done": null,
+                          "n": null,
+                          "next_at": null
+                        },
+                        "set_key": "x",
+                        "snippet_fa": "x",
+                        "state": "scheduled",
+                        "state_note_fa": "x",
+                        "thumb_file_id": "x",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "url": "x"
+                      },
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/WaitingList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publications Waiting Act",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/v1/publications/{ref}": {
+      "get": {
+        "description": "⟨1.39⟩ §60.1 one publication: every text, the files with their roles, the times, the source\n(«ساخته‌شده با»), `set` (every slide of its set, in order) for a slide of a set.",
+        "operationId": "publication_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "pattern": "^P-[0-9]{6,}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "at": "2026-10-17T05:42:00Z",
+                  "caption": "x",
+                  "channel": "instagram",
+                  "comment": {
+                    "buttons": [
+                      {
+                        "title": "گزارش هفتگی رشد",
+                        "url": "x"
+                      }
+                    ],
+                    "keywords": [
+                      "x"
+                    ],
+                    "link": "x",
+                    "match": "x",
+                    "public_replies": [
+                      "x"
+                    ],
+                    "reply": "x"
+                  },
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "external_id": "x",
+                  "files": [
+                    {
+                      "file_id": "x",
+                      "mime": "application/pdf",
+                      "n": 1,
+                      "name": "report.pdf",
+                      "role": "video",
+                      "size": 1
+                    }
+                  ],
+                  "insights": {
+                    "best_hour": "x",
+                    "comments": 1,
+                    "dms": 1,
+                    "likes": 1,
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "views": 1
+                  },
+                  "kind": "reel",
+                  "published_at": "2026-10-17T05:42:00Z",
+                  "ref": "W-000789",
+                  "scheduled_at": "2026-10-17T05:42:00Z",
+                  "seo": {
+                    "canonical": "x",
+                    "meta_description": "x",
+                    "meta_title": "x",
+                    "slug": "x"
+                  },
+                  "set": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "file_id": "x",
+                      "n": 1,
+                      "ref": "W-000789",
+                      "state": "scheduled"
+                    }
+                  ],
+                  "set_key": "x",
+                  "source": {
+                    "automation": "x",
+                    "automation_fa": "x",
+                    "day": "2026-10-17",
+                    "flow_key": "x",
+                    "job_id": "x",
+                    "order": "x",
+                    "output": "x",
+                    "session": "x",
+                    "version": 1,
+                    "work": "x"
+                  },
+                  "state": "scheduled",
+                  "state_note_fa": "x",
+                  "story_word": "x",
+                  "thumb_file_id": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "topic_fa": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Publication"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publication Get",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
     "/api/v1/publish-desk": {
       "get": {
         "description": "§55.2 The publish desk: `ready` (an output of the last 14 days that carries a video or a\npicture and has no publication that stands), `queue` (held for its time, or on its way;\nsoonest first) and `done` (the last 7 days, newest first). The card's tap is the output's\nown `POST /deliverables/{ref}/publish`; its cancel `POST /publishes/{job}/cancel`.",
@@ -135976,6 +138573,72 @@
               "application/json": {
                 "example": {
                   "done": [
+                    {
+                      "account": "x",
+                      "accounts": [
+                        "x"
+                      ],
+                      "archived": false,
+                      "at": "2026-10-17T05:42:00Z",
+                      "best": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "basis": "likes_comments",
+                        "days": 1,
+                        "enough": false,
+                        "hour": "x",
+                        "note_fa": "x",
+                        "posts": 1,
+                        "read_at": "2026-10-17T05:42:00Z"
+                      },
+                      "caption": "x",
+                      "channel": "instagram",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "cover": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "file": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "files": 1,
+                      "freed_bytes": 1,
+                      "group_fa": "x",
+                      "kind": "reel",
+                      "mode": "auto",
+                      "order": "x",
+                      "output": "x",
+                      "publish": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "auto": false,
+                        "channel": "instagram",
+                        "comment": "x",
+                        "cover_name": "x",
+                        "file_id": "x",
+                        "file_name": "x",
+                        "files": 1,
+                        "job": "x",
+                        "kind": "reel",
+                        "note_fa": "x",
+                        "output": "x",
+                        "published_at": "2026-10-17T05:42:00Z",
+                        "scheduled_at": "2026-10-17T05:42:00Z",
+                        "state": "publishing",
+                        "url": "x"
+                      },
+                      "route_ready": false,
+                      "state": "ready",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "held": [
                     {
                       "account": "x",
                       "accounts": [
