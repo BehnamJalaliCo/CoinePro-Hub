@@ -28,7 +28,7 @@
 # Driven by automations/sites/dotcoin/youtube.py and youtube_long.py (host timers), never by an
 # agent.
 key: youtube-web
-version: "2026-11-17.6"
+version: "2026-11-17.7"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -221,26 +221,13 @@ tasks:
       - {do: pause, ms: 5000}
       - {do: read, selector: "#tags-container", alt: ["ytcp-video-metadata-editor"]}
   subtitles:
-    # the job's one spooled file (an .srt with timing) as the video's (job's video_id) subtitles in
-    # its language (Persian, set by `details`; asked here again when the page asks for it), published
+    # PROBE (2026-11-17.7, temporary): the row's subtitles cell under the pointer, then a screenshot
     timeout_s: 300
     steps:
       - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations"}
-      - {do: wait, selector: "ytgn-video-translations-section, ytgn-video-translation-row", state: attached, timeout_s: 60}
+      - {do: wait, selector: "ytgn-video-translation-row", state: attached, timeout_s: 60}
       - {do: pause, ms: 3000}
-      - {do: click, selector: "tp-yt-paper-dialog tp-yt-paper-item:has-text('Persian'), tp-yt-paper-dialog tp-yt-paper-item:has-text('فارسی')", optional: true, timeout_s: 5}
-      - {do: click, selector: "tp-yt-paper-dialog #confirm-button, ytcp-dialog #confirm-button", optional: true, timeout_s: 5}
-      - {do: pause, ms: 1500}
-      # the subtitles cell of the language's row: «Add»
-      - {do: click, selector: "ytgn-video-translation-row:has-text('Persian') #add-captions-button, ytgn-video-translation-row:has-text('Persian') ytcp-button:has-text('Add'), ytgn-video-translation-row:has-text('فارسی') ytcp-button", timeout_s: 20}
-      - {do: pause, ms: 2000}
-      - {do: click, selector: "#choose-upload-file, ytcp-button:has-text('Upload file')", timeout_s: 20}
-      - {do: pause, ms: 1500}
-      - {do: click, selector: "tp-yt-paper-radio-button:has-text('With timing')", optional: true, timeout_s: 5}
-      - {do: attach, selector: "tp-yt-paper-dialog input[type=file], ytcp-dialog input[type=file], input[type=file]", file: 0, timeout_s: 20}
-      - {do: pause, ms: 4000}
-      - {do: click_unless, selector: "tp-yt-paper-dialog ytcp-button:has-text('Continue')", unless: "#publish-button", optional: true, timeout_s: 10}
-      - {do: pause, ms: 4000}
-      - {do: click, selector: "#publish-button, ytcp-button:has-text('Publish')", timeout_s: 60}
-      - {do: pause, ms: 5000}
-      - {do: read, selector: "ytgn-video-translation-row:has-text('Persian')", alt: ["ytgn-video-translations-section"]}
+      - {do: click, selector: "ytgn-video-translation-row:has-text('Persian') >> text=Published", timeout_s: 15}
+      - {do: pause, ms: 2500}
+      - {do: wait, selector: "#probe-never-there", timeout_s: 2}
+      - {do: read, selector: "body"}
