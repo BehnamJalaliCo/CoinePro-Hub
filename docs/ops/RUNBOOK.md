@@ -669,7 +669,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
   3. و اگر روشن باشد، به Hetzner
 - **نگهداری:**
   - Drive و Hetzner: `--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10`
-  - محلی: ۴۸ ساعتی و ۷ روزانه
+  - محلی: فقط آخرین snapshot (`--keep-last 1`؛ مالک ۲۰۲۶-۱۱-۱۷). تاریخچه در Drive است.
   - روزی یک بار: `prune` و `restic check --read-data-subset 5%`
   - شکست `forget` یا `prune` هر مقصد (از جمله Drive) دیگر فقط لاگ نیست: `retention_ok: false` در وضعیت آن مقصد، و اعلان `decision`.
   - وقتی تست بازیابی هفتگی در حال خواندن یک مخزن است، `forget`، `prune` و `check` (قفل انحصاری restic میخواهند) به ساعت بعد میروند، تا هشدار دروغ نیاید.

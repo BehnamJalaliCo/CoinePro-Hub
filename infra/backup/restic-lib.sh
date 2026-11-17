@@ -43,7 +43,10 @@ HOURLY_STATE="$BACKUP_ROOT/hourly/state.json"
 # local one (it only bridges the hours between off-site copies; the WAL
 # archive covers the last days minute by minute).
 REMOTE_KEEP=(--keep-hourly 168 --keep-daily 90 --keep-weekly 52 --keep-monthly 36 --keep-yearly 10)
-LOCAL_KEEP=(--keep-hourly "${HQ_BACKUP_LOCAL_HOURLY:-48}" --keep-daily "${HQ_BACKUP_LOCAL_DAILY:-7}")
+# ⟨2026-11-17⟩ the owner: «آخرین بک آپ همیشه بمونه که بعدی اومد قبلی پاک بشه»: the local repository
+# keeps only the newest snapshot (the bridge to the off-site copy); the history lives on Drive,
+# and the WAL archive still covers the last days minute by minute
+LOCAL_KEEP=(--keep-last "${HQ_BACKUP_LOCAL_LAST:-1}")
 # 7.1 §2.5: the restore path waits for a lock (an hourly forget or prune) instead of failing.
 RETRY_LOCK=(--retry-lock "${HQ_RESTIC_RETRY_LOCK:-30m}")
 # 7.1 §3: the capabilities a restore needs on top (write anywhere, keep owners
