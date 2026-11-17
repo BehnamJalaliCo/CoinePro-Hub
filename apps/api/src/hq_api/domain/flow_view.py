@@ -252,7 +252,7 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
         ]  # fmt: skip
     if kind == "zaribsad":
         topic = ("ارز روز و داده‌های واقعی آن" if "coin" in flow.key
-                 else "ایده‌ی تبلیغی تازه برای کانال رایگان ipoxxo، از بانک ایده‌ها"
+                 else "موضوع سرگرمی یا علمی تازه از topics.md؛ ipoxxo اسپانسر ویدیو"
                  if flow.recipe == "ipoxxo"
                  else "موضوع روز به نوع روز، با داده‌ی همان لحظه")  # fmt: skip
         return [
