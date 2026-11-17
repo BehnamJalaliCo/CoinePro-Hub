@@ -122,6 +122,9 @@ class RStep(BaseModel):
     # ⟨20.1⟩ `read` only: other selectors tried in turn when `selector` matches
     # nothing (a structural one first, a labelled one after: lesson of 19.3)
     alt: list[str] | None = Field(default=None, max_length=4)
+    # ⟨2026-11-17⟩ `read` only: each link of the answer kept as markdown ([text](url)); a numbered
+    # source mark (DeepSeek's citations) becomes [n](url) instead of a bare number
+    links: bool = False
     # ⟨2026-11-17⟩ `more_images` only: the chat's input and its "still answering" control
     composer: str | None = Field(default=None, max_length=500)
     busy: str | None = Field(default=None, max_length=500)

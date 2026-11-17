@@ -75,6 +75,32 @@ STEP_S = 30.0
 # ⟨1.10.1⟩ a player's answer is read whole; this only stops a page gone wrong,
 # and the answer then says it was cut (`[… cut at N characters]`)
 READ_CHARS = 5_000_000
+# ⟨2026-11-17⟩ a `read` with `links`: the answer's text with each http(s) link kept as markdown.
+# A source mark (a link whose text is only a number, as DeepSeek's citations) becomes [n](url).
+# The copy is laid out off screen so innerText keeps the answer's line breaks.
+LINKS_JS = r"""(el) => {
+  const c = el.cloneNode(true);
+  for (const a of [...c.querySelectorAll('a[href]')]) {
+    const href = a.href;
+    if (!/^https?:/i.test(href)) continue;
+    const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+    let md;
+    if (a.querySelector('[class*=cite]') || /^[\s\-\u2013]*\[?\d{1,3}\]?$/.test(t)) {
+      md = ' [' + ((t.match(/\d{1,3}/) || ['\u2197'])[0]) + '](' + href + ')';
+    } else if (!t || t === href) {
+      md = href;
+    } else {
+      md = '[' + t.replace(/[\[\]]/g, '') + '](' + href + ')';
+    }
+    a.replaceWith(document.createTextNode(md));
+  }
+  const w = (el.clientWidth || 800) + 'px';
+  c.style.cssText = 'position:absolute;left:-100000px;top:0;width:' + w;
+  document.body.appendChild(c);
+  const text = c.innerText;
+  c.remove();
+  return text;
+}"""
 # Where the owner's sign-in window opens (their own pages; nothing else).
 LOGIN_PAGES = {
     "chatgpt-web": "https://chatgpt.com/",
@@ -571,7 +597,10 @@ async def _recipe_step(
                 break
         if n == 0:
             raise StepFailed(do, "nothing to read")
-        text = str(await loc.nth(n - 1).inner_text(timeout=ms))
+        if st.get("links"):
+            text = str(await loc.nth(n - 1).evaluate(LINKS_JS, timeout=ms))
+        else:
+            text = str(await loc.nth(n - 1).inner_text(timeout=ms))
         if len(text) > READ_CHARS:
             return text[:READ_CHARS] + f"\n[… cut at {READ_CHARS} characters]"
         return text
