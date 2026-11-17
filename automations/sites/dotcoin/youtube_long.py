@@ -411,7 +411,8 @@ def upload(args) -> int:
             Y.save_state(state)
             log(f"refused: the channel already has \"{meta['title']}\" (or a draft named {slug}): not uploaded")
             return 1
-        send_thumb = thumb is not None and allowed != "no"
+        # ⟨2026-11-17⟩ the channel is phone-verified: the thumbnail always goes (its step stays optional)
+        send_thumb = thumb is not None
         names = [f"{slug}.mp4"] + ([f"{slug}-thumb{thumb.suffix.lower()}"] if send_thumb and thumb else [])
         up = state["uploads"].setdefault(key, {})
         up.update(kind="long", slug=slug, topic=meta["topic"], title=meta["title"], sha=sha, visibility=visibility,
@@ -692,6 +693,24 @@ def finish(state: dict, up: dict) -> None:
     vid = up.get("video_id")
     if not vid:
         return
+    pic = Path(str(up.get("thumb") or ""))
+    if (up.get("thumb_set") != "yes" and up.get("thumb_tries", 0) < FINISH_TRIES and pic.is_file()
+            and task_live("thumbnail")):
+        up["thumb_tries"] = up.get("thumb_tries", 0) + 1
+        name = f"{up['slug']}-thumb{pic.suffix.lower()}"
+        try:
+            spool_put(pic, name, sha256(pic))
+            ans = call({"account": Y.PROFILE, "task": "thumbnail", "prompt": "thumbnail", "timeout_s": 180,
+                        "video_id": vid, "spooled": [name]})
+        finally:
+            spool_drop([name])
+        seen = str(ans.get("text_md") or "") + " " + str((ans.get("notes") or {}).get("thumbnail") or "")
+        up.update(thumb_set="yes" if ans.get("ok") and not NO_THUMB.search(seen) else "no",
+                  thumb_why=Y.why(ans) if not ans.get("ok") else seen[:200], thumb_at=Y.now())
+        Y.save_state(state)
+        log(f"  {up['slug']}: thumbnail {up['thumb_set']}" + (f": {up['thumb_why']}" if up["thumb_set"] != "yes" else ""))
+        if signed_out(ans):
+            return
     if up.get("tags_saved") != "yes" and up.get("tag_tries", 0) < FINISH_TRIES and up.get("tags") and task_live("details"):
         up["tag_tries"] = up.get("tag_tries", 0) + 1
         ans = call({"account": Y.PROFILE, "task": "details", "prompt": "details", "timeout_s": 240, "video_id": vid,
@@ -779,7 +798,8 @@ def due_pass(only_finish: str | None = None) -> int:
             keep.mkdir(parents=True, exist_ok=True)
             for name in ("subtitles.fa.srt", "article.md", "meta.json", "thumbnail.jpg"):
                 shutil.copy2(work / name, keep / name)
-            up.update(srt=str(keep / "subtitles.fa.srt"), tags=list(meta.get("tags") or []), run=ref)
+            up.update(srt=str(keep / "subtitles.fa.srt"), thumb=str(keep / "thumbnail.jpg"),
+                      tags=list(meta.get("tags") or []), run=ref)
             got = put_article(keep / "article.md", slug, up["url"])
             up["site"] = up["url"] if not got else up.get("site")
             run.update(status="done", slug=slug, url=up["url"], article=got or "live", at=Y.now())
@@ -788,7 +808,7 @@ def due_pass(only_finish: str | None = None) -> int:
             shutil.rmtree(work, ignore_errors=True)
         todo = [u for u in state["uploads"].values() if u.get("kind") == "long" and u.get("status") in DONE
                 and (not only_finish or u.get("slug") == only_finish)]
-        if any(u.get("tags_saved") != "yes" or u.get("subs") != "yes" for u in todo):
+        if any(u.get("tags_saved") != "yes" or u.get("subs") != "yes" or u.get("thumb_set") != "yes" for u in todo):
             with lock_hub():
                 state = Y.load_state()
                 for u in state["uploads"].values():
