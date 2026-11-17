@@ -498,10 +498,14 @@ def one_pass(args) -> int:
             break
     if args.dry_run:
         return 0
-    # each uploaded Short's link on its article (tried again until it is there)
+    # each uploaded Short's link on its article (tried again until it is there); ⟨2026-11-17⟩ a lesson
+    # with a long video (youtube_long.py) keeps the long video's link
+    long_slugs = {u.get("slug") for u in state["uploads"].values() if u.get("kind") == "long" and u.get("url")}
     for up in state["uploads"].values():
         if up.get("status") == "done" and up.get("slug") and up.get("site") != up.get("url"):
             if args.only and up.get("w") != args.only:
+                continue
+            if up.get("kind") != "long" and up.get("slug") in long_slugs:
                 continue
             got = link_article(up["slug"], up["url"])
             if not got:
