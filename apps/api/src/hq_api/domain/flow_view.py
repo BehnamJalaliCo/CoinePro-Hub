@@ -467,8 +467,6 @@ def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
         at = meta.get("publish_at")
         when = FL.at_fa(datetime.fromisoformat(str(at))) if at else ""
         return "waiting", f"زمان‌بندی شد برای {when}".strip()
-    if meta.get("capped"):
-        return "failed", f"به سقف هزینه‌ی روز رسید ({meta['capped']} دلار)"
     if d["status"] == "failed":
         return "failed", "ساخت به نتیجه نرسید"
     if d["status"] == "cancelled":

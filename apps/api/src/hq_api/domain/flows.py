@@ -785,6 +785,28 @@ DAY_SQL = """SELECT 1 FROM work.work WHERE parent_id IS NULL
     AND run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d LIMIT 1"""
 
 
+N8N_GRACE = timedelta(minutes=2)
+
+
+async def n8n_guard(tx: Tx, key: str, day: date | None, now: datetime | None = None) -> str | None:
+    """⟨1.39⟩ §61.2 why n8n's per-flow call (flow-*.json, its own old hour) makes nothing for a
+    flow with a row: the row's build hour for that day has not come (two minutes' grace), it is
+    off, paused, or the day is skipped or not one of its days. None: the call goes on (start()'s
+    «one order a day» answers a day already made)."""
+    flow = await flow_by_key(tx, key)
+    if flow is None or not flow.ref:
+        return None
+    if flow.state == "off":
+        return "off"
+    the_day = day or datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
+    held = held_why(flow, the_day)
+    if held is not None:
+        return {SKIPPED_WHY_FA: "skipped", NOT_ITS_DAY_FA: "not_its_day"}.get(held, "paused")
+    if (now or datetime.now(UTC)) < trigger_of(flow, the_day) - N8N_GRACE:
+        return "before_trigger"
+    return None
+
+
 def trigger_of(flow: Flow, day: date) -> datetime:
     """When the order of the day `day` (the day it goes out) is placed (UTC): its `trigger_at`
     (Tehran) that day when `same_day`, else the day before."""
@@ -829,7 +851,9 @@ async def due_days(tx: Tx, now: datetime) -> list[tuple[Flow, date]]:
     return out
 
 
-async def clock(hub: Any, now: datetime | None = None) -> list[str]:
+async def clock(
+    hub: Any, now: datetime | None = None, *, quiet_since: datetime | None = None
+) -> list[str]:
     """⟨1.39⟩ §61.2 the hub's own clock, run by n8n's minute tick (`hq-flows`) and by its own
     backup when n8n is silent (flow_auto.due): every day due starts as n8n's per-flow call would
     (clock_request), so a second call of the same day is that day's answer. The orders made."""
@@ -857,6 +881,16 @@ async def clock(hub: Any, now: datetime | None = None) -> list[str]:
         await later()
         if got.get("order"):
             made.append(str(got["order"]))
+    # ⟨1.39⟩ §61.6 the alerts, with the same clock (never stops it)
+    from hq_api.domain import flow_alerts as AL
+    from hq_api.domain import notify
+
+    try:
+        push = await AL.sweep(hub, now, quiet_since=quiet_since)
+        if push:
+            await notify.deliver_pending(hub, push)
+    except Exception:  # (the clock goes on)
+        log.exception("the automations' alerts were not swept")
     return made
 
 
@@ -879,15 +913,12 @@ def _json(x: Any) -> str:
 
 
 # ------------------------------------------------------------ the day's cap --
-# ⟨2026-11-13⟩ the F-0018 usage audit (P4): a day aims at about $6 and stops at $10 (the turns'
-# own cost, as the hub books it since the audit: llm.calls.equiv_cost_usd). A work's token budget
-# grows with every workshop turn, so it never held a direct session; this does.
+# ⟨2026-11-13⟩ the F-0018 usage audit (P4): a day aims at about $6 (the turns' own cost, as the hub
+# books it since the audit: llm.calls.equiv_cost_usd). ⟨1.39⟩ the owner, 2026-11-17: «ریلزو که
+# نمیتونم پاکت بدم اومدیم به محدودیت خورد یعنی نمیخواد ریلز رو بسازه؟ حتما باید بسازه»: cost
+# never holds a flow. A day past its cap goes on to the end (only the workshop turn's own time
+# bounds it); the flow's page shows a `cap_reached` alert, and nobody is notified.
 FLOW_USD_CAP = Decimal("10")
-CAPPED_TITLE_FA = "{title} به سقف هزینه‌ی روز رسید"
-CAPPED_BODY_FA = (
-    "هزینه‌ی ساخت امروز به {usd} دلار رسید و ادامه‌ی خودکار متوقف شد؛ بسته کامل نشده است. "
-    "اگر بخواهی، همین روز را دوباره راه می‌اندازم."
-)
 
 
 async def spent_usd(tx: Tx, work_ref: str) -> Decimal:
@@ -898,7 +929,8 @@ async def spent_usd(tx: Tx, work_ref: str) -> Decimal:
 
 
 async def over_cap(tx: Tx, work_id: UUID) -> bool:
-    """A flow's day past its cap: no more turns by themselves; the owner hears it once."""
+    """A flow's day past its cap: marked once (`capped`, audit `flow.capped`) with a `cap_reached`
+    alert on its row (§61.6, no notification). Never holds anything: always False."""
     w = await flow_of_work(tx, work_id)
     if w is None:
         return False
@@ -906,40 +938,30 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
     meta = w["flow"]
     flow = await flow_by_key(tx, str(meta.get("key")))
     cap = flow.usd_cap if flow else FLOW_USD_CAP
-    if meta.get("usd_cap") and not (flow and flow.ref):
-        # ⟨1.39⟩ §60.2 a flow with no row (a test's): the day's own cap the owner raised («منتظر
-        # شما»); a row's raise is its `usd_cap` (§61.4, flow_defs.patch), read above
-        cap = Decimal(str(meta["usd_cap"]))
-    if usd < cap:
+    if usd < cap or meta.get("capped"):
         return False
-    if not meta.get("capped"):
-        meta["capped"] = f"{usd:.2f}"
-        await tx.exec(
-            "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))"
-            " WHERE id = :w",
-            w=w["id"],
-            m=_json(meta),
-        )
-        from hq_api.domain import notify
+    meta["capped"] = f"{usd:.2f}"
+    await tx.exec(
+        "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))"
+        " WHERE id = :w",
+        w=w["id"],
+        m=_json(meta),
+    )
+    if flow is not None and flow.ref:
+        from hq_api.domain import flow_alerts as AL
 
-        await notify.raise_notification(
-            tx,
-            company_id=w["company_id"],
-            company_code=str(w["company"]),
-            level="report",
-            title_fa=CAPPED_TITLE_FA.format(title=flow.title_fa if flow else "انتشار روزانه")[:300],
-            body_fa=CAPPED_BODY_FA.format(usd=f"{usd:.0f}".translate(FA_DIGITS)),
-            link_kind="order",
-            link_ref=str(meta.get("order") or w["ref"]),
-            source_kind="system",
-            source_code="flow",
-        )
-        await audit.record(
-            tx, FLOW, company_id=w["company_id"], action="flow.capped", action_class="A1",
-            target_kind="work", target_ref=str(w["ref"]),
-            summary=f"{meta.get('key')} {meta.get('day')}: ${usd:.2f} >= ${cap}",
+        await AL.open_alert(
+            tx, flow, "cap_reached",
+            AL.CAP_REACHED_FA.format(usd=f"{usd:.2f}".translate(FA_DIGITS),
+                                     cap=f"{cap:.0f}".translate(FA_DIGITS)),
+            day=date.fromisoformat(str(meta["day"])) if meta.get("day") else None,
         )  # fmt: skip
-    return True
+    await audit.record(
+        tx, FLOW, company_id=w["company_id"], action="flow.capped", action_class="A1",
+        target_kind="work", target_ref=str(w["ref"]),
+        summary=f"{meta.get('key')} {meta.get('day')}: ${usd:.2f} >= ${cap} (goes on: no hold)",
+    )  # fmt: skip
+    return False
 
 
 # ------------------------------------------------------------ the package --

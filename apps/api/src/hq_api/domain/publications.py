@@ -23,13 +23,11 @@ The routes of §60.2 read only these rows (and, for what is still to be made, th
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
 import re
 import tempfile
 from datetime import UTC, date, datetime, time, timedelta
-from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, cast
 from uuid import UUID
@@ -266,7 +264,8 @@ class WaitingAction(BaseModel):
 
 class Waiting(BaseModel):
     id: str
-    kind: Literal["publish_ask", "budget_cap"]
+    # ⟨1.39⟩ `budget_cap` is gone: cost never holds a flow (the owner, 2026-11-17)
+    kind: Literal["publish_ask"]
     title_fa: str
     account: str | None = None
     at: datetime
@@ -277,12 +276,6 @@ class Waiting(BaseModel):
 
 class WaitingList(BaseModel):
     items: list[Waiting] = Field(default_factory=list)
-
-
-class WaitingIn(BaseModel):
-    """`raise_cap`: the day's new cap (USD, 1 to 500)."""
-
-    usd_cap: Decimal | None = Field(default=None, ge=1, le=500)
 
 
 # ------------------------------------------------------------- the search --
@@ -1439,14 +1432,9 @@ async def calendar(
 # --------------------------------------------------------- «منتظر شما» --
 ASK_LABELS = (WaitingAction(key="publish", label_fa="انتشار", primary=True),
               WaitingAction(key="skip", label_fa="این بار نه"))  # fmt: skip
-CAP_LABELS = (WaitingAction(key="raise_cap", label_fa="سقف را بالا ببر", primary=True),
-              WaitingAction(key="skip", label_fa="این نوبت رد شود"))  # fmt: skip
 ASK_SKIPPED_FA = "مدیر کل این بار نخواست؛ منتشر نشد."
-CAP_TITLE_FA = "«{title}» به سقف هزینه‌ی امروز رسید"
 ASK_TITLE_FA = "«{group}»: {title}"
 LINE_ASK_FA = "«{title}»: نوبت تو برای انتشار"
-CAP_SKIPPED_FA = "این نوبت رد شد؛ منتشر نمیشود"
-DAYS_A_MONTH = 30
 
 
 async def _asks_of_groups(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
@@ -1499,12 +1487,11 @@ async def _asks_of_groups(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
 
 
 async def _waits_of_lines(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
-    """§59.7 a flow's line run waiting for the owner: its `ask` at the publish step, or its cap."""
+    """§59.7 a flow's line run waiting for the owner at its publish step (`ask`)."""
     from hq_api.domain import flow_auto as FA
     from hq_api.lines import store
 
     rows = await tx.all(store.RUN_SQL + " WHERE r.state = 'waiting' ORDER BY r.at LIMIT 50")
-    budget = tuple(x.split("(")[0] for x in (FA.BUDGET_DAY_FA, FA.BUDGET_RUN_FA))
     out = []
     for r in rows:
         run = dict(r)
@@ -1526,44 +1513,11 @@ async def _waits_of_lines(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
                         title_fa=LINE_ASK_FA.format(title=title)[:200], account=flow.get("account"),
                         at=step["started_at"] or run["updated_at"], actions=list(ASK_LABELS))  # fmt: skip
             out.append((w, {"run": run, "step": dict(step), "flow": flow}))
-        elif str(run.get("note_fa") or "").startswith(budget):
-            w = Waiting(id=f"line:{run['ref']}", kind="budget_cap",
-                        title_fa=f"«{title}»: {run['note_fa']}"[:200], account=flow.get("account"),
-                        at=run["updated_at"], actions=list(CAP_LABELS))  # fmt: skip
-            out.append((w, {"run": run, "flow": flow}))
-    return out
-
-
-async def _caps_of_flows(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
-    """A code flow's day at its cap (flows.over_cap: `capped` on its run, its package not sent)."""
-    from hq_api.domain import flows as FL
-
-    rows = await tx.all(
-        """SELECT w.id, w.ref, w.company_id, w.updated_at, w.run_meta -> 'flow' AS flow,
-                  c.code AS company
-           FROM work.work w JOIN core.companies c ON c.id = w.company_id
-           WHERE w.run_meta -> 'flow' ? 'capped' AND NOT (w.run_meta -> 'flow' ? 'sent')
-             AND NOT (w.run_meta -> 'flow' ? 'skipped')
-             AND w.status NOT IN ('failed', 'cancelled')
-             AND w.created_at > now() - interval '3 days'
-           ORDER BY w.created_at LIMIT 50"""
-    )
-    out = []
-    for r in rows:
-        meta = _j(r["flow"]) or {}
-        flow = FL.FLOWS.get(str(meta.get("key") or ""))
-        title = flow.title_fa if flow else str(meta.get("key") or "انتشار روزانه")
-        at = _when(meta.get("publish_at")) or r["updated_at"]
-        out.append((
-            Waiting(id=f"cap:{r['ref']}", kind="budget_cap", title_fa=CAP_TITLE_FA.format(title=title)[:200],
-                    account=str(meta.get("account") or "") or None, at=at, actions=list(CAP_LABELS)),
-            {"work": dict(r), "meta": meta, "flow": flow},
-        ))  # fmt: skip
     return out
 
 
 async def _all_waiting(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
-    return [*await _asks_of_groups(tx), *await _waits_of_lines(tx), *await _caps_of_flows(tx)]
+    return [*await _asks_of_groups(tx), *await _waits_of_lines(tx)]
 
 
 async def waiting(tx: Tx) -> WaitingList:
@@ -1572,10 +1526,9 @@ async def waiting(tx: Tx) -> WaitingList:
     return WaitingList(items=sorted(got, key=lambda w: w.at))
 
 
-async def act(ctx: Any, tx: Tx, wid: str, key: str, body: WaitingIn) -> tuple[list[str], list[str]]:
-    """`POST /publications/waiting/{id}/{key}`: the action, as a tap (a cap above the company's
-    month envelope: 🔏 `automation.budget`). Answers the line runs to drive and to wake after the
-    commit."""
+async def act(ctx: Any, tx: Tx, wid: str, key: str) -> tuple[list[str], list[str]]:
+    """`POST /publications/waiting/{id}/{key}`: the action, as a tap. Answers the line runs to
+    drive and to wake after the commit."""
     found = next(((w, x) for w, x in await _all_waiting(tx) if w.id == wid), None)
     if found is None:
         raise ApiError(404, "not_found", f"waiting {wid}")
@@ -1587,10 +1540,7 @@ async def act(ctx: Any, tx: Tx, wid: str, key: str, body: WaitingIn) -> tuple[li
     if wid.startswith("ask:"):
         await _act_group(ctx, tx, x, key)
         return [], []
-    if wid.startswith("line:"):
-        return await _act_line(ctx, tx, w, x, key, body)
-    await _act_cap(ctx, tx, x, key, body)
-    return [], []
+    return await _act_line(ctx, tx, x, key)
 
 
 async def _act_group(ctx: Any, tx: Tx, x: dict[str, Any], key: str) -> None:
@@ -1620,93 +1570,16 @@ async def _act_group(ctx: Any, tx: Tx, x: dict[str, Any], key: str) -> None:
     )  # fmt: skip
 
 
-async def _act_line(
-    ctx: Any, tx: Tx, w: Waiting, x: dict[str, Any], key: str, body: WaitingIn
-) -> tuple[list[str], list[str]]:
+async def _act_line(ctx: Any, tx: Tx, x: dict[str, Any], key: str) -> tuple[list[str], list[str]]:
     from hq_api.domain import decisions as DE
-    from hq_api.domain import flow_auto as FA
-    from hq_api.domain import flow_shapes as FS
-    from hq_api.lines import engine
 
     run = x["run"]
-    if w.kind == "publish_ask":
-        d = await tx.first(
-            "SELECT * FROM cartable.decisions WHERE id = :d FOR UPDATE", d=x["step"]["decision_id"]
-        )
-        if d is None:
-            raise ApiError(409, "decision_not_pending", "no card")
-        verdict: Literal["approved", "rejected"] = "approved" if key == "publish" else "rejected"
-        await DE.decide(tx, ctx.who, dict(d), verdict, note=None if key == "publish" else "این بار نه",
-                        hub=ctx.hub)  # fmt: skip
-        return ([str(run["ref"])] if key == "publish" else []), []
-    if key == "skip":
-        await engine.cancel(tx, run, skip=True)
-        return [], []
-    if body.usd_cap is None:
-        raise ApiError(422, "validation_failed", fields={"usd_cap": "required"})
-    flow = x["flow"]
-    old = FA.budget_of(flow)
-    patch = FS.FlowPatch(budget=FS.FlowBudget(per_run_usd=max(old.per_run_usd, float(body.usd_cap)),
-                                              per_day_usd=float(body.usd_cap)))  # fmt: skip
-    await FA.patch(ctx, tx, ctx.request, str(flow["ref"]), patch)
-    return [], [str(r) for r in await FA.waiting_runs(tx, await FA.load(tx, str(flow["ref"])))]
-
-
-async def _act_cap(ctx: Any, tx: Tx, x: dict[str, Any], key: str, body: WaitingIn) -> None:
-    """A code flow's day at its cap: a higher cap, or the day is skipped. ⟨1.39⟩ §61.4 a flow with
-    its row (automations.flows) takes the cap as its own `usd_cap`, saved as its next version (🔏
-    automation.budget on `<AF-ref>:<usd_cap>` past the month envelope, flow_defs.patch); a flow with
-    no row (a test's) keeps it on this day's run (`N8:<key>:<usd_cap>`)."""
-    from hq_api.domain import flow_auto as FA
-    from hq_api.domain import flow_defs as FD
-    from hq_api.domain import flows as FL
-    from hq_api.security import stepup
-
-    work, meta = x["work"], dict(x["meta"])
-    row = await FL.flow_by_key(tx, str(meta.get("key") or ""))
-    row = row if row is not None and row.ref else None
-    ref = row.ref if row is not None else f"N8:{meta.get('key')}"
-    w = await tx.first(
-        "SELECT run_meta -> 'flow' AS flow FROM work.work WHERE id = :w FOR UPDATE", w=work["id"]
+    d = await tx.first(
+        "SELECT * FROM cartable.decisions WHERE id = :d FOR UPDATE", d=x["step"]["decision_id"]
     )
-    meta = dict(_j((w or {}).get("flow")) or meta)
-    before = {k: meta.get(k) for k in ("usd_cap", "capped", "skipped")}
-    step_up = False
-    if key == "skip":
-        meta["skipped"] = datetime.now(UTC).isoformat()
-    else:
-        if body.usd_cap is None:
-            raise ApiError(422, "validation_failed", fields={"usd_cap": "required"})
-        spent = await FL.spent_usd(tx, str(work["ref"]))
-        if body.usd_cap <= spent:
-            raise ApiError(422, "validation_failed", fields={"usd_cap": f"above today's {spent:.2f}"},
-                           message_fa="سقف تازه باید بیشتر از هزینه‌ی امروز باشد")  # fmt: skip
-        if row is not None:
-            step_up = await FD.raise_cap(ctx, tx, ctx.request, row, body.usd_cap)
-        else:
-            limit = await FA.month_limit_usd(tx, work["company_id"])
-            if limit is None or float(body.usd_cap) * DAYS_A_MONTH > limit:
-                await stepup.consume(tx, ctx.request, ctx.who, "automation.budget",
-                                     FA.budget_target(ref, float(body.usd_cap)))  # fmt: skip
-                step_up = True
-            meta["usd_cap"] = str(body.usd_cap)
-        meta.pop("capped", None)
-    await tx.exec(
-        "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb)) WHERE id = :w",
-        w=work["id"],
-        m=json.dumps(meta, ensure_ascii=False),
-    )
-    await audit.record(
-        tx, ctx.who, company_id=work["company_id"],
-        action="flow.cap_raised" if key == "raise_cap" else "flow.cap_skipped", action_class="A2",
-        target_kind="work", target_ref=str(work["ref"]),
-        summary=f"{ref} {meta.get('day')}: {json.dumps(before, default=str)} -> "
-        f"{'$' + str(body.usd_cap) if key == 'raise_cap' else CAP_SKIPPED_FA}"
-        f"{' (step-up automation.budget)' if step_up else ''}"[:500],
-    )  # fmt: skip
-    if key == "raise_cap":
-        with contextlib.suppress(Exception):
-            async with tx.conn.begin_nested():
-                await tx.scalar(
-                    "SELECT work.wake_assignee(:w, :r)", w=work["id"], r=f"uncapped:{work['ref']}"
-                )
+    if d is None:
+        raise ApiError(409, "decision_not_pending", "no card")
+    verdict: Literal["approved", "rejected"] = "approved" if key == "publish" else "rejected"
+    await DE.decide(tx, ctx.who, dict(d), verdict, note=None if key == "publish" else "این بار نه",
+                    hub=ctx.hub)  # fmt: skip
+    return ([str(run["ref"])] if key == "publish" else []), []

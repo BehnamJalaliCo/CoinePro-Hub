@@ -11871,6 +11871,22 @@
         "title": "Cost",
         "type": "object"
       },
+      "CostToday": {
+        "properties": {
+          "month": {
+            "default": 0.0,
+            "title": "Month",
+            "type": "number"
+          },
+          "today": {
+            "default": 0.0,
+            "title": "Today",
+            "type": "number"
+          }
+        },
+        "title": "CostToday",
+        "type": "object"
+      },
       "Council": {
         "properties": {
           "fact_pack_ref": {
@@ -18820,6 +18836,34 @@
         "title": "FlowBudget",
         "type": "object"
       },
+      "FlowChange": {
+        "properties": {
+          "after_fa": {
+            "title": "After Fa",
+            "type": "string"
+          },
+          "before_fa": {
+            "title": "Before Fa",
+            "type": "string"
+          },
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "label_fa",
+          "before_fa",
+          "after_fa"
+        ],
+        "title": "FlowChange",
+        "type": "object"
+      },
       "FlowDef": {
         "properties": {
           "account": {
@@ -19089,6 +19133,102 @@
         "title": "FlowDefBudget",
         "type": "object"
       },
+      "FlowDefCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Account",
+            "type": "string"
+          },
+          "channel": {
+            "default": "instagram",
+            "maxLength": 40,
+            "title": "Channel",
+            "type": "string"
+          },
+          "cycle": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle"
+          },
+          "effort": {
+            "maxLength": 20,
+            "title": "Effort",
+            "type": "string"
+          },
+          "kit": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Kit",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 100,
+            "title": "Model",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/FlowDefSchedulePatch"
+          },
+          "story_word": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Word"
+          },
+          "story_word_mode": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Word Mode"
+          },
+          "title_fa": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "usd_cap": {
+            "title": "Usd Cap",
+            "type": "number"
+          }
+        },
+        "required": [
+          "account",
+          "kit",
+          "title_fa",
+          "schedule",
+          "model",
+          "effort",
+          "usd_cap"
+        ],
+        "title": "FlowDefCreate",
+        "type": "object"
+      },
       "FlowDefHealth": {
         "properties": {
           "note_fa": {
@@ -19108,6 +19248,60 @@
           }
         },
         "title": "FlowDefHealth",
+        "type": "object"
+      },
+      "FlowDefHealthPage": {
+        "properties": {
+          "alerts": {
+            "items": {},
+            "title": "Alerts",
+            "type": "array"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostToday"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowRunRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowDefNext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note_fa": {
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "warn",
+              "down"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "success_30d": {
+            "$ref": "#/components/schemas/SuccessCount"
+          }
+        },
+        "required": [
+          "state",
+          "note_fa"
+        ],
+        "title": "FlowDefHealthPage",
         "type": "object"
       },
       "FlowDefNext": {
@@ -19287,6 +19481,80 @@
         "title": "FlowDefPauseIn",
         "type": "object"
       },
+      "FlowDefRun": {
+        "properties": {
+          "cost_usd": {
+            "default": 0.0,
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "note_fa": {
+            "default": "",
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "publications": {
+            "items": {},
+            "title": "Publications",
+            "type": "array"
+          },
+          "run": {
+            "title": "Run",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "topic_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Fa"
+          }
+        },
+        "required": [
+          "run",
+          "state",
+          "started_at"
+        ],
+        "title": "FlowDefRun",
+        "type": "object"
+      },
       "FlowDefRunNow": {
         "properties": {
           "run": {
@@ -19316,6 +19584,30 @@
           }
         },
         "title": "FlowDefRunNowIn",
+        "type": "object"
+      },
+      "FlowDefRuns": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FlowDefRun"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          }
+        },
+        "title": "FlowDefRuns",
         "type": "object"
       },
       "FlowDefSchedule": {
@@ -19724,6 +20016,25 @@
         "title": "FlowN8n",
         "type": "object"
       },
+      "FlowNotStarted": {
+        "description": "⟨1.39⟩ §61.2 n8n's per-flow call that makes nothing (202): `before_trigger` (the row's build\nhour has not come: the owner moved it later in the app), `off`, `paused`, `skipped`,\n`not_its_day`.",
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "started": {
+            "default": false,
+            "title": "Started",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "FlowNotStarted",
+        "type": "object"
+      },
       "FlowOccurrence": {
         "properties": {
           "at": {
@@ -19900,6 +20211,21 @@
         "title": "FlowPauseIn",
         "type": "object"
       },
+      "FlowRollbackIn": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "FlowRollbackIn",
+        "type": "object"
+      },
       "FlowRunIn": {
         "additionalProperties": false,
         "properties": {
@@ -19928,6 +20254,11 @@
           "publish_at": {
             "title": "Publish At",
             "type": "string"
+          },
+          "started": {
+            "default": true,
+            "title": "Started",
+            "type": "boolean"
           },
           "why_fa": {
             "title": "Why Fa",
@@ -20281,6 +20612,91 @@
           }
         },
         "title": "FlowToday",
+        "type": "object"
+      },
+      "FlowVersion": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "body": {
+            "additionalProperties": true,
+            "title": "Body",
+            "type": "object"
+          },
+          "by_fa": {
+            "title": "By Fa",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/FlowChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "at",
+          "by_fa",
+          "body"
+        ],
+        "title": "FlowVersion",
+        "type": "object"
+      },
+      "FlowWeek": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/WeekAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/WeekDay"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/WeekTotals"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "FlowWeek",
         "type": "object"
       },
       "FormatOverlay": {
@@ -25686,6 +26102,53 @@
           "code_free"
         ],
         "title": "KitPreview",
+        "type": "object"
+      },
+      "KitRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Account",
+            "type": "string"
+          },
+          "note_fa": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Note Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "note_fa"
+        ],
+        "title": "KitRequestIn",
+        "type": "object"
+      },
+      "KitRequestOut": {
+        "properties": {
+          "order": {
+            "title": "Order",
+            "type": "string"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "required": [
+          "order"
+        ],
+        "title": "KitRequestOut",
         "type": "object"
       },
       "KitSummary": {
@@ -56059,6 +56522,22 @@
         "title": "SubstituteSettingsIn",
         "type": "object"
       },
+      "SuccessCount": {
+        "properties": {
+          "all": {
+            "default": 0,
+            "title": "All",
+            "type": "integer"
+          },
+          "ok": {
+            "default": 0,
+            "title": "Ok",
+            "type": "integer"
+          }
+        },
+        "title": "SuccessCount",
+        "type": "object"
+      },
       "Suggestion": {
         "properties": {
           "company": {
@@ -62121,10 +62600,7 @@
             "type": "string"
           },
           "kind": {
-            "enum": [
-              "publish_ask",
-              "budget_cap"
-            ],
+            "const": "publish_ask",
             "title": "Kind",
             "type": "string"
           },
@@ -62173,30 +62649,6 @@
           "label_fa"
         ],
         "title": "WaitingAction",
-        "type": "object"
-      },
-      "WaitingIn": {
-        "description": "`raise_cap`: the day's new cap (USD, 1 to 500).",
-        "properties": {
-          "usd_cap": {
-            "anyOf": [
-              {
-                "maximum": 500.0,
-                "minimum": 1.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usd Cap"
-          }
-        },
-        "title": "WaitingIn",
         "type": "object"
       },
       "WaitingList": {
@@ -62662,6 +63114,103 @@
           "device_name"
         ],
         "title": "WebSubscriptionIn",
+        "type": "object"
+      },
+      "WeekAccount": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "best": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "cost_usd": {
+            "default": 0.0,
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "flows": {
+            "default": 0,
+            "title": "Flows",
+            "type": "integer"
+          },
+          "published": {
+            "default": 0,
+            "title": "Published",
+            "type": "integer"
+          },
+          "runs": {
+            "default": 0,
+            "title": "Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "company",
+          "company_fa",
+          "account"
+        ],
+        "title": "WeekAccount",
+        "type": "object"
+      },
+      "WeekDay": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "planned": {
+            "default": 0,
+            "title": "Planned",
+            "type": "integer"
+          },
+          "published": {
+            "default": 0,
+            "title": "Published",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day"
+        ],
+        "title": "WeekDay",
+        "type": "object"
+      },
+      "WeekTotals": {
+        "properties": {
+          "cost_usd": {
+            "default": 0.0,
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "published": {
+            "default": 0,
+            "title": "Published",
+            "type": "integer"
+          },
+          "runs": {
+            "default": 0,
+            "title": "Runs",
+            "type": "integer"
+          }
+        },
+        "title": "WeekTotals",
         "type": "object"
       },
       "WeeklyReview": {
@@ -77400,6 +77949,199 @@
         "tags": [
           "automations"
         ]
+      },
+      "post": {
+        "description": "⟨39.1⟩ §61.5 «بساز و روشن کن»: a new automation from a kit for a registered page, checked as\na save (422 invalid_flow), `on` at version 1; the hub's clock runs it (no n8n workflow).\nRequires `Idempotency-Key`.",
+        "operationId": "create_automation_flow",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "account": "x",
+                "channel": "x",
+                "cycle": [
+                  "x"
+                ],
+                "effort": "high",
+                "kit": "x",
+                "model": "claude-sonnet-5-5",
+                "schedule": {
+                  "best_week": false,
+                  "days": [
+                    1
+                  ],
+                  "hours": [
+                    "x"
+                  ],
+                  "same_day": false,
+                  "start": "x",
+                  "stories": [
+                    "x"
+                  ],
+                  "trigger_at": "x"
+                },
+                "story_word": "x",
+                "story_word_mode": "x",
+                "title_fa": "گزارش هفتگی رشد",
+                "usd_cap": 1.0
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowDefCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Automation Flow",
+        "tags": [
+          "automations"
+        ]
       }
     },
     "/api/v1/automations/flows/options": {
@@ -77896,6 +78638,268 @@
         ]
       }
     },
+    "/api/v1/automations/flows/{ref}/graph": {
+      "get": {
+        "description": "⟨39.1⟩ §61.3 the map of §59.7.1, from the flow's steps.",
+        "operationId": "automation_flow_graph",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "edges": [
+                    {
+                      "label_fa": "x",
+                      "source": "x",
+                      "target": "D-000123"
+                    }
+                  ],
+                  "lanes": [
+                    "x"
+                  ],
+                  "nodes": [
+                    {
+                      "col": 0,
+                      "helper": "x",
+                      "key": "x",
+                      "kind": "one_off",
+                      "lane": "n8n",
+                      "model": "claude-sonnet-5-5",
+                      "note_fa": "x",
+                      "row": 0,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Graph",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}/health": {
+      "get": {
+        "description": "⟨39.1⟩ §61.3 the flow's health with its open alerts (§61.6).",
+        "operationId": "automation_flow_health",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "alerts": [],
+                  "cost": {
+                    "month": 1.0,
+                    "today": 1.0
+                  },
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "cost_usd": 1.0,
+                    "note_fa": "x",
+                    "ref": "W-000789",
+                    "results": {
+                      "clicks": 1,
+                      "comments": 1,
+                      "dms_sent": 1,
+                      "likes": 1,
+                      "permalink": "x",
+                      "reach": 1,
+                      "read_at": "2026-10-17T05:42:00Z",
+                      "saves": 1,
+                      "shares": 1,
+                      "story_permalink": "x",
+                      "views": 1
+                    },
+                    "state": "x",
+                    "topic_fa": "x"
+                  },
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "state": "ok",
+                  "success_30d": {
+                    "all": 1,
+                    "ok": 1
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDefHealthPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Health",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
     "/api/v1/automations/flows/{ref}/pause": {
       "post": {
         "description": "⟨1.39⟩ §61.2 `paused`: the clock skips the days before `until` (no `until`: till `on`).",
@@ -78076,6 +79080,186 @@
         ]
       }
     },
+    "/api/v1/automations/flows/{ref}/rollback": {
+      "post": {
+        "description": "⟨39.1⟩ §61.3 «برگشت به این نسخه»: that body saved again as the next version, through §61.4's\nchecks; nothing is deleted (audit `automation.flow.rollback`).",
+        "operationId": "automation_flow_rollback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "version": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowRollbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Rollback",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
     "/api/v1/automations/flows/{ref}/run-now": {
       "post": {
         "description": "⟨1.39⟩ §61.3 the day's run now (default: the day the next post goes out), the owner's own\ntap: even a day paused or skipped, or a flow off (a pilot, run by hand, is off for the clock).\nOne run per flow and day: a day that has one answers 409 `already_ran` with it. The day's\norder is placed as the clock and n8n place it (the same key of that day), so whichever comes\nlater answers this one. Requires `Idempotency-Key`.",
@@ -78206,6 +79390,150 @@
           }
         },
         "summary": "Automation Flow Run Now",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}/runs": {
+      "get": {
+        "description": "⟨39.1⟩ §61.3 the flow's days, newest first, each with its cost and its publications.",
+        "operationId": "automation_flow_runs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "cost_usd": 1.0,
+                      "day": "2026-10-17",
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "publications": [],
+                      "run": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "x",
+                      "topic_fa": "x"
+                    }
+                  ],
+                  "next": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDefRuns"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Runs",
         "tags": [
           "automations"
         ]
@@ -78572,6 +79900,464 @@
         ]
       }
     },
+    "/api/v1/automations/flows/{ref}/versions": {
+      "get": {
+        "description": "⟨39.1⟩ §61.3 every version, newest first, with its changes in Persian; version 1 is «ساخته\nشد از روند کدی هاب» (or the kit it was made from).",
+        "operationId": "automation_flow_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "at": "2026-10-17T05:42:00Z",
+                    "body": {},
+                    "by_fa": "x",
+                    "changes": [
+                      {
+                        "after_fa": "x",
+                        "before_fa": "x",
+                        "field": "x",
+                        "label_fa": "x"
+                      }
+                    ],
+                    "note_fa": "x",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FlowVersion"
+                  },
+                  "title": "Response Automation Flow Versions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Versions",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/kits": {
+      "get": {
+        "description": "⟨39.1⟩ §61.5 the kits that run today, with the pages using them and their mean day.",
+        "operationId": "automation_kits",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "about_fa": "x",
+                    "avg_minutes": 1.0,
+                    "avg_usd": 1.0,
+                    "key": "x",
+                    "kinds": [
+                      "one_off"
+                    ],
+                    "title_fa": "گزارش هفتگی رشد",
+                    "used_on": [
+                      "x"
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Kit"
+                  },
+                  "title": "Response Automation Kits",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Kits",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/kits/request": {
+      "post": {
+        "description": "⟨39.1⟩ §61.5 «کیت تازه»: a direct session with the workshop for this page, as the DotCoin\npilot was made; its sample comes to that session for the owner's yes. Requires\n`Idempotency-Key`.",
+        "operationId": "automation_kit_request",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "account": "x",
+                "note_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/KitRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "order": "x",
+                  "work": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/KitRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Kit Request",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/kits/{key}/graph": {
+      "get": {
+        "description": "⟨39.1⟩ §61.5 a kit's map, before an automation is made from it.",
+        "operationId": "automation_kit_graph",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "edges": [
+                    {
+                      "label_fa": "x",
+                      "source": "x",
+                      "target": "D-000123"
+                    }
+                  ],
+                  "lanes": [
+                    "x"
+                  ],
+                  "nodes": [
+                    {
+                      "col": 0,
+                      "helper": "x",
+                      "key": "x",
+                      "kind": "one_off",
+                      "lane": "n8n",
+                      "model": "claude-sonnet-5-5",
+                      "note_fa": "x",
+                      "row": 0,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Kit Graph",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
     "/api/v1/automations/today": {
       "get": {
         "description": "⟨1.37⟩ §59.9 the owner's day (his zone; `day` left out: today): each flow's runs, what went\nout with its links, the comments, DMs and clicks read from IG-Hub (null: not read, never\nguessed), the cost; `line_fa` says it in one line («امروز: ریلز «…» منتشر شد، ۱۲ کامنت …», or\n«امروز چیزی منتشر نشد: …» with why).",
@@ -78687,6 +80473,141 @@
           }
         },
         "summary": "Automations Today",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/week": {
+      "get": {
+        "description": "⟨39.1⟩ §61.7 the automations' week (Saturday first): runs, posts, cost, each day's posts\nand plan, each page's line (`best` stays null until `insights`).",
+        "operationId": "automation_week",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accounts": [
+                    {
+                      "account": "x",
+                      "best": null,
+                      "company": "TY",
+                      "company_fa": "x",
+                      "cost_usd": 1.0,
+                      "flows": 1,
+                      "published": 1,
+                      "runs": 1
+                    }
+                  ],
+                  "by_day": [
+                    {
+                      "day": "2026-10-17",
+                      "planned": 1,
+                      "published": 1
+                    }
+                  ],
+                  "from": "2026-10-17",
+                  "to": "2026-10-17",
+                  "totals": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowWeek"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Week",
         "tags": [
           "automations"
         ]
@@ -103029,6 +104950,7 @@
                 "example": {
                   "order": "x",
                   "publish_at": "x",
+                  "started": false,
                   "why_fa": "x",
                   "work": "x"
                 },
@@ -140442,7 +142364,7 @@
     },
     "/api/v1/publications/waiting": {
       "get": {
-        "description": "⟨1.39⟩ §60.2 «منتظر شما»: only what cannot move without the owner: a working group or a flow\nin `ask` mode at its publish step (`publish_ask`: `publish`, `skip`) and a run at its day's\ncap (`budget_cap`: `raise_cap` with `usd_cap`, `skip`). Empty: the app hides the place.",
+        "description": "⟨1.39⟩ §60.2 «منتظر شما»: only what cannot move without the owner: a working group or a flow\nin `ask` mode at its publish step (`publish_ask`: `publish`, `skip`). Cost never waits here\n(the owner, 2026-11-17). Empty: the app hides the place.",
         "operationId": "publications_waiting",
         "responses": {
           "200": {
@@ -140552,7 +142474,7 @@
     },
     "/api/v1/publications/waiting/{wid}/{key}": {
       "post": {
-        "description": "⟨1.39⟩ §60.2 runs one waiting item's action, as a tap; raising a cap above the company's\nmonth envelope (the day's cap × 30 over its USD month budget, or no such budget) needs\n🔏 `automation.budget` on `<ref>:<usd_cap>`. Answers what still waits.",
+        "description": "⟨1.39⟩ §60.2 runs one waiting item's action, as a tap. Answers what still waits.",
         "operationId": "publications_waiting_act",
         "parameters": [
           {
@@ -140560,7 +142482,7 @@
             "name": "wid",
             "required": true,
             "schema": {
-              "pattern": "^(ask|line|cap):[A-Za-z0-9_.:-]{1,80}$",
+              "pattern": "^(ask|line):[A-Za-z0-9_.:-]{1,80}$",
               "title": "Wid",
               "type": "string"
             }
@@ -140570,32 +142492,12 @@
             "name": "key",
             "required": true,
             "schema": {
-              "pattern": "^(publish|skip|raise_cap)$",
+              "pattern": "^(publish|skip)$",
               "title": "Key",
               "type": "string"
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "usd_cap": 1.0
-              },
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/WaitingIn"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "content": {
@@ -173029,7 +174931,7 @@
     },
     "/internal/v1/flows/{key}/run": {
       "post": {
-        "description": "n8n's daily call, signed like a line's callback; the order is the owner's standing order\n(2026-11-13), carried out at his pace «خودکار».",
+        "description": "n8n's daily call, signed like a line's callback; the order is the owner's standing order\n(2026-11-13), carried out at his pace «خودکار». ⟨1.39⟩ §61.2 the row decides, not n8n's own\nhour: a call before the row's build hour (Tehran, two minutes' grace), for a flow off, paused,\nor a day skipped or not one of its days makes nothing (202 `{started: false, reason}`).",
         "operationId": "run_flow_n8n",
         "parameters": [
           {
@@ -173049,6 +174951,7 @@
                 "example": {
                   "order": "x",
                   "publish_at": "x",
+                  "started": false,
                   "why_fa": "x",
                   "work": "x"
                 },
@@ -173058,6 +174961,20 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "reason": "دلیل",
+                  "started": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowNotStarted"
+                }
+              }
+            },
+            "description": "Nothing started"
           },
           "401": {
             "content": {

@@ -576,55 +576,15 @@ async def stop_why(
 
 
 async def budget_hold(tx: Tx, flow: dict[str, Any], run: dict[str, Any]) -> bool:
-    """§59.7 before each step: the run's and the day's spend against the flow's caps. Spent: the
-    run waits (`waiting`, its note says so) and the owner gets ONE decision notice; under the caps
-    again (he raised one): the run goes on."""
-    b = budget_of(flow)
-    tz = await owner_tz(tx)
-    spent = round(float(run["usd_equiv"]), 4)
-    day = await spent_today(tx, flow, tz)
-    note = None
-    if spent >= b.per_run_usd:
-        note = BUDGET_RUN_FA.format(x=money(spent), y=money(b.per_run_usd))
-    elif day >= b.per_day_usd:
-        note = BUDGET_DAY_FA.format(x=money(day), y=money(b.per_day_usd))
-    if note is None:
-        if run["state"] == "waiting":
-            await tx.exec(
-                "UPDATE lines.runs SET note_fa = NULL, updated_at = now() WHERE id = :id",
-                id=run["id"],
-            )
-        return False
-    if run["state"] == "waiting":
-        return True  # already told
-    await tx.exec(
-        """UPDATE lines.runs SET state = 'waiting', note_fa = :n, updated_at = now(),
-               started_at = coalesce(started_at, now()) WHERE id = :id""",
-        n=note,
-        id=run["id"],
-    )
-    from hq_api.domain import notify
-
-    title = flow.get("title_fa") or flow["sentence_fa"]
-    await notify.raise_notification(
-        tx,
-        company_id=flow["company_id"],
-        company_code=flow["company"],
-        level="decision",
-        title_fa=f"«{title or flow['ref']}»: {note}"[:300],
-        body_fa=(
-            f"اجرای {run['ref']} پیش از قدم بعد ایستاد. «سقف را بالا ببر» یا «این نوبت رد شود»."
-        ),
-        link_kind="line_run",
-        link_ref=run["ref"],
-        source_kind="system",
-        source_code="flows",
-        choices=CHOICES,
-        domain="business",
-        owner_action=True,
-    )
-    await engine._emit(tx, run, note_fa=note, state="waiting")
-    return True
+    """§59.7 before each step. ⟨1.39⟩ the owner, 2026-11-17: cost never holds an automation that
+    publishes («حتما باید بسازه»): nothing waits on a cap; a run that waited on one before goes on
+    (its note cleared). Always False."""
+    del flow
+    budget = tuple(x.split("(")[0] for x in (BUDGET_DAY_FA, BUDGET_RUN_FA))
+    if run["state"] == "waiting" and str(run.get("note_fa") or "").startswith(budget):
+        await tx.exec("UPDATE lines.runs SET note_fa = NULL, updated_at = now() WHERE id = :id",
+                      id=run["id"])  # fmt: skip
+    return False
 
 
 async def ask_expired(tx: Tx, run: dict[str, Any], w: dict[str, Any]) -> bool:
@@ -710,6 +670,13 @@ async def due(hub: Any, now: datetime | None = None, *, source: str = "n8n") -> 
     made: list[str] = []
     out: dict[str, Any] = {"source": source, "made": 0, "skipped": 0, "runs": made}
     async with hub.db.tx(await hub.companies.ids()) as tx:
+        # ⟨1.39⟩ §61.6 the clock's previous run (a tick or the backup): 30 minutes or more ago,
+        # the clock was silent (flow_alerts: `clock_missed`, one notification)
+        prev = await tx.first(
+            """SELECT greatest(last_tick_at, last_fallback_at) AS t FROM growth.flow_clock
+               WHERE company_id = :co""",
+            co=holding.id,
+        )
         if not await _clock(tx, holding.id, now, source):
             return {**out, "idle": "n8n ticks"}
         tz = await owner_tz(tx)
@@ -750,7 +717,7 @@ async def due(hub: Any, now: datetime | None = None, *, source: str = "n8n") -> 
     # ⟨1.39⟩ §61.2 the same clock starts the rows of automations.flows (domain/flows.clock)
     from hq_api.domain import flows as FL
 
-    out["orders"] = await FL.clock(hub, now)
+    out["orders"] = await FL.clock(hub, now, quiet_since=prev["t"] if prev else None)
     return out
 
 
@@ -1063,18 +1030,11 @@ async def set_state(ctx: Any, tx: Tx, ref: str, state: str) -> FS.FlowAutomation
 async def run_now(ctx: Any, tx: Tx, ref: str) -> FS.FlowRunRef:
     """`POST /automations/{ref}/run-now`: a run now. When today's occurrence has no run yet it
     is that run (it publishes at its hour); else an extra one, not the day's (it publishes at
-    once). 409 `budget_reached` past the day's cap."""
+    once). ⟨1.39⟩ the day's spend never refuses it (the owner, 2026-11-17)."""
     row = await load(tx, ref, lock=True)
     await _policy(ctx, "flow.run", {"automation": ref})
     tz = await owner_tz(tx)
     now = datetime.now(UTC)
-    b = budget_of(row)
-    day = await spent_today(tx, row, tz, now)
-    if day >= b.per_day_usd:
-        raise ApiError(
-            409, "budget_reached", f"{day} of {b.per_day_usd}",
-            message_fa=BUDGET_REACHED_FA.format(x=money(day), y=money(b.per_day_usd)),
-        )  # fmt: skip
     line_id = await tx.scalar("SELECT id FROM lines.lines WHERE ref = :r", r=row["line"])
     _, end = day_bounds(tz, now)
     occ = None
@@ -1180,7 +1140,6 @@ async def patch(
     (the day's cap × 30 over its USD month budget, or no such budget) is 🔏 `automation.budget`.
     Returns the flow and whether its budget changed (waiting runs look again)."""
     from hq_api.domain import session_publish as SPB
-    from hq_api.security import stepup
 
     row = await load(tx, ref, lock=True)
     sets: dict[str, Any] = {}
@@ -1201,18 +1160,11 @@ async def patch(
         before["mode"] = row["mode"]
     rise, su, over = False, False, False
     if body.budget is not None:
+        # ⟨1.39⟩ the owner, 2026-11-17: no envelope for what publishes: a cap is one tap, up or down
         old = budget_of(row)
         new = FS.FlowBudget(per_run_usd=body.budget.per_run_usd,
                             per_day_usd=body.budget.per_day_usd)  # fmt: skip
         rise = new.per_day_usd > old.per_day_usd or new.per_run_usd > old.per_run_usd
-        if rise:
-            limit = await month_limit_usd(tx, row["company_id"])
-            over = limit is None or new.per_day_usd * DAYS_A_MONTH > limit
-            if over:
-                await stepup.consume(
-                    tx, request, ctx.who, "automation.budget", budget_target(ref, new.per_day_usd)
-                )
-                su = True
         sets["budget"] = store.dumps(new.model_dump(exclude={"spent_today_usd"}))
         before["budget"] = old.model_dump(exclude={"spent_today_usd"})
     await _policy(

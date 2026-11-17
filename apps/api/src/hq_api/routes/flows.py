@@ -12,6 +12,7 @@ from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from hq_api.context import Ctx, owner_ctx
@@ -38,6 +39,16 @@ class FlowRunOut(BaseModel):
     work: str | None
     publish_at: str
     why_fa: str
+    started: bool = True
+
+
+class FlowNotStarted(BaseModel):
+    """⟨1.39⟩ §61.2 n8n's per-flow call that makes nothing (202): `before_trigger` (the row's build
+    hour has not come: the owner moved it later in the app), `off`, `paused`, `skipped`,
+    `not_its_day`."""
+
+    started: bool = False
+    reason: str
 
 
 @router.post("/flows/{key}/run", response_model=FlowRunOut, status_code=201, responses=E)
@@ -49,12 +60,17 @@ async def run_flow(
     return FlowRunOut(**await FL.start(ctx, request, background, key, body.day))
 
 
-@internal_router.post("/flows/{key}/run", response_model=FlowRunOut, status_code=201, responses=E)
+@internal_router.post(
+    "/flows/{key}/run", response_model=FlowRunOut, status_code=201,
+    responses={**E, 202: {"model": FlowNotStarted, "description": "Nothing started"}},
+)  # fmt: skip
 async def run_flow_n8n(
     key: str, request: Request, background: BackgroundTasks, hub: Hub = Depends(get_hub)
 ) -> Any:
     """n8n's daily call, signed like a line's callback; the order is the owner's standing order
-    (2026-11-13), carried out at his pace «خودکار»."""
+    (2026-11-13), carried out at his pace «خودکار». ⟨1.39⟩ §61.2 the row decides, not n8n's own
+    hour: a call before the row's build hour (Tehran, two minutes' grace), for a flow off, paused,
+    or a day skipped or not one of its days makes nothing (202 `{started: false, reason}`)."""
     raw = await request.body()
     if not signing.verify(await n8n_secret(hub), raw, request.headers.get(signing.HEADER)):
         raise ApiError(401, "unauthenticated", "bad signature")
@@ -62,5 +78,9 @@ async def run_flow_n8n(
         body = FlowRunIn.model_validate_json(raw or b"{}")
     except ValueError as exc:
         raise ApiError(422, "validation_failed", "not a flow body") from exc
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        reason = await FL.n8n_guard(tx, key, body.day)
+    if reason is not None:
+        return JSONResponse(FlowNotStarted(reason=reason).model_dump(), status_code=202)
     ctx = Ctx(hub=hub, who=OWNER, request=request)
     return FlowRunOut(**await FL.start(ctx, request, background, key, body.day))

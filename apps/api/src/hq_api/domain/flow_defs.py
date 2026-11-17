@@ -13,6 +13,7 @@ its page and its days are still those of flow_view (`N8:<key>` resolves to the s
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from datetime import UTC, date, datetime, time, timedelta
@@ -68,7 +69,6 @@ WORD_FA = "برای کلمه‌ی ثابت، خود کلمه را بنویس (ح
 WORD_MODE_FA = "حالت کلمه باید fixed یا fresh باشد"
 TITLE_FA = "عنوان باید ۱ تا ۳۰۰ نویسه باشد"
 UNTIL_FA = "پایان توقف باید روزی بعد از امروز باشد"
-CAP_RAISED_FA = "سقف روز از «منتظر شما» بالا رفت"
 PAST_DAY_FA = "این روز گذشته است"
 NOT_FOUND_FA = "این اتوماسیون پیدا نشد."
 OK_FA = "روبه‌راه"
@@ -395,21 +395,13 @@ async def load(tx: Tx, ref: str, *, lock: bool = False) -> FL.Flow:
 
 
 async def allowed_models(tx: Tx) -> list[str]:
-    """§61.3 the LLM router's allowed list (the models of its enabled Anthropic connections) that
-    a workshop turn runs on (domain/hands.MODELS), in the router's order."""
+    """§61.3 (39.1) the models a flow's workshop turn CAN run on: the workshop runner's own list
+    (domain/hands.MODELS, Fable 5.2 too), not the LLM router's (the flows run on the workshop). The
+    owner's «every flow on Opus 5.5 at xhigh» is the rows' value, not this list."""
+    del tx
     from hq_api.domain import hands as HANDS
 
-    rows = await tx.all(
-        """SELECT models FROM llm.connections WHERE provider = 'anthropic' AND status = 'enabled'
-           ORDER BY key"""
-    )
-    seen: list[str] = []
-    for r in rows:
-        got = json.loads(r["models"]) if isinstance(r["models"], str) else r["models"]
-        for m in got or []:
-            if m in HANDS.MODELS and m not in seen:
-                seen.append(str(m))
-    return seen
+    return list(HANDS.MODELS)
 
 
 async def options(tx: Tx) -> FlowOptions:
@@ -456,24 +448,11 @@ async def month_estimate(tx: Tx, flow: FL.Flow, usd_cap: float) -> float:
     return round((usd_cap + others) * DAYS_A_MONTH, 2)
 
 
-async def budget(tx: Tx, flow: FL.Flow, company_id: Any, now: datetime) -> FlowDefBudget:
-    from hq_api.domain import flow_auto as FA
-
+async def budget(tx: Tx, flow: FL.Flow) -> FlowDefBudget:
+    """⟨1.39⟩ the owner, 2026-11-17: «این موارد پاکت نمیخواد»: no month envelope for what publishes;
+    the cap is the day's aim (a day past it goes on), its month estimate shown beside it."""
     est = await month_estimate(tx, flow, float(flow.usd_cap))
-    envelope = await FA.month_limit_usd(tx, company_id) if company_id else None
-    left = None
-    if envelope is not None:
-        spent = await tx.scalar(
-            """SELECT COALESCE(SUM(equiv_cost_usd), 0) FROM llm.calls
-               WHERE company_id = :co AND started_at >= :t""",
-            co=company_id,
-            t=_month_start(now),
-        )
-        left = round(envelope - float(spent or 0), 2)
-    return FlowDefBudget(
-        usd_cap=float(flow.usd_cap), month_estimate_usd=est, envelope_usd=envelope,
-        envelope_left_usd=left, over_envelope=envelope is not None and est > envelope,
-    )  # fmt: skip
+    return FlowDefBudget(usd_cap=float(flow.usd_cap), month_estimate_usd=est)
 
 
 async def next_of(tx: Tx, flow: FL.Flow, company_id: Any, now: datetime) -> FlowDefNext | None:
@@ -571,7 +550,7 @@ async def render(tx: Tx, hub: Any, flow: FL.Flow, now: datetime | None = None) -
         schedule=FlowDefSchedule(**{**sch, "start": flow.start}, when_fa=FV.when_fa(flow, when_day)),
         model=flow.model, model_fa=model_name(flow.model),
         effort=flow.effort or "max",
-        budget=await budget(tx, flow, co["id"], now), cycle=list(flow.cycle),
+        budget=await budget(tx, flow), cycle=list(flow.cycle),
         story_word_mode="fixed" if flow.story_word else "fresh",
         story_word=flow.story_word or None, note_fa=flow.note_fa or None, pair=flow.pair or None,
         recipe=flow.recipe or None, version=flow.version, next=nxt, today=today,
@@ -768,25 +747,14 @@ async def patch(ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch) ->
     return await render(tx, ctx.hub, flow)
 
 
-async def raise_cap(ctx: Any, tx: Tx, request: Any, flow: FL.Flow, usd_cap: Decimal) -> bool:
-    """§61.4 «سقف را بالا ببر» of «منتظر شما» (§60.2): the flow's day cap, saved as its next
-    version (as a save of the app; no `If-Match`: the owner's tap answers the day that waits).
-    Returns whether the step-up was taken."""
-    body = FlowDefPatch(usd_cap=float(usd_cap), note_change_fa=CAP_RAISED_FA)
-    _, su = await save(ctx, tx, request, flow.ref, body, None)
-    return su
-
-
 async def save(
-    ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch, want: int | None
-) -> tuple[FL.Flow, bool]:
-    """A new version of the flow: §61.4's checks (422 invalid_flow); a raised cap whose month
-    estimate passes the company's USD envelope, or with no USD envelope at all (as §59.7's PATCH),
-    is 🔏 automation.budget (`<ref>:<usd_cap>`); the changes in Persian, the audit, the event.
-    Returns the flow as saved and whether the step-up was taken."""
-    from hq_api.domain import flow_auto as FA
-    from hq_api.security import stepup
-
+    ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch, want: int | None,
+    verb: str = "update",
+) -> tuple[FL.Flow, bool]:  # fmt: skip
+    """A new version of the flow: §61.4's checks (422 invalid_flow); the cap is one tap, up or
+    down (⟨1.39⟩ the owner, 2026-11-17: no envelope for what publishes); the changes in Persian,
+    the audit `automation.flow.<verb>`, the event. Returns the flow as saved and whether anything
+    changed."""
     flow = await load(tx, ref, lock=True)
     if want is not None and want != flow.version:
         raise ApiError(409, "version_conflict", f"{flow.ref} is at version {flow.version}")
@@ -801,20 +769,10 @@ async def save(
         return flow, False
     co = await _company(tx, flow.company)
     rise = float(after["usd_cap"]) > float(before["usd_cap"])
-    over, su = False, False
-    if rise:
-        limit = await FA.month_limit_usd(tx, co["id"])
-        over = limit is None or await month_estimate(tx, flow, float(after["usd_cap"])) > limit
-        if over:
-            await stepup.consume(
-                tx, request, ctx.who, "automation.budget",
-                f"{flow.ref}:{Decimal(str(after['usd_cap'])).normalize():f}",
-            )  # fmt: skip
-            su = True
     await ctx.hub.policy.require("lines", {
         "principal": ctx.who.opa(), "op": "flow.update",
-        "target": {"automation": flow.ref, "budget_rise": rise, "over_envelope": over},
-        "context": {"step_up": su},
+        "target": {"automation": flow.ref, "budget_rise": rise, "over_envelope": False},
+        "context": {"step_up": False},
     })  # fmt: skip
     version = flow.version + 1
     sch = after["schedule"]
@@ -840,12 +798,12 @@ async def save(
     )  # fmt: skip
     keys = {c["field"] for c in changes}
     flat_b, flat_a = _flat(before), _flat(after)
-    await _audit(tx, ctx.who, flow, co["id"], "update",
+    await _audit(tx, ctx.who, flow, co["id"], verb,
                  {k: flat_b.get(k) for k in sorted(keys)} | {"version": flow.version},
-                 {k: flat_a.get(k) for k in sorted(keys)} | {"version": version}, step_up=su)  # fmt: skip
+                 {k: flat_a.get(k) for k in sorted(keys)} | {"version": version})  # fmt: skip
     fresh = await load(tx, flow.ref)
     await _changed(tx, fresh, fresh.state, version)
-    return fresh, su
+    return fresh, True
 
 
 async def _policy(ctx: Any, op: str, flow: FL.Flow, **target: Any) -> None:
@@ -922,3 +880,471 @@ async def run_ref_of(tx: Tx, hub: Any, order: str) -> FS.FlowRunRef | None:
 def default_day(flow: FL.Flow) -> date:
     """run-now without a day: the day the next post goes out (today for a same-day flow)."""
     return datetime.now(TZ).date() + timedelta(days=0 if flow.same_day else 1)
+
+
+# ================================================================== P2 (39.1) ==
+class FlowChange(BaseModel):
+    field: str
+    label_fa: str
+    before_fa: str
+    after_fa: str
+
+
+class FlowVersion(BaseModel):
+    version: int
+    at: datetime
+    by_fa: str
+    note_fa: str | None = None
+    changes: list[FlowChange] = Field(default_factory=list)
+    body: dict[str, Any]
+
+
+class FlowRollbackIn(Model):
+    version: int = Field(ge=1)
+
+
+class FlowDefRun(BaseModel):
+    run: str
+    day: date | None = None
+    state: str
+    topic_fa: str | None = None
+    started_at: datetime
+    ended_at: datetime | None = None
+    cost_usd: float = 0.0
+    publications: list[Any] = Field(default_factory=list)
+    note_fa: str = ""
+
+
+class FlowDefRuns(BaseModel):
+    items: list[FlowDefRun] = Field(default_factory=list)
+    next: str | None = None
+
+
+class SuccessCount(BaseModel):
+    ok: int = 0
+    all: int = 0
+
+
+class CostToday(BaseModel):
+    today: float = 0.0
+    month: float = 0.0
+
+
+class FlowDefHealthPage(BaseModel):
+    state: Literal["ok", "warn", "down"]
+    note_fa: str
+    last_run: FS.FlowRunRef | None = None
+    success_30d: SuccessCount = Field(default_factory=SuccessCount)
+    cost: CostToday = Field(default_factory=CostToday)
+    next: FlowDefNext | None = None
+    alerts: list[Any] = Field(default_factory=list)
+
+
+class FlowDefCreate(Model):
+    account: str = Field(min_length=1, max_length=100)
+    channel: str = Field(default="instagram", max_length=40)
+    kit: str = Field(min_length=1, max_length=100)
+    title_fa: str = Field(min_length=1, max_length=1000)
+    schedule: FlowDefSchedulePatch
+    model: str = Field(max_length=100)
+    effort: str = Field(max_length=20)
+    usd_cap: float
+    cycle: list[str] | None = Field(default=None, max_length=50)
+    story_word_mode: str | None = Field(default=None, max_length=20)
+    story_word: str | None = Field(default=None, max_length=200)
+
+
+class KitRequestIn(Model):
+    account: str = Field(min_length=1, max_length=100)
+    note_fa: str = Field(min_length=1, max_length=2000)
+
+
+class KitRequestOut(BaseModel):
+    order: str
+    work: str | None = None
+
+
+class WeekTotals(BaseModel):
+    runs: int = 0
+    published: int = 0
+    cost_usd: float = 0.0
+
+
+class WeekDay(BaseModel):
+    day: date
+    published: int = 0
+    planned: int = 0
+
+
+class WeekAccount(BaseModel):
+    company: str
+    company_fa: str
+    account: str
+    runs: int = 0
+    published: int = 0
+    cost_usd: float = 0.0
+    flows: int = 0
+    best: Any | None = None
+
+
+class FlowWeek(BaseModel):
+    from_: date = Field(alias="from")
+    to: date
+    totals: WeekTotals = Field(default_factory=WeekTotals)
+    by_day: list[WeekDay] = Field(default_factory=list)
+    accounts: list[WeekAccount] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+ROLLBACK_FA = "برگشت به نسخه‌ی {v}"
+NO_VERSION_FA = "این نسخه پیدا نشد."
+NO_KIT_FA = "این کیت پیدا نشد."
+NO_PAGE_FA = "این پیج در هیچ شرکتی ثبت نشده است."
+MADE_FROM_KIT_FA = "ساخته شد از کیت {kit}"
+KIT_ORDER_FA = (
+    "کیت تازه برای پیج @{account}، به خواسته‌ی مدیر کل: {note}\n\n"
+    "یک نمونه‌ی کوتاه بساز و همین‌جا برای دیدن مدیر کل بگذار (منتشر نمیشود). بعد از «بله» مدیر کل، "
+    "کیت با همه‌ی قاعده‌ها و ابزارهایش در پوشه‌ی کیت‌های کارگارگاه ثبت میشود و در «کیت‌ها» می‌آید."
+)
+
+
+# --------------------------------------------------------------- the versions --
+async def versions(tx: Tx, ref: str) -> list[FlowVersion]:
+    """§61.3 every save of the flow, newest first; none is ever deleted."""
+    flow = await load(tx, ref)
+    rows = await tx.all(
+        """SELECT v.* FROM automations.flow_versions v JOIN automations.flows f ON f.id = v.flow_id
+           WHERE f.ref = :r ORDER BY v.version DESC""",
+        r=flow.ref,
+    )
+    out = []
+    for r in rows:
+        changes = r["changes"]
+        changes = json.loads(changes) if isinstance(changes, str) else changes
+        body = r["body"]
+        body = json.loads(body) if isinstance(body, str) else body
+        out.append(FlowVersion(version=r["version"], at=r["at"], by_fa=r["by_fa"],
+                               note_fa=r["note_fa"], changes=[FlowChange(**c) for c in changes or []],
+                               body=dict(body or {})))  # fmt: skip
+    return out
+
+
+async def rollback(ctx: Any, tx: Tx, ref: str, version: int) -> FlowDef:
+    """§61.3 «برگشت به این نسخه»: that version's body saved again as the next version, through
+    §61.4's checks (422 invalid_flow); nothing is deleted. Audit `automation.flow.rollback`."""
+    flow = await load(tx, ref, lock=True)
+    body = await tx.scalar(
+        """SELECT v.body FROM automations.flow_versions v JOIN automations.flows f ON f.id = v.flow_id
+           WHERE f.ref = :r AND v.version = :v""",
+        r=flow.ref,
+        v=version,
+    )
+    if body is None:
+        raise ApiError(404, "not_found", f"no version {version}", message_fa=NO_VERSION_FA)
+    b = json.loads(body) if isinstance(body, str) else dict(body)
+    sch = {k: v for k, v in (b.get("schedule") or {}).items() if k != "best_week"}
+    patch = FlowDefPatch(
+        schedule=FlowDefSchedulePatch(**sch), model=b.get("model"), effort=b.get("effort"),
+        usd_cap=b.get("usd_cap"), cycle=b.get("cycle"), story_word_mode=b.get("story_word_mode"),
+        story_word=b.get("story_word"), note_fa=b.get("note_fa"), title_fa=b.get("title_fa"),
+        note_change_fa=ROLLBACK_FA.format(v=fa(version)),
+    )  # fmt: skip
+    saved, _ = await save(ctx, tx, ctx.request, flow.ref, patch, None, verb="rollback")
+    return await render(tx, ctx.hub, saved)
+
+
+# ------------------------------------------------------------------- the runs --
+async def runs(tx: Tx, hub: Any, ref: str, limit: int, before: str | None) -> FlowDefRuns:
+    """§61.3 the flow's days, newest first: state, topic, cost (llm.calls.equiv_cost_usd) and the
+    day's publications (media.publications of this flow and day); the timeline stays
+    `GET /line-runs/{run}`."""
+    from hq_api.domain import flow_view as FV
+    from hq_api.domain import publications as PB
+
+    flow = await load(tx, ref)
+    days = await FV._days(tx, flow, limit + 1, before)
+    items = []
+    for d in days[:limit]:
+        r = await FV.run_ref(tx, hub, d)
+        day = str(d["flow"].get("day") or "") or None
+        rows = await tx.all(
+            PB.SET_SQL
+            + " WHERE p.source ->> 'flow_key' = :k AND p.source ->> 'day' = :d"
+            + PB.SET_FIRST
+            + " ORDER BY p.at, p.ref",
+            k=flow.key,
+            d=day,
+        )
+        items.append(FlowDefRun(
+            run=r.ref, day=date.fromisoformat(day) if day else None, state=r.state,
+            topic_fa=r.topic_fa, started_at=d["created_at"], ended_at=d["closed_at"],
+            cost_usd=float(r.cost_usd or 0), publications=[PB._card(dict(x)) for x in rows],
+            note_fa=r.note_fa,
+        ))  # fmt: skip
+    nxt = items[-1].run if len(days) > limit and items else None
+    return FlowDefRuns(items=items, next=nxt)
+
+
+# ----------------------------------------------------------------- the health --
+async def health_page(tx: Tx, hub: Any, ref: str) -> FlowDefHealthPage:
+    """§61.3 the flow's health: the clock's and the last day's, its open alerts, the last 30 days'
+    success, today's and the month's cost, the next day."""
+    from hq_api.domain import flow_alerts as AL
+    from hq_api.domain import flow_view as FV
+
+    now = datetime.now(UTC)
+    flow = await load(tx, ref)
+    h = await health_of(tx, hub, flow, now)
+    alerts = await AL.of_flow(tx, flow)
+    if alerts and h.state == "ok":
+        h = FlowDefHealth(state="warn", note_fa=alerts[0].note_fa)
+    if any(a.kind in ("late", "clock_missed") and a.notified for a in alerts):
+        h = FlowDefHealth(state="down", note_fa=next(a.note_fa for a in alerts if a.notified))
+    since = now - timedelta(days=30)
+    days = [d for d in await FV._days(tx, flow, 60) if d["created_at"] >= since]
+    refs = [await FV.run_ref(tx, hub, d) for d in days]
+    ok = sum(1 for r in refs if r.state in ("done", "waiting"))
+    co = await _company(tx, flow.company)
+    today, month = await _today(tx, flow, now)
+    return FlowDefHealthPage(
+        state=h.state, note_fa=h.note_fa, last_run=refs[0] if refs else None,
+        success_30d=SuccessCount(ok=ok, all=len(refs)), cost=CostToday(today=today.cost_usd, month=month),
+        next=await next_of(tx, flow, co["id"], now), alerts=alerts,
+    )  # fmt: skip
+
+
+async def graph(tx: Tx, ref: str) -> FS.FlowGraph:
+    """§61.3 the map of §59.7.1, from the flow's steps (its kit's recipe)."""
+    from hq_api.domain import flow_view as FV
+
+    return FV.graph_of(await load(tx, ref))
+
+
+# ------------------------------------------------------------------- the kits --
+async def kits(tx: Tx) -> list[Kit]:
+    """§61.5 the kits that run today (the flows using them), with their last 30 days' mean cost
+    and minutes per day."""
+    got = (await options(tx)).kits
+    since = datetime.now(UTC) - timedelta(days=30)
+    flows = [f for f in (await FL.active_flows(tx)).values() if f.ref]
+    for kit in got:
+        keys = [f.key for f in flows if kit_key(f) == kit.key]
+        row = await tx.first(
+            """SELECT avg(c.usd) AS usd, avg(extract(epoch FROM (w.closed_at - w.created_at)) / 60)
+                      FILTER (WHERE w.closed_at IS NOT NULL) AS minutes
+               FROM work.work w LEFT JOIN LATERAL (
+                   SELECT COALESCE(SUM(equiv_cost_usd), 0) AS usd FROM llm.calls
+                   WHERE work_ref = w.ref) c ON true
+               WHERE w.parent_id IS NULL AND w.created_at >= :s
+                 AND w.run_meta -> 'flow' ->> 'key' = ANY(:k)""",
+            s=since,
+            k=keys,
+        )
+        if row is not None and row["usd"] is not None:
+            kit.avg_usd = round(float(row["usd"]), 2)
+        if row is not None and row["minutes"] is not None:
+            kit.avg_minutes = round(float(row["minutes"]), 1)
+    return got
+
+
+async def _kit_flow(tx: Tx, key: str) -> FL.Flow:
+    flow = next((f for f in (await FL.active_flows(tx)).values() if f.ref and kit_key(f) == key),
+                None)  # fmt: skip
+    if flow is None:
+        raise ApiError(404, "not_found", f"no kit {key}", message_fa=NO_KIT_FA)
+    return flow
+
+
+async def kit_graph(tx: Tx, key: str) -> FS.FlowGraph:
+    """§61.5 a kit's map before an automation is made from it (the map of a flow using it)."""
+    from hq_api.domain import flow_view as FV
+
+    return FV.graph_of(await _kit_flow(tx, key))
+
+
+async def company_of_account(tx: Tx, hub: Any, account: str) -> Any | None:
+    """The company whose registered pages (its publish path, §44.5) hold this account."""
+    from hq_api.domain import session_publish as SPB
+
+    for c in await hub.companies.all():
+        if c.kind == "holding":
+            continue
+        route = await SPB._route(tx, c.id)
+        if account in route["accounts"]:
+            return c
+    return None
+
+
+def _slug(v: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "_", v.lower()).strip("_")
+    return s if s[:1].isalpha() else f"f_{s}"
+
+
+async def create(ctx: Any, tx: Tx, body: FlowDefCreate) -> FlowDef:
+    """§61.5 «بساز و روشن کن»: a new automation from a kit for a registered page, checked as a save
+    (§61.4), `on` at version 1. No n8n workflow: the hub's clock runs it."""
+    account = body.account.strip().lstrip("@")
+    co = await company_of_account(tx, ctx.hub, account)
+    if co is None:
+        raise ApiError(422, "invalid_flow", "the page is not registered", message_fa=NO_PAGE_FA,
+                       errors=[{"field": "account", "message_fa": NO_PAGE_FA}])  # fmt: skip
+    try:
+        kit = await _kit_flow(tx, body.kit)
+    except ApiError as exc:
+        raise ApiError(422, "invalid_flow", "no such kit", message_fa=NO_KIT_FA,
+                       errors=[{"field": "kit", "message_fa": NO_KIT_FA}]) from exc  # fmt: skip
+    sch = body.schedule
+    stories = tuple(sch.stories or ())
+    hours = tuple(sch.hours or ((stories[0],) if stories else ()))
+    taken = set(await FL.active_flows(tx))
+    base = _slug(f"{account}_{kit_key(kit)}")[:36]
+    key, n = base, 2
+    while key in taken:
+        key, n = f"{base}_{n}", n + 1
+    start = datetime.now(TZ).date()
+    with contextlib.suppress(ValueError):
+        start = date.fromisoformat(sch.start) if sch.start else start
+    others = [f for f in (await FL.active_flows(tx)).values()
+              if f.ref and f.account == account and not f.stories and not f.pair]  # fmt: skip
+    draft = FL.Flow(
+        key=key, company=co.code, account=account, title_fa=" ".join(body.title_fa.split()),
+        kit=kit.kit, start=start, hours=hours, story=False, budget_tokens=kit.budget_tokens,
+        n8n="", trigger_at=sch.trigger_at or kit.trigger_at, usd_cap=Decimal("1"),
+        cycle=tuple(body.cycle or ()), model=body.model, pair=others[0].key if others and not stories else "",
+        stories=stories, same_day=kit.same_day if sch.same_day is None else sch.same_day,
+        story_word=(body.story_word or "") if body.story_word_mode == "fixed" else "",
+        recipe=kit.recipe, effort=body.effort, days=tuple(sch.days) if sch.days else FL.ALL_DAYS,
+        channel=body.channel,
+    )  # fmt: skip
+    after = body_of(draft) | {"usd_cap": body.usd_cap, "effort": body.effort,
+                              "story_word_mode": body.story_word_mode or "fresh",
+                              "story_word": body.story_word}  # fmt: skip
+    after["schedule"]["start"] = sch.start or start.isoformat()
+    errors = await errors_of(tx, draft, after)
+    if errors:
+        raise ApiError(422, "invalid_flow", "the automation holds fields it may not", errors=errors,
+                       message_fa=errors[0]["message_fa"])  # fmt: skip
+    await ctx.hub.policy.require("lines", {
+        "principal": ctx.who.opa(), "op": "flow.use", "target": {"automation": key},
+        "context": {"step_up": False},
+    })  # fmt: skip
+    ref = await tx.scalar(
+        """INSERT INTO automations.flows (key, company_id, channel, account, title_fa, kit, kind,
+               state, schedule, story, model, effort, usd_cap, budget_tokens, cycle, story_word,
+               n8n, pair, recipe)
+           VALUES (:key, :co, :ch, :acc, :title, :kit, :kind, 'on', CAST(:sch AS jsonb), false,
+                   :model, :effort, :cap, :tokens, :cycle, :word, '', :pair, :recipe)
+           RETURNING ref""",
+        key=key, co=co.id, ch=body.channel, acc=account, title=draft.title_fa, kit=draft.kit,
+        kind="stories" if stories else "reel", sch=json.dumps(after["schedule"], ensure_ascii=False),
+        model=body.model, effort=body.effort, cap=Decimal(str(body.usd_cap)),
+        tokens=draft.budget_tokens, cycle=list(draft.cycle),
+        word=after["story_word"] if after["story_word_mode"] == "fixed" else None,
+        pair=draft.pair or None, recipe=draft.recipe or None,
+    )  # fmt: skip
+    flow = await load(tx, str(ref))
+    await tx.exec(
+        """INSERT INTO automations.flow_versions (company_id, flow_id, version, by_kind, by_code,
+               by_fa, note_fa, body)
+           SELECT company_id, id, 1, :bk, :bc, :bf, :n, CAST(:b AS jsonb)
+           FROM automations.flows WHERE ref = :r""",
+        bk=ctx.who.kind, bc=ctx.who.code[:64], bf=OWNER_FA if ctx.who.is_owner else HUB_FA,
+        n=MADE_FROM_KIT_FA.format(kit=kit_key(kit)), b=json.dumps(body_of(flow), ensure_ascii=False),
+        r=flow.ref,
+    )  # fmt: skip
+    await _audit(tx, ctx.who, flow, co.id, "create", None, body_of(flow))
+    await _changed(tx, flow, flow.state, flow.version)
+    return await render(tx, ctx.hub, flow)
+
+
+async def kit_request(ctx: Any, request: Any, background: Any, body: KitRequestIn) -> KitRequestOut:
+    """§61.5 «کیت تازه»: a direct session with the workshop, as the owner's DotCoin pilot was made;
+    its sample comes to that session for his yes. Requires `Idempotency-Key` (the order's)."""
+    from hq_api.routes.orders import OrderIn, place_order
+
+    account = body.account.strip().lstrip("@")
+    async with ctx.tx() as tx:
+        co = await company_of_account(tx, ctx.hub, account)
+    if co is None:
+        raise ApiError(422, "invalid_flow", "the page is not registered", message_fa=NO_PAGE_FA,
+                       errors=[{"field": "account", "message_fa": NO_PAGE_FA}])  # fmt: skip
+    text = KIT_ORDER_FA.format(account=account, note=" ".join(body.note_fa.split()))
+    out = await place_order(ctx, request, background, OrderIn(text=text, company=co.code))
+    got = out.model_dump() if hasattr(out, "model_dump") else json.loads(bytes(out.body))
+    work = next((r.get("work_ref") for r in got.get("routes") or [] if r.get("work_ref")), None)
+    return KitRequestOut(order=str(got["ref"]), work=work)
+
+
+# ------------------------------------------------------------------- the week --
+async def week(tx: Tx, from_: date | None) -> FlowWeek:
+    """§61.7 the automations' week (Tehran, Saturday first): runs, posts and cost, each day's posts
+    and what is planned, and each page's line. `best` waits for `insights` (null)."""
+    today = datetime.now(TZ).date()
+    start = from_ or today - timedelta(days=FL.day_index(today))
+    end = start + timedelta(days=6)
+    lo = datetime.combine(start, time(0, 0), TZ).astimezone(UTC)
+    hi = datetime.combine(end + timedelta(days=1), time(0, 0), TZ).astimezone(UTC)
+    flows = [f for f in (await FL.active_flows(tx)).values() if f.ref and f.account]
+    pubs = await tx.all(
+        """SELECT p.account, (p.at AT TIME ZONE 'Asia/Tehran')::date AS day, p.source ->> 'flow_key' AS k
+           FROM media.publications p
+           WHERE p.state = 'published' AND p.at >= :lo AND p.at < :hi
+             AND p.source ->> 'flow_key' IS NOT NULL""",
+        lo=lo,
+        hi=hi,
+    )
+    works = await tx.all(
+        """SELECT w.run_meta -> 'flow' ->> 'key' AS k,
+                  (SELECT COALESCE(SUM(c.equiv_cost_usd), 0) FROM llm.calls c
+                   WHERE c.work_ref = w.ref) AS usd
+           FROM work.work w
+           WHERE w.parent_id IS NULL AND w.run_meta ? 'flow'
+             AND w.run_meta -> 'flow' ->> 'day' BETWEEN :a AND :b""",
+        a=start.isoformat(),
+        b=end.isoformat(),
+    )
+    by_day = []
+    for i in range(7):
+        day = start + timedelta(days=i)
+        planned = 0
+        if day >= today:
+            for f in flows:
+                if f.state == "on" and FL.held_why(f, day) is None:
+                    planned += len(f.stories) or 1
+        by_day.append(WeekDay(day=day, published=sum(1 for p in pubs if p["day"] == day),
+                              planned=planned))  # fmt: skip
+    accounts: dict[tuple[str, str], WeekAccount] = {}
+    names = {r["code"]: r["name_fa"] or r["code"]
+             for r in await tx.all("SELECT code, name_fa FROM core.companies")}  # fmt: skip
+    key_of = {f.key: f for f in flows}
+    for f in flows:
+        accounts.setdefault((f.company, f.account), WeekAccount(
+            company=f.company, company_fa=names.get(f.company, f.company), account=f.account,
+        )).flows += 1  # fmt: skip
+    for w in works:
+        wf = key_of.get(str(w["k"]))
+        if wf is not None:
+            a = accounts[(wf.company, wf.account)]
+            a.runs += 1
+            a.cost_usd = round(a.cost_usd + float(w["usd"] or 0), 2)
+    for p in pubs:
+        pf = key_of.get(str(p["k"]))
+        if pf is not None:
+            accounts[(pf.company, pf.account)].published += 1
+    items = sorted(accounts.values(), key=lambda a: (a.company, a.account))
+    totals = WeekTotals(runs=sum(a.runs for a in items), published=len(pubs),
+                        cost_usd=round(sum(a.cost_usd for a in items), 2))  # fmt: skip
+    return FlowWeek(from_=start, to=end, totals=totals, by_day=by_day, accounts=items)
+
+
+async def week_lines_fa(tx: Tx, from_: date | None = None) -> list[str]:
+    """The same week in a few Persian lines (one per page), for the owner's weekly summary."""
+    w = await week(tx, from_)
+    return [
+        fa(
+            f"@{a.account} ({a.company_fa}): {a.published} انتشار، {a.runs} اجرا، "
+            f"{a.cost_usd:.2f} دلار"
+        )
+        for a in w.accounts
+    ]

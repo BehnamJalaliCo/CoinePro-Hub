@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Body, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import publications as PB
@@ -30,7 +30,7 @@ E = responses(401, 403, 404, 422)
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 ACCOUNT = r"^@?[A-Za-z0-9._]{1,100}$"
 REF = r"^P-[0-9]{6,}$"
-WAIT_ID = r"^(ask|line|cap):[A-Za-z0-9_.:-]{1,80}$"
+WAIT_ID = r"^(ask|line):[A-Za-z0-9_.:-]{1,80}$"
 Channel = PB.Channel
 
 
@@ -78,8 +78,8 @@ async def publications_calendar(
 @router.get("/publications/waiting", response_model=PB.WaitingList, responses=E)
 async def publications_waiting(ctx: Ctx = Depends(owner_ctx)) -> PB.WaitingList:
     """⟨1.39⟩ §60.2 «منتظر شما»: only what cannot move without the owner: a working group or a flow
-    in `ask` mode at its publish step (`publish_ask`: `publish`, `skip`) and a run at its day's
-    cap (`budget_cap`: `raise_cap` with `usd_cap`, `skip`). Empty: the app hides the place."""
+    in `ask` mode at its publish step (`publish_ask`: `publish`, `skip`). Cost never waits here
+    (the owner, 2026-11-17). Empty: the app hides the place."""
     async with ctx.tx() as tx:
         return await PB.waiting(tx)
 
@@ -91,17 +91,14 @@ async def publications_waiting(ctx: Ctx = Depends(owner_ctx)) -> PB.WaitingList:
 )
 async def publications_waiting_act(
     wid: str = Path(pattern=WAIT_ID),
-    key: str = Path(pattern=r"^(publish|skip|raise_cap)$"),
-    body: PB.WaitingIn | None = Body(default=None),
+    key: str = Path(pattern=r"^(publish|skip)$"),
     ctx: Ctx = Depends(owner_ctx),
 ) -> PB.WaitingList:
-    """⟨1.39⟩ §60.2 runs one waiting item's action, as a tap; raising a cap above the company's
-    month envelope (the day's cap × 30 over its USD month budget, or no such budget) needs
-    🔏 `automation.budget` on `<ref>:<usd_cap>`. Answers what still waits."""
+    """⟨1.39⟩ §60.2 runs one waiting item's action, as a tap. Answers what still waits."""
     from hq_api.lines import engine
 
     async with ctx.tx() as tx:
-        kick, wake = await PB.act(ctx, tx, wid, key, body or PB.WaitingIn())
+        kick, wake = await PB.act(ctx, tx, wid, key)
     for ref in kick:
         await engine.kick(ctx.hub, ref)
     for ref in wake:
