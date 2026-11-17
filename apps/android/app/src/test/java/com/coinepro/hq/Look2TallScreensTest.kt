@@ -51,7 +51,7 @@ class Look2TallScreensTest(private val name: String, private val night: Boolean)
     companion object {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
             // The desk: what is ready, newest first; one full gold; a company whose path the technical team connects has no action.
-            "look2-desk" to Scene(listOf(DESK_FA, "هر خروجی آماده، یک جا", "آماده‌ی انتشار", "بهترین ساعت این حساب", "ریلز: مقاومت هفته", ROUTE_WAITS_FA, "تأیید و انتشار")) {
+            "look2-desk" to Scene(listOf("مرکز انتشار", "هر چه رفته یا میرود", "آماده‌ی انتشار", "بهترین ساعت این حساب", "ریلز: مقاومت هفته", ROUTE_WAITS_FA, "تأیید و انتشار")) {
                 com.coinepro.hq.ui.look.PublishDeskScreen()
             },
             // An output that opens with the thing itself: the reel, then its numbers, its text, its files, where each stands; the

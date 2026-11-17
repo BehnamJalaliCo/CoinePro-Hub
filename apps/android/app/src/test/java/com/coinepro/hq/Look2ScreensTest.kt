@@ -133,12 +133,13 @@ class Look2ScreensTest(private val name: String, private val night: Boolean) {
             // «کار زنده» of a turn: its ring, its line, every step.
             "look2-live-sheet" to Scene(listOf("کار زنده", "سازنده‌ی موشن‌گرافی", "قدم‌ها", "صحنه‌ی ۲ را رندر کرد")) { Live("F-0090") },
             // ------------------------------------------------------------------ C2.3 the publish desk
-            "look2-desk-top" to Scene(listOf(DESK_FA, "آماده‌ی انتشار", "تریدیار", "اینستاگرام", "@tradeyar", "تأیید و انتشار")) { PublishDeskScreen() },
+            "look2-desk-top" to Scene(listOf("مرکز انتشار", "میز", "آماده‌ی انتشار", "تریدیار", "اینستاگرام", "@tradeyar", "تأیید و انتشار")) { PublishDeskScreen() },
             "look2-desk-queue" to Scene(listOf("در صف", "در حال انتشار", "امشب", "21:30", "خودکار", "لغو", "منتشرشده"), then = Then.QUEUE) { PublishDeskScreen() },
-            "look2-desk-empty" to Scene(listOf(DESK_FA, DESK_EMPTY_FA), before = { LookDemo.desk = "empty" }) { PublishDeskScreen() },
+            "look2-desk-empty" to Scene(listOf("مرکز انتشار", DESK_EMPTY_FA), before = { LookDemo.desk = "empty" }) { PublishDeskScreen() },
             // A hub before §55: the page says so (its tab and the home's line are not there).
             "look2-desk-old-hub" to Scene(listOf("میز انتشار بعد از به‌روزرسانی ستاد می‌آید"), hides = listOf("آماده‌ی انتشار"), before = { LookDemo.desk = "old" }) { PublishDeskScreen() },
-            "look2-home-desk-line" to Scene(listOf("انتشار:", "آماده", "در صف")) { com.coinepro.hq.ui.office.OfficeScreen() },
+            // ⟨1.3.0⟩ on a hub with §60 / §61 the two lines are the cards «انتشار امروز» and «اتوماسیون‌ها» (D6)
+            "look2-home-desk-line" to Scene(listOf("انتشار امروز", "زمان‌بندی‌شده", "اتوماسیون‌ها")) { com.coinepro.hq.ui.office.OfficeScreen() },
             "look2-home-old-hub" to Scene(listOf("نوبت تو"), hides = listOf("انتشار:"), before = { LookDemo.desk = "old" }) { com.coinepro.hq.ui.office.OfficeScreen() },
             // ------------------------------------------------------------------ C3.3 output and «تأیید و انتشار»
             "look2-publish-sheet" to Scene(listOf(PUBLISH_SHEET_FA, PUBLISH_SHEET_SUB_FA, "reel-stoploss.mp4", "@tradeyar", "cover.png", "حد ضرر را کجا بگذاریم", "بهترین ساعت (", "انتشار", "همین حالا")) { Sheet("O-000967") },

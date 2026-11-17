@@ -207,16 +207,12 @@ fun FlowEditorBody(f: FlowDef, o: FlowOptions, draft: FlowDraft, setDraft: (Flow
                 FilterChip("تازه هر روز", draft.storyWordMode == "fresh", { setDraft(draft.copy(storyWordMode = "fresh")) })
                 FilterChip("همیشه یک کلمه", draft.storyWordMode == "fixed", { setDraft(draft.copy(storyWordMode = "fixed")) })
             }
-            if (draft.storyWordMode == "fixed") Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-                HqTextField(draft.storyWord, { setDraft(draft.copy(storyWord = it)) }, "مثل «لینک»", Modifier.fillMaxWidth(), maxLength = 40)
-            }
+            if (draft.storyWordMode == "fixed") HqTextField(draft.storyWord, { setDraft(draft.copy(storyWord = it)) }, "مثل «لینک»", Modifier.fillMaxWidth(), maxLength = 40)
             Text("«همیشه یک کلمه» برای پیجی که جوابش همیشه همان لینک است.", style = Divan.type.micro, color = c.textMuted)
             ErrorLine(errors["story_word"])
         }
         Section("یادداشت اضافه برای سازنده", note = "${faNum(draft.noteFa.length)} از ${faNum(o.noteMax)}", tag = "edit-note") {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-                HqTextField(draft.noteFa, { setDraft(draft.copy(noteFa = it)) }, "هر چه سازنده هر روز باید بداند", Modifier.fillMaxWidth(), singleLine = false, minLines = 3, maxLength = o.noteMax)
-            }
+            HqTextField(draft.noteFa, { setDraft(draft.copy(noteFa = it)) }, "هر چه سازنده هر روز باید بداند", Modifier.fillMaxWidth(), singleLine = false, minLines = 3, maxLength = o.noteMax)
             ErrorLine(errors["note_fa"])
         }
         HqCard(Modifier.fillMaxWidth()) {
@@ -275,9 +271,7 @@ private fun CycleEditor(d: FlowDraft, o: FlowOptions, setDraft: (FlowDraft) -> U
             IconBtn(DivanIcon.CLOSE, "برداشتن «$k»", { setDraft(d.copy(cycle = d.cycle.filterIndexed { j, _ -> j != i })) })
         }
         if (d.cycle.size < o.cycleMax) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-                HqTextField(adding, { adding = it }, "نوع تازه، مثل «خبر و بازار»", Modifier.fillMaxWidth(), maxLength = 40)
-            }
+            Box(Modifier.weight(1f)) { HqTextField(adding, { adding = it }, "نوع تازه، مثل «خبر و بازار»", Modifier.fillMaxWidth(), maxLength = 40) }
             HqButton("افزودن", { if (adding.isNotBlank()) { setDraft(d.copy(cycle = d.cycle + adding.trim())); adding = "" } }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, enabled = adding.isNotBlank())
         }
     }
@@ -301,9 +295,7 @@ private fun HourSheet(cur: String?, removable: Boolean, onDismiss: () -> Unit, o
         }
         Text("دقیقه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { for (i in listOf(0, 15, 30, 45)) FilterChip(faText("%02d".format(i)), m == i && typed.isBlank(), { m = i; typed = "" }) }
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-            HqTextField(typed, { typed = it }, "یا بنویس، مثل 18:20", Modifier.fillMaxWidth(), maxLength = 5, figure = true)
-        }
+        HqTextField(typed, { typed = it }, "یا بنویس، مثل 18:20", Modifier.fillMaxWidth(), maxLength = 5, figure = true)
         if (removable) HqButton("این استوری برداشته شود", onRemove, variant = BtnVariant.DANGER, size = BtnSize.SM)
     }
 }
@@ -364,9 +356,7 @@ internal fun DiffBody(f: FlowDef, changes: List<com.coinepro.hq.core.net.FlowCha
             }
             if (f.next != null) Text(plain("از کی: از دقیقه‌ی بعد؛ نوبت بعدی با همین تنظیم‌ها ساخته و منتشر میشود."), style = Divan.type.small)
             Text("کار دیگری لازم نیست: ساعت هاب از دقیقه‌ی بعد همین را میخواند.", style = Divan.type.small, color = c.textSecondary)
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-                HqTextField(note, onNote, "یادداشت این تغییر (اختیاری)", Modifier.fillMaxWidth(), maxLength = 200)
-            }
+            HqTextField(note, onNote, "یادداشت این تغییر (اختیاری)", Modifier.fillMaxWidth(), maxLength = 200)
             Text("نسخه‌ی ${faNum(f.version)} میماند؛ هر وقت خواستی با یک لمس به آن برمیگردی.", style = Divan.type.micro, color = c.textMuted)
         }
 }

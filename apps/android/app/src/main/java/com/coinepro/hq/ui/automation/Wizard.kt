@@ -169,9 +169,7 @@ fun NewFlowScreen(account0: String? = null, step0: Int = 0, kit0: String? = null
                         }
                         Text("به Claude هاب بگو چه میخواهی؛ نمونه‌اش را در جلسه میبینی و تأیید میکنی، بعد همین‌جا قالب میشود.", style = Divan.type.micro, color = c.textSecondary)
                         if (asking) {
-                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-                                HqTextField(askNote, { askNote = it }, "مثلاً ریلز ۳۰ ثانیه‌ای خبر بازار با نمودار روز", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 1000)
-                            }
+                            HqTextField(askNote, { askNote = it }, "مثلاً ریلز ۳۰ ثانیه‌ای خبر بازار با نمودار روز", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 1000)
                             HqButton("بفرست برای Claude هاب", {
                                 act.run {
                                     val out = env.api.requestKit(account!!, askNote.trim(), UUID.randomUUID().toString())
@@ -273,9 +271,7 @@ private fun WizardHour(label: String, value: String, onChange: (String) -> Unit)
     var text by remember(value) { mutableStateOf(faText(value)) }
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = Divan.type.small, modifier = Modifier.weight(1f))
-        Box(Modifier.clip(RoundedCornerShape(12.dp)).background(c.softGold).border(1.dp, c.goldFill, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp)) {
-            HqTextField(text, { t -> text = t; clockOf(t)?.let(onChange) }, "18:00", Modifier.width(72.dp), maxLength = 5, figure = true)
-        }
+        HqTextField(text, { t -> text = t; clockOf(t)?.let(onChange) }, "18:00", Modifier.width(96.dp), maxLength = 5, figure = true)
     }
 }
 
@@ -286,9 +282,7 @@ private fun Preview(kit: FlowKit, account: String, hour: String, trigger: String
     val tomorrow = HqClock.now().atZone(ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)).toLocalDate().plusDays(1)
     HqCard(Modifier.fillMaxWidth().testTag("wizard-preview")) {
         Text("۵ · پیش‌نمایش", style = Divan.type.micro, color = c.textMuted)
-        Box(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-            HqTextField(title, onTitle, "نام اتوماسیون", Modifier.fillMaxWidth(), maxLength = 80)
-        }
+        Box(Modifier.padding(top = 8.dp)) { HqTextField(title, onTitle, "نام اتوماسیون", Modifier.fillMaxWidth(), maxLength = 80) }
         if (g != null && g.nodes.isNotEmpty()) FlowCanvas(g, emptyMap(), Modifier.fillMaxWidth().height(220.dp).padding(top = 8.dp), onNode = {})
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             PreviewLine("اولین ساخت", "${if (sameDay) jDayFa(tomorrow) else jDayFa(tomorrow.minusDays(0))} · ${faText(trigger)}")

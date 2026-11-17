@@ -502,9 +502,7 @@ fun PublishSearchScreen() {
     Page {
         item(key = "head") { PageHeader("جستجو در انتشارها", eyebrow = "همه‌ی پیج‌ها و همه‌ی تاریخ‌ها") }
         item(key = "field") {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.tile).border(1.dp, c.goldFill.copy(alpha = 0.5f), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 12.dp)) {
-                HqTextField(text, { text = it }, "موضوع، کپشن، کلمه یا عنوان", Modifier.fillMaxWidth().testTag("pub-search"))
-            }
+            HqTextField(text, { text = it }, "موضوع، کپشن، کلمه یا عنوان", Modifier.fillMaxWidth().testTag("pub-search"))
         }
         item(key = "scope") {
             ScrollRow(spacing = 8.dp) {
