@@ -42,7 +42,7 @@ def recipes_dir() -> Path:
 def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
     got = RC.load(recipes_dir())
     assert sorted(got) == [
-        "aistudio-web", "chatgpt-web", "deepseek-web", "gemini-web", "pinterest-web",
+        "aistudio-web", "chatgpt-web", "deepseek-web", "gemini-web", "pinterest-web", "youtube-web",
     ]  # fmt: skip
     for key, r in got.items():
         assert r.key == key and r.site in r.hosts
@@ -51,7 +51,7 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
                 assert st.do != "screenshot"  # no step can take a picture of the page
                 if st.do == "fill":
                     # ⟨2026-11-13⟩ AI Studio's voice library is searched by the job's voice
-                    assert st.text in ("{prompt}", "{style}", "{voice}")
+                    assert st.text in ("{prompt}", "{style}", "{voice}", "{description}")
     assert set(got["chatgpt-web"].tasks) == {"text", "image", "cover", "slides"}
     assert set(got["gemini-web"].tasks) == {"text", "image", "video"}
     assert set(got["deepseek-web"].tasks) == {"text"}
@@ -285,6 +285,54 @@ async def test_files_never_go_to_a_task_that_cannot_attach_them(web: Any) -> Non
     r = (await c.post("/v1/substitutes/web", json=body)).json()
     assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
     assert fake.sent == []  # the job never ran without its files
+
+
+def test_the_youtube_recipe_reads_or_uploads_one_public_short() -> None:
+    """⟨2026-11-17⟩ YouTube Studio: two reads, and one upload that types only the job's title and
+    description, attaches its video, marks it not made for kids and makes it Public."""
+    yt = RC.load(recipes_dir())["youtube-web"]
+    assert set(yt.tasks) == {"channel", "titles", "upload"}
+    for name in ("channel", "titles"):
+        assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read", "click"}
+    up = yt.tasks["upload"].steps
+    assert [s.text for s in up if s.do == "fill"] == ["{prompt}", "{description}"]
+    assert sum(s.do == "attach" for s in up) == 1
+    sels = " ".join(str(s.selector) for s in up if s.do == "click")
+    assert "VIDEO_MADE_FOR_KIDS_NOT_MFK" in sels and "PUBLIC" in sels and "PRIVATE" not in sels
+    assert up[-1].do == "read"
+
+
+async def test_an_upload_carries_its_description_and_its_own_file_cap(
+    web: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dataclasses
+
+    import yaml
+
+    c, fake, state = web
+    steps = [{"do": "goto", "url": "{start_url}"}, {"do": "attach", "selector": "input"},
+             {"do": "fill", "selector": "#d", "text": "{description}"},
+             {"do": "read", "selector": "a"}]  # fmt: skip
+    rec = _recipe(key="youtube-web", tasks={"upload": {"timeout_s": 600, "steps": steps}})
+    (Path(state.settings.recipes_dir) / "youtube-web.yaml").write_text(yaml.safe_dump(rec))
+    video = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64
+    body = {"account": "youtube-web", "task": "upload", "prompt": "عنوان #Shorts",
+            "description": "خط اول\nمقاله: https://dotcoin.me/learn/blockchain/",
+            "files": [{"name": "short.mp4", "b64": base64.b64encode(video).decode()}]}  # fmt: skip
+    r = (await c.post("/v1/substitutes/web", json=body)).json()
+    assert r["ok"] is True
+    sent = fake.sent[-1]
+    assert sent["description"] == body["description"] and sent["prompt"] == body["prompt"]
+    assert sent["max_file_bytes"] == RC.TASK_FILE_BYTES["upload"] > state.settings.web_file_bytes
+    # over the upload's own cap: refused before the browser
+    state.settings = dataclasses.replace(state.settings, web_file_bytes=1)
+    monkeypatch.setitem(RC.TASK_FILE_BYTES, "upload", 10)
+    n = len(fake.sent)
+    big = base64.b64encode(b"\x00" * 30).decode()
+    r = (await c.post("/v1/substitutes/web", json={**body, "files": [
+        {"name": "short.mp4", "b64": big}]})).json()  # fmt: skip
+    assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
+    assert len(fake.sent) == n
 
 
 async def test_a_long_question_is_taken_up_to_the_hubs_own_cap(web: Any) -> None:

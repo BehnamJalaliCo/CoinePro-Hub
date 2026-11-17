@@ -52,7 +52,14 @@ from hq_egress import browser as B
 from hq_egress.hosts import covered
 
 log = logging.getLogger("hq_egress.browser_web")
-ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web")
+ACCOUNTS = (
+    "chatgpt-web",
+    "gemini-web",
+    "deepseek-web",
+    "aistudio-web",
+    "pinterest-web",
+    "youtube-web",
+)
 SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
 # 2026-10-29 (the owner): jobs in a real window on the image's Xvfb, as the
 # owner's sign-in window, not the headless shell the sites' bot check turns
@@ -60,6 +67,8 @@ SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
 HEADED = os.environ.get("BROWSER_WEB_HEADED", "0") == "1"
 XVFB_DISPLAY = ":99"
 PROFILES = Path(os.environ.get("BROWSER_WEB_PROFILES", "/profiles"))
+# ⟨2026-11-17⟩ a job's large attached file (an upload's video) while the page sends it
+SPOOL = PROFILES / ".spool"
 LOGIN_S = 15 * 60
 STEP_S = 30.0
 # ⟨1.10.1⟩ a player's answer is read whole; this only stops a page gone wrong,
@@ -73,8 +82,12 @@ LOGIN_PAGES = {
     # prompt 22: AI Studio (the owner's Google account; speech) and Pinterest (read only)
     "aistudio-web": "https://aistudio.google.com/",
     "pinterest-web": "https://www.pinterest.com/",
+    # ⟨2026-11-17⟩ YouTube Studio (the owner's Google account: DotCoin.me's Shorts)
+    "youtube-web": "https://studio.youtube.com/",
 }
-Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
+Account = Literal[
+    "chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web", "youtube-web"
+]
 B64_JS = """async (u) => {
   const r = await fetch(u);
   const b = new Uint8Array(await r.arrayBuffer());
@@ -122,6 +135,8 @@ class JobIn(BaseModel):
     style: str | None = None
     limit: int = Field(default=10, ge=1, le=30)
     files: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+    # ⟨2026-11-17⟩ an upload's description (YouTube; the title is the prompt)
+    description: str | None = Field(default=None, max_length=5000)
 
 
 class RunIn(B.RunIn):
@@ -250,6 +265,7 @@ class Webd:
         finally:
             with contextlib.suppress(Error):
                 await ctx.close()
+            shutil.rmtree(spool_dir(j.account), ignore_errors=True)
 
     # -------------------------------------------------- a web.browse call --
     async def run(self, a: RunIn) -> dict[str, Any]:
@@ -452,7 +468,11 @@ async def _recipe_step(
         if await page.locator(str(st.get("unless"))).count() == 0:
             await page.locator(sel).first.click(timeout=ms)
     elif do == "fill":
-        given = {"{style}": j.style or "", "{voice}": j.voice or ""}
+        given = {
+            "{style}": j.style or "",
+            "{voice}": j.voice or "",
+            "{description}": j.description or "",
+        }
         value = given.get(str(st.get("text")), j.prompt)
         await page.locator(sel).first.fill(value, timeout=ms)
     elif do == "select":
@@ -512,19 +532,28 @@ async def _select(page: Page, sel: str, option: str | None, ms: float) -> None:
 
 
 ATTACH_GAP_MS = 2500  # between two files put one by one: the site takes each in
+# ⟨2026-11-17⟩ a file over this (a Short's video) goes in from a file of its own on the profiles'
+# volume, not from memory: Playwright refuses a buffer over 50 MB and would spool it to /tmp,
+# which is a small tmpfs here
+SPOOL_BYTES = 16 * 1024 * 1024
 
 
 async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
     """The job's files into a file input (decoded here; none outside the job)."""
     if not j.files:
         raise StepFailed("attach", "the job carries no files")
-    payload = []
+    payload: list[dict[str, Any]] = []
     for f in j.files[:10]:
         data = base64.b64decode(str(f.get("b64") or ""), validate=True)
         if len(data) > j.max_file_bytes:
             raise StepFailed("attach", "a file is over its cap")
         name = Path(str(f.get("name") or "file")).name[:120] or "file"
         payload.append({"name": name, "mimeType": _mime_of(name), "buffer": data})
+    if len(payload) == 1 and len(payload[0]["buffer"]) > SPOOL_BYTES:
+        # (the page reads the file while it uploads, after this step: the job's end removes it)
+        path = await asyncio.to_thread(_spool, j.account, payload[0]["name"], payload[0]["buffer"])
+        await page.locator(sel).first.set_input_files(path, timeout=ms)
+        return
     if len(payload) == 1:
         await page.locator(sel).first.set_input_files(payload, timeout=ms)
         return
@@ -539,6 +568,20 @@ async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
     for one in payload:
         await page.locator(sel).first.set_input_files([one], timeout=ms)
         await page.wait_for_timeout(ATTACH_GAP_MS)
+
+
+def spool_dir(account: str) -> Path:
+    """⟨2026-11-17⟩ Where a job's large file waits while the page uploads it: the profiles'
+    volume (one job per account at a time; the job's end removes it)."""
+    return SPOOL / account
+
+
+def _spool(account: str, name: str, data: bytes) -> str:
+    d = spool_dir(account)
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = d / name
+    path.write_bytes(data)
+    return str(path)
 
 
 def _mime_of(name: str) -> str:

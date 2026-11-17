@@ -39,7 +39,7 @@ from hq_common.redact import scrub
 from hq_egress.guard import Blocked
 from hq_egress.hosts import covered
 from hq_egress.net import Entry, track
-from hq_egress.recipes import MAX_IMAGES, Account, TaskName
+from hq_egress.recipes import MAX_IMAGES, TASK_FILE_BYTES, Account, TaskName
 from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")
@@ -77,6 +77,9 @@ class WebIn(BaseModel):
     style: str | None = Field(default=None, max_length=2000)
     limit: int = Field(default=10, ge=1, le=30)
     files: list[JobFile] = Field(default_factory=list, max_length=MAX_JOB_FILES)
+    # ⟨2026-11-17⟩ an upload's description (YouTube: at most 5,000 characters; the title is the
+    # prompt)
+    description: str | None = Field(default=None, max_length=5000)
     timeout_s: int = Field(default=300, ge=10, le=1800)  # (⟨2026-11-17⟩ slides: up to 25 min)
     # ⟨1.10⟩ §28.4 the hub's one retry after a recipe failure
     reload: bool = False
@@ -141,6 +144,10 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             step="attach",
             version=version,
         )
+    # ⟨2026-11-17⟩ an upload's video may be over the usual cap (its own, TASK_FILE_BYTES)
+    file_cap = max(s.web_file_bytes, TASK_FILE_BYTES.get(a.task, 0))
+    if any(len(f.b64) * 3 // 4 > file_cap for f in a.files):
+        return failed("unsupported", "a file is over its cap", step="attach", version=version)
     lock = state.web_locks[a.account]
     if lock.locked():
         return failed("busy", "one job per account at a time", version=version)
@@ -151,7 +158,10 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             "substitute.web",
             "A2",
             # the pages and the file (⟨2026-11-17⟩ a set of slides: each of its pictures)
-            s.web_file_bytes * (MAX_IMAGES if a.task == "slides" else 1) + 64 * 1024 * 1024,
+            # (an upload: the video going out, and Studio's own heavy pages)
+            file_cap * (MAX_IMAGES if a.task == "slides" else 1)
+            + 64 * 1024 * 1024
+            + (64 * 1024 * 1024 if a.task == "upload" else 0),
             site=recipe.site,
             hosts=recipe.own_hosts(),
             ttl_s=timeout + 120,
@@ -163,12 +173,13 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             "prompt": scrub(a.prompt),
             "timeout_s": timeout,
             "proxy": {"server": s.web_proxy_url, "username": key, "password": password},
-            "max_file_bytes": s.web_file_bytes,
+            "max_file_bytes": file_cap,
             "reload": a.reload,
             "voice": a.voice,
             "style": scrub(a.style) if a.style else None,
             "limit": a.limit,
             "files": [f.model_dump() for f in a.files],
+            "description": scrub(a.description) if a.description else None,
         }
         start = time.monotonic()
         try:
