@@ -1,0 +1,16 @@
+[Unit]
+Description=DotCoin.me: each long video the flow dotcoin_long made, once, Public on @DotCoin-me after its audio and article checks, its article on the site, then its tags and subtitles (browser profile youtube-web)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+WorkingDirectory=/home/Hub/sites/dotcoin-content
+ExecStart=/usr/bin/python3 -I /home/Hub/sites/dotcoin-content/automations/sites/dotcoin/youtube_long.py --due
+TimeoutStartSec=5400
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

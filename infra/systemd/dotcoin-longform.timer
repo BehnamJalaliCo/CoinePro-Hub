@@ -1,0 +1,11 @@
+[Unit]
+Description=DotCoin.me: publish the long YouTube video of the flow dotcoin_long at its hour, every 10 minutes
+
+[Timer]
+OnBootSec=9min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Unit=dotcoin-longform.service
+
+[Install]
+WantedBy=timers.target
