@@ -31,6 +31,12 @@ it; copy what you change into your own folder).
   (edit.json), the video is built ONCE as the final output.
 - Voice: `speech.make` with voice "Cruz" only, NO style, NO narrator.set. Casual Persian with «تو».
   Fixed slogan at the end: KIT/qc/slogan.ogg («اول نمودار، بعد تصمیم — پرو چارت»).
+- **Voice seams (the owner, 2026-11-17: «تق» or a short choke at the end of a paragraph ruins the
+  reel):** `tools/audio_qc.py` on qc/voice_final.wav must report **0 clicks, 0 cuts and 0 bursts**
+  (exit code 0), or the voice is rebuilt (a new `speech.make`). **Never splice clips or trim pauses
+  by hand** (no ffmpeg/sox/numpy cuts of your own, no tighten scripts): the only joins and trims are
+  the hub's (`speech.make` reads a long script in parts and joins them cleanly), `tools/voice_seams.py`
+  and `tools/assemble_voice.py`.
 - Caption: SEO text, at most 5 hashtags. Comment and DM texts: no hashtags.
 - The comment link: https://pro-chart.com/next/?utm_source=instagram&utm_medium=dm&utm_campaign=reelNNN_<slug>
   (always /next/: the root drops the utm).
@@ -54,11 +60,17 @@ it; copy what you change into your own folder).
    Fix the script yourself (facts about Pro-Chart from KIT/examples and the anchor; no promise of
    profit; no warning or disclaimer line — the owner, 2026-11-15: «از این نوع کلمات نذار؛ ما داریم
    تبلیغات میکنیم»). Keep it in `script/voice.txt`; the video must SAY the keyword.
-3. **Voice:** `speech.make` (voice Cruz, the script). The file lands in `in/`. Then:
+3. **Voice:** `speech.make` (voice Cruz, the WHOLE script in one call). The file lands in `in/`; call it
+   `<voice>`. Only if the pace needs it, shorten long pauses with the kit's tool (it cuts only inside
+   near-silence, with fades) and use its output as `<voice>` from here on:
+   `build/asr/venv/bin/python -I tools/voice_seams.py pauses <voice> qc/voice_raw.wav 0.45`. Then:
    `build/asr/venv/bin/python -I tools/asr_words.py build/asr/models <voice> qc/asr.txt qc/asr.json`
-   `python3 -I tools/qc_compare.py script/voice.txt qc/asr.txt qc/qc.json` — a wrong word: remake ONLY
-   that sentence. Then `tools/assemble_voice.py <voice> qc/asr.json KIT/qc/slogan.ogg qc/voice_final.wav`
-   (it also removes the click at the start and the hiss at the end) and `python3 -I tools/audio_qc.py qc/voice_final.wav`.
+   `python3 -I tools/qc_compare.py script/voice.txt qc/asr.txt qc/qc.json` — a wrong word: `speech.make`
+   the WHOLE script again with that word spelled as it is said (never splice a sentence in). Then
+   `build/asr/venv/bin/python -I tools/assemble_voice.py <voice> qc/asr.json KIT/qc/slogan.ogg qc/voice_final.wav`
+   (it also mutes any click or noise burst left at an edge or a joint) and
+   `build/asr/venv/bin/python -I tools/audio_qc.py qc/voice_final.wav qc/audio_qc.json`: **0 clicks, 0 cuts,
+   0 bursts** (it exits 1 and names each with its time otherwise: rebuild the voice, never patch it).
 4. **Word times:** `build/asr/venv/bin/python -I tools/word_times.py script/voice.txt qc/asr.json qc/voice_final.wav direction/word_times.json`
 5. **Direction and edit (on paper):** rewrite the BEATS of `direction/edit.py` for today's script (the
    day-1 file is the model: KIT/examples/day1/day1_edit.json), then
@@ -95,7 +107,8 @@ it; copy what you change into your own folder).
 
 ## Where things are
 - motion/engine6.py (render), engine5_template.html (motion graphics), toon.js (the character), audio4.py (music + mix)
-- tools/: asr_words, qc_compare, word_probe, word_times, assemble_voice, audio_qc, cover2, pin_* (Pinterest)
+- tools/: asr_words, qc_compare, word_probe, word_times, assemble_voice, audio_qc, voice_seams (the only way
+  to join clips, clean a clip or shorten pauses), cover2, pin_* (Pinterest)
 - examples/day1/: the first reel's script, edit, word times, T, caption, comment, topic, cover, frames sheet, NOTES
 - bank/: 730 topics (bank.json: two a day for a year, built by build_bank.py from data_app.py,
   data_general.py and data_year2.py, grounded in site_features.md) and check_dupes.py

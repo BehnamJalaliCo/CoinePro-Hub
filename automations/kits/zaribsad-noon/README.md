@@ -55,7 +55,7 @@ start (the steps below); mark each done with `order.progress`.
 
 ## The day, step by step
 0. **Setup:** `mkdir -p script qc direction build out in assets motion tools`
-   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,word_probe}.py tools/`
+   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/`
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`
 1. **Topic** (by today's kind, above) → `out/topic.txt`.
 2. **Script with ChatGPT:** ONE `substitute.call` (player gpt) with the topic, its facts and the
@@ -63,10 +63,13 @@ start (the steps below); mark each done with `order.progress`.
    new word); the caption (exactly 3 hashtags); the DM reply (≤600 chars, warm, emoji, numbered
    steps); 10 short public replies, all different. While it is queued: the contract (step 5) and
    the asset briefs. Then fix every fact and the Persian yourself → `script/voice.txt`.
-3. **Voice:** `speech.make` (Cruz). QC chain: `tools/asr_words.py` → `tools/qc_compare.py` (a wrong
-   word: remake ONLY that sentence) → `tools/assemble_voice.py` → `tools/audio_qc.py`
-   → `qc/voice_final.wav`; word times → `direction/word_times.json` (same commands as the
-   Pro-Chart kit's step 3–4; no slogan).
+3. **Voice:** `speech.make` (Cruz), the WHOLE script in one call. QC chain: (pauses only with
+   `tools/voice_seams.py pauses`) → `tools/asr_words.py` → `tools/qc_compare.py` (a wrong word:
+   `speech.make` the WHOLE script again; never splice a sentence in) →
+   `tools/assemble_voice.py <voice> qc/asr.json - qc/voice_final.wav` (no slogan: `-`) →
+   `tools/audio_qc.py qc/voice_final.wav`: **0 clicks, 0 cuts, 0 bursts** or the voice is rebuilt
+   (never splice clips or trim pauses by hand; owner, 2026-11-17); word times →
+   `direction/word_times.json` (same commands as the Pro-Chart kit's step 3–4).
 4. **Inspiration, then key art:** DIRECTION §1.1 (Pinterest + top reels → direction/inspo/), then
    ≥ 6 images (DIRECTION §2), gpt photoreal / 3D render; check each by looking; cut-outs; upscale.
 5. **Direction:** `direction/CONTRACT.md` — the track and why, the look of the day (DIRECTION §5),
