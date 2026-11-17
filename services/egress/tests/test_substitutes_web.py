@@ -51,7 +51,8 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
                 assert st.do != "screenshot"  # no step can take a picture of the page
                 if st.do == "fill":
                     # ⟨2026-11-13⟩ AI Studio's voice library is searched by the job's voice
-                    assert st.text in ("{prompt}", "{style}", "{voice}", "{description}")
+                    # (⟨2026-11-17⟩ a long video's tags)
+                    assert st.text in ("{prompt}", "{style}", "{voice}", "{description}", "{tags}")
     assert set(got["chatgpt-web"].tasks) == {"text", "image", "cover", "slides"}
     assert set(got["gemini-web"].tasks) == {"text", "image", "video"}
     assert set(got["deepseek-web"].tasks) == {"text"}
@@ -293,7 +294,9 @@ def test_the_youtube_recipe_reads_or_uploads_one_public_short() -> None:
     """⟨2026-11-17⟩ YouTube Studio: two reads, and one upload that types only the job's title and
     description, attaches its video, marks it not made for kids and makes it Public."""
     yt = RC.load(recipes_dir())["youtube-web"]
-    assert set(yt.tasks) == {"channel", "titles", "upload", "public"}
+    assert set(yt.tasks) == {
+        "channel", "titles", "upload", "public", "upload_long", "features", "videos",
+    }  # fmt: skip
     for name in ("channel", "titles"):
         assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read", "click"}
     up = yt.tasks["upload"].steps
@@ -347,6 +350,37 @@ async def test_an_upload_carries_its_description_and_its_own_file_cap(
         {"name": "short.mp4", "b64": big}]})).json()  # fmt: skip
     assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
     assert len(fake.sent) == n
+
+
+def test_the_youtube_recipe_uploads_a_long_video_from_the_spool() -> None:
+    """⟨2026-11-17⟩ A long video: its file 0 into the upload dialog, its thumbnail (file 1, optional:
+    a channel without custom thumbnails still uploads) into the details step, the job's title,
+    description and tags only, not made for kids, the job's visibility (never Private), the whole
+    file sent before the dialog closes, and its link read. `features` and `videos` only read; the
+    duplicate check never falls back to the page's body."""
+    yt = RC.load(recipes_dir())["youtube-web"]
+    long = yt.tasks["upload_long"]
+    assert (
+        long.timeout_s <= RC.TASK_CAP_S["upload_long"]
+        and RC.TASK_FILE_BYTES["upload_long"] >= 1 << 30
+    )
+    steps = long.steps
+    attach = [s for s in steps if s.do == "attach"]
+    assert [(s.file, s.optional) for s in attach] == [(0, False), (1, True)]
+    assert [s.text for s in steps if s.do == "fill"] == ["{prompt}", "{description}", "{tags}"]
+    assert next(s for s in steps if s.text == "{tags}").typed
+    sels = " ".join(str(s.selector) for s in steps if s.do in ("click", "wait"))
+    assert "VIDEO_MADE_FOR_KIDS_NOT_MFK" in sels and "{visibility}" in sels
+    assert "PRIVATE" not in sels and "PUBLIC" not in sels  # the job's own visibility only
+    i_sent = next(i for i, s in enumerate(steps) if s.do == "wait_sent")
+    i_done = next(i for i, s in enumerate(steps) if "#done-button" in str(s.selector))
+    assert i_sent < i_done and not steps[i_sent].optional
+    assert str(steps[i_sent].url).startswith("https://upload.youtube.com")
+    assert any(s.do == "read" and s.note == "thumbnail" for s in steps)
+    assert steps[-1].do == "read"
+    for name in ("features", "videos"):
+        assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read"}
+    assert all(not s.alt for s in yt.tasks["videos"].steps if s.do == "read")
 
 
 @pytest.mark.parametrize(
