@@ -45,7 +45,8 @@ python3 -I "$SITE/build.py"
 # 3. OG cards, shot by the studio's Chromium (the studio user cannot read the Hub home: copy in, copy out).
 as_studio mkdir -p "$STUDIO_TMP"
 as_studio find "$STUDIO_TMP" -mindepth 1 -delete
-tar -C "$SITE" -cf - dist tools/render.py | as_studio tar -C "$STUDIO_TMP" -xf -
+# (the reels in dist/media stay out: the cards do not need them)
+tar -C "$SITE" --exclude=dist/media -cf - dist tools/render.py | as_studio tar -C "$STUDIO_TMP" -xf -
 as_studio env PLAYWRIGHT_BROWSERS_PATH="$PW_PATH" "$RENDER_PY" -I "$STUDIO_TMP/tools/render.py" og "$STUDIO_TMP/dist" \
   2>&1 | grep -v '[║╔╚]' || true
 rm -rf "$SITE/dist/_og" "$SITE/dist/og"

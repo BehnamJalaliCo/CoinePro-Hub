@@ -2,7 +2,8 @@
 
 ## Articles: `content/articles/<slug>.md` (by hand) and `content/auto/<slug>.md` (the hub's, sync.py)
 
-A slug is unique across both folders (the build stops on a duplicate).
+A slug is unique across both folders (the build stops on a duplicate). Optional fields: `youtube:`
+(a YouTube id or link: a player under the reel) and, for the hub's articles, pillar `news`.
 
 ```
 ---

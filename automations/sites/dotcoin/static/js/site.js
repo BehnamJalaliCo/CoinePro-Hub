@@ -285,3 +285,7 @@
     nextMine = performance.now() + 1400;
   }
 })();
+/* the lesson's reel: muted until the reader starts it, then with sound */
+document.querySelectorAll("video[data-unmute]").forEach(function (v) {
+  v.addEventListener("play", function () { v.muted = false; }, { once: true });
+});

@@ -1,5 +1,5 @@
 [Unit]
-Description=DotCoin.me: the hub's daily lessons to the live site (content/auto, commit, push, deploy)
+Description=DotCoin.me: the hub's daily reels to their articles on the site (content/auto, video, commit, push, deploy)
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
