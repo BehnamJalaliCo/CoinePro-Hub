@@ -127,7 +127,9 @@ def test_a_job_gets_only_its_tasks_steps() -> None:
     r = RC.Recipe.model_validate(_recipe())
     job = r.for_job("text")
     assert job["hosts"] == ["chat.test"] and job["task"] == "text"
-    assert job["steps"][0] == {"do": "goto", "url": "{start_url}", "optional": False}
+    assert job["steps"][0] == {
+        "do": "goto", "url": "{start_url}", "optional": False, "links": False, "typed": False,
+    }  # fmt: skip
 
 
 # ------------------------------------------------------- the web endpoint --
@@ -345,6 +347,105 @@ async def test_an_upload_carries_its_description_and_its_own_file_cap(
         {"name": "short.mp4", "b64": big}]})).json()  # fmt: skip
     assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
     assert len(fake.sent) == n
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"do": "click", "selector": "x", "file": 1},  # file: attach only
+        {"do": "attach", "selector": "x", "file": 10},
+        {"do": "click", "selector": "x", "note": "n"},  # note: read and wait_sent only
+        {"do": "read", "selector": "x", "note": "Bad Name"},
+        {"do": "read", "selector": "x", "typed": True},  # typed: fill only
+        {"do": "wait_sent"},  # needs a url
+        {"do": "wait_sent", "url": "http://upload.test/"},
+    ],
+)
+def test_the_long_upload_steps_keep_their_rules(step: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        RC.RStep.model_validate(step)
+
+
+def test_wait_sent_names_one_of_the_sites_own_hosts() -> None:
+    def steps(url: str) -> dict[str, Any]:
+        return {"tasks": {"upload_long": {"timeout_s": 60, "steps": [
+            {"do": "goto", "url": "{start_url}"}, {"do": "wait_sent", "url": url},
+            {"do": "read", "selector": "a"}]}}}  # fmt: skip
+
+    assert RC.Recipe.model_validate(_recipe(**steps("https://up.chat.test/x")))
+    with pytest.raises(ValidationError):
+        RC.Recipe.model_validate(_recipe(**steps("https://elsewhere.test/")))
+
+
+async def test_a_long_upload_names_its_spooled_files_and_its_tags(
+    web: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨2026-11-17⟩ A long video never travels in the body: the job names files already in the
+    profile browser's spool (plain names only), its cap is the task's own, its bucket carries each
+    file, and its answer's notes, skipped steps and (failed) partial text come back masked."""
+    import yaml
+
+    c, fake, state = web
+    steps = [{"do": "goto", "url": "{start_url}"},
+             {"do": "attach", "selector": "input", "file": 0},
+             {"do": "attach", "selector": "#thumb", "file": 1, "optional": True},
+             {"do": "fill", "selector": "#t", "text": "{tags}", "typed": True},
+             {"do": "read", "selector": "a"}]  # fmt: skip
+    rec = _recipe(key="youtube-web", tasks={
+        "upload_long": {"timeout_s": 1500, "steps": steps},
+        "titles": {"timeout_s": 60, "steps": [{"do": "goto", "url": "{start_url}"},
+                                              {"do": "read", "selector": "p"}]}})  # fmt: skip
+    (Path(state.settings.recipes_dir) / "youtube-web.yaml").write_text(yaml.safe_dump(rec))
+    opened: list[int] = []
+    real_open = state.buckets.open
+
+    def spy(tool: str, cls: str, left: int, *args: Any, **kw: Any) -> tuple[str, str]:
+        opened.append(left)
+        return real_open(tool, cls, left, *args, **kw)
+
+    monkeypatch.setattr(state.buckets, "open", spy)
+    fake.answer = {"ok": True, "text_md": "https://youtu.be/abcDEF12_-x", "file": None,
+                   "notes": {"thumbnail": f"Uploaded {KEY}", "sent": "sent: 9 requests",
+                             "Bad Key": "x"},
+                   "skipped": ["7:attach"]}  # fmt: skip
+    body = {"account": "youtube-web", "task": "upload_long", "prompt": "عنوان", "timeout_s": 1500,
+            "description": "00:00 شروع", "tags": "بیت‌کوین, بلاکچین,", "visibility": "unlisted",
+            "spooled": ["intro-lesson.mp4", "intro-lesson-thumb.jpg"]}  # fmt: skip
+    r = (await c.post("/v1/substitutes/web", json=body)).json()
+    assert r["ok"] is True and r["text_md"] == "https://youtu.be/abcDEF12_-x"
+    assert r["notes"]["sent"] == "sent: 9 requests" and KEY not in r["notes"]["thumbnail"]
+    assert "Bad Key" not in r["notes"] and r["skipped"] == ["7:attach"]
+    sent = fake.sent[-1]
+    assert sent["spooled"] == body["spooled"] and sent["tags"] == body["tags"]
+    assert sent["files"] == [] and sent["timeout_s"] == 1500
+    assert sent["max_file_bytes"] == RC.TASK_FILE_BYTES["upload_long"]
+    assert opened[-1] >= 2 * RC.TASK_FILE_BYTES["upload_long"]  # each spooled file, at most its cap
+    # a job without spooled files or tags sends neither (an older profile browser refuses them)
+    await c.post("/v1/substitutes/web", json={"account": "youtube-web", "task": "titles",
+                                              "prompt": "read"})  # fmt: skip
+    assert "spooled" not in fake.sent[-1] and "tags" not in fake.sent[-1]
+    # a name is a plain name of the spool, never a path
+    for bad in ("../x.mp4", "a/b.mp4", ".hidden", "", "x" * 121, "/etc/passwd"):
+        got = await c.post("/v1/substitutes/web", json={**body, "spooled": [bad]})
+        assert got.status_code == 422, bad
+    too_many = await c.post("/v1/substitutes/web", json={**body, "spooled": ["v.mp4"] * 11})
+    assert too_many.status_code == 422
+    files = [{"name": "a.png", "b64": base64.b64encode(PNG).decode()}] * 5
+    n = len(fake.sent)
+    r = (await c.post("/v1/substitutes/web", json={**body, "files": files,
+                                                   "spooled": ["v.mp4"] * 6})).json()  # fmt: skip
+    assert (r["ok"], r["error"]) == (False, "unsupported") and len(fake.sent) == n
+    # a task that cannot attach never gets spooled files
+    r = (await c.post("/v1/substitutes/web", json={"account": "youtube-web", "task": "titles",
+                                                   "prompt": "x", "spooled": ["v.mp4"]})).json()  # fmt: skip
+    assert (r["ok"], r["error"]) == (False, "unsupported") and len(fake.sent) == n
+    # a failed upload says how far it got: the link it had read, masked
+    fake.answer = {"ok": False, "error": "recipe_failed", "detail": "no done button",
+                   "step": "31:click", "partial": f"https://youtu.be/abcDEF12_-x {KEY}",
+                   "skipped": ["9:read"]}  # fmt: skip
+    r = (await c.post("/v1/substitutes/web", json=body)).json()
+    assert (r["ok"], r["step"], r["skipped"]) == (False, "31:click", ["9:read"])
+    assert r["partial"].startswith("https://youtu.be/abcDEF12_-x") and KEY not in r["partial"]
 
 
 async def test_a_long_question_is_taken_up_to_the_hubs_own_cap(web: Any) -> None:

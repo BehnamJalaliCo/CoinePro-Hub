@@ -34,19 +34,20 @@ import os
 import re
 import shutil
 import socket
+import stat
 import sys
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urljoin, urlsplit
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from playwright.async_api import BrowserContext, Error, Page, Route, async_playwright
+from playwright.async_api import BrowserContext, Error, Page, Request, Route, async_playwright
 from playwright.async_api import TimeoutError as PwTimeout
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from hq_common import heartbeat, logs
 from hq_egress import browser as B
@@ -70,6 +71,14 @@ XVFB_DISPLAY = ":99"
 PROFILES = Path(os.environ.get("BROWSER_WEB_PROFILES", "/profiles"))
 # ⟨2026-11-17⟩ a job's large attached file (an upload's video) while the page sends it
 SPOOL = PROFILES / ".spool"
+# ⟨2026-11-17⟩ a file the job names there (a long video and its thumbnail, put there before the job
+# by the uploader): a plain name, never a path (substitutes_web.SPOOL_NAME)
+SPOOL_NAME = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+# a read kept under a note (the answer's `notes`), at most
+NOTE_CHARS = 4000
+# `wait_sent`: the page has sent everything to a host once no request to it has been in flight
+# for this long
+SENT_QUIET_S = 15.0
 LOGIN_S = 15 * 60
 STEP_S = 30.0
 # ⟨1.10.1⟩ a player's answer is read whole; this only stops a page gone wrong,
@@ -168,6 +177,12 @@ class JobIn(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     visibility: Literal["public", "unlisted"] | None = None
     video_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
+    # ⟨2026-11-17⟩ a long video's job: its files by name in this account's spool (after `files` in
+    # the job's file order; the job's end removes them) and its tags (a fill's `{tags}`)
+    spooled: list[Annotated[str, StringConstraints(pattern=SPOOL_NAME)]] = Field(
+        default_factory=list, max_length=10
+    )
+    tags: str | None = Field(default=None, max_length=500)
 
 
 class RunIn(B.RunIn):
@@ -354,8 +369,10 @@ class Webd:
         ctx = await self.open(j.account, j.proxy, hold_s=j.timeout_s)
         try:
             await ctx.route("**/*", _only(hosts))
+            traffic = Traffic()
+            traffic.watch(ctx)
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-            return await run_recipe(page, ctx, j, hosts)
+            return await run_recipe(page, ctx, j, hosts, traffic)
         finally:
             await self.close(ctx, j.account)
             shutil.rmtree(spool_dir(j.account), ignore_errors=True)
@@ -413,6 +430,53 @@ class Webd:
                 await asyncio.wait_for(closed, timeout=seconds)
         finally:
             await self.close(ctx, account)
+
+
+class Traffic:
+    """⟨2026-11-17⟩ A job's requests in flight, per host: an upload has ended once none to its host
+    is in flight and none has started or ended for SENT_QUIET_S (`wait_sent`)."""
+
+    def __init__(self) -> None:
+        self.live: dict[Request, str] = {}
+        self.seen: dict[str, int] = {}
+        self.moved: dict[str, float] = {}
+
+    def watch(self, ctx: BrowserContext) -> None:
+        ctx.on("request", self.started)
+        ctx.on("requestfinished", self.ended)
+        ctx.on("requestfailed", self.ended)
+
+    def started(self, req: Request) -> None:
+        host = (urlsplit(req.url).hostname or "").lower()
+        self.live[req] = host
+        self.seen[host] = self.seen.get(host, 0) + 1
+        self.moved[host] = time.monotonic()
+
+    def ended(self, req: Request) -> None:
+        host = self.live.pop(req, None)
+        if host is not None:
+            self.moved[host] = time.monotonic()
+
+    def in_flight(self, host: str) -> int:
+        return sum(1 for h in self.live.values() if h == host)
+
+    async def sent(self, host: str, ms: float) -> str:
+        """Until the page has sent everything to `host`; what it saw, as a short note. A host the
+        page never reached has nothing to wait for (the note says so)."""
+        start = time.monotonic()
+        end = start + ms / 1000
+        while True:
+            if not self.seen.get(host):
+                return f"no request to {host} seen"
+            quiet = time.monotonic() - self.moved.get(host, 0.0)
+            if self.in_flight(host) == 0 and quiet >= SENT_QUIET_S:
+                return (
+                    f"sent: {self.seen[host]} requests to {host}, quiet after "
+                    f"{time.monotonic() - start:.0f} s"
+                )
+            if time.monotonic() >= end:
+                raise StepFailed("wait_sent", f"still sending to {host}")
+            await asyncio.sleep(1.0)
 
 
 def _only(hosts: frozenset[str]) -> Any:
@@ -478,54 +542,76 @@ def _selector(st: dict[str, Any], j: JobIn) -> str:
 
 
 async def run_recipe(
-    page: Page, ctx: BrowserContext, j: JobIn, hosts: frozenset[str]
+    page: Page,
+    ctx: BrowserContext,
+    j: JobIn,
+    hosts: frozenset[str],
+    traffic: Traffic | None = None,
 ) -> dict[str, Any]:
     """The recipe's steps; the first failing one is `recipe_failed` with that
-    step (or `expired` when the page is a login page)."""
+    step (or `expired` when the page is a login page). ⟨2026-11-17⟩ Beside its answer a job says
+    which optional steps did not happen (`skipped`) and what its noted reads found (`notes`); a
+    failed one also gives the text it had read so far (`partial`: an upload's link)."""
     rule = j.recipe.get("expired") or {}
     deadline = time.monotonic() + j.timeout_s
     text: str | None = None
     file: dict[str, Any] | None = None
     files: list[dict[str, Any]] = []  # ⟨2026-11-17⟩ a set of slides (download_images)
+    notes: dict[str, str] = {}
+    skipped: list[str] = []
     steps = j.recipe.get("steps") or []
     reloaded = False
+    traffic = traffic or Traffic()
+
+    def said(out: dict[str, Any]) -> dict[str, Any]:
+        if notes:
+            out["notes"] = notes
+        if skipped:
+            out["skipped"] = skipped
+        if text and not out.get("ok"):
+            out["partial"] = text[:300]
+        return out
+
     for i, st in enumerate(steps):
         do = str(st.get("do"))
         tag = f"{i}:{do}"
         left = deadline - time.monotonic()
         if left <= 0:
-            return fail("timeout", "the job ran past its time", tag)
+            return said(fail("timeout", "the job ran past its time", tag))
         ms = min(float(st.get("timeout_s") or STEP_S), left) * 1000
         try:
-            got = await _recipe_step(page, ctx, st, ms, j, hosts)
+            got = await _recipe_step(page, ctx, st, ms, j, hosts, traffic)
             if do == "goto" and j.reload and not reloaded:
                 reloaded = True  # ⟨1.10⟩ the retry: a fresh load of the page
                 await page.reload(wait_until="load", timeout=ms)
         except (PwTimeout, Error, StepFailed, ValueError) as exc:
             if await expired(page, rule):
-                return fail("expired", "the profile shows a login page: sign in again", tag)
+                return said(fail("expired", "the profile shows a login page: sign in again", tag))
             if st.get("optional"):
+                skipped.append(tag)
                 continue
             why = exc.detail if isinstance(exc, StepFailed) else type(exc).__name__
-            out = fail("recipe_failed", f"step {tag} failed: {why}", tag)
+            out = said(fail("recipe_failed", f"step {tag} failed: {why}", tag))
             shot = await screenshot(page)
             if shot is not None:
                 out["screenshot"] = shot
             return out
         if do == "goto" and await expired(page, rule):
-            return fail("expired", "the profile shows a login page: sign in again", tag)
-        if isinstance(got, str):
+            return said(fail("expired", "the profile shows a login page: sign in again", tag))
+        if isinstance(got, str) and st.get("note"):
+            notes[str(st["note"])] = got[:NOTE_CHARS]
+        elif isinstance(got, str):
             text = got
         elif isinstance(got, dict):
             file = got
         elif isinstance(got, list) and got:
             files, file = got, got[0]
     if text is None and file is None:
-        return fail("recipe_failed", "the recipe read nothing", None)
+        return said(fail("recipe_failed", "the recipe read nothing", None))
     done: dict[str, Any] = {"ok": True, "text_md": text, "file": file}
     if files:
         done["files"] = files
-    return done
+    return said(done)
 
 
 SCREENSHOT_BYTES = 2 * 1024 * 1024
@@ -551,6 +637,7 @@ async def _recipe_step(
     ms: float,
     j: JobIn,
     hosts: frozenset[str],
+    traffic: Traffic | None = None,
 ) -> str | dict[str, Any] | list[dict[str, Any]] | None:
     do = str(st.get("do"))
     sel = _selector(st, j)
@@ -574,13 +661,28 @@ async def _recipe_step(
             "{style}": j.style or "",
             "{voice}": j.voice or "",
             "{description}": j.description or "",
+            "{tags}": j.tags or "",
         }
         value = given.get(str(st.get("text")), j.prompt)
-        await page.locator(sel).first.fill(value, timeout=ms)
+        if st.get("text") == "{tags}" and not value:
+            raise StepFailed(do, "the job names no tags")
+        if st.get("typed"):  # ⟨2026-11-17⟩ key by key (a tag box makes a tag of each comma)
+            box = page.locator(sel).first
+            await box.click(timeout=min(ms, 10_000))
+            await box.press_sequentially(value, delay=20, timeout=ms)
+        else:
+            await page.locator(sel).first.fill(value, timeout=ms)
     elif do == "select":
         await _select(page, sel, j.voice, ms)
     elif do == "attach":
-        await _attach(page, sel, j, ms)
+        pick = st.get("file")
+        await _attach(page, sel, j, ms, int(pick) if pick is not None else None)
+    elif do == "wait_sent":
+        url = str(st.get("url") or "")
+        host = (urlsplit(url).hostname or "").lower()
+        if not url.startswith("https://") or not covered(host, hosts):
+            raise StepFailed(do, "not one of the site's own hosts")
+        return await (traffic or Traffic()).sent(host, ms)
     elif do == "collect":
         return await _collect(page, sel, j.limit, ms)
     elif do == "press":
@@ -643,12 +745,30 @@ ATTACH_GAP_MS = 2500  # between two files put one by one: the site takes each in
 SPOOL_BYTES = 16 * 1024 * 1024
 
 
-async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
-    """The job's files into a file input (decoded here; none outside the job)."""
-    if not j.files:
+async def _attach(page: Page, sel: str, j: JobIn, ms: float, pick: int | None = None) -> None:
+    """The job's files into a file input (decoded here; none outside the job). ⟨2026-11-17⟩ `pick`:
+    only that one of the job's files (its carried files first, then its spooled ones); a spooled
+    file goes in from its own path in this account's spool."""
+    if not j.files and not j.spooled:
         raise StepFailed("attach", "the job carries no files")
+    if pick is not None:
+        if pick >= len(j.files) + len(j.spooled):
+            raise StepFailed("attach", f"the job has no file {pick}")
+        if pick >= len(j.files):
+            path = spooled_path(j.account, j.spooled[pick - len(j.files)], j.max_file_bytes)
+            await page.locator(sel).first.set_input_files(path, timeout=ms)
+            return
+        carried = [j.files[pick]]
+    elif j.spooled:
+        paths = [spooled_path(j.account, n, j.max_file_bytes) for n in j.spooled]
+        if j.files or len(paths) > 1:
+            raise StepFailed("attach", "a job with spooled files names which one each step takes")
+        await page.locator(sel).first.set_input_files(paths[0], timeout=ms)
+        return
+    else:
+        carried = j.files[:10]
     payload: list[dict[str, Any]] = []
-    for f in j.files[:10]:
+    for f in carried:
         data = base64.b64decode(str(f.get("b64") or ""), validate=True)
         if len(data) > j.max_file_bytes:
             raise StepFailed("attach", "a file is over its cap")
@@ -679,6 +799,24 @@ def spool_dir(account: str) -> Path:
     """⟨2026-11-17⟩ Where a job's large file waits while the page uploads it: the profiles'
     volume (one job per account at a time; the job's end removes it)."""
     return SPOOL / account
+
+
+def spooled_path(account: str, name: str, cap: int) -> str:
+    """⟨2026-11-17⟩ The path of a file the job names in this account's spool: a plain name of that
+    directory (never a path, a link or anything but a plain file), of 1 byte up to the job's cap."""
+    if not re.fullmatch(SPOOL_NAME, name):
+        raise StepFailed("attach", "not a spooled file's name")
+    base = spool_dir(account)
+    path = base / name
+    try:
+        st = path.lstat()
+    except OSError:
+        raise StepFailed("attach", "a spooled file is missing") from None
+    if not stat.S_ISREG(st.st_mode) or path.resolve().parent != base.resolve():
+        raise StepFailed("attach", "a spooled file is not a plain file of the spool")
+    if not 0 < st.st_size <= cap:
+        raise StepFailed("attach", "a spooled file is empty or over its cap")
+    return str(path)
 
 
 def _spool(account: str, name: str, data: bytes) -> str:
