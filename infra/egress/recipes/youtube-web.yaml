@@ -22,10 +22,13 @@
 #            minutes: "intermediate features"), as the page's text
 #   videos   read only: the channel's long videos in Studio's content list, every visibility and
 #            drafts too (a duplicate check before a long upload)
-# Driven by automations/sites/dotcoin/youtube.py (a host timer) and youtube_long.py (by hand), never
-# by an agent.
+#   ⟨2026-11-17.6⟩ details    an uploaded video's (job's video_id) tags (the job's `tags`) and its
+#            language, Persian, then Save; the answer is the tags box as saved
+#   subtitles  the job's one spooled .srt (with timing) as the video's Persian subtitles, published
+# Driven by automations/sites/dotcoin/youtube.py and youtube_long.py (host timers), never by an
+# agent.
 key: youtube-web
-version: "2026-11-17.5"
+version: "2026-11-17.6"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -148,8 +151,13 @@ tasks:
       # "Show more": tags (typed: each comma makes a tag) and category Education, both optional
       - {do: click, selector: "ytcp-uploads-details #toggle-button, ytcp-video-metadata-editor #toggle-button, #toggle-button", optional: true}
       - {do: pause, ms: 2000}
+      # (2026-11-17.6: video 1's tags were not kept: the box is clicked first, the last tag closed with
+      # Enter, and what the box then shows is kept as notes.tags)
+      - {do: click, selector: "#tags-container #text-input, #tags-container input", optional: true, timeout_s: 10}
       - {do: fill, selector: "#tags-container #text-input, #tags-container input", text: "{tags}", typed: true, optional: true, timeout_s: 45}
+      - {do: press, selector: "#tags-container #text-input, #tags-container input", key: "Enter", optional: true, timeout_s: 5}
       - {do: pause, ms: 1000}
+      - {do: read, selector: "#tags-container", note: tags, optional: true, timeout_s: 10}
       - {do: click, selector: "#category ytcp-text-dropdown-trigger, #category-container ytcp-text-dropdown-trigger", optional: true, timeout_s: 10}
       - {do: click, selector: "tp-yt-paper-item[test-id='CREATOR_VIDEO_CATEGORY_EDUCATION']", optional: true, timeout_s: 10}
       # a list left open (its item not found) is closed again: Escape reaches the topmost overlay only
@@ -191,3 +199,48 @@ tasks:
       - {do: wait, selector: "ytcp-video-section-content, ytcp-video-list", state: attached, timeout_s: 60}
       - {do: pause, ms: 4000}
       - {do: read, selector: "ytcp-video-section-content, ytcp-video-list"}
+  details:
+    # an uploaded video's Studio page (the job's video_id): its tags (the job's `tags`) and its
+    # language (Persian: subtitles are added in it), then Save; the answer is the tags box as saved
+    timeout_s: 240
+    steps:
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: wait, selector: "#title-textarea #textbox", timeout_s: 60}
+      - {do: pause, ms: 2500}
+      - {do: click, selector: "ytcp-video-metadata-editor #toggle-button, #toggle-button", optional: true, timeout_s: 10}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "#tags-container #text-input, #tags-container input", timeout_s: 20}
+      - {do: fill, selector: "#tags-container #text-input, #tags-container input", text: "{tags}", typed: true, timeout_s: 60}
+      - {do: press, selector: "#tags-container #text-input, #tags-container input", key: "Enter", optional: true, timeout_s: 5}
+      - {do: pause, ms: 1500}
+      - {do: read, selector: "#tags-container", note: tags, optional: true, timeout_s: 10}
+      - {do: click, selector: "ytcp-form-language-input ytcp-dropdown-trigger, #language-input ytcp-dropdown-trigger", optional: true, timeout_s: 10}
+      - {do: click, selector: "tp-yt-paper-item:has-text('Persian'), tp-yt-paper-item:has-text('فارسی')", optional: true, timeout_s: 10}
+      - {do: pause, ms: 1000}
+      - {do: click, selector: "ytcp-button#save, #save", timeout_s: 20}
+      - {do: pause, ms: 5000}
+      - {do: read, selector: "#tags-container", alt: ["ytcp-video-metadata-editor"]}
+  subtitles:
+    # the job's one spooled file (an .srt with timing) as the video's (job's video_id) subtitles in
+    # its language (Persian, set by `details`; asked here again when the page asks for it), published
+    timeout_s: 300
+    steps:
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations"}
+      - {do: wait, selector: "ytgn-video-translations-section, ytgn-video-translation-row", state: attached, timeout_s: 60}
+      - {do: pause, ms: 3000}
+      - {do: click, selector: "tp-yt-paper-dialog tp-yt-paper-item:has-text('Persian'), tp-yt-paper-dialog tp-yt-paper-item:has-text('فارسی')", optional: true, timeout_s: 5}
+      - {do: click, selector: "tp-yt-paper-dialog #confirm-button, ytcp-dialog #confirm-button", optional: true, timeout_s: 5}
+      - {do: pause, ms: 1500}
+      # the subtitles cell of the language's row: «Add»
+      - {do: click, selector: "ytgn-video-translation-row:has-text('Persian') #add-captions-button, ytgn-video-translation-row:has-text('Persian') ytcp-button:has-text('Add'), ytgn-video-translation-row:has-text('فارسی') ytcp-button", timeout_s: 20}
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "#choose-upload-file, ytcp-button:has-text('Upload file')", timeout_s: 20}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "tp-yt-paper-radio-button:has-text('With timing')", optional: true, timeout_s: 5}
+      - {do: attach, selector: "tp-yt-paper-dialog input[type=file], ytcp-dialog input[type=file], input[type=file]", file: 0, timeout_s: 20}
+      - {do: pause, ms: 4000}
+      - {do: click_unless, selector: "tp-yt-paper-dialog ytcp-button:has-text('Continue')", unless: "#publish-button", optional: true, timeout_s: 10}
+      - {do: pause, ms: 4000}
+      - {do: click, selector: "#publish-button, ytcp-button:has-text('Publish')", timeout_s: 60}
+      - {do: pause, ms: 5000}
+      - {do: read, selector: "ytgn-video-translation-row:has-text('Persian')", alt: ["ytgn-video-translations-section"]}

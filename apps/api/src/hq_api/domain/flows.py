@@ -104,6 +104,9 @@ class Flow:
     days: tuple[int, ...] = ALL_DAYS
     channel: str = "instagram"
     version: int = 0
+    # ⟨2026-11-17⟩ what a day makes: `reel` (and its stories), `stories`, or `video` (DotCoin's long
+    # YouTube video: the hub's host uploader publishes it at the hour, never IG-Hub)
+    kind: str = "reel"
 
 
 # ⟨2026-11-17⟩ DotCoin.me's twelve story slides a day, about one an hour (never on a reel's minute)
@@ -445,7 +448,7 @@ def from_row(r: Any) -> Flow:
         recipe=str(r["recipe"] or ""), effort=str(r["effort"] or ""), note_fa=str(r["note_fa"] or ""),
         ref=str(r["ref"]), state=str(r["state"]), paused_until=r["paused_until"],
         skips=tuple(r["skips"] or ()), days=tuple(int(d) for d in s.get("days") or ALL_DAYS),
-        channel=str(r["channel"]), version=int(r["version"]),
+        channel=str(r["channel"]), version=int(r["version"]), kind=str(r["kind"] or "reel"),
     )  # fmt: skip
 
 
@@ -633,10 +636,31 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
     )
 
 
+def video_brief(flow: Flow, day: date, at: datetime) -> str:
+    """⟨2026-11-17⟩ A long-video day (DotCoin's YouTube): made over several workshop turns from the
+    kit; the hub's host uploader (automations/sites/dotcoin/youtube_long.py --due) publishes it on
+    YouTube at the hour, once, after its own checks, and puts the article on the site."""
+    return (
+        f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار روی یوتیوب {at_fa(at)} به وقت تهران)\n\n"
+        "این فرمان را اتوماسیون هاب داده است، به دستور مدیر کل. کار خودکار است: از کسی چیزی نپرس، "
+        "order.ask نزن و منتظر تأیید نمان.\n"
+        f"روند، قاعده‌ها و همه‌ی ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
+        "قدم‌به‌قدم انجام بده؛ ساخت چند نوبت طول میکشد و NOTES.md در هر نوبت جای کار را نگه میدارد. "
+        "هیچ فایلی از کیت را عوض نکن.\n"
+        "تحویل: فقط این‌ها در out/: video.mp4 (۱۹۲۰×۱۰۸۰، ۸ تا ۱۰ دقیقه)، thumbnail.jpg، meta.json، "
+        "subtitles.fa.srt، chapters.txt، caption.txt (همان توضیحات یوتیوب)، article.md و topic.txt؛ "
+        "video.mp4 آخر از همه. وقتی همه در out/ بود، ستاد ویدیو را در ساعتش روی یوتیوب دات‌کوین "
+        "منتشر میکند (اگر صدا و مقاله از بررسی‌اش رد شوند)، مقاله را روی dotcoin.me میگذارد، به مدیر "
+        "کل خبر میدهد و این جلسه را میبندد." + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
+    )
+
+
 def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None) -> str:
     """The order's text: what the day's session makes, from the kit, and when it goes out."""
     if flow.stories:
         return stories_brief(flow, day, used or [])
+    if flow.kind == "video":
+        return video_brief(flow, day, at)
     kind = kind_of(flow, day)
     return (
         f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار {at_fa(at)} به وقت تهران)\n\n"
@@ -765,6 +789,7 @@ async def start(
     model = model_on(flow, the_day)
     meta = {"key": flow.key, "day": the_day.isoformat(), "publish_at": at.isoformat(),
             "account": flow.account, "story": flow.story, "order": ref,
+            **({"kind": flow.kind} if flow.kind == "video" else {}),
             **({"model": model} if model else {}),
             **({"effort": flow.effort} if flow.effort else {})}  # fmt: skip
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
@@ -1142,6 +1167,8 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
     pkg = await package(tx, w)
     if pkg is None:
         return "open"
+    if meta.get("kind") == "video":
+        return await _queue_video(tx, hub, w, meta, pkg)
     route = await SPB._route(tx, w["company_id"])
     account = str(meta.get("account") or "")
     if not route["ready"] or account not in route["accounts"]:
@@ -1217,6 +1244,67 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
         if rep is not None and rep.get("closed_at") is None:
             await SE.close(tx, order, "ok", "اتوماسیون روزانه: بسته زمان‌بندی شد", hub=hub)
     return "scheduled"
+
+
+VIDEO_READY_BODY_FA = (
+    "ویدیوی بلند امروز ساخته شد و {at} به وقت تهران روی یوتیوب دات‌کوین منتشر میشود، همراه مقاله‌اش "
+    "روی dotcoin.me. موضوع: {topic}"
+)
+
+
+async def _queue_video(
+    tx: Tx, hub: Any, w: dict[str, Any], meta: dict[str, Any], pkg: dict[str, Any]
+) -> str:
+    """⟨2026-11-17⟩ A long-video day whose package is in: nothing goes to IG-Hub. The run is marked
+    sent with `youtube: queued`; the hub's host uploader (youtube_long.py --due, a timer) reads the
+    session's out/ and publishes it on YouTube at `publish_at`, once, after its checks. The owner
+    hears it is ready and the session closes (nothing goes on spending)."""
+    topic_d = pkg["topic_d"]
+    topic = (
+        (await SPB._text_of(tx, hub, topic_d, ("topic.txt",)) or "").strip().splitlines()
+        if topic_d
+        else []
+    )
+    at = datetime.fromisoformat(str(meta["publish_at"]))
+    order = str(meta.get("order") or "") or None
+    d = pkg["d"]
+    meta["sent"] = datetime.now(UTC).isoformat()
+    meta["youtube"] = "queued"
+    await tx.exec(
+        """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))
+           WHERE id = :w""",
+        w=w["id"],
+        m=_json(meta),
+    )
+    flow = await flow_by_key(tx, str(meta.get("key")))
+    title = flow.title_fa if flow else "ویدیوی بلند"
+    from hq_api.domain import notify
+
+    await notify.raise_notification(
+        tx,
+        company_id=w["company_id"],
+        company_code=str(w["company"]),
+        level="report",
+        title_fa=READY_TITLE_FA.format(title=title)[:300],
+        body_fa=VIDEO_READY_BODY_FA.format(at=at_fa(at), topic=(topic[0] if topic else "—"))[:1000],
+        link_kind="order" if order else "deliverable",
+        link_ref=order or str(d["ref"]),
+        source_kind="system",
+        source_code="flow",
+    )
+    await audit.record(
+        tx, FLOW, company_id=w["company_id"], action="flow.publish", action_class="A3",
+        target_kind="order" if order else "deliverable", target_ref=order or str(d["ref"]),
+        summary=f"{meta.get('key')} {meta.get('day')}: the long video {w['ref']} queued for "
+        f"YouTube at {at.isoformat()} (youtube_long.py --due)"[:500],
+    )  # fmt: skip
+    if order:
+        from hq_api.domain import sessions as SE
+
+        rep = await OR.ensure(tx, order)
+        if rep is not None and rep.get("closed_at") is None:
+            await SE.close(tx, order, "ok", "اتوماسیون: ویدیوی بلند برای یوتیوب آماده شد", hub=hub)
+    return "queued"
 
 
 LATE = timedelta(minutes=30)

@@ -23,3 +23,7 @@ up / red down), and the owner's own cover system (he is on every cover).
 dotcoin-stories (2026-11-17): the day's educational lesson in twelve story slides, designed by ChatGPT
 in ONE chat (substitute.call `images: 12`) with Gemini's art; tools/slide_frame.py puts the page's
 mark, the slide's number and the day's reply word on each.
+dotcoin-longform (2026-11-17): DotCoin's long YouTube videos, three a week (8–10 min, 16:9, Arlo, the reels'
+look in a Swiss grid × isometric engine), each with its thumbnail (the owner's cover system, 16:9), YouTube
+text with chapters, sidecar subtitles and a new lesson on dotcoin.me; rendered chapter by chapter over
+several workshop turns; uploaded once each by the hub (automations/sites/dotcoin/youtube_long.py).
