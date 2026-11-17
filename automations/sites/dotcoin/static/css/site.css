@@ -57,6 +57,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 ::selection{background:var(--mustard);color:#000}
 :focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:8px}
 .lat{font-family:YekanLat,var(--f)}
+/* bidi: Latin runs in Persian text are <bdi dir="ltr"> (build.py isolate_html); code is LTR and isolated */
+bdi,[dir=ltr]{unicode-bidi:isolate}
+/* Latin labels in the Yekan face keep Latin digits (TRC20, P2P, (06) FOLLOW, a code with digits) */
+.term-en,.code-b b{font-family:YekanLat,var(--f)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .skip{position:fixed;top:8px;right:8px;z-index:100;background:#000;color:var(--mustard);padding:10px 16px;border-radius:10px;transform:translateY(-200%);transition:transform .3s}
 .skip:focus{transform:none}
@@ -223,7 +227,7 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .sec+.sec{padding-top:clamp(16px,3vw,40px)}
 .sec-tight{padding-top:clamp(40px,6vw,72px)}
 .sec-h{display:grid;grid-template-columns:1fr auto;align-items:end;gap:12px 24px;border-top:2px solid var(--ink);padding-top:16px;margin-bottom:clamp(28px,4vw,56px)}
-.sec-n{display:block;font-family:var(--f);font-weight:600;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);grid-column:1/-1}
+.sec-n{display:block;font-family:YekanLat,var(--f);font-weight:600;font-size:12px;line-height:1;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);grid-column:1/-1}
 .sec-t{font-weight:950;font-size:clamp(38px,5.6vw,88px);line-height:1.12}
 .sec-sub{grid-column:1/2;color:var(--mute);font-size:17px;max-width:40em}
 .sec-more{grid-row:2;grid-column:2;align-self:center;white-space:nowrap}
@@ -342,7 +346,7 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .hero .code-b{border-color:var(--on-hero)}
 .x-head{margin-bottom:22px}
 .x-cta{display:flex;align-items:center;flex-wrap:wrap;gap:14px 22px;margin-top:clamp(22px,3vw,32px)}
-.x-cta-in{margin-top:28px}
+.x-cta-in{margin-top:28px;margin-bottom:56px}
 .x-grid{padding-bottom:0}
 .x-side .x-card{position:sticky;top:calc(var(--hdr-h) + 24px);display:flex;flex-direction:column;gap:14px;padding:24px;border-radius:var(--r);background:var(--panel);color:var(--on-panel)}
 .x-side .x-card b{font-weight:950;font-size:24px}
@@ -472,8 +476,13 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .prose ol li{counter-increment:o}
 .prose ol li::before{content:counter(o,persian);position:absolute;right:0;top:.35em;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:13px;font-weight:800;display:grid;place-items:center;line-height:1}
 .prose blockquote{margin-inline:0;padding:6px 24px 6px 0;border-right:4px solid var(--acc);font-weight:600;font-size:1.12em;color:var(--ink)}
-.prose code{font-family:YekanLat,var(--f);background:var(--bg2);padding:.1em .4em;border-radius:6px;font-size:.9em}
-.reel{display:grid;grid-template-columns:120px 1fr;gap:clamp(18px,3vw,32px);align-items:center;margin-block:clamp(44px,6vw,72px);padding:clamp(18px,3vw,30px);border-radius:var(--r);background:var(--mustard);color:#000}
+.prose code{font-family:YekanLat,var(--f);background:var(--bg2);padding:.1em .4em;border-radius:6px;font-size:.9em;direction:ltr;unicode-bidi:isolate;overflow-wrap:anywhere}
+/* a code block (a hash, an address): LTR, left-aligned, a long token wraps inside its own box */
+.prose pre.cb{direction:ltr;unicode-bidi:isolate;text-align:left;max-width:100%;overflow-x:auto;background:var(--bg2);border-radius:12px;
+  padding:12px 16px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-all;font-size:15px;line-height:1.75;color:var(--ink)}
+.prose pre.cb code{background:none;padding:0;border-radius:0;font-size:inherit;word-break:break-all;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.reel{display:grid;grid-template-columns:120px minmax(0,1fr);gap:clamp(18px,3vw,32px);align-items:center;margin-block:clamp(44px,6vw,72px);padding:clamp(18px,3vw,30px);border-radius:var(--r);background:var(--mustard);color:#000}
 .reel-ph{position:relative;aspect-ratio:9/16;border-radius:16px;background:#000;display:grid;place-items:center;overflow:hidden}
 .reel-ph img{width:58%;height:auto;border-radius:50%;opacity:.95}
 .reel-play{position:absolute;inset:auto auto 12px 12px;width:30px;height:30px;border-radius:50%;background:var(--mustard)}
@@ -557,8 +566,12 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
   :root{--hdr-h:64px;--r:18px}
   .brand-word{font-size:19px}
   .hero-cta .btn{flex:1 1 100%}
-  .reel{grid-template-columns:84px 1fr}
-  .reel .btn{width:100%}
+  /* phone: the copy column never grows past the card; the button takes the card's full width below */
+  .reel{grid-template-columns:84px minmax(0,1fr);row-gap:0}
+  .reel-copy{display:contents}
+  .reel-ph{grid-column:1;grid-row:1/4;align-self:center}
+  .reel .sec-n,.reel h2,.reel p{grid-column:2}
+  .reel .btn{grid-column:1/-1;width:100%}
   .xc-act .btn{flex:1 1 100%}
 }
 @media (prefers-reduced-motion:reduce){
@@ -577,10 +590,12 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .ans p{line-height:1.95;font-size:17px;color:rgba(244,240,230,.92)}
 .ans + .sum{margin-top:0}
 .tbl{overflow-x:auto;margin:1.4em 0;-webkit-overflow-scrolling:touch}
-.tbl table{width:100%;min-width:480px;border-collapse:collapse;font-size:15px;line-height:1.8}
+.tbl table{width:100%;min-width:min(480px,100%);border-collapse:collapse;font-size:15px;line-height:1.8}
 .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
 .tbl thead th{font-weight:800;border-bottom:2px solid var(--acc)}
 .tbl tbody th{font-weight:700}
+/* phone: a table fits the column (cells wrap); only a table that still cannot fit scrolls in its own box */
+@media (max-width:640px){.tbl table{font-size:14px}.tbl th,.tbl td{padding:9px 8px}}
 .srcs{margin-top:clamp(28px,3vw,40px)}
 .srcs h2{font-size:22px;margin-bottom:8px}
 .srcs a{font-weight:600}
