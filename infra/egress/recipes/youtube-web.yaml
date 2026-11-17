@@ -25,10 +25,12 @@
 #   ⟨2026-11-17.6⟩ details    an uploaded video's (job's video_id) tags (the job's `tags`) and its
 #            language, Persian, then Save; the answer is the tags box as saved
 #   subtitles  the job's one spooled .srt (with timing) as the video's Persian subtitles, published
+#   ⟨2026-11-17.19⟩ thumbnail  an uploaded video's custom thumbnail (the job's one spooled picture),
+#            then Save (the channel is phone-verified since 2026-11-17)
 # Driven by automations/sites/dotcoin/youtube.py and youtube_long.py (host timers), never by an
 # agent.
 key: youtube-web
-version: "2026-11-17.18"
+version: "2026-11-17.19"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -254,3 +256,18 @@ tasks:
       - {do: pause, ms: 5000}
       # the video language's row (our track); YouTube's automatic one is listed apart once ours is in
       - {do: read, selector: "ytgn-video-translation-row:has-text('video language')", alt: ["ytgn-video-translations-section"]}
+  thumbnail:
+    # an uploaded video's (job's video_id) custom thumbnail: the job's one spooled picture into the
+    # details page's own thumbnail input (no file chooser), then Save; the answer is the thumbnail
+    # area as saved
+    timeout_s: 180
+    steps:
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: wait, selector: "#title-textarea #textbox", timeout_s: 60}
+      - {do: pause, ms: 2500}
+      - {do: attach, selector: "ytcp-thumbnails-compact-editor-uploader input[type=file], input#file-loader", file: 0, timeout_s: 20}
+      - {do: pause, ms: 5000}
+      - {do: read, selector: "ytcp-thumbnails-compact-editor", alt: ["ytcp-thumbnail-uploader"], note: thumbnail, optional: true, timeout_s: 10}
+      - {do: click, selector: "ytcp-button#save:visible, #save:visible", timeout_s: 20}
+      - {do: pause, ms: 5000}
+      - {do: read, selector: "ytcp-thumbnails-compact-editor", alt: ["ytcp-thumbnail-uploader", "ytcp-video-metadata-editor"]}

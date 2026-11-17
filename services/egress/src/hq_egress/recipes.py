@@ -43,9 +43,10 @@ Account = Literal[
 # video (16:9, 8-10 minutes) with its thumbnail and tags, from files already in the profile
 # browser's spool (the job's `spooled`; never base64 in memory); `features` reads the channel's
 # feature eligibility (custom thumbnails); `videos` the channel's long videos in Studio (every
-# visibility: a duplicate check). ⟨2026-11-17⟩ `details` sets an uploaded video's tags and language on
-# its Studio page (the job's `video_id`, `tags`); `subtitles` uploads its subtitle file (the job's
-# one spooled file, an .srt) in its language.
+# visibility: a duplicate check). ⟨2026-11-17⟩ `details` sets an uploaded video's tags and
+# language on its Studio page (the job's `video_id`, `tags`); `subtitles` uploads its subtitle
+# file (the job's one spooled file, an .srt) in its language; `thumbnail` sets its custom
+# thumbnail (the job's one spooled picture; the channel must be phone-verified).
 TASKS = (
     "text",
     "image",
@@ -63,6 +64,7 @@ TASKS = (
     "videos",
     "details",
     "subtitles",
+    "thumbnail",
 )
 TaskName = Literal[
     "text",
@@ -81,13 +83,14 @@ TaskName = Literal[
     "videos",
     "details",
     "subtitles",
+    "thumbnail",
 ]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 # The longest a task may wait for its answer (image 3 min, video 10 min, a set of slides 25 min).
 TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300,
               "slides": 1500, "channel": 120, "titles": 120, "upload": 600,
               "public": 180, "upload_long": 1500, "features": 120, "videos": 120,
-              "details": 240, "subtitles": 300}  # fmt: skip
+              "details": 240, "subtitles": 300, "thumbnail": 180}  # fmt: skip
 # ⟨2026-11-17⟩ the largest file a task's job carries, where it is over egress's web_file_bytes
 # (a Short's video: about 6 Mbit/s for up to two minutes; a long video: up to 20 minutes, spooled)
 TASK_FILE_BYTES = {"upload": 96 * 1024 * 1024, "upload_long": 1024 * 1024 * 1024}

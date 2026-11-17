@@ -296,7 +296,7 @@ def test_the_youtube_recipe_reads_or_uploads_one_public_short() -> None:
     yt = RC.load(recipes_dir())["youtube-web"]
     assert set(yt.tasks) == {
         "channel", "titles", "upload", "public", "upload_long", "features", "videos", "details",
-        "subtitles",
+        "subtitles", "thumbnail",
     }  # fmt: skip
     for name in ("channel", "titles"):
         assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read", "click"}
@@ -388,6 +388,9 @@ def test_the_youtube_recipe_uploads_a_long_video_from_the_spool() -> None:
     assert [s.text for s in det if s.do == "fill"] == ["{tags}"]
     assert [s.file for s in sub if s.do == "attach"] == [0]
     assert det[-1].do == "read" and sub[-1].do == "read"
+    thumb = yt.tasks["thumbnail"].steps
+    assert "{video_id}" in str(thumb[0].url) and [s.file for s in thumb if s.do == "attach"] == [0]
+    assert thumb[-1].do == "read"
 
 
 @pytest.mark.parametrize(
