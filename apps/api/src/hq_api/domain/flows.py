@@ -18,12 +18,13 @@ out, one more notification says so with its link.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -33,6 +34,9 @@ from hq_api.domain import order_report as OR
 from hq_api.domain import session_publish as SPB
 from hq_api.principal import Principal
 
+if TYPE_CHECKING:
+    from starlette.requests import Request
+
 log = logging.getLogger("hq_api.flows")
 
 FLOW = Principal(kind="service", code="flow", role="service")
@@ -40,6 +44,8 @@ TEHRAN = "Asia/Tehran"
 MONTHS_FA = ("فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر",
              "دی", "بهمن", "اسفند")  # fmt: skip
 FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+# ⟨1.39⟩ §61.1 a flow's days: Saturday = 0 … Friday = 6
+ALL_DAYS = (0, 1, 2, 3, 4, 5, 6)
 
 
 @dataclass(frozen=True)
@@ -89,6 +95,15 @@ class Flow:
     effort: str = ""
     # ⟨2026-11-16⟩ a line of its own at the end of the order (a pilot's size, say)
     note_fa: str = ""
+    # ⟨1.39⟩ §61.1 what its row (automations.flows) holds besides; a flow of FLOWS with no row (the
+    # migration's seed, a test's flow) has no ref, is on unless owner.settings.flows_off names it
+    ref: str = ""
+    state: str = "on"
+    paused_until: date | None = None
+    skips: tuple[date, ...] = ()
+    days: tuple[int, ...] = ALL_DAYS
+    channel: str = "instagram"
+    version: int = 0
 
 
 # ⟨2026-11-17⟩ DotCoin.me's twelve story slides a day, about one an hour (never on a reel's minute)
@@ -403,19 +418,111 @@ def model_on(flow: Flow, day: date) -> str:
     return flow.model if flow.model_from is None or day >= flow.model_from else ""
 
 
+# --------------------------------------------------------- ⟨1.39⟩ the rows --
+# §61.1 the flows are rows (automations.flows) the owner edits from the app; FLOWS above is only
+# the migration's seed and, for a key no row has, the fallback (a test's own flow)
+FLOW_SQL = """SELECT f.*, c.code AS company FROM automations.flows f
+    JOIN core.companies c ON c.id = f.company_id"""
+
+
+def _jd(v: Any) -> dict[str, Any]:
+    got = json.loads(v) if isinstance(v, str) else v
+    return dict(got or {})
+
+
+def from_row(r: Any) -> Flow:
+    """The in-memory flow of one automations.flows row."""
+    s = _jd(r["schedule"])
+    return Flow(
+        key=str(r["key"]), company=str(r["company"]), account=str(r["account"] or ""),
+        title_fa=str(r["title_fa"]), kit=str(r["kit"]), start=date.fromisoformat(str(s["start"])),
+        hours=tuple(s.get("hours") or ()), story=bool(r["story"]),
+        budget_tokens=int(r["budget_tokens"]), n8n=str(r["n8n"] or ""),
+        trigger_at=str(s.get("trigger_at") or "13:00"), usd_cap=Decimal(str(r["usd_cap"])),
+        cycle=tuple(r["cycle"] or ()), model=str(r["model"] or ""), model_from=r["model_from"],
+        pair=str(r["pair"] or ""), stories=tuple(s.get("stories") or ()),
+        same_day=bool(s.get("same_day")), story_word=str(r["story_word"] or ""),
+        recipe=str(r["recipe"] or ""), effort=str(r["effort"] or ""), note_fa=str(r["note_fa"] or ""),
+        ref=str(r["ref"]), state=str(r["state"]), paused_until=r["paused_until"],
+        skips=tuple(r["skips"] or ()), days=tuple(int(d) for d in s.get("days") or ALL_DAYS),
+        channel=str(r["channel"]), version=int(r["version"]),
+    )  # fmt: skip
+
+
+async def active_flows(tx: Tx | None, *, on_only: bool = False) -> dict[str, Flow]:
+    """Every flow the hub runs, by key: its rows (ref order), then a key of FLOWS no row has (the
+    test fallback). `on_only`: those whose state is `on`."""
+    out: dict[str, Flow] = {}
+    if tx is not None:
+        out = {str(r["key"]): from_row(r) for r in await tx.all(FLOW_SQL + " ORDER BY f.ref")}
+    for key, flow in FLOWS.items():
+        out.setdefault(key, flow)
+    if on_only:
+        off = await off_keys(tx) if tx is not None else set()
+        out = {k: f for k, f in out.items() if f.state == "on" and (f.ref or k not in off)}
+    return out
+
+
+async def flow_by_key(tx: Tx | None, key: str) -> Flow | None:
+    """One flow: its row, else (no row has the key) FLOWS' (the test fallback), else None."""
+    if tx is not None and key:
+        row = await tx.first(FLOW_SQL + " WHERE f.key = :k", k=key)
+        if row is not None:
+            return from_row(row)
+    return FLOWS.get(key)
+
+
+def day_index(day: date) -> int:
+    """§61.1 Saturday = 0 … Friday = 6."""
+    return (day.weekday() + 2) % 7
+
+
 # ------------------------------------------------------------ the owner's switch --
 OFF_WHY_FA = "این اتوماسیون خاموش است؛ با کلیدش در بخش اتوماسیون‌ها روشن میشود"
 
 
+PAUSED_WHY_FA = "این اتوماسیون تا {until} متوقف است"
+PAUSED_NO_END_FA = "این اتوماسیون متوقف است؛ با کلیدش در بخش اتوماسیون‌ها روشن میشود"
+SKIPPED_WHY_FA = "مدیر کل این روز را رد کرده است"
+NOT_ITS_DAY_FA = "این روز از روزهای این اتوماسیون نیست"
+
+
 async def off_keys(tx: Tx) -> set[str]:
-    """⟨2026-11-14⟩ the flows the owner switched off on the automations board (owner.settings)."""
+    """⟨2026-11-14⟩ the flows the owner switched off on the automations board (owner.settings).
+    ⟨1.39⟩ a row's switch is its `state` (§61.2); this list holds only the keys no row has."""
     got = await tx.scalar("SELECT flows_off FROM owner.settings WHERE id = 1")
     return {str(k) for k in got or []}
 
 
+async def is_off(tx: Tx, flow: Flow) -> bool:
+    return flow.state == "off" if flow.ref else flow.key in await off_keys(tx)
+
+
+def held_why(flow: Flow, day: date) -> str | None:
+    """⟨1.39⟩ §61.2 why the clock (and n8n's call) makes nothing for this day: paused before its
+    `paused_until`, the owner's skip, a day not among its `days`."""
+    if flow.state == "paused":
+        if flow.paused_until is None:
+            return PAUSED_NO_END_FA
+        if day < flow.paused_until:
+            return PAUSED_WHY_FA.format(until=fa_day(flow.paused_until))
+    if day in flow.skips:
+        return SKIPPED_WHY_FA
+    if day_index(day) not in flow.days:
+        return NOT_ITS_DAY_FA
+    return None
+
+
 async def set_on(tx: Tx, who: Principal, key: str, on: bool) -> bool:
-    """The owner's switch on one flow: True when it changed (audit `flow.switch`)."""
-    flow = FLOWS[key]
+    """The owner's switch on one flow: True when it changed (audit `flow.switch`). ⟨1.39⟩ a row's
+    switch writes its `state` (`on` ends a pause too; audit `automation.flow.state`)."""
+    flow = await flow_by_key(tx, key)
+    if flow is None:
+        return False
+    if flow.ref:
+        from hq_api.domain import flow_defs as FD
+
+        return await FD.switch(tx, who, flow, "on" if on else "off")
     off = await off_keys(tx)
     if (key not in off) == on:
         return False
@@ -456,7 +563,7 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
             hm, why = str(got.hour), "پربازدیدترین ساعت"
         else:
             hm, why = flow.hours[0] or "09:30", "داده‌ی بازدید هنوز کم است؛ ساعت هفته‌ی اول"
-    sibling = FLOWS.get(flow.pair) if flow.pair else None
+    sibling = await flow_by_key(tx, flow.pair) if flow.pair else None
     if sibling is not None and not sibling.pair:
         theirs, _ = await slot_of(tx, sibling, day, company_id)
         their_hm = theirs.astimezone(tz).strftime("%H:%M")
@@ -555,27 +662,67 @@ def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None)
 
 
 # --------------------------------------------------------------------- start --
+def n8n_key(key: str, day: date) -> UUID:
+    """⟨1.39⟩ The `Idempotency-Key` n8n's flow-*.json sends for a day: sha256 of
+    `flow:<key>:<day>` shaped as a version-5 UUID. The hub's clock sends the same one."""
+    h = hashlib.sha256(f"flow:{key}:{day.isoformat()}".encode()).hexdigest()
+    variant = format((int(h[16], 16) & 3) | 8, "x")
+    return UUID(f"{h[:8]}-{h[8:12]}-5{h[13:16]}-{variant}{h[17:20]}-{h[20:32]}")
+
+
+def clock_request(key: str, day: date, again: str = "") -> Request:
+    """⟨1.39⟩ §61.2 the hub's clock places a day's order as n8n's own call does: the same path,
+    body (`{"day":…}`) and key, so whichever of the two comes second answers the first one's order
+    (the «one order a day» lock), and no HTTP request is needed. `again`: a day made before (the
+    owner's run-now of a failed day) takes a key of its own."""
+    from starlette.requests import Request
+
+    body = json.dumps({"day": day.isoformat()}, separators=(",", ":")).encode()
+    path = f"/internal/v1/flows/{key}/run"
+    scope = {
+        "type": "http", "method": "POST", "path": path, "raw_path": path.encode(),
+        "root_path": "", "scheme": "http", "query_string": b"", "server": ("api", 8000),
+        "client": ("127.0.0.1", 0), "http_version": "1.1",
+        "headers": [(b"idempotency-key", str(n8n_key(key + again, day)).encode()),
+                    (b"content-type", b"application/json")],
+    }  # fmt: skip
+    sent = False
+
+    async def receive() -> dict[str, Any]:
+        nonlocal sent
+        if sent:
+            return {"type": "http.disconnect"}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return Request(scope, receive)
+
+
 async def start(
-    ctx: Any, request: Any, background: Any, key: str, day: date | None
+    ctx: Any, request: Any, background: Any, key: str, day: date | None, *, forced: bool = False
 ) -> dict[str, Any]:
     """The day's order (one per flow and day: the caller's `Idempotency-Key` makes a second call
-    the first one's answer). Returns {order, work, publish_at, why_fa}."""
+    the first one's answer). Returns {order, work, publish_at, why_fa}. ⟨1.39⟩ The flow is its row
+    (§61.1); a day it is off, paused, skipped or not one of its days makes nothing, unless `forced`
+    (the owner's run-now)."""
     from hq_api.domain import dispatch as D
     from hq_api.errors import ApiError
     from hq_api.routes.orders import OrderIn, place_order
 
-    flow = FLOWS.get(key)
-    if flow is None:
-        raise ApiError(404, "not_found", f"no flow {key}")
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+        flow = await flow_by_key(tx, key)
+        if flow is None:
+            raise ApiError(404, "not_found", f"no flow {key}")
         co = await tx.first("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
         if co is None:
             raise ApiError(409, "validation_failed", f"no company {flow.company}")
-        if flow.key in await off_keys(tx):
+        if not forced and await is_off(tx, flow):
             # ⟨2026-11-14⟩ switched off on the board: n8n's call makes nothing
             return {"order": "", "work": None, "publish_at": "", "why_fa": OFF_WHY_FA}
         tomorrow = datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
         the_day = day or tomorrow
+        if not forced and (held := held_why(flow, the_day)) is not None:
+            return {"order": "", "work": None, "publish_at": "", "why_fa": held}
         # one order per flow and day, whatever calls again (a key expires in 24 hours); a day
         # whose work failed or was cancelled may be made again, unless its package went out
         # (⟨2026-11-14⟩ F-0022: the session closed as the reel was scheduled, and closing it
@@ -632,6 +779,87 @@ async def start(
     return {"order": ref, "work": work_ref, "publish_at": at.isoformat(), "why_fa": why}
 
 
+# ------------------------------------------------------- ⟨1.39⟩ the one clock --
+CLOCK_WHO = Principal(kind="owner", code="owner", role="owner")  # (n8n's call is the owner's too)
+DAY_SQL = """SELECT 1 FROM work.work WHERE parent_id IS NULL
+    AND run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d LIMIT 1"""
+
+
+def trigger_of(flow: Flow, day: date) -> datetime:
+    """When the order of the day `day` (the day it goes out) is placed (UTC): its `trigger_at`
+    (Tehran) that day when `same_day`, else the day before."""
+    tz = ZoneInfo(TEHRAN)
+    hh, mm = (int(x) for x in flow.trigger_at.split(":"))
+    on = day if flow.same_day else day - timedelta(days=1)
+    return datetime.combine(on, time(hh, mm), tz).astimezone(UTC)
+
+
+async def due_days(tx: Tx, now: datetime) -> list[tuple[Flow, date]]:
+    """§61.2 every row `on` whose order time has come for a day not yet past its publish time,
+    that is one of its days and has no run yet (any run: a failed day is never re-made by the
+    clock). A pause whose `paused_until` has come ends here."""
+    today = now.astimezone(ZoneInfo(TEHRAN)).date()
+    ended = await tx.all(
+        """UPDATE automations.flows f SET state = 'on', paused_until = NULL, updated_at = now()
+           FROM core.companies c WHERE c.id = f.company_id AND f.state = 'paused'
+             AND f.paused_until <= :t RETURNING f.ref, c.code AS company""",
+        t=today,
+    )
+    from hq_api import events
+
+    for r in ended:
+        await events.emit(
+            tx, r["company"], "automation.changed", r["ref"], {"ref": r["ref"], "state": "on"}
+        )
+    out = []
+    for flow in (await active_flows(tx)).values():
+        if not flow.ref or flow.state == "off":
+            continue
+        co = await tx.scalar("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
+        first = today + timedelta(days=0 if flow.same_day else 1)
+        for day in (first - timedelta(days=1), first):
+            if trigger_of(flow, day) > now or held_why(flow, day) is not None:
+                continue
+            if await tx.scalar(DAY_SQL, k=flow.key, d=day.isoformat()):
+                continue
+            at, _ = await slot_of(tx, flow, day, co)
+            if now >= at:  # (its hour has gone: the day is left, as n8n would have left it)
+                continue
+            out.append((flow, day))
+    return out
+
+
+async def clock(hub: Any, now: datetime | None = None) -> list[str]:
+    """⟨1.39⟩ §61.2 the hub's own clock, run by n8n's minute tick (`hq-flows`) and by its own
+    backup when n8n is silent (flow_auto.due): every day due starts as n8n's per-flow call would
+    (clock_request), so a second call of the same day is that day's answer. The orders made."""
+    from fastapi import BackgroundTasks
+
+    from hq_api.context import Ctx
+    from hq_api.errors import ApiError
+
+    now = now or datetime.now(UTC)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        days = await due_days(tx, now)
+    made = []
+    for flow, day in days:
+        request = clock_request(flow.key, day)
+        later = BackgroundTasks()
+        try:
+            got = await start(Ctx(hub=hub, who=CLOCK_WHO, request=request), request, later,
+                              flow.key, day)  # fmt: skip
+        except ApiError as exc:  # (n8n's own call of the same day is being placed right now)
+            log.warning("the clock left a day", extra={"flow": flow.key, "code": exc.code})
+            continue
+        except Exception:  # (one flow's day never stops the others)
+            log.exception("the clock could not start a day", extra={"flow": flow.key})
+            continue
+        await later()
+        if got.get("order"):
+            made.append(str(got["order"]))
+    return made
+
+
 STORY_WORDS_SQL = """SELECT DISTINCT kw FROM infra.server_jobs j,
         jsonb_array_elements_text(j.args -> 'meta' -> 'rule' -> 'keywords') AS kw
     WHERE j.kind = 'publish' AND j.args ->> 'account' = :a
@@ -676,7 +904,7 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
         return False
     usd = await spent_usd(tx, str(w["ref"]))
     meta = w["flow"]
-    flow = FLOWS.get(str(meta.get("key")))
+    flow = await flow_by_key(tx, str(meta.get("key")))
     cap = flow.usd_cap if flow else FLOW_USD_CAP
     if usd < cap:
         return False
@@ -760,7 +988,7 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
             finished_later = True
         for f in await SPB._files(tx, d):
             newest.setdefault(str(f["name"] or "").strip().lower(), (dict(f), d))
-    flow = FLOWS.get(str((w.get("flow") or {}).get("key") or ""))
+    flow = await flow_by_key(tx, str((w.get("flow") or {}).get("key") or ""))
     if flow is not None and flow.stories:
         return _stories_package(flow, newest)
     files = [f for f, _ in newest.values()]
@@ -886,7 +1114,7 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
         w=w["id"],
         m=_json(meta),
     )
-    flow = FLOWS.get(str(meta.get("key")))
+    flow = await flow_by_key(tx, str(meta.get("key")))
     title = flow.title_fa if flow else "انتشار روزانه"
     from hq_api.domain import notify
 
@@ -932,7 +1160,9 @@ async def _publish_stories(
 ) -> str:  # fmt: skip
     """⟨2026-11-15⟩ Each picture of a stories flow at its own hour, with the day's reply rule (made
     when the first of them is out); an hour already gone by more than half an hour is left out."""
-    flow = FLOWS[str(meta["key"])]
+    flow = await flow_by_key(tx, str(meta["key"]))
+    if flow is None:  # (package() read it already)
+        return "open"
     comment = await SPB.comment_of(tx, hub, pkg["comment_d"])
     topic_d = pkg["topic_d"]
     topic = (
@@ -1017,7 +1247,7 @@ async def on_published(tx: Tx, args: dict[str, Any], done: Any) -> None:
     if row is None:
         return
     meta = OR._j(row["flow"]) or {}
-    flow = FLOWS.get(str(meta.get("key")))
+    flow = await flow_by_key(tx, str(meta.get("key")))
     from hq_api.domain import notify
 
     await notify.raise_notification(

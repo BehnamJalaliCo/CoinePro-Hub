@@ -187,7 +187,9 @@ async def set_automation_state(
     standing publish (`SP:<group>:<company>`), a line, an archive rule or a
     routine (`{ref, state}`), else a rule as before."""
     async with ctx.tx() as tx:
-        if (flow := FV.flow_of(ref)) is not None:  # ⟨2026-11-14⟩ an n8n flow's switch (hub-side)
+        if (
+            flow := await FV.flow_of(tx, ref)
+        ) is not None:  # ⟨2026-11-14⟩ an n8n flow's switch (hub-side)
             await FL.set_on(tx, ctx.who, flow.key, body.state == "on")
             return await FV.render(tx, ctx.hub, ref)
         if await FA.kind_of(tx, ref) == "flow":
@@ -251,7 +253,7 @@ async def get_automation(
     action's result in plain Persian). ⟨1.37⟩ §59.7 a flow: its FlowAutomation
     (schedule, next and upcoming occurrences, budget, last run, n8n's clock)."""
     async with ctx.tx() as tx:
-        if FV.flow_of(ref) is not None:  # ⟨2026-11-14⟩ an n8n flow (`N8:<key>`)
+        if await FV.flow_of(tx, ref) is not None:  # ⟨2026-11-14⟩ an n8n flow (`N8:<key>`)
             return await FV.render(tx, ctx.hub, ref)
         if await FA.kind_of(tx, ref) == "flow":
             return await FA.render(tx, await FA.load(tx, ref))

@@ -176,6 +176,8 @@ KEEP: tuple[str, ...] = (
     "owner.playbooks",  # ⟨1.22⟩ §40.2 the working groups the owner's sessions made stay
     # ⟨1.37⟩ §59.1, §59.5, §59.7: a playbook's versions, a company's links, the flows' clock stay
     "owner.playbook_versions", "growth.site_links", "growth.flow_clock",
+    # ⟨1.39⟩ §61: the automations the owner edits, their versions and alerts stay
+    "automations.flows", "automations.flow_versions", "automations.alerts",
     # ⟨1.31⟩ §47, §48: what was already said stays said (the posts are still out there), and a
     # company's narrator is the owner's setting
     "growth.topics", "media.narrators",
@@ -308,6 +310,7 @@ REF_KEEP: tuple[str, ...] = (
     "dceo.principle_ref_seq",
     "governance.calendar_ref_seq", "governance.key_result_ref_seq", "governance.objective_ref_seq",
     "governance.risk_ref_seq",
+    "automations.flow_ref_seq",  # ⟨1.39⟩ §61 the flows stay
     "growth.automation_ref_seq",  # ⟨1.13⟩ the automations stay
     "growth.rule_ref_seq", "growth.template_ref_seq",
     "knowledge.entry_ref_seq", "knowledge.skill_ref_seq",
