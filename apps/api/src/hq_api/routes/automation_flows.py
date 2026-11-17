@@ -207,6 +207,10 @@ async def automation_flow_run_now(
             run = await FD.run_ref_of(tx, ctx.hub, str(made["run"] or ""))
             raise ApiError(409, "already_ran", f"{flow.ref} ran {day}",
                            run=run.model_dump(mode="json") if run else {"ref": made["run"]})  # fmt: skip
+        if (pub := await FL.published_day(tx, flow, day)) is not None:
+            # ⟨2026-11-17⟩ its work wiped, its package scheduled or out: the same rule as the clock
+            raise ApiError(409, "already_ran", f"{flow.ref} {day} is out", run={"ref": pub},
+                           message_fa=FL.MADE_PUBLISHED_FA)  # fmt: skip
         # a day made before and failed is made again under a key of its own
         again = (
             f":{uuid.uuid4()}" if await tx.scalar(FL.DAY_SQL, k=flow.key, d=day.isoformat()) else ""

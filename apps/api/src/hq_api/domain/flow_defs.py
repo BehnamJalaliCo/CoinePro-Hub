@@ -468,7 +468,7 @@ async def next_of(tx: Tx, flow: FL.Flow, company_id: Any, now: datetime) -> Flow
         at, _ = await FL.slot_of(tx, flow, day, company_id)
         if at <= now:
             continue
-        if build < now and await tx.scalar(FL.DAY_SQL, k=flow.key, d=day.isoformat()):
+        if build < now and await FL.day_made(tx, flow, day, at):
             continue
         return FlowDefNext(build_at=build, publish_at=at, kind_fa=FL.kind_of(flow, day) or None)
     return None
@@ -866,7 +866,8 @@ async def skip(ctx: Any, tx: Tx, ref: str, day: date, on: bool) -> FlowDef:
 MADE_SQL = """SELECT ref, run_meta -> 'flow' ->> 'order' AS run FROM work.work
     WHERE parent_id IS NULL AND run_meta -> 'flow' ->> 'key' = :k
       AND run_meta -> 'flow' ->> 'day' = :d
-      AND (status NOT IN ('failed', 'cancelled') OR run_meta -> 'flow' ? 'sent')
+      AND (status NOT IN ('failed', 'cancelled') OR run_meta -> 'flow' ? 'sent'
+           OR close_reason = 'duplicate_day')
     ORDER BY created_at DESC LIMIT 1"""
 
 

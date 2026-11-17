@@ -31,7 +31,6 @@ LATE_AFTER = timedelta(minutes=5)  # a publish hour this far past without its pa
 NOT_OUT_AFTER = timedelta(minutes=60)  # …and this far, with no run left: the owner is told
 CLOCK_SILENT = timedelta(minutes=30)
 CLOCK_ALERT_FOR = timedelta(hours=1)  # a clock_missed alert stays on the page this long
-WENT_OUT_BEFORE, WENT_OUT_AFTER = timedelta(hours=1), timedelta(hours=3)  # (went_out's window)
 FA_DIGITS = FL.FA_DIGITS
 
 CAP_REACHED_FA = "هزینه‌ی ساخت امروز به {usd} دلار رسید (سقف روز {cap} دلار)؛ ساخت تا آخر ادامه یافت"
@@ -252,7 +251,7 @@ async def _late(tx: Tx, flow: FL.Flow, now: datetime) -> list[UUID]:
         k=flow.key,
         d=today.isoformat(),
     )
-    if (day is not None and day["sent"]) or await went_out(tx, flow, today, at):
+    if (day is not None and day["sent"]) or await FL.published_day(tx, flow, today, at):
         if open_ is not None:
             await close_alert(tx, flow, "late", CLOSED_SENT_FA)
         return []
@@ -265,29 +264,6 @@ async def _late(tx: Tx, flow: FL.Flow, now: datetime) -> list[UUID]:
     return await _tell(tx, [UUID(str(alert))], flow.company,
                        NOT_OUT_TITLE_FA.format(title=flow.title_fa),
                        NOT_OUT_BODY_FA.format(at=when), flow.ref)  # fmt: skip
-
-
-WENT_OUT_SQL = """SELECT 1 FROM media.publications
-    WHERE state NOT IN ('failed', 'cancelled') AND (
-        (source ->> 'flow_key' = :k AND source ->> 'day' = :d)
-        OR (account = :a AND kind = :kind AND at >= :lo AND at < :hi
-            AND coalesce(source ->> 'flow_key', '') IN ('', :k)))
-    LIMIT 1"""
-
-
-async def went_out(tx: Tx, flow: FL.Flow, day: date, at: datetime) -> bool:
-    """⟨2026-11-17⟩ the day's package went out, read from what was published (§60.1), not only from
-    its work: a day whose work is gone (the owner's wipe of 07:24Z took that morning's works, and
-    every day made before §60 has no flow on its rows) still counts. Its publication row (this
-    flow and day), or a post of the page of the flow's kind from an hour before its hour to three
-    hours after its last one, that no other flow claims."""
-    last = FL.story_times(flow, day)[-1] if flow.stories else at
-    got = await tx.scalar(
-        WENT_OUT_SQL, k=flow.key, d=day.isoformat(), a=flow.account,
-        kind="story" if flow.stories else "reel", lo=at - WENT_OUT_BEFORE,
-        hi=last + WENT_OUT_AFTER,
-    )  # fmt: skip
-    return got is not None
 
 
 async def _clock(

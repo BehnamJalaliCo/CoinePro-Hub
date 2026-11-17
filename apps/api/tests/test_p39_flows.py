@@ -700,6 +700,74 @@ async def test_a_day_whose_work_was_wiped_but_went_out_is_not_late(
         await all_off(su, key, other)
 
 
+async def test_the_clock_never_makes_a_day_whose_package_is_already_out(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-17⟩ live: the morning's wipe took two days' works whose reels were scheduled, and
+    the clock made both days again. The same rule as the late alert (flows.day_made): a page's
+    post of the flow's kind at its hour, no flow on it, makes the day; another flow's post does
+    not; a day closed as a duplicate is never made again; run-now answers 409 already_ran."""
+    co = await new_company()
+    a, b = fk(), fk()
+    page = f"p39.{a}"
+    refs = await seed(su, monkeypatch, a_flow(co["code"], a, account=page, hours=("14:00",) * 4),
+                      a_flow(co["code"], b, account=page, hours=("17:00",) * 4))  # fmt: skip
+    day = tomorrow()
+    hour = datetime.combine(day, datetime.min.time(), TZ)
+    pub = """INSERT INTO media.publications (company_id, account, kind, state, title_fa, chain,
+                 scheduled_at, source)
+             VALUES ($1, $2, 'reel', 'scheduled', 'p39', ARRAY[gen_random_uuid()], $3, $4::jsonb)"""
+    try:
+        # a's reel is scheduled (its work wiped: a backfilled row, no flow); b's hour holds another
+        # flow's reel only
+        await su.execute(pub, co["id"], page, hour.replace(hour=14), "{}")
+        await su.execute(pub, co["id"], page, hour.replace(hour=17, minute=5),
+                         json.dumps({"flow_key": "p39_someone_else", "day": day.isoformat()}))  # fmt: skip
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            fa_, fb = await FL.flow_by_key(tx, a), await FL.flow_by_key(tx, b)
+            assert fa_ is not None and fb is not None
+            assert await FL.day_made(tx, fa_, day) and not await FL.day_made(tx, fb, day)
+        orders = await FL.clock(hub, FL.trigger_of(fa_, day) + timedelta(minutes=1))
+        assert len(orders) == 1, orders
+        made = await su.fetchrow(
+            "SELECT ref, run_meta -> 'flow' ->> 'key' AS k FROM work.work"
+            " WHERE run_meta -> 'flow' ->> 'order' = $1",
+            orders[0],
+        )
+        assert made["k"] == b
+        # n8n's (or the owner's) call for a's day: nothing new
+        r = await client.post(f"/api/v1/flows/{a}/run", headers={**owner, **idem()},
+                              json={"day": day.isoformat()})  # fmt: skip
+        assert r.status_code == 201 and r.json()["order"] == "", r.text
+        assert r.json()["why_fa"] == FL.MADE_PUBLISHED_FA
+        r = await client.post(f"/api/v1/automations/flows/{refs[a]}/run-now",
+                              headers={**owner, **idem()}, json={"day": day.isoformat()})  # fmt: skip
+        assert r.status_code == 409 and r.json()["code"] == "already_ran", r.text
+        assert r.json()["run"]["ref"].startswith("P-")
+        # b's day closed by hand as a duplicate: never made again
+        await su.execute(
+            "UPDATE work.work SET status = 'cancelled', close_reason = $2 WHERE ref = $1",
+            made["ref"], FL.DUPLICATE_DAY,
+        )  # fmt: skip
+        r = await client.post(f"/api/v1/flows/{b}/run", headers={**owner, **idem()},
+                              json={"day": day.isoformat()})  # fmt: skip
+        assert r.status_code == 201 and r.json()["order"] == orders[0], r.text
+        assert await FL.clock(hub, FL.trigger_of(fb, day) + timedelta(minutes=30)) == []
+        assert await su.fetchval(
+            """SELECT count(*) FROM work.work WHERE parent_id IS NULL
+                 AND run_meta -> 'flow' ->> 'key' = ANY($1::text[])""",
+            [a, b],
+        ) == 1  # fmt: skip
+    finally:
+        await all_off(su, a, b)
+
+
 async def test_the_p2_pages_kits_a_new_automation_and_the_week(
     client: httpx.AsyncClient,
     hub: Hub,

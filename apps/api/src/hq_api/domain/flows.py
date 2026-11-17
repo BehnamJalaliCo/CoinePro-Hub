@@ -730,16 +730,21 @@ async def start(
         made = await tx.first(
             """SELECT ref, run_meta -> 'flow' AS flow FROM work.work
                WHERE run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d
-                 AND (status NOT IN ('failed', 'cancelled') OR run_meta -> 'flow' ? 'sent')
+                 AND (status NOT IN ('failed', 'cancelled') OR run_meta -> 'flow' ? 'sent'
+                      OR close_reason = :dup)
                ORDER BY created_at DESC LIMIT 1""",
             k=flow.key,
             d=the_day.isoformat(),
+            dup=DUPLICATE_DAY,
         )
         if made is not None:
             m = OR._j(made["flow"]) or {}
             return {"order": str(m.get("order") or ""), "work": str(made["ref"]),
                     "publish_at": str(m.get("publish_at") or ""), "why_fa": "پیش از این ساخته شده"}  # fmt: skip
         at, why = await slot_of(tx, flow, the_day, co["id"])
+        if not forced and flow.ref and await published_day(tx, flow, the_day, at):
+            # ⟨2026-11-17⟩ its work wiped, its package scheduled: never a second one
+            return {"order": "", "work": None, "publish_at": "", "why_fa": MADE_PUBLISHED_FA}
         used = await story_words(tx, flow.account) if flow.stories and not flow.story_word else []
     body = OrderIn(
         text=brief_of(flow, the_day, at, used),
@@ -783,6 +788,44 @@ async def start(
 CLOCK_WHO = Principal(kind="owner", code="owner", role="owner")  # (n8n's call is the owner's too)
 DAY_SQL = """SELECT 1 FROM work.work WHERE parent_id IS NULL
     AND run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d LIMIT 1"""
+DUPLICATE_DAY = "duplicate_day"  # a work's close_reason: a second order of a day, never made again
+PUBLISHED_SQL = """SELECT ref FROM media.publications
+    WHERE state NOT IN ('failed', 'cancelled') AND (
+        (source ->> 'flow_key' = :k AND source ->> 'day' = :d)
+        OR (account = :a AND kind = :kind AND at >= :lo AND at < :hi
+            AND coalesce(source ->> 'flow_key', '') IN ('', :k)))
+    ORDER BY at LIMIT 1"""
+PUBLISHED_BEFORE, PUBLISHED_AFTER = timedelta(hours=1), timedelta(hours=3)
+MADE_PUBLISHED_FA = "بسته‌ی این روز پیش از این زمان‌بندی یا منتشر شده است"
+
+
+async def published_day(tx: Tx, flow: Flow, day: date, at: datetime | None = None) -> str | None:
+    """⟨2026-11-17⟩ the day's package is out (or scheduled), read from what was published (§60.1),
+    not only from its work: the owner's wipe of 07:24Z took that morning's works, and a day made
+    before §60 has no flow on its rows (live: 7 false `late` alerts and 2 duplicate days). Its
+    publication row (this flow and day), or a post of the flow's page and kind, scheduled or
+    published, from an hour before its hour to three hours after its last one, that no other flow
+    claims. The publication's ref, or None. ONE rule for the clock, n8n's call and the alerts."""
+    if not flow.account:
+        return None
+    if at is None:
+        co = await tx.scalar("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
+        at, _ = await slot_of(tx, flow, day, co)
+    last = story_times(flow, day)[-1] if flow.stories else at
+    got = await tx.scalar(
+        PUBLISHED_SQL, k=flow.key, d=day.isoformat(), a=flow.account,
+        kind="story" if flow.stories else "reel", lo=at - PUBLISHED_BEFORE,
+        hi=last + PUBLISHED_AFTER,
+    )  # fmt: skip
+    return str(got) if got else None
+
+
+async def day_made(tx: Tx, flow: Flow, day: date, at: datetime | None = None) -> bool:
+    """The day is made: any work of it (failed, cancelled or a duplicate: the clock never makes a
+    day twice), or its package already scheduled or out (published_day)."""
+    if await tx.scalar(DAY_SQL, k=flow.key, d=day.isoformat()):
+        return True
+    return await published_day(tx, flow, day, at) is not None
 
 
 N8N_GRACE = timedelta(minutes=2)
@@ -846,6 +889,8 @@ async def due_days(tx: Tx, now: datetime) -> list[tuple[Flow, date]]:
                 continue
             at, _ = await slot_of(tx, flow, day, co)
             if now >= at:  # (its hour has gone: the day is left, as n8n would have left it)
+                continue
+            if await day_made(tx, flow, day, at):
                 continue
             out.append((flow, day))
     return out
