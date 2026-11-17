@@ -397,10 +397,31 @@ exchange-fees ↔ the fee section of each exchange page (general vs that exchang
 
 High-signal queries with no idea in the bank. Adding them is the owner's / hub's call; each
 would be a cornerstone lesson:
-1. `/learn/cryptocurrency/`: «ارز دیجیتال چیست به زبان ساده» (A2, strong; the site's biggest gap)
-2. `/learn/how-to-buy-crypto/`: «چطور ارز دیجیتال بخریم» (C6) → the natural bridge to `/exchanges/`
+1. `/learn/cryptocurrency/`: «ارز دیجیتال چیست به زبان ساده» (A2, strong): **live 2026-11-17**
+2. `/learn/how-to-buy-crypto/`: «چطور ارز دیجیتال بخریم» (C6) → the natural bridge to `/exchanges/`: **live 2026-11-17**
 3. `/learn/tether/`: «تتر چیست» (strong; today a section of `/learn/stablecoin/`; split only
    when the stablecoin lesson ranks)
 4. `/learn/ethereum/`: «اتریوم چیست» (expected strong; not checked in this research)
 5. `/learn/crypto-wallet/`: «کیف پول ارز دیجیتال چیست» (strong; general wallet lesson above
-   cold-wallet)
+   cold-wallet): **live 2026-11-17**
+
+## 7. Reserved slugs: lessons already on the site (a reel on the topic joins them)
+
+Never a second article on a topic (owner rule). A reel whose idea or topic is in this table writes
+only `---` / `attach: <slug>` / `---` as its `out/article.md`; the hub then puts the reel's video (and
+later its YouTube Short) into that lesson. If a session writes a full article anyway, `sync.py`
+binds the reel to the lesson by the same slug, the same `idea:` or the same topic (the article's
+`keyword`/`title` against the lesson's `keyword`/`title`/`keywords`); proof: `tools/test_sync.py`.
+
+| Slug | Idea | Topic keys | Live since |
+|---|---|---|---|
+| `blockchain` | 1 | بلاک چین چیست | 2026-11-17 |
+| `stablecoin` | 4 | استیبل کوین چیست | 2026-11-17 |
+| `bitcoin-halving` | 5 | هاوینگ بیت کوین چیست | 2026-11-17 |
+| `cold-wallet` | 9 | کیف پول سرد چیست | 2026-11-17 |
+| `hash` | — | هش چیست | 2026-11-17 |
+| `cryptocurrency` | — | ارز دیجیتال چیست، رمز ارز چیست، رمزارز چیست، کریپتو چیست | 2026-11-17 (cornerstone) |
+| `bitcoin` | 2 | بیت کوین چیست، بیت کوین به زبان ساده | 2026-11-17 (cornerstone) |
+| `crypto-wallet` | — | کیف پول ارز دیجیتال چیست، کیف پول کریپتو چیست | 2026-11-17 (cornerstone) |
+| `how-to-buy-crypto` | — | چطور ارز دیجیتال بخریم، چگونه ارز دیجیتال بخریم، آموزش خرید ارز دیجیتال | 2026-11-17 (cornerstone) |
+| `usdt-networks` | 20 | تتر را با کدام شبکه بفرستیم، تتر trc20، تتر bep20، تتر erc20 | 2026-11-17 (cornerstone) |
