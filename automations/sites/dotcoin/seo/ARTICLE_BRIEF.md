@@ -13,8 +13,10 @@ Keyword research: KEYWORDS.md. Page rules: PAGE_PLAN.md §3.3. Technical rules: 
 - PAGE_PLAN.md §4/§5 for this idea (slug, primary query, title), if the idea is listed;
 - the list of existing lessons and glossary slugs (for links).
 
-A news reel («اطلاع‌رسانی») does **not** become a lesson (news ages fast, prices are not
-allowed). It may add one dated line to an existing lesson's refresh queue (§8).
+⟨2026-11-17, the owner⟩ **Every reel gets its article, written by the same session from the same
+script, topic and facts, expanded.** A news reel («اطلاع‌رسانی») gets a news article (§10). A reel
+whose lesson already exists by hand (content/articles: the idea's PAGE_PLAN slug is live) writes
+`out/article.md` as `---\nattach: <slug>\n---` only: the hub puts the reel into that lesson.
 
 ## 2. Before writing: the keyword step
 
@@ -197,3 +199,19 @@ steps:
    `height`.
 8. 1–3 sources, all primary.
 9. `python3 build.py` passes its checks (CHECKLIST.md §§3–5) before the deploy.
+
+## 10. News articles (the informational reel, from 2026-11-17)
+
+The same session writes them from its own `qc/news.json` and the reel's script: the ONE story of
+the reel, expanded, never another story.
+
+- **Front matter:** as §3, with `pillar: news`, `idea:` empty, `motif: generic` (or the closest),
+  `keyword`: the story's main query as people type it (e.g. «ای تی اف بیت کوین»).
+- **Slug:** English kebab-case, 2-6 words naming the story (`bitcoin-etf-outflows`); a date only
+  when the same story could come back (`fed-rate-decision-2026-11`). Unique like any slug (§6).
+- **Body, 600-1,000 words:** «چه اتفاقی افتاد؟» (the facts, with the day), «چرا مهم است؟», «برای
+  تو چه معنایی دارد؟» (what a beginner should understand, link to the lesson that explains the
+  concept), «قدم بعدی»; then 2-4 FAQ. No predictions, no advice to buy or sell; a price only as
+  the news file gives it, with «در لحظه‌ی نوشتن این خبر».
+- **Sources:** the story's own links from the news file (1-3), the primary one first.
+- **Self-check:** §9 and `sync.py --check` as for a lesson.

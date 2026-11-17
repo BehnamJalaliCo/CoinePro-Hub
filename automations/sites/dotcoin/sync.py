@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
-"""DotCoin.me: the hub's daily lessons -> the live site (stdlib only; run as user Hub on the hub).
+"""DotCoin.me: the hub's daily reels -> their articles on the live site (stdlib + ffmpeg; user Hub).
 
-Every educational DotCoin reel's session leaves `out/article.md` (kit dotcoin-reels, seo/ARTICLE_BRIEF.md).
-One pass (dotcoin-site-sync.timer, every 10 minutes):
-  1. finds the article.md files of DotCoin outputs not synced yet (files.files, by the workspace the
-     file came from: a `dotcoin_reels` work, or the work of a dotcoin.me reel's publish job);
-  2. reads the bytes through `docker exec` (the hub DB is only read);
-  3. validates the front matter and the slug (an invalid article is skipped with a log line);
-  4. writes content/auto/<slug>.md in the content worktree (branch site/dotcoin-content);
-  5. puts the reel's Instagram URL in `reel:` once its publish job has `result.url`;
-  6. if anything changed: build check, commit, push the branch, deploy.sh (Cloudflare over IPv4).
-State: /home/Hub/sites/dotcoin-sync.json. One lock; idempotent; never prints a secret.
+Every DotCoin reel's session (kit dotcoin-reels; educational and informational) leaves
+`out/article.md`. One pass (dotcoin-site-sync.timer, every 15 minutes):
+  1. finds the article.md files of dotcoin.me reels not synced yet (files.files by the workspace the
+     file came from, joined to the reel's publish job on infra.server_jobs; the hub DB is only read);
+  2. reads the bytes through `docker exec`, validates the front matter, the slug and the topic;
+  3. writes content/auto/<slug>.md in the content worktree (branch site/dotcoin-content), or, for
+     `attach: <slug>`, binds the reel to a lesson that already exists;
+  4. makes the reel's web copy (/media/<slug>.mp4 + .jpg poster + .json, H.264 720x1280, about
+     2 Mbit/s, faststart) in /home/Hub/sites/dotcoin-media (never in git; build.py copies it);
+  5. puts the Instagram URL in `reel:` once the publish job has `result.url`;
+  6. only if something changed: build check, commit, push the branch, deploy.sh (Cloudflare, IPv4).
+
+Never a duplicate: one source (`<channel>:<id>`, today `instagram:<the reel's work ref>`; later
+`youtube:<video id>`) -> one slug, a slug or a topic is never published twice, an article bound to
+another source is never overwritten. State: /home/Hub/sites/dotcoin-sync.json. One lock. An idle
+run reads one query, logs nothing and exits. Never prints a secret.
 
     sync.py                                       one pass
     sync.py --dry-run                             find and validate only; write nothing
-    sync.py --import FILE --workspace W-000583    take a local article as if the hub had made it
+    sync.py --import FILE --workspace W-000583    take a local article.md as if the hub had made it
     sync.py --check FILE                          the session's self-check (kit dotcoin-reels): exit 1 on
                                                   an error; needs no worktree, no hub, no lock
 """
@@ -37,24 +43,28 @@ from pathlib import Path
 
 WT = Path(os.environ.get("DOTCOIN_CONTENT_WT", "/home/Hub/sites/dotcoin-content"))
 SITE = WT / "automations" / "sites" / "dotcoin"
-AUTO = SITE / "content" / "auto"
+ARTS, AUTO = SITE / "content" / "articles", SITE / "content" / "auto"
 REL_AUTO = "automations/sites/dotcoin/content/auto"
 HOME = Path(os.environ.get("DOTCOIN_SYNC_HOME", "/home/Hub/sites"))
+MEDIA = Path(os.environ.get("DOTCOIN_MEDIA", "/home/Hub/sites/dotcoin-media"))
 STATE, LOCK = HOME / "dotcoin-sync.json", HOME / "dotcoin-sync.lock"
 BRANCH = "site/dotcoin-content"
 API, PG = "coinepro-hq-api-1", "coinepro-hq-postgres-1"
-ACCOUNT, FLOWS = "dotcoin.me", ("dotcoin_reels",)
+ACCOUNT = "dotcoin.me"
 SITEMAP = "https://dotcoin.me/sitemap.xml"
 GITLEAKS_IMAGE = "zricethezav/gitleaks:v8.30.1"
+FFMPEG_IMAGE = "jrottenberg/ffmpeg:7.1-alpine"
 
-PILLARS = {"basics", "security", "exchange", "market", "defi", "myths", "terms"}
+PILLARS = {"basics", "security", "exchange", "market", "defi", "myths", "terms", "news"}
 MOTIFS = {"chain", "vault", "halving", "peg", "generic"}
-RESERVED = {"basics", "security", "exchange", "market", "defi", "myths", "terms", "page", "tag", "feed",
-            "go", "search"}
+RESERVED = {"basics", "security", "exchange", "market", "defi", "myths", "terms", "news", "page", "tag",
+            "feed", "go", "search", "media"}
 REQUIRED = ("title", "seo_title", "slug", "pillar", "date", "en", "motif", "description", "lead", "answer")
-SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+){0,3}")
+SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+){0,5}")
 WS_RE = re.compile(r"W-\d{3,9}")
 KEY_RE = re.compile(r"[0-9a-f]{16,64}")
+UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+IG_URL = re.compile(r"https://www\.instagram\.com/\S{3,200}")
 
 
 def log(msg: str) -> None:
@@ -62,12 +72,12 @@ def log(msg: str) -> None:
 
 
 def run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None, timeout: int = 120,
-        data: bytes | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, env=env, input=data, capture_output=True, timeout=timeout)
+        stdout=subprocess.PIPE) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=cwd, env=env, stdout=stdout, stderr=subprocess.PIPE, timeout=timeout)
 
 
-def tail(b: bytes, n: int = 4) -> str:
-    lines = [ln for ln in b.decode("utf-8", "replace").splitlines() if ln.strip()]
+def tail(b: bytes | None, n: int = 4) -> str:
+    lines = [ln for ln in (b or b"").decode("utf-8", "replace").splitlines() if ln.strip()]
     return " / ".join(ln.strip()[:160] for ln in lines[-n:])
 
 
@@ -81,48 +91,61 @@ def sql(query: str) -> list[dict]:
     return json.loads(r.stdout.decode() or "[]")
 
 
-def candidates() -> list[dict]:
-    flows = ",".join(f"'{f}'" for f in FLOWS)
-    return sql(f"""
-        WITH ws AS (
-          SELECT ref AS w FROM work.work WHERE run_meta -> 'flow' ->> 'key' IN ({flows})
-          UNION
-          SELECT j.args -> 'session' ->> 'work' FROM infra.server_jobs j
-           WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
-             AND j.created_at > now() - interval '30 days')
+JOBS_SQL = f"""
+    SELECT DISTINCT ON (j.args -> 'session' ->> 'work')
+           j.args -> 'session' ->> 'work' AS w, j.id::text AS job, j.args -> 'session' ->> 'file_id' AS video,
+           (SELECT x ->> 'file_id' FROM jsonb_array_elements(j.args -> 'files') x
+             WHERE x ->> 'role' = 'cover' LIMIT 1) AS cover,
+           j.args -> 'meta' ->> 'scheduled_at' AS at, j.result ->> 'url' AS url
+      FROM infra.server_jobs j
+     WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
+       AND j.state <> 'cancelled' AND j.created_at > now() - interval '30 days'
+     ORDER BY j.args -> 'session' ->> 'work', (j.result ->> 'url' IS NOT NULL) DESC, j.created_at DESC"""
+
+
+def reel_jobs() -> dict[str, dict]:
+    """The reel publish job of each dotcoin.me work (the newest, one with a URL first)."""
+    return {r["w"]: r for r in sql(JOBS_SQL) if WS_RE.fullmatch(str(r.get("w") or ""))}
+
+
+def new_articles(done: set[str]) -> list[dict]:
+    rows = sql(f"""
+        WITH ws AS (SELECT DISTINCT j.args -> 'session' ->> 'work' AS w FROM infra.server_jobs j
+                     WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
+                       AND j.created_at > now() - interval '30 days')
         SELECT f.id::text AS id, f.storage_key AS key, f.sha256 AS sha, f.size, f.meta ->> 'workspace' AS w
           FROM files.files f JOIN ws ON ws.w = f.meta ->> 'workspace'
          WHERE lower(f.name) = 'article.md' AND f.variant = 'original'
            AND f.created_at > now() - interval '30 days'
          ORDER BY f.created_at""")
+    return [r for r in rows if r["id"] not in done and WS_RE.fullmatch(str(r.get("w") or ""))]
 
 
-def reel_urls(workspaces: list[str]) -> dict[str, str]:
-    ws = [w for w in workspaces if WS_RE.fullmatch(w)]
-    if not ws:
-        return {}
-    arr = ",".join(f"'{w}'" for w in ws)
-    rows = sql(f"""
-        SELECT DISTINCT ON (j.args -> 'session' ->> 'work') j.args -> 'session' ->> 'work' AS w,
-               j.result ->> 'url' AS url
-          FROM infra.server_jobs j
-         WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
-           AND j.result ->> 'url' LIKE 'https://www.instagram.com/%'
-           AND j.args -> 'session' ->> 'work' IN ({arr})
-         ORDER BY j.args -> 'session' ->> 'work', j.updated_at DESC""")
-    return {r["w"]: r["url"] for r in rows if re.fullmatch(r"https://www\.instagram\.com/\S{3,200}", r["url"])}
+def file_row(fid: str) -> dict | None:
+    if not UUID_RE.fullmatch(fid or ""):
+        return None
+    rows = sql(f"SELECT id::text AS id, storage_key AS key, sha256 AS sha, size FROM files.files WHERE id = '{fid}'")
+    return rows[0] if rows else None
 
 
-def file_bytes(row: dict) -> bytes:
+def fetch(row: dict, dest: Path | None = None, limit: int = 300_000) -> bytes:
+    """A hub file's bytes (docker exec), checked against its sha256; to `dest` when given."""
     key = str(row["key"])
-    if not KEY_RE.fullmatch(key) or int(row["size"]) > 300_000:
+    if not KEY_RE.fullmatch(key) or int(row["size"]) > limit:
         raise ValueError("unexpected storage key or size")
-    r = run(["docker", "exec", API, "cat", f"/data/files/{key[:2]}/{key}"], timeout=60)
+    cmd = ["docker", "exec", API, "cat", f"/data/files/{key[:2]}/{key}"]
+    if dest is None:
+        r = run(cmd, timeout=120)
+        data = r.stdout
+    else:
+        with open(dest, "wb") as out:
+            r = run(cmd, timeout=300, stdout=out)
+        data = dest.read_bytes()
     if r.returncode:
         raise RuntimeError(f"read failed: {tail(r.stderr, 1)}")
-    if row.get("sha") and hashlib.sha256(r.stdout).hexdigest() != row["sha"]:
+    if row.get("sha") and hashlib.sha256(data).hexdigest() != row["sha"]:
         raise ValueError("sha256 mismatch")
-    return r.stdout
+    return data
 
 
 # ------------------------------------------------------------------ the article
@@ -148,6 +171,15 @@ def parse(text: str) -> tuple[dict, str]:
         key = k.strip()
         meta[key] = v.strip()
     return meta, body
+
+
+def norm(s) -> str:
+    s = str(s or "").replace("ي", "ی").replace("ك", "ک").lower()
+    return re.sub(r"[\s‌‏‎؟?،,.:;!«»\"'()|-]+", "", s)
+
+
+def topics(meta: dict) -> set[str]:
+    return {norm(meta.get(k)) for k in ("keyword", "title") if norm(meta.get(k))}
 
 
 def validate(text: str, taken: set[str]) -> tuple[dict, list[str], list[str]]:
@@ -180,6 +212,9 @@ def validate(text: str, taken: set[str]) -> tuple[dict, list[str], list[str]]:
         errs.append("bad en")
     if m.get("idea") and not str(m["idea"]).isdigit():
         errs.append("bad idea")
+    if m.get("youtube") and not re.match(r"(https://(www\.|m\.)?(youtube\.com|youtu\.be)/\S+|[A-Za-z0-9_-]{11})$",
+                                         str(m["youtube"])):
+        errs.append("bad youtube")
     src = m.get("sources") if isinstance(m.get("sources"), list) else []
     if not 1 <= len(src) <= 3 or any(not re.fullmatch(r"https://\S+", s.rpartition("|")[2].strip()) for s in src):
         errs.append("sources: 1-3 lines «label | https://…»")
@@ -222,20 +257,22 @@ def set_field(text: str, key: str, value: str) -> str:
     return head + rest
 
 
-def local_slugs(skip: Path | None = None) -> set[str]:
-    out = set()
-    for d in (SITE / "content" / "articles", AUTO):
+def local_articles(skip: str = "") -> dict[str, dict]:
+    """slug -> front matter of every lesson in the worktree (by hand and auto), but `skip`."""
+    out: dict[str, dict] = {}
+    for d in (ARTS, AUTO):
         try:
             files = sorted(d.glob("*.md"))
         except OSError:  # --check as the studio user: no access to the hub's worktree
             continue
         for p in files:
-            if skip is not None and p == skip:
-                continue
             try:
-                out.add(parse(p.read_text("utf-8"))[0].get("slug") or p.stem)
+                m = parse(p.read_text("utf-8"))[0]
             except (ValueError, OSError):
-                out.add(p.stem)
+                m = {}
+            slug = m.get("slug") or p.stem
+            if slug != skip:
+                out[slug] = m
     return out
 
 
@@ -258,22 +295,21 @@ def live_slugs() -> set[str] | None:
     return set(re.findall(r"<loc>https://dotcoin\.me/learn/([a-z0-9-]+)/</loc>", xml))
 
 
-def build_ok(paths: list[Path]) -> tuple[bool, str]:
+def build_ok() -> tuple[bool, str]:
     """build.py into a throwaway dist, with the new files already in place."""
     tmp = Path(tempfile.mkdtemp(prefix="dotcoin-build-"))
     try:
-        env = dict(os.environ, DOTCOIN_DIST=str(tmp / "dist"))
+        env = dict(os.environ, DOTCOIN_DIST=str(tmp / "dist"), DOTCOIN_MEDIA=str(MEDIA))
         r = run([sys.executable, "-I", str(SITE / "build.py")], cwd=SITE, env=env, timeout=300)
         return r.returncode == 0, tail(r.stdout + r.stderr, 2)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def secrets_clean(texts: dict[str, str]) -> bool:
+def secrets_clean(name: str, text: str) -> bool:
     tmp = Path(tempfile.mkdtemp(prefix="dotcoin-leaks-"))
     try:
-        for name, t in texts.items():
-            (tmp / name).write_text(t, "utf-8")
+        (tmp / name).write_text(text, "utf-8")
         os.chmod(tmp, 0o755)
         r = run(["docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}", "-v", f"{tmp}:/scan:ro",
                  GITLEAKS_IMAGE, "dir", "--no-banner", "--redact", "--exit-code", "1", "--log-level", "error",
@@ -283,43 +319,124 @@ def secrets_clean(texts: dict[str, str]) -> bool:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ------------------------------------------------------------------ the reel's web copy
+def ffmpeg(args: list[str], work: Path, timeout: int = 900) -> subprocess.CompletedProcess:
+    """Host ffmpeg when installed, else the docker image (work mounted at the same path)."""
+    tool = args[0]
+    if shutil.which(tool):
+        return run([tool, *args[1:]], timeout=timeout)
+    return run(["docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}", "-v", f"{work}:{work}",
+                "--entrypoint", tool, FFMPEG_IMAGE, *args[1:]], timeout=timeout)
+
+
+def make_media(slug: str, src: dict, job: dict) -> bool:
+    """MEDIA/<slug>.mp4 (H.264 720x1280, ~2 Mbit/s, AAC, faststart), .jpg (the cover) and .json."""
+    vrow, crow = file_row(str(job.get("video") or "")), file_row(str(job.get("cover") or ""))
+    if not vrow:
+        log(f"{slug}: the reel's video is not on the hub (any more)")
+        return False
+    MEDIA.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix="tmp-", dir=MEDIA))
+    try:
+        os.chmod(work, 0o777)
+        fetch(vrow, work / "in.mp4", limit=300_000_000)
+        out = work / "out.mp4"
+        for rate in ("2M", "1200k"):  # well under Pages' 25 MB file limit
+            r = ffmpeg(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(work / "in.mp4"),
+                        "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
+                               "pad=720:1280:(ow-iw)/2:(oh-ih)/2,fps=30",
+                        "-c:v", "libx264", "-preset", "medium", "-profile:v", "high", "-pix_fmt", "yuv420p",
+                        "-b:v", rate, "-maxrate", "2500k", "-bufsize", "5000k", "-c:a", "aac", "-b:a", "128k",
+                        "-ac", "2", "-movflags", "+faststart", str(out)], work)
+            if r.returncode:
+                raise RuntimeError(f"ffmpeg: {tail(r.stderr, 2)}")
+            if out.stat().st_size < 24_000_000:
+                break
+        else:
+            raise RuntimeError("the web copy is over 24 MB")
+        poster = work / "poster.jpg"
+        if crow:
+            fetch(crow, work / "cover.img", limit=30_000_000)
+            src_img, seek = [str(work / "cover.img")], []
+        else:  # no cover: a frame of the video
+            src_img, seek = [str(out)], ["-ss", "1"]
+        r = ffmpeg(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", *seek, "-i", *src_img, "-frames:v", "1",
+                    "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280",
+                    "-q:v", "3", str(poster)], work)
+        if r.returncode:
+            raise RuntimeError(f"poster: {tail(r.stderr, 2)}")
+        r = ffmpeg(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)], work)
+        secs = round(float((r.stdout or b"0").decode().strip() or 0))
+        shutil.move(out, MEDIA / f"{slug}.mp4")
+        shutil.move(poster, MEDIA / f"{slug}.jpg")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    src["media"] = str(job.get("video"))
+    src["duration"] = f"PT{secs // 60}M{secs % 60}S" if secs >= 60 else f"PT{secs}S"
+    write_sidecar(slug, src, job)
+    log(f"{slug}: video {round((MEDIA / f'{slug}.mp4').stat().st_size / 1e6, 1)} MB, {secs} s")
+    return True
+
+
+def write_sidecar(slug: str, src: dict, job: dict) -> None:
+    side = {"key": src["key"], "job": job.get("job") or src.get("job"), "reel": src.get("reel") or "",
+            "upload": job.get("at") or src.get("upload") or "", "duration": src.get("duration") or "",
+            "width": 720, "height": 1280}
+    src["upload"] = side["upload"]
+    (MEDIA / f"{slug}.json").write_text(json.dumps(side, ensure_ascii=False, indent=1), "utf-8")
+
+
+def media_print() -> str:
+    """A fingerprint of the web copies (what deploy.sh uploads besides git)."""
+    h = hashlib.sha256()
+    if MEDIA.is_dir():
+        for p in sorted(MEDIA.glob("*.*")):
+            if p.suffix in (".mp4", ".jpg", ".json"):
+                st = p.stat()
+                h.update(f"{p.name}:{st.st_size}:{int(st.st_mtime)}\n".encode())
+    return h.hexdigest()[:16]
+
+
 # ------------------------------------------------------------------ git and deploy
-def git(*args: str, timeout: int = 120) -> subprocess.CompletedProcess:
-    return run(["git", "-C", str(WT), *args], timeout=timeout)
+def git(*args: str, timeout: int = 120) -> str:
+    r = run(["git", "-C", str(WT), *args], timeout=timeout)
+    if r.returncode and args[0] != "rev-parse":
+        raise RuntimeError(f"git {args[0]} failed: {tail(r.stderr, 2)}")
+    return r.stdout.decode().strip() if r.returncode == 0 else ""
 
 
 def commit(msg: str) -> bool:
     git("add", "-A", "--", REL_AUTO)
-    if git("diff", "--cached", "--quiet").returncode == 0:
+    if run(["git", "-C", str(WT), "diff", "--cached", "--quiet"]).returncode == 0:
         return False
-    r = git("commit", "-q", "-m", msg)
-    if r.returncode:
-        raise RuntimeError(f"commit failed: {tail(r.stderr, 2)}")
+    git("commit", "-q", "-m", msg)
     return True
 
 
 def push() -> None:
-    head = git("rev-parse", "HEAD").stdout.strip()
-    remote = git("rev-parse", "-q", "--verify", f"refs/remotes/origin/{BRANCH}").stdout.strip()
-    if head == remote:
+    if git("rev-parse", "HEAD") == git("rev-parse", "-q", "--verify", f"refs/remotes/origin/{BRANCH}"):
         return
-    r = git("push", "-q", "origin", f"HEAD:{BRANCH}", timeout=180)
+    r = run(["git", "-C", str(WT), "push", "-q", "origin", f"HEAD:{BRANCH}"], timeout=180)
     log("pushed" if r.returncode == 0 else f"push failed (retry next run): {tail(r.stderr, 1)}")
 
 
+def fingerprint() -> str:
+    return f"{git('rev-parse', 'HEAD')}:{media_print()}"
+
+
 def deploy(state: dict) -> None:
-    head = git("rev-parse", "HEAD").stdout.decode().strip()
-    if state.get("deployed") == head:
+    fp = fingerprint()
+    if state.get("deployed") == fp:
         return
     log("deploy …")
-    r = run(["bash", str(SITE / "deploy.sh")], cwd=SITE, timeout=1500)
-    out = r.stdout + r.stderr
-    url = re.findall(rb"https://[0-9a-f]{8}\.dotcoin\.pages\.dev", out)
+    r = run(["bash", str(SITE / "deploy.sh")], cwd=SITE, env=dict(os.environ, DOTCOIN_MEDIA=str(MEDIA)), timeout=1500)
+    out = (r.stdout or b"") + (r.stderr or b"")
     if r.returncode:
         log(f"deploy failed (retry next run): {tail(out, 2)}")
         return
-    state["deployed"] = head
-    log(f"deployed {head[:8]}" + (f" ({url[-1].decode()})" if url else ""))
+    url = re.findall(rb"https://[0-9a-f]{8}\.dotcoin\.pages\.dev", out)
+    state["deployed"] = fp
+    log(f"deployed {fp[:8]}" + (f" ({url[-1].decode()})" if url else ""))
 
 
 # ------------------------------------------------------------------ one pass
@@ -329,112 +446,158 @@ def load_state() -> dict:
     except (OSError, ValueError):
         s = {}
     s.setdefault("files", {})
-    s.setdefault("articles", {})
+    s.setdefault("sources", {})
     return s
 
 
 def save_state(s: dict) -> None:
-    s["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    s["last_change"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     tmp = STATE.with_suffix(".tmp")
     tmp.write_text(json.dumps(s, ensure_ascii=False, indent=1, sort_keys=True), "utf-8")
     tmp.replace(STATE)
 
 
-def ingest(state: dict, fid: str, ws: str, raw: bytes, dry: bool, live: set[str] | None) -> bool:
-    """One article file: validate, write, build-check. True when content/auto changed."""
+def owner_of(state: dict, slug: str) -> str | None:
+    return next((k for k, s in state["sources"].items() if s.get("slug") == slug), None)
+
+
+def ingest(state: dict, fid: str, ws: str, raw: bytes, job: dict, dry: bool, live: set[str] | None) -> str:
+    """One article.md of a reel: '' (nothing written to git) or a commit-message part."""
+    key = f"instagram:{ws}"
+    src = state["sources"].get(key) or {}
+    own = src.get("slug")
+
+    def skip(why: str) -> str:
+        if not dry:
+            state["files"][fid] = {"w": ws, "status": "invalid", "why": why[:300]}
+        log(f"skip {fid[:8]} ({ws}): {why[:200]}")
+        return ""
+
     try:
         text = raw.decode("utf-8").replace("\r\n", "\n").lstrip("﻿").strip() + "\n"
-    except UnicodeDecodeError:
-        state["files"][fid] = {"w": ws, "status": "invalid", "why": "not utf-8"}
-        log(f"skip {fid[:8]} ({ws}): not utf-8")
-        return False
-    own = next((s for s, a in state["articles"].items() if a.get("w") == ws), None)
-    taken = local_slugs(AUTO / f"{own}.md" if own else None) | ((live or set()) - ({own} if own else set()))
+        meta = parse(text)[0]
+    except (UnicodeDecodeError, ValueError) as e:
+        return skip(f"unreadable: {e}")
+    # `attach: <slug>`: the reel's lesson is already on the site (written by hand before the reel)
+    if meta.get("attach"):
+        slug = str(meta["attach"]).strip()
+        if own and own != slug:
+            return skip(f"this reel already has its article {own}")
+        if slug not in local_articles():
+            return skip(f"attach: no lesson {slug}")
+        if (k := owner_of(state, slug)) and k != key:
+            return skip(f"attach: {slug} already belongs to {k}")
+        if not dry:
+            state["sources"][key] = {**src, "key": key, "slug": slug, "job": job.get("job"), "w": ws}
+            state["files"][fid] = {"w": ws, "status": "ok", "slug": slug, "attach": True}
+        log(f"reel {ws} -> existing lesson {slug}")
+        return ""
+    others = local_articles(skip=own or "")
+    taken = set(others) | ((live or set()) - ({own} if own else set()))
     meta, errs, warns = validate(text, taken)
     slug = meta.get("slug") or ""
     if own and slug != own and not errs:
         errs.append(f"slug changed from {own}: a published slug never changes")
+    if (k := owner_of(state, slug)) and k != key:
+        errs.append(f"{slug} belongs to another reel ({k})")
+    dup = next((s for s, m in others.items() if topics(m) & topics(meta)), None)
+    if dup:
+        errs.append(f"same topic as {dup}")
     if errs:
-        state["files"][fid] = {"w": ws, "status": "invalid", "why": "; ".join(errs)[:300]}
-        log(f"skip {fid[:8]} ({ws}): {'; '.join(errs)[:200]}")
-        return False
+        return skip("; ".join(errs))
     if warns:
         log(f"{slug}: warn {'; '.join(warns)}")
-    reel = (state["articles"].get(slug) or {}).get("reel") or ""
-    text = set_field(text, "reel", reel)
+    text = set_field(text, "reel", src.get("reel") or "")
     if dry:
         log(f"would write {slug} ({ws})")
-        return False
-    if not secrets_clean({f"{slug}.md": text}):
-        state["files"][fid] = {"w": ws, "status": "invalid", "why": "gitleaks finding"}
-        log(f"skip {fid[:8]} ({ws}): gitleaks finding")
-        return False
+        return ""
+    if not secrets_clean(f"{slug}.md", text):
+        return skip("gitleaks finding")
     AUTO.mkdir(parents=True, exist_ok=True)
     path = AUTO / f"{slug}.md"
     old = path.read_text("utf-8") if path.exists() else None
+    state["sources"][key] = {**src, "key": key, "slug": slug, "job": job.get("job"), "w": ws}
     if old == text:
         state["files"][fid] = {"w": ws, "status": "ok", "slug": slug}
-        return False
+        return ""
     path.write_text(text, "utf-8")
-    ok, why = build_ok([path])
+    ok, why = build_ok()
     if not ok:
         if old is None:
             path.unlink()
+            if not own:
+                state["sources"].pop(key, None)
         else:
             path.write_text(old, "utf-8")
-        state["files"][fid] = {"w": ws, "status": "invalid", "why": f"build: {why}"[:300]}
-        log(f"skip {fid[:8]} ({ws}): build failed: {why[:200]}")
-        return False
+        return skip(f"build failed: {why}")
     state["files"][fid] = {"w": ws, "status": "ok", "slug": slug}
-    state["articles"][slug] = {"w": ws, "file": fid, "reel": reel}
     log(f"{'updated' if old else 'new'} article {slug} ({ws})")
-    return True
+    return f"{'update' if old else 'article'} {slug}"
 
 
 def one_pass(args) -> int:
     state = load_state()
+    before = json.dumps(state, sort_keys=True)
     msgs: list[str] = []
-    rows = []
     if args.import_file:
         if not WS_RE.fullmatch(args.workspace or ""):
             log("--import needs --workspace W-…")
             return 2
         raw = Path(args.import_file).read_bytes()
-        rows.append({"id": "import-" + hashlib.sha256(raw).hexdigest()[:16], "w": args.workspace, "raw": raw})
+        rows = [{"id": "import-" + hashlib.sha256(raw).hexdigest()[:16], "w": args.workspace, "raw": raw}]
     else:
-        rows = [r for r in candidates() if r["id"] not in state["files"] and WS_RE.fullmatch(str(r.get("w") or ""))]
+        rows = new_articles(set(state["files"]))
+    pending = [s for s in state["sources"].values() if s.get("slug") and s.get("media_tries", 0) < 3 and (
+        not s.get("reel") or not s.get("media") or not (MEDIA / f"{s['slug']}.mp4").is_file())]
+    jobs = reel_jobs() if rows or pending else {}
     live = live_slugs() if rows else None
     for r in rows:
         if r["id"] in state["files"]:
             continue
+        job = jobs.get(r["w"])
+        if not job:
+            log(f"wait {r['id'][:8]} ({r['w']}): no reel publish job yet")
+            continue
         try:
-            raw = r.get("raw") or file_bytes(r)
+            raw = r.get("raw") or fetch(r)
         except (ValueError, RuntimeError, subprocess.TimeoutExpired) as e:
             log(f"skip {r['id'][:8]} ({r['w']}): {e}")  # not marked: tried again next run
             continue
-        if ingest(state, r["id"], r["w"], raw, args.dry_run, live):
-            msgs.append(f"article {[s for s, a in state['articles'].items() if a['file'] == r['id']][0]}")
-    # the reel's Instagram link, once out
-    waiting = {s: a for s, a in state["articles"].items() if not a.get("reel")}
-    urls = reel_urls(sorted({a["w"] for a in waiting.values()})) if waiting else {}
-    for slug, a in waiting.items():
-        url = urls.get(a["w"])
-        path = AUTO / f"{slug}.md"
-        if not url or not path.exists():
-            continue
-        if not args.dry_run:
-            path.write_text(set_field(path.read_text("utf-8"), "reel", url), "utf-8")
-            a["reel"] = url
-            msgs.append(f"reel link {slug}")
-        log(f"reel link {slug}: {url}")
+        if part := ingest(state, r["id"], r["w"], raw, job, args.dry_run, live):
+            msgs.append(part)
     if args.dry_run:
         return 0
+    # each reel's web copy and its Instagram link
+    for src in state["sources"].values():
+        slug, job = src.get("slug"), jobs.get(src.get("w") or "")
+        if not slug or not job:
+            continue
+        if (src.get("media") != job.get("video") or not (MEDIA / f"{slug}.mp4").is_file()) \
+                and src.get("media_tries", 0) < 3:
+            try:
+                if not make_media(slug, src, job):
+                    src["media_tries"] = src.get("media_tries", 0) + 1
+            except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                src["media_tries"] = src.get("media_tries", 0) + 1
+                log(f"{slug}: video not made ({str(e)[:160]})")
+        url = job.get("url") or ""
+        if IG_URL.fullmatch(url) and src.get("reel") != url:
+            src["reel"] = url
+            if (MEDIA / f"{slug}.json").is_file():
+                write_sidecar(slug, src, job)
+            path = AUTO / f"{slug}.md"
+            if path.exists():  # a hand-written lesson takes it from the sidecar
+                path.write_text(set_field(path.read_text("utf-8"), "reel", url), "utf-8")
+                msgs.append(f"reel link {slug}")
+            log(f"{slug}: reel {url}")
     if msgs and commit("DotCoin site: " + ", ".join(msgs) + " (sync.py)"):
         log("committed")
-    save_state(state)
+    if json.dumps(state, sort_keys=True) != before:
+        save_state(state)
     push()
     deploy(state)
-    save_state(state)
+    if json.dumps(state, sort_keys=True) != before:
+        save_state(state)
     return 0
 
 
@@ -446,9 +609,19 @@ def main() -> int:
     ap.add_argument("--check")
     args = ap.parse_args()
     if args.check:
-        text = Path(args.check).read_text("utf-8").replace("\r\n", "\n").lstrip("\ufeff")
+        text = Path(args.check).read_text("utf-8").replace("\r\n", "\n").lstrip("﻿")
+        try:
+            meta = parse(text)[0]
+        except ValueError as e:
+            log(f"error: {e}")
+            return 1
         live = live_slugs()
-        _, errs, warns = validate(text, (live or set()) | local_slugs())
+        if meta.get("attach"):
+            ok = str(meta["attach"]) in (live or set())
+            log("ok (attach)" if ok else f"error: no lesson {meta['attach']} on the site")
+            return 0 if ok else 1
+        others = local_articles()
+        meta, errs, warns = validate(text, (live or set()) | set(others))
         for w in warns:
             log(f"warn: {w}")
         for e in errs:
@@ -463,7 +636,6 @@ def main() -> int:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            log("another sync is running")
             return 0
         try:
             return one_pass(args)

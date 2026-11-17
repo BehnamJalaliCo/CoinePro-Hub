@@ -35,16 +35,27 @@ made from it) are never committed; deploy.sh copies them from the studio kits at
 
 ## The daily lessons (sync.py, from 2026-11-17)
 
-Every educational reel's session (kit dotcoin-reels) leaves `out/article.md` (seo/ARTICLE_BRIEF.md).
-`dotcoin-site-sync.timer` (infra/systemd, every 10 minutes, user Hub) runs `sync.py` from the
+Every DotCoin reel's session (kit dotcoin-reels; the educational AND the informational reel) leaves
+`out/article.md` (seo/ARTICLE_BRIEF.md): the same reel's lesson or news, expanded. Or, when the
+reel's lesson was written by hand before (content/articles), `attach: <slug>` alone.
+`dotcoin-site-sync.timer` (infra/systemd, every 15 minutes, user Hub) runs `sync.py` from the
 content worktree `/home/Hub/sites/dotcoin-content` (branch `site/dotcoin-content`, used only by
-the sync): it reads new article.md files from the hub (read only), validates them, writes
-`content/auto/<slug>.md`, fills `reel:` once the reel is out, commits, pushes the branch and
-deploys. State: `/home/Hub/sites/dotcoin-sync.json`; log: `journalctl -u dotcoin-site-sync`.
+the sync). It reads the hub (read only), validates, writes `content/auto/<slug>.md`, makes the
+reel's web copy (`/media/<slug>.mp4` + `.jpg` + `.json`, H.264 720x1280 ~2 Mbit/s, in
+`/home/Hub/sites/dotcoin-media`, never in git), fills `reel:` once the reel is out, commits, pushes
+and deploys, only when something is new or changed (an idle run is one local DB query, no log).
+
+- **Never a duplicate:** one source (`instagram:<work ref>`; later `youtube:<video id>`) -> one
+  slug; a slug or a topic (`keyword`/`title`) is never published twice; an article bound to
+  another source is never overwritten (logged and skipped).
+- **On the page:** the reel at the top of the lesson (poster = its cover, `preload="none"`,
+  muted until started, `playsinline`, controls), the Instagram link under it, a `VideoObject` in
+  the JSON-LD; an optional `youtube:` field (id or link) adds a YouTube player.
+- State: `/home/Hub/sites/dotcoin-sync.json`; log: `journalctl -u dotcoin-site-sync`.
 
 **The live site is deployed from the content worktree.** A site change made on
 `server/dotcoin-site` is merged into `site/dotcoin-content` (in that worktree) before the next
-deploy; a deploy from anywhere else would drop the daily lessons.
+deploy; a deploy from anywhere else would drop the daily lessons and their videos.
 
 ## How a page's SEO fields are set
 
