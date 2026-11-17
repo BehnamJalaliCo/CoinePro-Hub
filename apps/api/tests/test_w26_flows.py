@@ -256,7 +256,8 @@ async def test_a_day_stops_at_its_cap_and_builds_on_the_highest_effort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The F-0018 usage audit, P1 and P4 (the owner's word): «max» only where the video is made,
-    «xhigh» for the rest; a day stops at $10 and the owner hears it once."""
+    «xhigh» for the rest. ⟨1.39⟩ the owner, 2026-11-17: cost never holds a flow: a day past its cap
+    is marked once and goes on; nobody is notified."""
     from hq_api.domain import direct as DR
 
     pc = await new_company()
@@ -283,13 +284,19 @@ async def test_a_day_stops_at_its_cap_and_builds_on_the_highest_effort(
     )
     for _ in range(2):
         async with hub.db.tx(await hub.companies.ids()) as tx:
-            assert await FL.over_cap(tx, w["id"]) is True
+            assert await FL.over_cap(tx, w["id"]) is False
+    meta = await su.fetchval("SELECT run_meta -> 'flow' ->> 'capped' FROM work.work WHERE id = $1",
+                             w["id"])  # fmt: skip
+    assert meta == "10.50"
     said = await su.fetch(
-        "SELECT title_fa, body_fa FROM notify.notifications WHERE source_code = 'flow'"
-        " AND link_ref = $1",
+        "SELECT title_fa FROM notify.notifications WHERE source_code = 'flow' AND link_ref = $1",
         order,
     )
-    assert len(said) == 1 and "سقف هزینه" in said[0]["title_fa"]
+    assert said == []
+    assert await su.fetchval(
+        "SELECT count(*) FROM audit.entries WHERE action = 'flow.capped' AND target_ref = $1",
+        work_ref,
+    ) == 1  # fmt: skip
 
 
 async def test_a_flow_runs_its_turns_on_its_own_model(

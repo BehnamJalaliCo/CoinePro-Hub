@@ -198,7 +198,7 @@ async def test_an_hour_edited_is_a_version_and_the_next_day_starts_at_it(
             datetime.fromisoformat(meta["publish_at"]).astimezone(TZ).strftime("%H:%M") == "14:00"
         )
         assert await FL.clock(hub, at + timedelta(minutes=1)) == []
-        # n8n's per-flow workflow still calls: the same day's order, nothing new
+        # n8n's per-flow workflow still calls: nothing new
         body = json.dumps({"day": day.isoformat()}, separators=(",", ":")).encode()
         r = await client.post(
             f"/internal/v1/flows/{key}/run", content=body,
@@ -206,7 +206,8 @@ async def test_an_hour_edited_is_a_version_and_the_next_day_starts_at_it(
                      "Idempotency-Key": str(FL.n8n_key(key, day)),
                      "Content-Type": "application/json"},
         )  # fmt: skip
-        assert r.status_code == 201 and r.json()["order"] == orders[0], r.text
+        # (it comes at its own old hour, before the row's: 39.1 makes it a no-op)
+        assert r.status_code == 202 and r.json()["reason"] == "before_trigger", r.text
         assert await su.fetchval(
             """SELECT count(*) FROM work.work WHERE parent_id IS NULL
                  AND run_meta -> 'flow' ->> 'key' = $1 AND run_meta -> 'flow' ->> 'day' = $2""",
@@ -222,9 +223,24 @@ async def test_an_hour_edited_is_a_version_and_the_next_day_starts_at_it(
         run = await client.get(f"/api/v1/line-runs/{orders[0]}", headers=owner)
         assert run.status_code == 200 and run.json()["automation"] == f"N8:{key}", run.text
 
-        # version 1's body saved again (what «برگشت به این نسخه» does): 13:00, version 3
-        r = await save(client, owner, ref, 2, {"schedule": {"hours": ["13:00"] * 4}})
+        # «برگشت به این نسخه»: version 1's body saved again as version 3, 13:00 again
+        r = await client.post(f"/api/v1/automations/flows/{ref}/rollback", headers=owner,
+                              json={"version": 1})  # fmt: skip
         assert r.status_code == 200 and r.json()["version"] == 3, r.text
+        assert r.json()["schedule"]["hours"] == ["13:00"] * 4
+        got = (await client.get(f"/api/v1/automations/flows/{ref}/versions", headers=owner)).json()
+        assert [v["version"] for v in got] == [3, 2, 1]
+        assert got[0]["note_fa"] == "برگشت به نسخه‌ی ۱" and got[0]["changes"][0][
+            "after_fa"
+        ].startswith("۱۳:۰۰")
+        assert got[-1]["note_fa"] == "ساخته شد از روند کدی هاب"
+        assert await su.fetchval(
+            "SELECT count(*) FROM audit.entries WHERE action = 'automation.flow.rollback' AND target_ref = $1",
+            ref,
+        ) == 1  # fmt: skip
+        r = await client.post(f"/api/v1/automations/flows/{ref}/rollback", headers=owner,
+                              json={"version": 9})  # fmt: skip
+        assert r.status_code == 404, r.text
         async with hub.db.tx(await hub.companies.ids()) as tx:
             row = await FL.flow_by_key(tx, key)
             assert row is not None
@@ -469,58 +485,241 @@ async def test_the_routes_are_the_owners_and_a_company_sees_only_its_rows(
         await all_off(su, key)
 
 
-# ------------------------------------------------- «منتظر شما»: a raised cap --
-async def test_a_cap_raised_from_waiting_is_the_rows_next_version(
+# ------------------------------------------------------ 39.1: cost, n8n, alerts --
+async def test_a_day_past_its_cap_goes_on_with_an_alert_and_no_notice(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§1.5 of 39.1 (the owner, 2026-11-17): a run past `usd_cap` is never held: over_cap is always
+    False, the day keeps no `budget_cap` in «منتظر شما», a `cap_reached` alert opens on the flow's
+    page, and nobody is notified; a cap is one tap up and down, the budget has no envelope."""
+    co = await new_company()
+    key = fk()
+    ref = (await seed(su, monkeypatch, a_flow(co["code"], key)))[key]
+    day = tomorrow()
+    try:
+        r = await client.post(f"/api/v1/flows/{key}/run", headers={**owner, **idem()},
+                              json={"day": day.isoformat()})  # fmt: skip
+        assert r.status_code == 201, r.text
+        order, work_ref = r.json()["order"], r.json()["work"]
+        w = await su.fetchrow("SELECT id, company_id FROM work.work WHERE ref = $1", work_ref)
+        await su.execute(
+            """INSERT INTO llm.calls (id, started_at, finished_at, company_id, actor_ref, work_ref,
+                   task_class, priority, caller, provider, model, cost_usd, equiv_cost_usd, status)
+               VALUES (gen_random_uuid(), now(), now(), $1, 'X', $2, 'server_claude', 3,
+                       'company_runner', 'anthropic', 'claude-opus-5-5', 0, 25, 'ok')""",
+            w["company_id"], work_ref,
+        )  # fmt: skip
+        for _ in range(2):
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                assert await FL.over_cap(tx, w["id"]) is False
+        alerts = await su.fetch(
+            """SELECT a.kind, a.notified_at FROM automations.alerts a
+               JOIN automations.flows f ON f.id = a.flow_id WHERE f.ref = $1 AND a.closed_at IS NULL""",
+            ref,
+        )
+        assert [(x["kind"], x["notified_at"]) for x in alerts] == [("cap_reached", None)]
+        assert not await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_ref = ANY($1::text[])",
+            [order, ref],
+        )
+        waiting = (await client.get("/api/v1/publications/waiting", headers=owner)).json()
+        assert all(x["kind"] == "publish_ask" for x in waiting["items"])
+        health = (await client.get(f"/api/v1/automations/flows/{ref}/health", headers=owner)).json()
+        assert [a["kind"] for a in health["alerts"]] == ["cap_reached"] and health[
+            "state"
+        ] == "warn"
+        page = (await client.get(f"/api/v1/automations/flows/{ref}", headers=owner)).json()
+        assert page["budget"]["envelope_usd"] is None and page["budget"]["over_envelope"] is False
+        assert page["alerts_open"] == 1
+        for v, cap in ((1, 300), (2, 5)):
+            r = await save(client, owner, ref, v, {"usd_cap": cap})
+            assert r.status_code == 200 and r.json()["budget"]["usd_cap"] == cap, r.text
+    finally:
+        await all_off(su, key)
+
+
+async def test_an_n8n_call_before_the_rows_hour_or_for_an_off_flow_makes_nothing(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§1 of 39.1: the per-flow workflows (flow-*.json) still call at their old hours; the row
+    decides: before its build hour (two minutes' grace) or off, paused, a day skipped: 202
+    `{started: false, reason}` and no order."""
+    co = await new_company()
+    key = fk()
+    now = datetime.now(TZ)
+    later = (now + timedelta(hours=3)).strftime("%H:%M")
+    if (now + timedelta(hours=3)).date() != now.date():
+        later = "23:59"
+    ref = (await seed(su, monkeypatch, a_flow(co["code"], key, trigger_at=later,
+                                              hours=("23:59",) * 4)))[key]  # fmt: skip
+    secret = "test-n8n-secret-" + "z" * 16
+    monkeypatch.setattr(hub, "secrets", replace(hub.secrets, n8n_secret=secret))
+    today = now.date()
+
+    async def call(day: date) -> httpx.Response:
+        body = json.dumps({"day": day.isoformat()}, separators=(",", ":")).encode()
+        return await client.post(
+            f"/internal/v1/flows/{key}/run", content=body,
+            headers={signing.HEADER: signing.sign(secret, body),
+                     "Idempotency-Key": str(FL.n8n_key(key, day)), "Content-Type": "application/json"},
+        )  # fmt: skip
+
+    def made(day: date) -> Any:
+        return su.fetchval(
+            """SELECT count(*) FROM work.work WHERE run_meta -> 'flow' ->> 'key' = $1
+                 AND run_meta -> 'flow' ->> 'day' = $2""",
+            key, day.isoformat(),
+        )  # fmt: skip
+
+    try:
+        if later != "23:59" or now.strftime("%H:%M") < "23:57":
+            r = await call(today)
+            assert r.status_code == 202 and r.json() == {
+                "started": False,
+                "reason": "before_trigger",
+            }, r.text
+            assert await made(today) == 0
+        await su.execute("UPDATE automations.flows SET state = 'off' WHERE ref = $1", ref)
+        r = await call(today)
+        assert r.status_code == 202 and r.json() == {"started": False, "reason": "off"}, r.text
+        await su.execute(
+            "UPDATE automations.flows SET state = 'on', skips = ARRAY[$2::date] WHERE ref = $1",
+            ref, today,
+        )  # fmt: skip
+        r = await call(today)
+        assert r.status_code == 202 and r.json()["reason"] == "skipped", r.text
+        assert await made(today) == 0
+    finally:
+        await all_off(su, key)
+
+
+async def test_a_late_day_notifies_the_owner_once_after_an_hour_then_closes(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§61.6: a publish hour gone without its package is `late` (on the page only); an hour later
+    with no run left, ONE notification; when the package goes out the alert closes by itself."""
+    from hq_api.domain import flow_alerts as AL
+
+    co = await new_company()
+    key = fk()
+    ref = (await seed(su, monkeypatch, a_flow(co["code"], key, hours=("14:00",) * 4)))[key]
+    day = datetime.now(TZ).date()
+    at = datetime.combine(day, datetime.min.time(), TZ).replace(hour=14)
+    try:
+        await AL.sweep(hub, at + timedelta(minutes=20))
+        rows = await su.fetch(
+            """SELECT a.* FROM automations.alerts a JOIN automations.flows f ON f.id = a.flow_id
+               WHERE f.ref = $1 AND a.kind = 'late'""",
+            ref,
+        )
+        assert len(rows) == 1 and rows[0]["notified_at"] is None and rows[0]["closed_at"] is None
+        said = "SELECT count(*) FROM notify.notifications WHERE link_kind = 'automation' AND link_ref = $1"
+        assert await su.fetchval(said, ref) == 0
+        for minutes in (61, 75):
+            await AL.sweep(hub, at + timedelta(minutes=minutes))
+        assert await su.fetchval(said, ref) == 1
+        title = await su.fetchval(
+            "SELECT title_fa FROM notify.notifications WHERE link_kind = 'automation' AND link_ref = $1",
+            ref,
+        )
+        assert "امروز منتشر نشد" in title
+        # the day's package went out: closed by itself
+        r = await client.post(f"/api/v1/flows/{key}/run", headers={**owner, **idem()},
+                              json={"day": day.isoformat()})  # fmt: skip
+        assert r.status_code == 201, r.text
+        await su.execute(
+            """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow,sent}', to_jsonb(now()::text))
+               WHERE ref = $1""",
+            r.json()["work"],
+        )
+        await AL.sweep(hub, at + timedelta(minutes=80))
+        row = await su.fetchrow(
+            """SELECT a.closed_at, a.closed_fa FROM automations.alerts a
+               JOIN automations.flows f ON f.id = a.flow_id WHERE f.ref = $1 AND a.kind = 'late'""",
+            ref,
+        )
+        assert row["closed_at"] is not None and row["closed_fa"] == AL.CLOSED_SENT_FA
+        assert await su.fetchval(said, ref) == 1
+    finally:
+        await all_off(su, key)
+
+
+async def test_the_p2_pages_kits_a_new_automation_and_the_week(
     client: httpx.AsyncClient,
     hub: Hub,
     owner: dict[str, str],
     owner_session: dict[str, Any],
-    new_company: Callable[..., Any],
     su: Any,
+    new_company: Callable[..., Any],
     no_model: list[Any],  # noqa: F811
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """§61.4 with §60.2: «سقف را بالا ببر» of a flow's day at its cap saves the row's `usd_cap` as its
-    next version (🔏 automation.budget on `<AF-ref>:<usd_cap>`: no USD envelope), and over_cap reads
-    it from the row; the day's run keeps no cap of its own."""
-    from .conftest import step_up
-    from .test_w17_session_publish import an_output
+    """§61.3, §61.5, §61.7: runs, graph, kits (and a kit's map), «بساز و روشن کن», «کیت تازه», the
+    week; the options name the workshop runner's models, Fable 5.2 too."""
+    from .test_w19_publish_time import connected
 
-    co = await new_company()
+    ig, co = await new_company(), await new_company()
+    await connected(client, hub, owner_session, ig, co["code"])
     key = fk()
     ref = (await seed(su, monkeypatch, a_flow(co["code"], key)))[key]
-    made = await an_output(client, hub, owner, owner_session, su, co["code"], ("cover.png",))
-    meta = {"key": key, "day": datetime.now(TZ).date().isoformat(), "account": f"p39.{key}",
-            "capped": "20.00", "publish_at": (datetime.now(TZ) + timedelta(hours=3)).isoformat()}  # fmt: skip
-    await su.execute(
-        """UPDATE work.work SET run_meta = coalesce(run_meta, '{}'::jsonb)
-               || jsonb_build_object('flow', $2::jsonb) WHERE id = $1""",
-        made["work_id"], json.dumps(meta),
-    )  # fmt: skip
-    path = f"/api/v1/publications/waiting/cap:{made['work_ref']}/raise_cap"
-    h = owner_session["headers"]
+    made: list[str] = [key]
     try:
-        r = await client.post(path, headers=h, json={"usd_cap": 150})
-        assert r.status_code == 403 and r.json()["code"] == "step_up_required", r.text
-        seal = await step_up(hub, owner_session["session_id"], "automation.budget", f"{ref}:150")
-        r = await client.post(path, headers={**h, **seal}, json={"usd_cap": 150})
-        assert r.status_code == 200, r.text
-        row = await su.fetchrow(
-            "SELECT usd_cap, version FROM automations.flows WHERE ref = $1", ref
-        )
-        assert row["usd_cap"] == Decimal("150") and row["version"] == 2
-        assert await su.fetchval(
-            """SELECT v.note_fa FROM automations.flow_versions v JOIN automations.flows f
-                 ON f.id = v.flow_id WHERE f.ref = $1 AND v.version = 2""",
-            ref,
-        ) == FD.CAP_RAISED_FA  # fmt: skip
-        day = json.loads(
-            await su.fetchval(
-                "SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", made["work_id"]
-            )
-        )
-        assert "usd_cap" not in day and "capped" not in day
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            assert await FL.over_cap(tx, made["work_id"]) is False
+        r = await client.post(f"/api/v1/flows/{key}/run", headers={**owner, **idem()},
+                              json={"day": tomorrow().isoformat()})  # fmt: skip
+        assert r.status_code == 201, r.text
+        runs = (await client.get(f"/api/v1/automations/flows/{ref}/runs", headers=owner)).json()
+        assert [x["run"] for x in runs["items"]] == [r.json()["order"]] and runs["next"] is None
+        assert runs["items"][0]["day"] == tomorrow().isoformat()
+        g = (await client.get(f"/api/v1/automations/flows/{ref}/graph", headers=owner)).json()
+        assert g["nodes"] and g["lanes"][0] == "n8n"
+        opts = (await client.get("/api/v1/automations/flows/options", headers=owner)).json()
+        assert {m["id"]: m["name_fa"] for m in opts["models"]} == {
+            "claude-opus-5-5": "Opus 5.5", "claude-fable-5-2": "Fable 5.2"}  # fmt: skip
+        kits = (await client.get("/api/v1/automations/kits", headers=owner)).json()
+        assert any(k["key"] == "p39-test" for k in kits)
+        r = await client.get("/api/v1/automations/kits/p39-test/graph", headers=owner)
+        assert r.status_code == 200 and r.json()["nodes"], r.text
+        assert (
+            await client.get("/api/v1/automations/kits/none/graph", headers=owner)
+        ).status_code == 404
+        body = {"account": "pro.chart", "kit": "p39-test", "title_fa": "ریلز تازه‌ی آزمایشی",
+                "schedule": {"hours": ["18:10"], "trigger_at": "11:00", "same_day": True},
+                "model": "claude-fable-5-2", "effort": "xhigh", "usd_cap": 15}  # fmt: skip
+        r = await client.post("/api/v1/automations/flows", headers={**owner, **idem()}, json=body)
+        assert r.status_code == 201, r.text
+        new = r.json()
+        made.append(new["key"])
+        assert new["state"] == "on" and new["version"] == 1 and new["model_fa"] == "Fable 5.2"
+        assert new["account"] == "pro.chart" and new["kind"] == "reel"
+        v1 = (
+            await client.get(f"/api/v1/automations/flows/{new['ref']}/versions", headers=owner)
+        ).json()
+        assert v1[0]["note_fa"] == "ساخته شد از کیت p39-test"
+        bad = {**body, "usd_cap": 0, "account": "nobody.page"}
+        r = await client.post("/api/v1/automations/flows", headers={**owner, **idem()}, json=bad)
+        assert r.status_code == 422 and r.json()["errors"][0]["field"] == "account", r.text
+        r = await client.post("/api/v1/automations/kits/request", headers={**owner, **idem()},
+                              json={"account": "pro.chart", "note_fa": "یک کیت استوری آموزشی"})  # fmt: skip
+        assert r.status_code == 201 and r.json()["order"].startswith("F-"), r.text
+        week = (await client.get("/api/v1/automations/week", headers=owner)).json()
+        assert len(week["by_day"]) == 7 and {"runs", "published", "cost_usd"} <= set(week["totals"])
+        assert any(a["account"] == f"p39.{key}" and a["flows"] == 1 for a in week["accounts"])
     finally:
-        await all_off(su, key)
+        await all_off(su, *made)

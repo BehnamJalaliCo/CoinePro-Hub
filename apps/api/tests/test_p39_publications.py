@@ -28,7 +28,7 @@ from hq_api.domain import session_publish as SPB
 from hq_api.domain import work as W
 from hq_api.hub import Hub
 
-from .conftest import agent_headers, step_up
+from .conftest import agent_headers
 from .test_p17_runners import take
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_w7_sessions import WORK_TEXT
@@ -435,7 +435,7 @@ async def test_the_three_spellings_find_the_same_publications_of_every_page(
 
 
 # ----------------------------------------------------- «منتظر شما» (cap) --
-async def test_a_flows_day_at_its_cap_waits_for_the_owner_and_a_raise_above_the_envelope_is_sealed(
+async def test_a_flows_day_past_its_cap_never_waits_for_the_owner(
     client: httpx.AsyncClient,
     hub: Hub,
     owner: dict[str, str],
@@ -444,6 +444,7 @@ async def test_a_flows_day_at_its_cap_waits_for_the_owner_and_a_raise_above_the_
     su: Any,
     no_model: list[Any],  # noqa: F811
 ) -> None:
+    """⟨1.39⟩ the owner, 2026-11-17: cost never holds a flow, so «منتظر شما» has no `budget_cap`."""
     pc = await new_company()
     made = await an_output(client, hub, owner, owner_session, su, pc["code"], ("cover.png",))
     meta = {"key": "zaribsad_daily", "day": date.today().isoformat(), "account": "zaribsad",
@@ -453,40 +454,13 @@ async def test_a_flows_day_at_its_cap_waits_for_the_owner_and_a_raise_above_the_
                || jsonb_build_object('flow', $2::jsonb) WHERE id = $1""",
         made["work_id"], json.dumps(meta),
     )  # fmt: skip
-    wid = f"cap:{made['work_ref']}"
     got = (await client.get("/api/v1/publications/waiting", headers=owner)).json()
-    item = next(x for x in got["items"] if x["id"] == wid)
-    assert item["kind"] == "budget_cap" and [a["key"] for a in item["actions"]] == [
-        "raise_cap",
-        "skip",
-    ]
-    h = owner_session["headers"]
-    path = f"/api/v1/publications/waiting/{wid}/raise_cap"
-    r = await client.post(path, headers=h, json={})
+    assert all(x["kind"] == "publish_ask" for x in got["items"])
+    assert f"cap:{made['work_ref']}" not in {x["id"] for x in got["items"]}
+    r = await client.post(
+        f"/api/v1/publications/waiting/cap:{made['work_ref']}/raise_cap", headers=owner, json={}
+    )
     assert r.status_code == 422, r.text
-    # no month envelope: above it, so the passkey
-    r = await client.post(path, headers=h, json={"usd_cap": 150})
-    assert r.status_code == 403 and r.json()["code"] == "step_up_required", r.text
-    seal = await step_up(
-        hub, owner_session["session_id"], "automation.budget", "N8:zaribsad_daily:150"
-    )
-    r = await client.post(path, headers={**h, **seal}, json={"usd_cap": 150})
-    assert r.status_code == 200, r.text
-    assert wid not in {x["id"] for x in r.json()["items"]}
-    flow = _j(
-        await su.fetchval("SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", made["work_id"])
-    )
-    assert flow["usd_cap"] == "150" and "capped" not in flow
-    async with hub.db.tx(await hub.companies.ids()) as tx:
-        assert await FL.over_cap(tx, made["work_id"]) is False
-    assert (
-        await su.fetchval(
-            "SELECT count(*) FROM audit.entries WHERE action = 'flow.cap_raised' AND target_ref = $1",
-            made["work_ref"],
-        )
-        == 1
-    )
-    assert (await client.post(path, headers=h, json={"usd_cap": 150})).status_code == 404
 
 
 # -------------------------------------------- the backfill, after a wipe --

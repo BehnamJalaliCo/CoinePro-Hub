@@ -27,7 +27,7 @@ from hq_api.hub import Hub
 from hq_api.lines import adapters, engine
 from hq_api.lines.base import REGISTRY, StepContext, StepOutput
 
-from .conftest import idem, step_up
+from .conftest import idem
 from .p10_fakes import holding_switch
 
 API = "/api/v1"
@@ -333,10 +333,13 @@ async def test_run_now_pause_and_skip_are_the_owners_taps(
     assert {"automation.pause", "automation.skip", "automation.state"} <= verbs
 
 
-async def test_the_budget_stops_a_step_and_tells_the_owner_once(
+async def test_cost_never_holds_a_flow_and_a_cap_is_one_tap(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], owner_db: Any,
     new_company: Any, su: Any, fakes: Fakes, quiet_flows: None,
 ) -> None:  # fmt: skip
+    """⟨1.39⟩ the owner, 2026-11-17: «ریلزو که نمیتونم پاکت بدم … حتما باید بسازه»: a run past its
+    caps goes on to the end, nobody is asked, a run-now is never refused for the day's spend, and
+    a cap is one tap up or down (no 🔏 automation.budget)."""
     owner = owner_session["headers"]
     flow = await a_flow(client, hub, owner_db, owner, new_company,
                         budget={"per_run_usd": 5, "per_day_usd": 0.6})  # fmt: skip
@@ -344,51 +347,27 @@ async def test_the_budget_stops_a_step_and_tells_the_owner_once(
     async with holding_switch(su, "released"):
         r = await client.post(f"{API}/automations/{ref}/run-now", headers={**owner, **idem()})
         run = r.json()["ref"]
-        assert (await engine.drive(hub, run))["state"] == "waiting"
-        assert (await engine.drive(hub, run))["state"] == "waiting"  # looked again: still told once
+        assert (await engine.drive(hub, run))["state"] == "done"
     row = await su.fetchrow("SELECT * FROM lines.runs WHERE ref = $1", run)
-    assert row["state"] == "waiting" and "به سقف بودجه‌ی امروز رسید" in row["note_fa"]
-    assert "0.7" in row["note_fa"] and "0.6" in row["note_fa"]
-    steps = {s["key"]: s["state"] for s in await su.fetch(
-        "SELECT key, state FROM lines.step_runs WHERE run_id = $1", row["id"])}  # fmt: skip
-    assert steps["package"] == "pending" and steps["script"] == "done"
+    assert row["state"] == "done" and not (row["note_fa"] or "").startswith("به سقف")
     notes = await su.fetch(
         "SELECT * FROM notify.notifications WHERE link_kind = 'line_run' AND link_ref = $1", run
     )
-    assert len(notes) == 1 and notes[0]["level"] == "decision"
-    # a run-now past the day's cap
+    assert notes == []
+    # a run-now past the day's cap still runs
     r = await client.post(f"{API}/automations/{ref}/run-now", headers={**owner, **idem()})
-    assert r.status_code == 409 and r.json()["code"] == "budget_reached"
-    assert "سقف بودجه" in r.json()["message_fa"]
-    # raising the cap: no month envelope in USD, so 🔏 automation.budget on <ref>:<per_day>
-    body = {"budget": {"per_run_usd": 5, "per_day_usd": 10}}
-    r = await client.patch(f"{API}/automations/{ref}", json=body, headers=owner)
-    assert r.status_code == 403 and r.json()["code"] == "step_up_required"
-    su_h = await step_up(hub, owner_session["session_id"], "automation.budget", f"{ref}:10")
-    r = await client.patch(f"{API}/automations/{ref}", json=body, headers={**owner, **su_h})
-    assert r.status_code == 200, r.text
-    assert r.json()["budget"]["per_day_usd"] == 10
-    async with holding_switch(su, "released"):
-        assert (await engine.drive(hub, run))["state"] == "done"
-    # inside the company's USD month envelope a raise is a tap; lowering always is
-    await su.execute(
-        """INSERT INTO llm.budgets (company_id, scope_type, scope_ref, period, token_limit, usd_limit)
-           VALUES ($1, 'company', $2, 'month', 50000000, 1000)
-           ON CONFLICT (scope_type, scope_ref, period) DO UPDATE SET usd_limit = 1000, enabled = true""",
-        flow["_company"]["id"], flow["_company"]["code"],
-    )  # fmt: skip
-    r = await client.patch(f"{API}/automations/{ref}",
-                           json={"budget": {"per_run_usd": 6, "per_day_usd": 20}}, headers=owner)  # fmt: skip
-    assert r.status_code == 200, r.text
-    r = await client.patch(f"{API}/automations/{ref}",
-                           json={"budget": {"per_run_usd": 1, "per_day_usd": 2}}, headers=owner)  # fmt: skip
-    assert r.status_code == 200 and r.json()["budget"]["per_day_usd"] == 2
+    assert r.status_code == 201, r.text
+    # raising the cap with no month envelope: one tap; lowering too
+    for per_day in (10, 2):
+        body = {"budget": {"per_run_usd": 5, "per_day_usd": per_day}}
+        r = await client.patch(f"{API}/automations/{ref}", json=body, headers=owner)
+        assert r.status_code == 200 and r.json()["budget"]["per_day_usd"] == per_day, r.text
     audit = await su.fetchrow(
         """SELECT * FROM audit.entries WHERE action = 'automation.update' AND target_ref = $1
            ORDER BY at DESC LIMIT 1""",
         ref,
     )
-    assert "20" in audit["summary"] and "->" in audit["summary"]
+    assert "10" in audit["summary"] and "->" in audit["summary"] and not audit["step_up"]
 
 
 async def test_mode_ask_waits_for_the_owner_till_his_day_ends(
