@@ -16,6 +16,8 @@ The owner, 2026-11-13: «میز انتشار … حجمش زیاد میشه … 
                 the publication (files.opened), or anything else uses it (another output, a
                 session's files, a message, an archive record …): files.publish_sweep decides by
                 code. One audit row per output (`files.publish_sweep`, the count and bytes freed).
+                ⟨1.39⟩ §60.1: a file a publication row refers to (`media.publications.files`, a
+                set's every slide, the frame) is kept for good and never swept.
                 A failed or cancelled publication has no row: it deletes nothing.
 
 Rule-based, no model, no outside call.
@@ -271,11 +273,25 @@ async def _candidates(tx: Tx, chain: list[str]) -> list[str]:
     return list(dict.fromkeys(ids))
 
 
+async def published_files(tx: Tx, ids: list[str]) -> set[str]:
+    """⟨1.39⟩ §58.4 amended: those of `ids` a publication row refers to (its files, every slide of
+    a set, its frame): kept for good, never swept."""
+    if not ids:
+        return set()
+    rows = await tx.all(
+        """SELECT DISTINCT f::text AS id FROM media.publications p, unnest(p.file_ids) f
+           WHERE p.file_ids && CAST(:ids AS uuid[]) AND f = ANY(CAST(:ids AS uuid[]))""",
+        ids=ids,
+    )
+    return {str(r["id"]) for r in rows if r["id"]}
+
+
 async def sweep_one(tx: Tx, row: dict[str, Any]) -> dict[str, int]:
     output = str(row["output"])
     chain = await chain_of(tx, output)
     kept = {str(x) for x in row["kept"] or []}
     ids = [i for i in await _candidates(tx, chain) if i not in kept]
+    ids = [i for i in ids if i not in await published_files(tx, ids)]
     got = OR._j(
         await tx.scalar(
             """SELECT files.publish_sweep(:o, CAST(:ids AS uuid[]), CAST(:c AS text[]),

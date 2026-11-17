@@ -56,6 +56,7 @@ HOLDING_FULL = frozenset(
         "session.team",  # ⟨1.35⟩ §57.4 {order, seat}: a side talk moved
         "control.changed",
         "links.updated",
+        "publication.updated",  # ⟨1.39⟩ §60.4 {ref, state, at, company, account, kind, set_key}
     }
 )
 

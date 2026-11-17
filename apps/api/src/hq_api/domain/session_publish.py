@@ -676,13 +676,16 @@ async def _send(
     comment: dict[str, Any] | None = None,
     first_comment: str | None = None,
     flow: dict[str, Any] | None = None,
+    publication: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One `publish` job on IG-Hub's server: the file (a reel's cover, a carousel's other
     files), the caption, the company's own command. ⟨§46⟩ `scheduled_at`: IG-Hub holds it for
     that time; `comment`: the rule made for this post alone when it is out. ⟨1.37⟩ `flow`: a
     flow line's publish step (§59.2) whose run waits for it ({run, step, automation, platform,
     rules}); its rules are made when the hub hears it is out (`d` is then the run: its ref, no
-    work)."""
+    work). ⟨1.39⟩ §60.1 the publication's permanent row is made with the job, in this transaction
+    (`publication`: what the caller knows beyond the job: a flow's key, day and topic, a set's key
+    and place)."""
 
     def item(x: dict[str, Any], role: str | None = None) -> dict[str, Any]:
         mime = str(x["mime"])
@@ -754,7 +757,31 @@ async def _send(
         timeout_s=TIMEOUT_S,
         request_id=request_id,
     )
+    await _record(tx, j["id"], publication)
     return {**dict(j), "server_company_id": server["company_id"]}
+
+
+async def _record(tx: Tx, job_id: UUID, extra: dict[str, Any] | None = None) -> None:
+    """⟨1.39⟩ §60.1 the chain's row, in the job's transaction; a recording that fails never stops the
+    publication (its first answer makes the row: publications.apply)."""
+    from hq_api.domain import publications as PB
+
+    try:
+        async with tx.conn.begin_nested():
+            await PB.record(tx, job_id, extra)
+    except Exception:  # noqa: BLE001 - the publication goes out whatever its record does
+        log.warning("the publication's row was not made", extra={"job": str(job_id)})
+
+
+async def _follow(tx: Tx, job_id: UUID) -> None:
+    """⟨1.39⟩ §60.1 a job of a chain (a question, a cancel, the hub's own cancel): its row follows."""
+    from hq_api.domain import publications as PB
+
+    try:
+        async with tx.conn.begin_nested():
+            await PB.apply(tx, job_id)
+    except Exception:  # noqa: BLE001 - the publication's chain goes on whatever its record does
+        log.warning("the publication's row did not follow", extra={"job": str(job_id)})
 
 
 async def last_of(
@@ -1811,9 +1838,11 @@ async def after_job(hub: Any, job_id: UUID) -> None:
     and the company's audit trail keeps it. ⟨§46⟩ A publication IG-Hub holds for its time (or
     Meta is still preparing) is said once as «زمان‌بندی شد»; its end is said when a later
     question (follow_up) brings it."""
+    from hq_api.domain import publications as PB
     from hq_api.domain import publish_keep as PK
     from hq_api.domain.gov_common import owner_tz
 
+    await PB.on_job(hub, job_id)  # ⟨1.39⟩ §60.1 the chain's row follows IG-Hub's answer
     if await _flow_job_ended(hub, job_id):  # ⟨1.37⟩ §59.2 a flow line's publication or rule
         return
     kept: str | None = None
@@ -2010,6 +2039,7 @@ async def cancel(
             )
         await SV.cancel(tx, job, CANCEL_CODE, "مدیر کل انتشار را لغو کرد")
         said, new_id = CANCEL_DONE_FA.format(kind=kind, account=account), j["id"]
+        await _follow(tx, j["id"])
     else:
         if company_id is None:
             raise ApiError(409, "not_cancellable", message_fa=NOT_CANCELLABLE_FA)
@@ -2029,6 +2059,7 @@ async def cancel(
             request_id=request_id,
         )
         said, new_id = CANCEL_ASKED_FA.format(kind=kind, account=account), made["id"]
+        await _follow(tx, made["id"])
     if ref:
         rep = await OR.ensure(tx, ref)
         if rep is not None:
@@ -2134,7 +2165,7 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
                     server = await SV.load_server(
                         tx, route["server_name"], company=route["server_co"]
                     )
-                    await SV.create_job(
+                    asked_job = await SV.create_job(
                         tx,
                         server=server,
                         kind="publish",
@@ -2146,6 +2177,7 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
                         f"در @{args.get('account')}",
                         timeout_s=CHECK_TIMEOUT_S,
                     )
+                    await _follow(tx, asked_job["id"])
                     asked += 1
             except Exception:  # noqa: BLE001 - one publication never stops the others
                 log.warning("publish follow-up failed", extra={"job": str(j["id"])})

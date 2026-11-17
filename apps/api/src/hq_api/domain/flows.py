@@ -670,6 +670,8 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
     meta = w["flow"]
     flow = FLOWS.get(str(meta.get("key")))
     cap = flow.usd_cap if flow else FLOW_USD_CAP
+    if meta.get("usd_cap"):  # ⟨1.39⟩ §60.2 the owner raised this day's cap («منتظر شما»)
+        cap = Decimal(str(meta["usd_cap"]))
     if usd < cap:
         return False
     if not meta.get("capped"):
@@ -869,6 +871,8 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
             hub=hub, what=what, account=account, caption=caption if what == "reel" else "",
             route=route, order=order, scheduled_at=when,
             comment=comment if what == "reel" else None,
+            publication={"flow_key": meta.get("key"), "day": meta.get("day"),
+                         "topic_fa": topic[0] if topic else None},
         )  # fmt: skip
         sent.append((what, str(j["id"])))
     meta["sent"] = datetime.now(UTC).isoformat()
@@ -947,6 +951,10 @@ async def _publish_stories(
             tx, FLOW, d, f, None, hub=hub, what="story", account=account, caption="",
             route=route, order=order, scheduled_at=at if at > now + timedelta(minutes=2) else None,
             comment=comment,
+            # ⟨1.39⟩ §60.1 the day's slides are one set: "{account}:{day}:{output}" and each place
+            publication={"flow_key": meta.get("key"), "day": meta.get("day"),
+                         "topic_fa": topic[0] if topic else None,
+                         "set_key": f"{account}:{meta['day']}:{pkg['d']['ref']}", "n": i},
         )  # fmt: skip
         sent.append((i, str(j["id"])))
     meta["sent"] = now.isoformat()
