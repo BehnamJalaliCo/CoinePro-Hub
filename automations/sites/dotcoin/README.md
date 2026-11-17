@@ -43,7 +43,8 @@ Every page takes its SEO from its own front matter; build.py never invents them.
 | `og_title`, `og_description` | Open Graph + Twitter card | `seo_title` / `description` |
 | `og_en`, `og_kicker` | the giant English word and the chip on the generated OG image | `en` / the pillar |
 | `noindex: true` | `<meta name="robots" content="noindex">`, left out of the sitemap | indexed |
-| `date`, `updated` | Article `datePublished` / `dateModified`, sitemap `lastmod` | build date |
+| `date`, `updated` | Article `datePublished` / `dateModified`, sitemap `lastmod` (fixed and exchange pages: `updated`) | the newest lesson's date, never the build date |
+| `answer`, `sources` | lessons: the «پاسخ کوتاه» box and the «منابع» list | not shown |
 
 Exchange pages: `title` (→ `<title>`), `h1`, `description`, `lead` in content/exchanges/<slug>.md.
 

@@ -14,6 +14,10 @@ motif: chain | vault | halving | peg | generic
 description: <meta description, one Persian sentence, 120-160 characters>
 lead: <the standfirst under the title, 1-2 Persian sentences>
 reel: <Instagram reel URL, or empty>
+answer: <«پاسخ کوتاه»: the answer in 40-60 Persian words, complete on its own (featured snippets quote it)>
+sources:
+- <label> | <https URL of a primary source>   (1-3 lines, rendered as «منابع»)
+updated: <YYYY-MM-DD, only after a real content change: dateModified, sitemap lastmod>
 summary:
 - <one line>
 - <3 to 5 lines>
@@ -26,6 +30,7 @@ steps:
 
 ## <section heading>
 Paragraphs, **bold**, lists (`- ` / `1. `), blockquotes (`> `), links `[text](url)`.
+Tables: `| a | b |` rows, the first row is the header, a `|---|---|` row is skipped.
 
 ## پرسش‌های پرتکرار
 
@@ -39,3 +44,5 @@ no signals or predictions, no hype, no warnings or disclaimers, no politics. Eve
 ## Glossary: `content/glossary.txt`
 One term per line: `slug | Persian term | English term | one-line Persian definition`.
 Lines starting with `#` are comments.
+
+SEO rules for every lesson: `seo/ARTICLE_BRIEF.md`; the acceptance checks: `seo/CHECKLIST.md`.

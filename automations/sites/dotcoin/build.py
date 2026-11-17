@@ -116,11 +116,19 @@ def inline(s: str) -> str:
 
 
 def markdown(md: str, h2_numbers: bool = True) -> tuple[str, list[dict]]:
-    """A small Markdown subset: ## / ### headings, paragraphs, - and 1. lists, > quotes."""
+    """A small Markdown subset: ## / ### headings, paragraphs, - and 1. lists, > quotes, | tables."""
     out, toc, para, items, kind = [], [], [], [], None
+    rows: list[list[str]] = []
 
     def flush():
         nonlocal para, items, kind
+        if rows:
+            head, body_rows = rows[0], [r for r in rows[1:] if not all(set(c) <= set("-: ") for c in r)]
+            out.append('<div class="tbl"><table><thead><tr>' + "".join(f'<th scope="col">{inline(c)}</th>' for c in head)
+                       + "</tr></thead><tbody>" + "".join("<tr>" + "".join(
+                           (f'<th scope="row">{inline(c)}</th>' if j == 0 else f"<td>{inline(c)}</td>") for j, c in enumerate(r))
+                           + "</tr>" for r in body_rows) + "</tbody></table></div>")
+            rows.clear()
         if para:
             out.append(f"<p>{inline(' '.join(para))}</p>")
         if items:
@@ -158,6 +166,13 @@ def markdown(md: str, h2_numbers: bool = True) -> tuple[str, list[dict]]:
             kind = k
             items.append(m.group(1))
             continue
+        if line.startswith("|") and line.endswith("|"):
+            if para or items or kind == "quote":
+                flush()
+            rows.append([c.strip() for c in line.strip("|").split("|")])
+            continue
+        if rows:
+            flush()
         if line.startswith(">"):
             if kind != "quote":
                 flush()
@@ -268,7 +283,7 @@ def load_exchanges() -> list[dict]:
             f["q"] = f["q"].replace("[code]", "").strip().replace("{code}", code)
             f["a_text"] = f["a_text"].replace("{code}", code)
             f["a_html"] = f["a_html"].replace("{code}", code)
-        for k in ("title", "h1", "description", "lead", "tagline", "features", "steps"):
+        for k in ("title", "h1", "description", "lead", "tagline", "features", "steps", "updated"):
             if k in m:
                 x.setdefault("seo_title" if k == "title" else k, m[k])
         x.update(code=code, name=x["name_fa"], body_html=markdown(main_md.replace("{code}", code), h2_numbers=False)[0],
@@ -341,6 +356,7 @@ def version_token() -> str:
 
 V = ""
 CSS = ""
+LATEST = TODAY.isoformat()  # set in main(): the newest lesson's date
 
 
 def crumbs_ld(crumbs: list[tuple[str, str]]) -> dict:
@@ -414,7 +430,7 @@ def render(path: str, meta: dict, main: str, *, kind: str, ld: list[dict], og: d
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, "utf-8")
     if meta.get("noindex") != "true":
-        PAGES.append({"loc": canonical, "lastmod": meta.get("lastmod") or TODAY.isoformat()})
+        PAGES.append({"loc": canonical, "lastmod": meta.get("lastmod") or meta.get("updated") or LATEST})
 
 
 # ---------------------------------------------------------------- shared pieces
@@ -461,12 +477,20 @@ def go_link(x: dict, page: str = "") -> str:
 REL_SPONSORED = 'target="_blank" rel="sponsored nofollow noopener"'
 
 
+def svg_size(name: str) -> str:
+    """width/height attributes from the SVG file, so the logo box is reserved before it loads."""
+    f = STATIC / "exchanges" / name
+    t = f.read_text("utf-8", "replace")[:600] if f.exists() else ""
+    w, h = re.search(r'<svg[^>]*?\swidth="([\d.]+)', t), re.search(r'<svg[^>]*?\sheight="([\d.]+)', t)
+    return f' width="{w.group(1)}" height="{h.group(1)}"' if w and h else ""
+
+
 def logo_img(x: dict, size: str = "") -> str:
     alt = f"لوگوی {x['name']} ({x['name_en']})"
     if not x.get("logo"):
         return f'<span class="xlogo xlogo-txt {size}" dir="ltr">{esc(x["name_en"])}</span>'
-    light = f'<img class="xl {"xl-l" if x.get("logo_dark") else ""}" src="/assets/exchanges/{esc(x["logo"])}{V}" alt="{esc(alt)}" loading="lazy" decoding="async">'
-    dark = (f'<img class="xl xl-d" src="/assets/exchanges/{esc(x["logo_dark"])}{V}" alt="" loading="lazy" decoding="async">'
+    light = f'<img class="xl {"xl-l" if x.get("logo_dark") else ""}" src="/assets/exchanges/{esc(x["logo"])}{V}"{svg_size(x["logo"])} alt="{esc(alt)}" loading="lazy" decoding="async">'
+    dark = (f'<img class="xl xl-d" src="/assets/exchanges/{esc(x["logo_dark"])}{V}"{svg_size(x["logo_dark"])} alt="" loading="lazy" decoding="async">'
             if x.get("logo_dark") else "")
     plate = " xlogo-dark" if x.get("plate") == "dark" else ""
     return f'<span class="xlogo{plate} {size}">{light}{dark}</span>'
@@ -622,7 +646,7 @@ def follow_block(page: str) -> str:
       <span class="sec-n" dir="ltr">(06) FOLLOW</span>
       <h2 id="fw-t">درس‌های کوتاه ویدیویی، در اینستاگرام</h2>
       <p>هر درس دات‌کوین اول به‌صورت یک ویدیوی کوتاه در اینستاگرام منتشر می‌شود. دنبال کن تا درس بعدی را از دست ندهی.</p>
-      <div class="hero-cta"><a class="btn btn-solid btn-lg" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>دنبال کردن ‎@dotcoin.me</span></a><a class="btn btn-line btn-lg" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب</span></a></div>
+      <div class="hero-cta"><a class="btn btn-solid btn-lg" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>دنبال کردن <bdi>@dotcoin.me</bdi></span></a><a class="btn btn-line btn-lg" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب</span></a></div>
     </div>
   </div>
   <div class="follow-giant" dir="ltr" aria-hidden="true" style="--fit:{fit("@DOTCOIN.ME")}">@DOTCOIN.ME</div>
@@ -646,7 +670,7 @@ def page_learn(arts):
     crumbs = [("/", "خانه"), ("/learn/", "آموزش‌ها")]
     counts = {p: sum(1 for a in arts if a["pillar"] == p) for p in PILLARS}
     chips = f'<button class="fchip is-on" type="button" data-f="all" aria-pressed="true">همه <i>{fa(len(arts))}</i></button>' + "".join(
-        f'<button class="fchip" type="button" data-f="{p}" aria-pressed="false">{esc(n)} <i>{fa(counts[p])}</i></button>' for p, n in PILLARS.items())
+        f'<button class="fchip" id="{p}" type="button" data-f="{p}" aria-pressed="false">{esc(n)} <i>{fa(counts[p])}</i></button>' for p, n in PILLARS.items())
     for i, a in enumerate(arts):
         a["n"] = len(arts) - i
     cards = "".join(lesson_card(a, i) for i, a in enumerate(arts))
@@ -655,11 +679,22 @@ def page_learn(arts):
     up = "".join(
         f'<li data-pillar="{esc(i["pillar"])}"><span class="up-p">{esc(PILLARS.get(i["pillar"], ""))}</span><span class="up-t">{esc(i["title"])}</span></li>'
         for i in upcoming)
+    by_slug = {a["slug"]: a for a in arts}
+    path_li = "".join(
+        (f'<li><a href="{by_slug[s]["url"]}">{esc(by_slug[s]["title"])}</a></li>' if s in by_slug else
+         f'<li><span>{esc(t)}</span> <i>به‌زودی</i></li>')
+        for s, t in (p.split("|", 1) for p in SITE.get("path", [])))
+    path_sec = (f"""<section class="sec sec-path" aria-labelledby="path-t"><div class="wrap">
+  {sec_head("—", "START HERE", '<span id="path-t">مسیر یادگیری از صفر</span>', "", "اگر تازه شروع کرده‌ای، درس‌ها را به همین ترتیب بخوان.")}
+  <ol class="path prose">{path_li}</ol>
+</div></section>""" if path_li else "")
     main = page_hero(meta, "LEARN", crumbs, f'<div class="filters ld" style="--d:4" role="group" aria-label="دسته‌بندی درس‌ها">{chips}</div>') + f"""
-<section class="sec sec-tight"><div class="wrap">
+<section class="sec sec-tight" aria-labelledby="all-t"><div class="wrap">
+  <h2 id="all-t" class="sr">همه‌ی درس‌ها</h2>
   <div class="cards cards-learn" data-filter-scope>{cards}</div>
   <p class="empty" hidden>درس این مسیر به‌زودی می‌آید؛ موضوع‌هایش را پایین‌تر ببین.</p>
 </div></section>
+{path_sec}
 <section class="sec sec-up" aria-labelledby="up-t"><div class="wrap">
   {sec_head("—", "COMING NEXT", '<span id="up-t">درس‌های در راه</span>', "", "موضوع‌هایی که به‌زودی هم ویدیو و هم درس نوشتاری‌شان منتشر می‌شود.")}
   <ol class="up">{up}</ol>
@@ -682,12 +717,21 @@ def page_article(a, arts):
     related = (same + other)[:3]
     rel_html = "".join(lesson_card(b, i) for i, b in enumerate(related))
     idx = arts.index(a)
+    answer = (f'<section class="sum ans" aria-labelledby="ans-t"><h2 id="ans-t">پاسخ کوتاه</h2><p>{inline(a["answer"])}</p></section>'
+              if a.get("answer") else "")
+    src_items = []
+    for line in a.get("sources") or []:
+        label, _, href = line.rpartition("|")
+        if href.strip().startswith("https://"):
+            src_items.append(f'<li><a href="{esc(href.strip())}" target="_blank" rel="noopener">{inline(label.strip())}</a></li>')
+    sources = (f'<section class="prose srcs" aria-labelledby="src-t"><h2 id="src-t">منابع</h2><ul>{"".join(src_items)}</ul></section>'
+               if src_items else "")
     reel = a.get("reel") or ""
     reel_block = f"""<aside class="reel rv" aria-label="ویدیوی این درس">
 <div class="reel-ph" aria-hidden="true"><img src="/assets/img/logo-192.webp{V}" width="96" height="96" alt="" loading="lazy"><span class="reel-play"></span></div>
 <div class="reel-copy"><span class="sec-n" dir="ltr">REEL</span><h2>{'ویدیوی کوتاه این درس' if reel else 'ویدیوی این درس در اینستاگرام'}</h2>
 <p>{'همین درس را در یک ویدیوی کوتاه در اینستاگرام دات‌کوین ببین.' if reel else 'ویدیوی کوتاه این درس در صفحه‌ی اینستاگرام دات‌کوین منتشر می‌شود. دنبال کن تا آن را ببینی.'}</p>
-<a class="btn btn-solid" href="{esc(reel or SITE['instagram'])}" target="_blank" rel="noopener" data-reel="{esc(reel)}">{IG}<span>{'دیدن ویدیو در اینستاگرام' if reel else 'دنبال کردن ‎@dotcoin.me'}</span></a></div></aside>"""
+<a class="btn btn-solid" href="{esc(reel or SITE['instagram'])}" target="_blank" rel="noopener" data-reel="{esc(reel)}">{IG}<span>{'دیدن ویدیو در اینستاگرام' if reel else 'دنبال کردن <bdi>@dotcoin.me</bdi>'}</span></a></div></aside>"""
     pn = []
     if idx > 0:
         pn.append(f'<a class="pn pn-prev" href="{arts[idx - 1]["url"]}"><span>درس جدیدتر</span><b>{esc(arts[idx - 1]["title"])}</b></a>')
@@ -711,8 +755,10 @@ def page_article(a, arts):
 <div class="wrap art-grid">
   <aside class="toc" aria-label="فهرست این درس"><details open><summary>فهرست این درس</summary><ol>{toc}</ol></details></aside>
   <div class="art-body" itemprop="articleBody">
+    {answer}
     <section class="sum" aria-labelledby="sum-t"><h2 id="sum-t"><span dir="ltr">TL;DR</span> خلاصه</h2><ul>{summary}</ul></section>
     <div class="prose">{a['body_html']}</div>
+    {sources}
     {reel_block}
     {faq_html(a['faqs'])}
     <nav class="pns" aria-label="درس‌های دیگر">{''.join(pn)}</nav>
@@ -726,7 +772,7 @@ def page_article(a, arts):
 {follow_block(a['slug'])}"""
     meta = {"title": a["title"], "seo_title": a.get("seo_title") or f"{a['title']}{SITE['title_suffix']}",
             "description": a["description"], "og_title": a.get("og_title") or a["title"],
-            "og_description": a.get("og_description") or a["description"], "lastmod": a["date_obj"].isoformat()}
+            "og_description": a.get("og_description") or a["description"], "lastmod": a.get("updated") or a["date_obj"].isoformat()}
     img = f"{URL}/og/learn-{a['slug']}.jpg"
     ld = [org_ld(), PERSON, crumbs_ld(crumbs), {
         "@type": "Article", "@id": URL + a["url"] + "#article", "headline": a["title"], "description": a["description"],
@@ -737,6 +783,7 @@ def page_article(a, arts):
     if a["faqs"]:
         ld.append(faq_ld(a["faqs"]))
     og_extra = (f'<meta property="article:published_time" content="{a["date_obj"].isoformat()}">\n'
+                f'<meta property="article:modified_time" content="{a.get("updated") or a["date_obj"].isoformat()}">\n'
                 f'<meta property="article:author" content="{esc(SITE["author"])}">\n'
                 f'<meta property="article:section" content="{esc(PILLARS.get(a["pillar"], ""))}">\n')
     render(a["url"], meta, main, kind="article", ld=ld, og_type="article", og_extra=og_extra, body_class="p-article",
@@ -786,7 +833,7 @@ HOW = """<section class="sec sec-how" aria-labelledby="how-t"><div class="wrap">
   <header class="sec-h rv"><span class="sec-n" dir="ltr">(—) HOW IT WORKS</span><h2 class="sec-t" id="how-t">کد دعوت چطور کار می‌کند</h2></header>
   <ol class="how rv">
     <li><b>از دکمه‌ی ثبت‌نام همین صفحه وارد شو</b><span>دکمه‌ها مستقیم به صفحه‌ی ثبت‌نام همان صرافی می‌روند.</span></li>
-    <li><b>کد را در خانه‌ی کد دعوت بنویس</b><span>اگر کد خودکار پر نشد، آن را از همین صفحه کپی کن و در فرم ثبت‌نام بچسبان.</span></li>
+    <li><b>کد را در خانه‌ی «کد دعوت» یا «کد رفرال» بنویس</b><span>اگر کد خودکار پر نشد، آن را از همین صفحه کپی کن و در فرم ثبت‌نام بچسبان.</span></li>
     <li><b>ثبت‌نام را کامل کن</b><span>کد فقط هنگام ساختن حساب ثبت می‌شود؛ پس پیش از پایان ثبت‌نام واردش کن.</span></li>
   </ol>
 </div></section>
@@ -799,7 +846,7 @@ def page_exchanges(xs, arts):
     cards = "".join(exchange_card(x, "exchanges", i) for i, x in enumerate(xs))
     how = HOW if any(x["code"] for x in xs) else ""
     main = page_hero(meta, "EXCHANGES", crumbs) + f"""
-<section class="sec sec-tight"><div class="wrap"><div class="xcards xcards-lg">{cards}</div></div></section>
+<section class="sec sec-tight" aria-labelledby="xs-t"><div class="wrap"><h2 id="xs-t" class="sr">سه صرافی</h2><div class="xcards xcards-lg">{cards}</div></div></section>
 {how}{follow_block("exchanges")}"""
     ld = [org_ld(), crumbs_ld(crumbs), {"@type": "CollectionPage", "@id": URL + "/exchanges/#page", "url": URL + "/exchanges/",
           "name": meta["title"], "description": meta["description"], "inLanguage": "fa", "isPartOf": {"@id": SITE_ID},
@@ -845,11 +892,11 @@ def page_exchange(x, xs, arts):
 {follow_block(x['slug'])}"""
     meta = {"title": x["name"], "seo_title": x.get("seo_title") or f"{x['name']} ({x['name_en']}){SITE['title_suffix']}",
             "description": x["description"], "og_title": x.get("og_title") or f"{x['name']} ({x['name_en']})",
-            "og_description": x.get("og_description") or x["description"]}
+            "og_description": x.get("og_description") or x["description"], "updated": x.get("updated", "")}
     ld = [org_ld(), crumbs_ld(crumbs), {
         "@type": "WebPage", "@id": URL + x["url"] + "#page", "url": URL + x["url"], "name": x.get("seo_title") or x["name"],
         "description": x["description"], "inLanguage": "fa", "isPartOf": {"@id": SITE_ID},
-        "dateModified": TODAY.isoformat()}]
+        "dateModified": x.get("updated") or LATEST}]
     if x["faqs"]:
         ld.append(faq_ld(x["faqs"]))
     render(x["url"], meta, main, kind="exchange", ld=ld, og={"key": f"x-{x['slug']}", "en": x["en"], "kicker": "صرافی‌ها"},
@@ -864,7 +911,7 @@ def page_about(arts, terms):
 <div class="wrap about-grid">
   <figure class="about-mark rv"><img src="/assets/img/logo-640.webp{V}" width="640" height="640" alt="بهنام جلالی، سازنده‌ی دات‌کوین" loading="lazy" decoding="async"><figcaption>بهنام جلالی · سازنده‌ی دات‌کوین</figcaption></figure>
   <div class="prose about-prose">{body_html}
-    <div class="about-links"><a class="btn btn-solid" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>اینستاگرام ‎@dotcoin.me</span></a><a class="btn btn-line" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب دات‌کوین</span></a></div>
+    <div class="about-links"><a class="btn btn-solid" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>اینستاگرام <bdi>@dotcoin.me</bdi></span></a><a class="btn btn-line" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب دات‌کوین</span></a></div>
   </div>
 </div>
 {follow_block("about")}"""
@@ -962,6 +1009,8 @@ def main() -> int:
     V = version_token()
     CSS = minify_css((STATIC / "css" / "site.css").read_text("utf-8")).replace(".woff2)", f".woff2{V})")
     arts, xs, terms = load_articles(), load_exchanges(), load_glossary()
+    global LATEST
+    LATEST = max((a.get("updated") or a["date_obj"].isoformat()) for a in arts) if arts else TODAY.isoformat()
     page_home(arts, xs, terms)
     page_learn(arts)
     for a in arts:

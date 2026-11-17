@@ -572,3 +572,17 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .h-x{font-size:clamp(36px,5.2vw,80px);max-width:16em}
 /* decorative giant type never takes clicks (its glyph box overflows its line box) */
 .giant,.st-word,.card-en,.follow-giant,.ftr-giant,.xc-en,.marquee,.ring{pointer-events:none}
+
+/* SEO pass: «پاسخ کوتاه», tables, «منابع», the beginner path */
+.ans p{line-height:1.95;font-size:17px;color:rgba(244,240,230,.92)}
+.ans + .sum{margin-top:0}
+.tbl{overflow-x:auto;margin:1.4em 0;-webkit-overflow-scrolling:touch}
+.tbl table{width:100%;min-width:480px;border-collapse:collapse;font-size:15px;line-height:1.8}
+.tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+.tbl thead th{font-weight:800;border-bottom:2px solid var(--acc)}
+.tbl tbody th{font-weight:700}
+.srcs{margin-top:clamp(28px,3vw,40px)}
+.srcs h2{font-size:22px;margin-bottom:8px}
+.srcs a{font-weight:600}
+.path li{margin-top:.6em}
+.path li i{font-style:normal;font-size:.85em;color:var(--mute)}
