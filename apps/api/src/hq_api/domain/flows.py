@@ -326,6 +326,10 @@ FLOWS = {
         model="claude-opus-5-5",
         effort=XHIGH,
         recipe="dotcoin",
+        note_fa=(
+            "به‌جز این‌ها، out/article.md (مقاله‌ی همین ریلز برای سایت dotcoin.me) را هم طبق کیت بنویس؛ "
+            "لینک و دکمه‌ی مقاله در comment.txt می‌آید."
+        ),
     ),
     "dotcoin_reels_2": Flow(
         key="dotcoin_reels_2",  # gitleaks:allow (a flow's name, not a key)
@@ -346,6 +350,10 @@ FLOWS = {
         effort=XHIGH,
         pair="dotcoin_reels",
         recipe="dotcoin",
+        note_fa=(
+            "به‌جز این‌ها، out/article.md (مقاله‌ی همین ریلز برای سایت dotcoin.me) را هم طبق کیت بنویس؛ "
+            "لینک و دکمه‌ی مقاله در comment.txt می‌آید."
+        ),
     ),
     # ⟨2026-11-17⟩ the owner: «ریلز عکس نداریم اصلا، منظورم تعدادی عکس برای استوری که هم آموزشی باشه و در
     # آینده هر وقت گفتم تبلیغاتی باشه» (12-15 a day), and «چت جی پی تی میتونه ۱۰ الی ۱۵ عکس رو یکجا

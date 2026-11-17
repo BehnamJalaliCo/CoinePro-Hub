@@ -21,24 +21,66 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web")
-Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
+ACCOUNTS = (
+    "chatgpt-web",
+    "gemini-web",
+    "deepseek-web",
+    "aistudio-web",
+    "pinterest-web",
+    "youtube-web",
+)
+Account = Literal[
+    "chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web", "youtube-web"
+]
 # prompt 22 (production lines): `tts` (speech in AI Studio: the audio file), `search`
 # (Pinterest, read only: the pins as JSON text) and `cover` (an image made from the files the
 # job carries) join the substitutes' three tasks. ⟨2026-11-17⟩ `slides`: several images made in
 # ONE chat (the owner: ChatGPT designs 10-15 story slides at once, each a picture of its own).
-TASKS = ("text", "image", "video", "tts", "search", "cover", "slides")
-TaskName = Literal["text", "image", "video", "tts", "search", "cover", "slides"]
+# ⟨2026-11-17⟩ YouTube Studio (youtube-web): `channel` reads the active channel, `titles` the
+# channel's video titles (a duplicate check), `upload` publishes the job's video as a Short (its
+# title the prompt, its description the job's `description`, its visibility the job's), `public`
+# makes an uploaded video (the job's `video_id`) Public.
+TASKS = (
+    "text",
+    "image",
+    "video",
+    "tts",
+    "search",
+    "cover",
+    "slides",
+    "channel",
+    "titles",
+    "upload",
+    "public",
+)
+TaskName = Literal[
+    "text",
+    "image",
+    "video",
+    "tts",
+    "search",
+    "cover",
+    "slides",
+    "channel",
+    "titles",
+    "upload",
+    "public",
+]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 # The longest a task may wait for its answer (image 3 min, video 10 min, a set of slides 25 min).
 TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300,
-              "slides": 1500}  # fmt: skip
+              "slides": 1500, "channel": 120, "titles": 120, "upload": 600,
+              "public": 180}  # fmt: skip
+# ⟨2026-11-17⟩ the largest file a task's job carries, where it is over egress's web_file_bytes
+# (a Short's video: about 6 Mbit/s for up to two minutes)
+TASK_FILE_BYTES = {"upload": 96 * 1024 * 1024}
 # the most pictures one `download_images` takes (a day's story slides)
 MAX_IMAGES = 15
 
 
 # What a `fill` may type: the job's prompt or its style note (never a literal from the recipe).
-FILL_TEXTS = ("{prompt}", "{style}", "{voice}")  # ⟨2026-11-13⟩ a voice typed into a search box
+# ⟨2026-11-13⟩ a voice typed into a search box; ⟨2026-11-17⟩ a video's description (YouTube)
+FILL_TEXTS = ("{prompt}", "{style}", "{voice}", "{description}")
 
 
 class RStep(BaseModel):
@@ -96,7 +138,7 @@ class RStep(BaseModel):
         if self.do == "press" and not self.key:
             raise ValueError("press needs a key")
         if self.do == "fill" and self.text not in FILL_TEXTS:
-            raise ValueError("fill types the prompt, the style or the voice only")
+            raise ValueError("fill types the prompt, the style, the voice or the description only")
         if self.do == "select" and self.text != "{voice}":
             raise ValueError("select chooses the job's voice only")
         if self.alt is not None and self.do != "read":

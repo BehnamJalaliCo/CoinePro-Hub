@@ -1,0 +1,53 @@
+{
+ "_note": "The ONE place for each exchange's link, code, button text and logo. link: DotCoin's referral link (may contain {page}, replaced by the page's short slug), or the official homepage until the referral link exists. code: the referral/invite code, or null (the code block is then hidden). Text content lives in content/exchanges/<slug>.md.",
+ "exchanges": [
+  {
+   "slug": "weex",
+   "order": 1,
+   "name_fa": "ویکس",
+   "name_en": "WEEX",
+   "en": "WEEX",
+   "link": "https://trade-future.ir/go/weex?src=dotcoin&goal=R&pl=site",
+   "code": null,
+   "code_label": "کد دعوت",
+   "button": "ثبت‌نام در ویکس",
+   "official": "https://www.weex.com",
+   "logo": "weex.svg",
+   "logo_dark": "",
+   "logo_source": "https://www.weex.com/trade_static/_next/static/media/logoweex_black.2l70g8adovcuy.svg",
+   "plate": "light"
+  },
+  {
+   "slug": "lbank",
+   "order": 2,
+   "name_fa": "ال بانک",
+   "name_en": "LBank",
+   "en": "LBANK",
+   "link": "https://www.lbank.info/ref/TRADEYAR",
+   "code": "TRADEYAR",
+   "code_label": "کد دعوت",
+   "button": "ثبت‌نام در ال بانک",
+   "official": "https://www.lbank.com",
+   "logo": "lbank.svg",
+   "logo_dark": "",
+   "logo_source": "https://www.lbank.com/static-client/common/images/header/logo.svg (white only: shown on a dark plate)",
+   "plate": "dark"
+  },
+  {
+   "slug": "ourbit",
+   "order": 3,
+   "name_fa": "اوربیت",
+   "name_en": "Ourbit",
+   "en": "OURBIT",
+   "link": "https://www.ourbit.com/register?inviteCode=DOTCOIN",
+   "code": "DOTCOIN",
+   "code_label": "کد رفرال",
+   "button": "ثبت‌نام در اوربیت",
+   "official": "https://www.ourbit.com/fa-IR",
+   "logo": "ourbit.svg",
+   "logo_dark": "ourbit-dark.svg",
+   "logo_source": "https://www.ourbit.com/fa-IR (site header logos: header_logoLight / header_logoDark)",
+   "plate": "light"
+  }
+ ]
+}

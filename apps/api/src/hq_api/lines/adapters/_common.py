@@ -40,6 +40,7 @@ ACCOUNT_FA = {
     "chatgpt-web": "ChatGPT",
     "aistudio-web": "گوگل ای‌آی استودیو",
     "pinterest-web": "پینترست",
+    "youtube-web": "یوتیوب استودیو",
 }
 SKIP_FA = {
     "off": "این جایگاه خاموش است.",
