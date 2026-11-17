@@ -58,6 +58,8 @@
     }, { rootMargin: "0px 0px -6% 0px" });
     var vh = w.innerHeight;
     $$(".rv").forEach(function (el) {
+      var box = el.parentElement;  /* items of a sideways carousel (phone) stay at rest */
+      if (box && box.scrollWidth > box.clientWidth + 4) return;
       if (el.getBoundingClientRect().top > vh * 0.95) { el.classList.add("rv-wait"); io.observe(el); }
     });
     w.setTimeout(function () { $$(".rv-wait:not(.in)").forEach(function (el) { if (el.getBoundingClientRect().top < w.innerHeight) el.classList.add("in"); }); }, 2500);
