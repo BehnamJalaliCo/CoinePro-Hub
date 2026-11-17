@@ -32,6 +32,10 @@ run stops, nobody signs in by itself (the owner: `make youtube-web-login`).
     youtube_long.py --video V.mp4 --thumb T.jpg --meta meta.json --public    (the owner's word only)
     youtube_long.py --make-public SLUG                an Unlisted long video made Public (owner's word only)
     youtube_long.py --link SLUG                       its link on the article, once the article exists
+    youtube_long.py --due                             the automation's pass (dotcoin-longform.timer): each
+                                                      queued run of the flow dotcoin_long at its hour, Public,
+                                                      after its checks; then tags, language and subtitles
+    youtube_long.py --finish SLUG                     only the tags, language and subtitles of one video
 
 meta.json: {"slug": "what-is-bitcoin", "topic": "…", "title": "≤ 100 characters",
             "description": "≤ 5000 bytes, chapters as `00:00 …` lines", "tags": ["…", "…"],
@@ -44,7 +48,9 @@ import base64
 import fcntl
 import hashlib
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -553,6 +559,243 @@ def show(task: str) -> int:
         log(f"custom thumbnails allowed: {thumbs_allowed(str(ans.get('text_md') or ''))}")
     return 0 if ans.get("ok") else 1
 
+# ------------------------------------------------------------------ the automation (dotcoin_long)
+# ⟨2026-11-17⟩ The owner: long videos fully automatic. The hub's flow `dotcoin_long` (kind video) makes
+# a day's video on the workshop and marks its run `youtube: queued` when out/ is in (flows._queue_video).
+# This pass (dotcoin-longform.timer, every 10 minutes, user Hub) publishes each such run at its hour:
+# its files from the session's out/, three checks (the audio has no click, cut or burst; the article
+# passes sync.py --check AND the site build with its bidi lint; nothing of it is on the channel or the
+# site yet), ONE Public upload (the key, the sha256, the channel's list), the article on the site with
+# the video in it (content/auto, the sync deploys it), then the video's tags, language and subtitles
+# (tasks `details`, `subtitles`; tried again on later passes, at most FINISH_TRIES times).
+WORKSPACE = Path("/home/studio/hq-workspace")
+STUDIO_PY = "/home/studio/kits/prochart-reels/asr/venv/bin/python"
+AUDIO_QC = "/home/studio/kits/prochart-reels/tools/audio_qc.py"
+QC_DIR = Path("/home/studio/longform-qc")  # the studio user's (sudo -n -u studio)
+TMP = Y.HOME / "longform-tmp"
+DUE_LOCK = Y.HOME / "dotcoin-longform.lock"
+OUT_FILES = ("video.mp4", "thumbnail.jpg", "meta.json", "subtitles.fa.srt", "article.md")
+FINISH_TRIES = 3
+REF_RE = re.compile(r"W-\d{3,9}")
+DUE_SQL = """
+    SELECT w.ref, w.run_meta -> 'flow' ->> 'key' AS key, w.run_meta -> 'flow' ->> 'day' AS day,
+           w.run_meta -> 'flow' ->> 'publish_at' AS publish_at
+      FROM work.work w
+     WHERE w.run_meta -> 'flow' ->> 'kind' = 'video' AND w.run_meta -> 'flow' ->> 'account' = 'dotcoin.me'
+       AND w.run_meta -> 'flow' ? 'sent' AND (w.run_meta -> 'flow' ->> 'publish_at')::timestamptz <= now()
+       AND w.created_at > now() - interval '14 days'
+     ORDER BY w.created_at"""
+
+
+def sudo(cmd: list[str], timeout: int = 600) -> subprocess.CompletedProcess:
+    return Y.run(["sudo", "-n", *cmd], timeout=timeout)
+
+
+def fetch_out(ref: str, dest: Path) -> list[str]:
+    """The run's out/ files (read with sudo: the workshop is the studio user's) into `dest`; what is
+    missing."""
+    dest.mkdir(parents=True, exist_ok=True)
+    missing = []
+    for name in OUT_FILES:
+        src = WORKSPACE / ref / "out" / name
+        if sudo(["test", "-f", str(src)]).returncode:
+            missing.append(name)
+            continue
+        r = sudo(["cp", str(src), str(dest / name)])
+        sudo(["chown", f"{os.getuid()}:{os.getgid()}", str(dest / name)])
+        if r.returncode:
+            missing.append(name)
+    return missing
+
+
+def audio_clean(ref: str) -> str:
+    """'' when the video's own soundtrack has 0 clicks, 0 cuts and 0 bursts (the kit's audio_qc.py, as
+    the studio user), else why not."""
+    sudo(["-u", "studio", "mkdir", "-p", str(QC_DIR)])
+    wav = QC_DIR / f"{ref}.wav"
+    r = sudo(["-u", "studio", "ffmpeg", "-v", "error", "-y", "-i", str(WORKSPACE / ref / "out" / "video.mp4"), "-vn",
+              "-ac", "2", "-ar", "48000", str(wav)], timeout=600)
+    if r.returncode:
+        return f"the soundtrack could not be read ({Y.tail(r.stderr, 1)})"
+    r = sudo(["-u", "studio", STUDIO_PY, "-I", AUDIO_QC, str(wav), str(QC_DIR / f"{ref}.audioqc.json")], timeout=900)
+    sudo(["-u", "studio", "rm", "-f", str(wav)])
+    try:
+        got = json.loads((r.stdout or b"").decode().strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return f"audio_qc gave no answer ({Y.tail(r.stderr, 1)})"
+    n = {k: int(got.get(k) or 0) for k in ("clicks", "cuts", "bursts")}
+    return "" if not any(n.values()) else f"audio_qc: {n['clicks']} clicks, {n['cuts']} cuts, {n['bursts']} bursts"
+
+
+def article_ok(article: Path, slug: str) -> str:
+    """'' when the article passes sync.py --check and the whole site builds with it (bidi lint), else why."""
+    r = Y.run([sys.executable, "-I", str(Y.SITE / "sync.py"), "--check", str(article)], timeout=120)
+    if r.returncode or "ok" not in (r.stdout or b"").decode():
+        return f"sync.py --check: {Y.tail(r.stdout or r.stderr, 3)}"
+    if (Y.ARTS / f"{slug}.md").exists() or (Y.AUTO / f"{slug}.md").exists():
+        return f"the site already has a lesson {slug}"
+    with tempfile.TemporaryDirectory(prefix="dotcoin-lint-", dir=str(TMP)) as tmp:
+        # the repo's layout (build.py reads the reel kit's ideas next to it): the site copied, the kits linked
+        site = Path(tmp) / "automations" / "sites" / "dotcoin"
+        shutil.copytree(Y.SITE, site, ignore=shutil.ignore_patterns("dist", "__pycache__"))
+        (Path(tmp) / "automations" / "kits").symlink_to(Y.WT / "automations" / "kits")
+        (site / "content" / "auto" / f"{slug}.md").write_text(
+            set_youtube(article.read_text("utf-8"), "https://youtu.be/AAAAAAAAAAA"), "utf-8")
+        env = {**os.environ, "DOTCOIN_DIST": str(Path(tmp) / "dist")}
+        r = Y.run([sys.executable, "-I", str(site / "build.py")], timeout=600, cwd=site, env=env)
+    if r.returncode:
+        return f"the site build refused it: {Y.tail(r.stderr or r.stdout, 4)}"
+    return ""
+
+
+def set_youtube(text: str, url: str) -> str:
+    if not text.startswith("---"):
+        return text
+    return Y.set_field(text, "youtube", url)
+
+
+def put_article(article: Path, slug: str, url: str) -> str:
+    """The article into the site (content/auto/<slug>.md, its video in it), committed under the sync's
+    lock; then the sync pushes, builds and deploys. '' when done."""
+    dest = Y.AUTO / f"{slug}.md"
+    with open(Y.SYNC_LOCK, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(set_youtube(article.read_text("utf-8"), url), "utf-8")
+            rel = str(dest.relative_to(Y.WT))
+            for cmd in (["add", "--", rel], ["commit", "-q", "-m", f"DotCoin site: lesson {slug} with its long video "
+                                                                  f"{url} (youtube_long.py --due)", "--", rel]):
+                r = Y.run(["git", "-C", str(Y.WT), *cmd], timeout=60)
+                if r.returncode:
+                    return f"git {cmd[0]} failed: {Y.tail(r.stderr, 1)}"
+    r = Y.run([sys.executable, "-I", str(Y.SITE / "sync.py")], timeout=1800, cwd=Y.WT)
+    return "" if r.returncode == 0 else f"the site sync failed: {Y.tail(r.stdout or r.stderr, 2)}"
+
+
+def task_live(task: str) -> bool:
+    """Whether the live recipe (the file egress reads) has this task: one not deployed yet is waited
+    for, no try counted."""
+    try:
+        return f"\n  {task}:\n" in Y.RECIPE.read_text("utf-8")
+    except OSError:
+        return False
+
+
+def not_live(ans: dict) -> bool:
+    return not ans.get("ok") and "the recipe has no" in str(ans.get("detail") or "")
+
+
+def finish(state: dict, up: dict) -> None:
+    """The uploaded video's tags and language (task `details`), then its subtitles (task `subtitles`,
+    the .srt spooled); each tried again on a later pass, at most FINISH_TRIES times."""
+    vid = up.get("video_id")
+    if not vid:
+        return
+    if up.get("tags_saved") != "yes" and up.get("tag_tries", 0) < FINISH_TRIES and up.get("tags") and task_live("details"):
+        up["tag_tries"] = up.get("tag_tries", 0) + 1
+        ans = call({"account": Y.PROFILE, "task": "details", "prompt": "details", "timeout_s": 240, "video_id": vid,
+                    "tags": ",".join(up["tags"]) + ","})
+        if not_live(ans):
+            up["tag_tries"] -= 1
+            log(f"  {up['slug']}: tags wait for the recipe's `details` task to be deployed")
+            return
+        shown = str(ans.get("text_md") or "") + " " + str((ans.get("notes") or {}).get("tags") or "")
+        kept = sum(1 for t in up["tags"] if t in shown)
+        up.update(tags_saved="yes" if ans.get("ok") and kept >= max(1, len(up["tags"]) // 2) else "no",
+                  tags_seen=kept, tags_why=Y.why(ans) if not ans.get("ok") else "", tags_at=Y.now())
+        Y.save_state(state)
+        log(f"  {up['slug']}: tags {up['tags_saved']} ({kept} of {len(up['tags'])} seen)"
+            + (f": {up['tags_why']}" if up["tags_why"] else ""))
+        if signed_out(ans):
+            return
+    srt = Path(str(up.get("srt") or ""))
+    if up.get("subs") != "yes" and up.get("sub_tries", 0) < FINISH_TRIES and srt.is_file() and task_live("subtitles"):
+        up["sub_tries"] = up.get("sub_tries", 0) + 1
+        name = f"{up['slug']}.fa.srt"
+        try:
+            spool_put(srt, name, sha256(srt))
+            ans = call({"account": Y.PROFILE, "task": "subtitles", "prompt": "subtitles", "timeout_s": 300,
+                        "video_id": vid, "spooled": [name]})
+        finally:
+            spool_drop([name])
+        if not_live(ans):
+            up["sub_tries"] -= 1
+            log(f"  {up['slug']}: subtitles wait for the recipe's `subtitles` task to be deployed")
+            return
+        up.update(subs="yes" if ans.get("ok") else "no", subs_why=Y.why(ans) if not ans.get("ok") else "",
+                  subs_seen=str(ans.get("text_md") or "")[:200], subs_at=Y.now())
+        Y.save_state(state)
+        log(f"  {up['slug']}: subtitles {up['subs']}" + (f": {up['subs_why']}" if up["subs_why"] else ""))
+        signed_out(ans)
+
+
+def due_pass(only_finish: str | None = None) -> int:
+    """One pass of the timer: every queued run whose hour has come, then the finishing of every long
+    video still missing its tags or subtitles. Quiet when there is nothing to do."""
+    TMP.mkdir(parents=True, exist_ok=True)
+    with open(DUE_LOCK, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return 0
+        state = Y.load_state()
+        runs = state.setdefault("long_runs", {})
+        rows = [] if only_finish else [r for r in Y.sql(DUE_SQL) if REF_RE.fullmatch(str(r.get("ref") or ""))]
+        for row in rows:
+            ref = row["ref"]
+            run = runs.setdefault(ref, {"key": row["key"], "day": row["day"], "publish_at": row["publish_at"]})
+            if run.get("status") in ("done", "blocked", "check"):
+                continue
+            work = TMP / ref
+            missing = fetch_out(ref, work)
+            if missing:
+                run.update(status="waiting", why=f"out/ lacks {', '.join(missing)}", at=Y.now())
+                Y.save_state(state)
+                log(f"{ref}: waiting: out/ lacks {', '.join(missing)}")
+                continue
+            meta = json.loads((work / "meta.json").read_text("utf-8"))
+            slug = str(meta.get("slug") or "")
+            why = audio_clean(ref) or article_ok(work / "article.md", slug)
+            if why:
+                run.update(status="blocked", slug=slug, why=why[:400], at=Y.now())
+                Y.save_state(state)
+                log(f"{ref}: BLOCKED, not uploaded: {why[:300]}")
+                continue
+            log(f"{ref}: checks passed (audio 0/0/0, article and site build ok): uploading {slug} Public")
+            rc = upload(argparse.Namespace(video=str(work / "video.mp4"), thumb=str(work / "thumbnail.jpg"),
+                                           meta=str(work / "meta.json"), public=True, unlisted=False,
+                                           dry_run=False, retry=False))
+            state = Y.load_state()  # (upload() saved it)
+            runs = state.setdefault("long_runs", {})
+            run = runs[ref]
+            up = state["uploads"].get(key_of(slug)) or {}
+            if rc != 0 or not up.get("url"):
+                run.update(status="check" if up.get("status") == "check" else "blocked", slug=slug,
+                           why=f"the upload did not finish: {up.get('status')} {up.get('why') or ''}"[:400], at=Y.now())
+                Y.save_state(state)
+                continue
+            keep = Y.HOME / "dotcoin-longform" / f"{row['day']}-{slug}"
+            keep.mkdir(parents=True, exist_ok=True)
+            for name in ("subtitles.fa.srt", "article.md", "meta.json", "thumbnail.jpg"):
+                shutil.copy2(work / name, keep / name)
+            up.update(srt=str(keep / "subtitles.fa.srt"), tags=list(meta.get("tags") or []), run=ref)
+            got = put_article(keep / "article.md", slug, up["url"])
+            up["site"] = up["url"] if not got else up.get("site")
+            run.update(status="done", slug=slug, url=up["url"], article=got or "live", at=Y.now())
+            Y.save_state(state)
+            log(f"{ref}: Public {up['url']}; article: {got or 'on the site'}")
+            shutil.rmtree(work, ignore_errors=True)
+        todo = [u for u in state["uploads"].values() if u.get("kind") == "long" and u.get("status") in DONE
+                and (not only_finish or u.get("slug") == only_finish)]
+        if any(u.get("tags_saved") != "yes" or u.get("subs") != "yes" for u in todo):
+            with lock_hub():
+                state = Y.load_state()
+                for u in state["uploads"].values():
+                    if u.get("kind") == "long" and u.get("status") in DONE and (not only_finish or u.get("slug") == only_finish):
+                        finish(state, u)
+    return 0
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -568,8 +811,12 @@ def main() -> int:
     ap.add_argument("--retry", action="store_true")
     ap.add_argument("--make-public", dest="make_public")
     ap.add_argument("--link")
+    ap.add_argument("--due", action="store_true")
+    ap.add_argument("--finish")
     args = ap.parse_args()
     try:
+        if args.due or args.finish:
+            return due_pass(args.finish)
         if args.features or args.videos:
             return show("features" if args.features else "videos")
         if args.make_public:
