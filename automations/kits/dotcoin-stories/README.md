@@ -127,7 +127,7 @@ You are the day's session, started by n8n at 04:00 Tehran. Opus 5.5, extra-high 
    reply: <one line: «برای درس‌های بیشتر @dotcoin.me رو فالو کن»>
    ```
    - ≤ 900 characters, no hashtags.
-   - No link yet (the site and the Telegram channel join later).
+   - No link yet (the site joins later).
 8. **topic.txt:** one line, the lesson's title and «سبک: <the look in 3–6 words>».
 9. **Deliver:** out/ holds ONLY story_1.jpg … story_12.jpg, comment.txt and topic.txt. The hub
    schedules each story at its hour, turns the DM rule on and closes the session.

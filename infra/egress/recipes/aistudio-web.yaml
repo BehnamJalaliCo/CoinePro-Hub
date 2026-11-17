@@ -19,7 +19,7 @@
 # reach Google's sign-in host (cookie rotation) nor the Cloud console's auth
 # warm-up; both are the account's own Google hosts.
 key: aistudio-web
-version: "2026-11-13.1"
+version: "2026-11-17.1"
 site: aistudio.google.com
 start_url: "https://aistudio.google.com/generate-speech"
 hosts:
@@ -46,6 +46,9 @@ login_hosts:
   - accounts.google.de
   - accounts.youtube.com
   - myaccount.google.com
+  # 2026-11-17: the owner's YouTube sign-in broke on Google's consent page and its country domain
+  - policies.google.com
+  - accounts.google.co.uk
 expired:
   url_contains: ["accounts.google.com", "ServiceLogin"]
   hosts: [accounts.google.com]
