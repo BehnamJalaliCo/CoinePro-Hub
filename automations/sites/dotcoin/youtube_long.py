@@ -655,6 +655,22 @@ def set_youtube(text: str, url: str) -> str:
     return Y.set_field(text, "youtube", url)
 
 
+TOPICS = Path("/home/studio/kits/dotcoin-longform/topics.md")  # the workshop's copy of the kit's bank
+
+
+def mark_topic(slug: str, day: str) -> str:
+    """The bank's row of this slug marked `used:<day>` in the workshop's topics.md (as the studio user),
+    so the next day's session takes the next one ('' when done). The sitemap rule keeps it used even if
+    the kit is synced again from git before the row is marked there."""
+    code = ("import re,sys;p,slug,day=sys.argv[1:4];s=open(p,encoding='utf-8').read();"
+            "n=re.sub(r'(\\|\\s*\\d+\\s*\\|\\s*)free(\\s*\\|\\s*`'+re.escape(slug)+'`)',"
+            "lambda m:m.group(1)+'used:'+day+m.group(2),s,count=1);"
+            "open(p,'w',encoding='utf-8').write(n);print('marked' if n!=s else 'not found')")
+    r = sudo(["-u", "studio", sys.executable, "-I", "-c", code, str(TOPICS), slug, day], timeout=30)
+    out = (r.stdout or b"").decode().strip()
+    return "" if out == "marked" else f"topics.md: {out or Y.tail(r.stderr, 1)}"
+
+
 def put_article(article: Path, slug: str, url: str) -> str:
     """The article into the site (content/auto/<slug>.md, its video in it), committed under the sync's
     lock; then the sync pushes, builds and deploys. '' when done."""
@@ -802,7 +818,9 @@ def due_pass(only_finish: str | None = None) -> int:
                       tags=list(meta.get("tags") or []), run=ref)
             got = put_article(keep / "article.md", slug, up["url"])
             up["site"] = up["url"] if not got else up.get("site")
-            run.update(status="done", slug=slug, url=up["url"], article=got or "live", at=Y.now())
+            marked = mark_topic(slug, str(row["day"]))
+            run.update(status="done", slug=slug, url=up["url"], article=got or "live", topic=marked or "used",
+                       at=Y.now())
             Y.save_state(state)
             log(f"{ref}: Public {up['url']}; article: {got or 'on the site'}")
             shutil.rmtree(work, ignore_errors=True)

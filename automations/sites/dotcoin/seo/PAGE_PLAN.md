@@ -425,3 +425,136 @@ binds the reel to the lesson by the same slug, the same `idea:` or the same topi
 | `crypto-wallet` | — | کیف پول ارز دیجیتال چیست، کیف پول کریپتو چیست | 2026-11-17 (cornerstone) |
 | `how-to-buy-crypto` | — | چطور ارز دیجیتال بخریم، چگونه ارز دیجیتال بخریم، آموزش خرید ارز دیجیتال | 2026-11-17 (cornerstone) |
 | `usdt-networks` | 20 | تتر را با کدام شبکه بفرستیم، تتر trc20، تتر bep20، تتر erc20 | 2026-11-17 (cornerstone) |
+
+### 7.1 Long-form bank (reserved from 2026-11-17)
+
+The daily long YouTube video's lessons (`automations/kits/dotcoin-longform/topics.md`, one a day
+from 2026-11-18, `ethereum` first). Every slug below is reserved now, live or not: a reel never
+takes one of them. A reel on one of these topics joins the lesson once it is live (`attach: <slug>`;
+sync.py also binds by slug, idea or topic); before that, a reel keeps its own §4–§5 slug and topic.
+None of these collides with a §5 reel slug or a live lesson.
+
+| # | Slug | Keyword |
+|---|---|---|
+| 1 | `ethereum` | اتریوم چیست |
+| 2 | `bitcoin-mining` | ماینینگ بیت کوین چیست |
+| 3 | `smart-contract` | قرارداد هوشمند چیست |
+| 4 | `metamask-guide` | آموزش متامسک |
+| 5 | `solana` | سولانا چیست |
+| 6 | `bitcoin-history` | تاریخچه بیت کوین |
+| 7 | `proof-of-stake` | اثبات سهام چیست |
+| 8 | `trust-wallet-guide` | آموزش تراست ولت |
+| 9 | `spot-vs-futures` | فرق اسپات و فیوچرز |
+| 10 | `toncoin` | تون کوین چیست |
+| 11 | `mt-gox` | مت گاکس |
+| 12 | `block-explorer-guide` | بلاک اکسپلورر چیست |
+| 13 | `decentralized-finance` | دیفای چیست |
+| 14 | `technical-analysis` | تحلیل تکنیکال چیست |
+| 15 | `bitcoin-energy` | بیت کوین و برق |
+| 16 | `xrp` | ریپل چیست |
+| 17 | `public-key-cryptography` | کلید عمومی و خصوصی |
+| 18 | `order-book` | اوردر بوک چیست |
+| 19 | `nft` | ان اف تی چیست |
+| 20 | `satoshi-nakamoto` | ساتوشی ناکاموتو کیست |
+| 21 | `bnb` | بی ان بی چیست |
+| 22 | `tonkeeper-guide` | آموزش تون کیپر |
+| 23 | `futures-trading` | فیوچرز چیست |
+| 24 | `hard-fork` | هارد فورک چیست |
+| 25 | `cardano` | کاردانو چیست |
+| 26 | `crypto-scams` | کلاهبرداری ارز دیجیتال |
+| 27 | `bitcoin-pizza-day` | روز پیتزا بیت کوین |
+| 28 | `moving-average` | میانگین متحرک |
+| 29 | `tron` | ترون چیست |
+| 30 | `tokenomics` | توکنومیکس چیست |
+| 31 | `dogecoin` | دوج کوین چیست |
+| 32 | `multisig` | کیف پول چند امضایی |
+| 33 | `the-dao-hack` | هک دائو |
+| 34 | `rsi-indicator` | اندیکاتور rsi |
+| 35 | `web3` | وب ۳ چیست |
+| 36 | `bitcoin-lightning` | لایتنینگ نتورک |
+| 37 | `mempool` | ممپول چیست |
+| 38 | `copy-trading` | کپی ترید چیست |
+| 39 | `polkadot` | پولکادات چیست |
+| 40 | `rug-pull` | راگ پول |
+| 41 | `terra-luna-collapse` | سقوط لونا |
+| 42 | `tradingview-guide` | آموزش تریدینگ ویو |
+| 43 | `altcoins` | آلت کوین چیست |
+| 44 | `chainlink` | چین لینک چیست |
+| 45 | `consensus-mechanisms` | الگوریتم اجماع |
+| 46 | `exchange-account-security` | امنیت حساب صرافی |
+| 47 | `avalanche` | آوالانچ چیست |
+| 48 | `market-cycles` | بازار گاوی و خرسی |
+| 49 | `memecoins` | میم کوین چیست |
+| 50 | `utxo` | utxo چیست |
+| 51 | `hardware-wallet-setup` | راه اندازی کیف پول سخت افزاری |
+| 52 | `shiba-inu` | شیبا چیست |
+| 53 | `funding-rate` | فاندینگ ریت |
+| 54 | `ethereum-merge` | مرج اتریوم |
+| 55 | `dao` | دائو چیست |
+| 56 | `litecoin` | لایت کوین چیست |
+| 57 | `fundamental-analysis` | تحلیل فاندامنتال |
+| 58 | `51-percent-attack` | حمله ۵۱ درصد |
+| 59 | `polygon` | پالیگان چیست |
+| 60 | `crypto-myths` | باورهای غلط ارز دیجیتال |
+| 61 | `dex-swap-guide` | سواپ چیست |
+| 62 | `bitcoin-cash` | بیت کوین کش چیست |
+| 63 | `fibonacci` | فیبوناچی چیست |
+| 64 | `proof-of-reserves` | اثبات ذخایر |
+| 65 | `cosmos` | کازماس چیست |
+| 66 | `yield-farming` | ییلد فارمینگ |
+| 67 | `send-bitcoin-guide` | ارسال بیت کوین |
+| 68 | `cypherpunks` | سایفرپانک |
+| 69 | `trading-bots` | ربات ترید |
+| 70 | `near-protocol` | نیر پروتکل |
+| 71 | `zero-knowledge-proof` | اثبات دانش صفر |
+| 72 | `wallet-address` | آدرس کیف پول |
+| 73 | `bitcoin-ordinals` | اوردینالز |
+| 74 | `macd` | اندیکاتور مکدی |
+| 75 | `stellar` | استلار چیست |
+| 76 | `biggest-crypto-hacks` | هک صرافی ارز دیجیتال |
+| 77 | `lending-protocols` | وام در دیفای |
+| 78 | `long-short` | لانگ و شورت |
+| 79 | `uniswap` | یونی سواپ |
+| 80 | `quantum-bitcoin` | کامپیوتر کوانتومی بیت کوین |
+| 81 | `token-launch` | ico چیست |
+| 82 | `difficulty-adjustment` | سختی شبکه بیت کوین |
+| 83 | `sui` | سویی چیست |
+| 84 | `market-maker` | مارکت میکر |
+| 85 | `can-bitcoin-be-hacked` | هک بیت کوین |
+| 86 | `liquid-staking` | لیکوئید استیکینگ |
+| 87 | `vitalik-buterin` | ویتالیک بوترین |
+| 88 | `chart-patterns` | الگوهای نموداری |
+| 89 | `real-world-assets` | rwa چیست |
+| 90 | `ethereum-classic` | اتریوم کلاسیک |
+| 91 | `token-burn` | سوزاندن توکن |
+| 92 | `exchange-withdrawal-guide` | برداشت از صرافی |
+| 93 | `on-chain-analysis` | تحلیل آنچین |
+| 94 | `whales` | نهنگ ارز دیجیتال |
+| 95 | `tap-to-earn` | بازی تلگرامی ارز دیجیتال |
+| 96 | `crypto-payments` | پرداخت با ارز دیجیتال |
+| 97 | `hedera` | هدرا چیست |
+| 98 | `take-profit` | تیک پرافیت |
+| 99 | `blockchain-trilemma` | سه گانه بلاک چین |
+| 100 | `aave` | آوه چیست |
+| 101 | `crypto-portfolio` | سبد ارز دیجیتال |
+| 102 | `arbitrage` | آربیتراژ |
+| 103 | `lost-bitcoins` | بیت کوین گم شده |
+| 104 | `decentralized-storage` | فایل کوین چیست |
+| 105 | `ico-boom-2017` | حباب ico |
+| 106 | `erc-20` | erc20 چیست |
+| 107 | `bitcoin-node` | نود بیت کوین |
+| 108 | `evaluate-crypto-project` | بررسی پروژه ارز دیجیتال |
+| 109 | `makerdao-dai` | دای چیست |
+| 110 | `defi-summer-2020` | تابستان دیفای |
+| 111 | `merkle-tree` | درخت مرکل |
+| 112 | `phone-security` | امنیت گوشی ارز دیجیتال |
+| 113 | `kaspa` | کاسپا چیست |
+| 114 | `nft-boom-2021` | جنون nft |
+| 115 | `smart-wallets` | کیف پول هوشمند |
+| 116 | `trading-psychology` | روانشناسی ترید |
+| 117 | `decentralization` | تمرکززدایی |
+| 118 | `gamefi` | گیم فای |
+| 119 | `ethereum-upgrades` | ارتقا اتریوم |
+| 120 | `bitcoin-vs-gold` | بیت کوین یا طلا |
+| 121 | `ai-crypto` | ارز دیجیتال هوش مصنوعی |
+| 122 | `crypto-backup-plan` | پشتیبان گیری کیف پول |
