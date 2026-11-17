@@ -38,7 +38,8 @@ Account = Literal[
 # ONE chat (the owner: ChatGPT designs 10-15 story slides at once, each a picture of its own).
 # ⟨2026-11-17⟩ YouTube Studio (youtube-web): `channel` reads the active channel, `titles` the
 # channel's video titles (a duplicate check), `upload` publishes the job's video as a Short (its
-# title the prompt, its description the job's `description`).
+# title the prompt, its description the job's `description`, its visibility the job's), `public`
+# makes an uploaded video (the job's `video_id`) Public.
 TASKS = (
     "text",
     "image",
@@ -50,14 +51,26 @@ TASKS = (
     "channel",
     "titles",
     "upload",
+    "public",
 )
 TaskName = Literal[
-    "text", "image", "video", "tts", "search", "cover", "slides", "channel", "titles", "upload"
+    "text",
+    "image",
+    "video",
+    "tts",
+    "search",
+    "cover",
+    "slides",
+    "channel",
+    "titles",
+    "upload",
+    "public",
 ]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 # The longest a task may wait for its answer (image 3 min, video 10 min, a set of slides 25 min).
 TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300,
-              "slides": 1500, "channel": 120, "titles": 120, "upload": 600}  # fmt: skip
+              "slides": 1500, "channel": 120, "titles": 120, "upload": 600,
+              "public": 180}  # fmt: skip
 # ⟨2026-11-17⟩ the largest file a task's job carries, where it is over egress's web_file_bytes
 # (a Short's video: about 6 Mbit/s for up to two minutes)
 TASK_FILE_BYTES = {"upload": 96 * 1024 * 1024}

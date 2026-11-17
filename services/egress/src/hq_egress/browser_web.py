@@ -33,6 +33,7 @@ import logging
 import os
 import re
 import shutil
+import socket
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -135,8 +136,12 @@ class JobIn(BaseModel):
     style: str | None = None
     limit: int = Field(default=10, ge=1, le=30)
     files: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
-    # ⟨2026-11-17⟩ an upload's description (YouTube; the title is the prompt)
+    # ⟨2026-11-17⟩ an upload's description (YouTube; the title is the prompt), its visibility (a
+    # selector's `{visibility}`: PUBLIC or UNLISTED) and an uploaded video's id (`{video_id}` in
+    # a goto's url)
     description: str | None = Field(default=None, max_length=5000)
+    visibility: Literal["public", "unlisted"] | None = None
+    video_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
 
 
 class RunIn(B.RunIn):
@@ -161,16 +166,77 @@ def fail(error: str, detail: str, step: str | None = None) -> dict[str, Any]:
 
 
 STALE_LOCK_S = 20 * 60
+# ⟨2026-11-17⟩ until when the profile is open (epoch seconds), written by whoever opens it (a job
+# here, the owner's sign-in window in its own container): another container's lock is live only
+# while this says so
+OPEN_MARK = ".hq-open-until"
 
 
-def clear_stale_lock(profile: Path, now: float | None = None) -> None:
-    """A window or job that died leaves Chromium's Singleton* lock behind (it
-    names the dead container), and Chromium then refuses the profile. A lock
-    older than 20 minutes is stale: a job or a sign-in window lasts at most 15."""
+def _lock_owner(profile: Path) -> tuple[str, int] | None:
+    """Chromium's SingletonLock names its holder `<hostname>-<pid>`; None when there is none."""
+    try:
+        target = os.readlink(profile / "SingletonLock")
+    except OSError:
+        return None
+    host, _, pid = target.rpartition("-")
+    return host, int(pid) if pid.isdigit() else 0
+
+
+def _alive(pid: int) -> bool:
+    """Whether a process of this container runs under `pid` (a zombie does not)."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    with contextlib.suppress(OSError, IndexError):
+        stat = Path(f"/proc/{pid}/stat").read_text()
+        return stat.rsplit(")", 1)[1].split()[0] != "Z"
+    return True
+
+
+def _open_until(profile: Path) -> float:
+    try:
+        return float((profile / OPEN_MARK).read_text().strip())
+    except (OSError, ValueError):
+        return 0.0
+
+
+def mark_open(profile: Path, seconds: float, now: float | None = None) -> None:
     now = time.time() if now is None else now
+    with contextlib.suppress(OSError):
+        (profile / OPEN_MARK).write_text(f"{now + seconds:.0f}")
+
+
+def unmark_open(profile: Path) -> None:
+    with contextlib.suppress(OSError):
+        (profile / OPEN_MARK).unlink()
+
+
+def clear_stale_lock(profile: Path, now: float | None = None, host: str | None = None) -> None:
+    """A window or job that died leaves Chromium's Singleton* lock behind (it
+    names the dead container), and Chromium then refuses the profile. The lock
+    is stale, and removed before a launch: ⟨2026-11-17⟩ at once when another
+    container holds it and no open mark of its own says it is still open (the
+    owner's sign-in window left one pointing at its own dead hostname, and the
+    next job failed with TargetClosedError), or when its process here is gone;
+    in any case once it is older than 20 minutes (a job or a sign-in window
+    lasts at most 15, a set of slides 25 under the account's own lock)."""
+    now = time.time() if now is None else now
+    host = socket.gethostname() if host is None else host
+    owner = _lock_owner(profile)
+    if owner is None:
+        dead = False
+    elif owner[0] == host:
+        dead = not _alive(owner[1])
+    else:
+        dead = _open_until(profile) < now
     for p in profile.glob("Singleton*"):
         with contextlib.suppress(OSError):
-            if now - p.lstat().st_mtime > STALE_LOCK_S:
+            if dead or now - p.lstat().st_mtime > STALE_LOCK_S:
                 p.unlink()
 
 
@@ -221,11 +287,13 @@ class Webd:
         return d
 
     async def open(
-        self, account: str, proxy: Proxy, *, headless: bool | None = None
+        self, account: str, proxy: Proxy, *, headless: bool | None = None, hold_s: float = LOGIN_S
     ) -> BrowserContext:
-        """`headless`: None for a job's (headless unless `headed`)."""
+        """`headless`: None for a job's (headless unless `headed`). `hold_s`: how long the profile
+        may stay open (its open mark; `close` removes it)."""
         profile = self.profile_dir(account)
         clear_stale_lock(profile)
+        mark_open(profile, hold_s + 60)
         ctx: BrowserContext = await self._pw.chromium.launch_persistent_context(
             str(profile),
             headless=not self.headed if headless is None else headless,
@@ -257,15 +325,19 @@ class Webd:
         hosts = frozenset(str(h).lower() for h in j.recipe.get("hosts") or [])
         if not hosts:
             return fail("recipe_failed", "a recipe without hosts")
-        ctx = await self.open(j.account, j.proxy)
+        ctx = await self.open(j.account, j.proxy, hold_s=j.timeout_s)
         try:
             await ctx.route("**/*", _only(hosts))
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             return await run_recipe(page, ctx, j, hosts)
         finally:
-            with contextlib.suppress(Error):
-                await ctx.close()
+            await self.close(ctx, j.account)
             shutil.rmtree(spool_dir(j.account), ignore_errors=True)
+
+    async def close(self, ctx: BrowserContext, account: str) -> None:
+        with contextlib.suppress(Error):
+            await ctx.close()
+        unmark_open(self.profiles / account)
 
     # -------------------------------------------------- a web.browse call --
     async def run(self, a: RunIn) -> dict[str, Any]:
@@ -275,7 +347,7 @@ class Webd:
         async with lock:
             hosts = frozenset(h.lower() for h in a.allowed_hosts)
             deadline = time.monotonic() + a.time_s
-            ctx = await self.open(a.profile, Proxy(**a.proxy.model_dump()))
+            ctx = await self.open(a.profile, Proxy(**a.proxy.model_dump()), hold_s=a.time_s)
             try:
                 return await asyncio.wait_for(
                     B.steps_in(ctx, a, deadline, allowed=lambda h: covered(h, hosts)),
@@ -284,8 +356,7 @@ class Webd:
             except TimeoutError:
                 return {"steps": [], "error": "timeout"}
             finally:
-                with contextlib.suppress(Error):
-                    await ctx.close()
+                await self.close(ctx, a.profile)
 
     async def logout(self, account: str) -> dict[str, Any]:
         async with self.locks[account]:
@@ -300,7 +371,7 @@ class Webd:
         """A visible browser on the profile, for the owner to sign in; closed
         when the owner closes it, or after `seconds`. The hub never sees what
         the owner types."""
-        ctx = await self.open(account, proxy, headless=False)
+        ctx = await self.open(account, proxy, headless=False, hold_s=seconds)
         try:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             with contextlib.suppress(Error):
@@ -315,8 +386,7 @@ class Webd:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(closed, timeout=seconds)
         finally:
-            with contextlib.suppress(Error):
-                await ctx.close()
+            await self.close(ctx, account)
 
 
 def _only(hosts: frozenset[str]) -> Any:
@@ -351,7 +421,12 @@ async def expired(page: Page, rule: dict[str, Any]) -> bool:
 
 
 def _fill(template: str | None, j: JobIn) -> str:
-    return (template or "").replace("{start_url}", str(j.recipe.get("start_url") or ""))
+    url = (template or "").replace("{start_url}", str(j.recipe.get("start_url") or ""))
+    if "{video_id}" in url:  # ⟨2026-11-17⟩ an uploaded video's own page (YouTube Studio)
+        if not j.video_id:
+            raise StepFailed("goto", "the job names no video")
+        url = url.replace("{video_id}", j.video_id)
+    return url
 
 
 VOICE_NAME = re.compile(r"[A-Za-z][A-Za-z' -]{0,39}")
@@ -363,7 +438,8 @@ def _selector(st: dict[str, Any], j: JobIn) -> str:
     value is quoted for the CSS string it stands in. A selector that names an empty value fails
     the step (an `optional` one is skipped: no style, no preset)."""
     sel = str(st.get("selector") or "")
-    for key, value in (("{voice}", j.voice), ("{style}", j.style)):
+    visibility = j.visibility.upper() if j.visibility else None
+    for key, value in (("{voice}", j.voice), ("{style}", j.style), ("{visibility}", visibility)):
         if key not in sel:
             continue
         v = (value or "").strip()

@@ -27,7 +27,7 @@ from __future__ import annotations
 import base64
 import logging
 import time
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import httpx
@@ -80,6 +80,10 @@ class WebIn(BaseModel):
     # ⟨2026-11-17⟩ an upload's description (YouTube: at most 5,000 characters; the title is the
     # prompt)
     description: str | None = Field(default=None, max_length=5000)
+    # ⟨2026-11-17⟩ an upload's visibility (none: the upload stops before publishing) and the
+    # uploaded video a later task acts on
+    visibility: Literal["public", "unlisted"] | None = None
+    video_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
     timeout_s: int = Field(default=300, ge=10, le=1800)  # (⟨2026-11-17⟩ slides: up to 25 min)
     # ⟨1.10⟩ §28.4 the hub's one retry after a recipe failure
     reload: bool = False
@@ -180,6 +184,8 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             "limit": a.limit,
             "files": [f.model_dump() for f in a.files],
             "description": scrub(a.description) if a.description else None,
+            "visibility": a.visibility,
+            "video_id": a.video_id,
         }
         start = time.monotonic()
         try:

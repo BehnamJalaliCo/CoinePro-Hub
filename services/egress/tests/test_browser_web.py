@@ -407,15 +407,84 @@ async def test_a_headed_profile_browser_opens_windows_on_its_own_display(
 
 # A dead window's or job's Chromium lock is cleared once it is stale (20 min).
 def test_a_stale_profile_lock_is_cleared_and_a_fresh_one_kept(tmp_path: Path) -> None:
-    from hq_egress.browser_web import STALE_LOCK_S, clear_stale_lock
+    from hq_egress.browser_web import STALE_LOCK_S, clear_stale_lock, mark_open
 
     (tmp_path / "SingletonLock").symlink_to("deadhost-34")
     (tmp_path / "Default").mkdir()
     lstat_mtime = (tmp_path / "SingletonLock").lstat().st_mtime
-    clear_stale_lock(tmp_path, now=lstat_mtime + 60)
+    # another container's window, still open by its own mark: kept for now
+    mark_open(tmp_path, 900, now=lstat_mtime)
+    clear_stale_lock(tmp_path, now=lstat_mtime + 60, host="here")
     assert (tmp_path / "SingletonLock").is_symlink()
-    clear_stale_lock(tmp_path, now=lstat_mtime + STALE_LOCK_S + 1)
+    clear_stale_lock(tmp_path, now=lstat_mtime + STALE_LOCK_S + 1, host="here")
     assert not (tmp_path / "SingletonLock").is_symlink() and (tmp_path / "Default").is_dir()
+
+
+# ⟨2026-11-17⟩ The owner's sign-in window left SingletonLock, SingletonCookie and SingletonSocket
+# pointing at its own dead container, and the next job failed with TargetClosedError: a lock of
+# another host with no open mark, or of a process gone here, is stale at once.
+def test_a_dead_hosts_or_dead_processes_lock_is_cleared_at_once(tmp_path: Path) -> None:
+    import os
+
+    from hq_egress.browser_web import OPEN_MARK, clear_stale_lock, mark_open, unmark_open
+
+    def lock(target: str) -> None:
+        for name, to in (
+            ("SingletonLock", target),
+            ("SingletonCookie", "123"),
+            ("SingletonSocket", "/tmp/.org.chromium.Chromium.x/SingletonSocket"),
+        ):
+            (tmp_path / name).symlink_to(to)  # fmt: skip
+
+    def left() -> list[str]:
+        return sorted(p.name for p in tmp_path.glob("Singleton*"))
+
+    lock("b733aced772e-41")  # the sign-in container, gone: no open mark
+    clear_stale_lock(tmp_path, host="here")
+    assert left() == []
+    lock("b733aced772e-41")  # its mark ran out
+    mark_open(tmp_path, 60, now=1000.0)
+    clear_stale_lock(tmp_path, now=2000.0, host="here")
+    assert left() == []
+    lock("b733aced772e-41")  # a window open right now in the other container: kept
+    mark_open(tmp_path, 900)
+    clear_stale_lock(tmp_path, host="here")
+    assert left() == ["SingletonCookie", "SingletonLock", "SingletonSocket"]
+    unmark_open(tmp_path)
+    assert not (tmp_path / OPEN_MARK).exists()
+    for p in tmp_path.glob("Singleton*"):
+        p.unlink()
+    lock(f"here-{os.getpid()}")  # this container's own live Chromium: kept
+    clear_stale_lock(tmp_path, host="here")
+    assert len(left()) == 3
+    for p in tmp_path.glob("Singleton*"):
+        p.unlink()
+    lock("here-999999999")  # this container's, its process gone
+    clear_stale_lock(tmp_path, host="here")
+    assert left() == []
+
+
+def test_a_youtube_job_names_its_visibility_and_video(tmp_path: Path) -> None:
+    """⟨2026-11-17⟩ `{visibility}` in a selector is the job's (PUBLIC or UNLISTED), `{video_id}` in
+    a goto the uploaded video's; a job without them fails the step, never guesses."""
+    from pydantic import ValidationError as PydanticValidationError
+
+    from hq_egress.browser_web import JobIn, StepFailed, _fill, _selector
+
+    base = {"account": "youtube-web", "recipe": {"start_url": "https://studio.youtube.com/"},
+            "prompt": "t", "timeout_s": 60, "proxy": {"server": "http://egress:3132"}}  # fmt: skip
+    j = JobIn.model_validate({**base, "visibility": "unlisted", "video_id": "abcDEF12_-x"})
+    st = {"do": "click", "selector": "tp-yt-paper-radio-button[name='{visibility}']"}
+    assert _selector(st, j) == "tp-yt-paper-radio-button[name='UNLISTED']"
+    url = "https://studio.youtube.com/video/{video_id}/edit"
+    assert _fill(url, j) == "https://studio.youtube.com/video/abcDEF12_-x/edit"
+    bare = JobIn.model_validate(base)
+    with pytest.raises(StepFailed):
+        _selector(st, bare)
+    with pytest.raises(StepFailed):
+        _fill(url, bare)
+    with pytest.raises(PydanticValidationError):
+        JobIn.model_validate({**base, "visibility": "private"})
 
 
 # 2026-10-29: a profile account may send a plain form on its own listed pages

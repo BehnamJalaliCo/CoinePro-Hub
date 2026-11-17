@@ -6,10 +6,12 @@
 #   channel  read only: Studio opened, the active channel's name read
 #   titles   read only: the channel's content list (a duplicate check before an upload)
 #   upload   the job's video (its one file) as a Short: title = the job's prompt, description =
-#            the job's description, not made for kids, Public, then the video's link read
+#            the job's description, not made for kids, the job's visibility (PUBLIC or UNLISTED;
+#            a job without one stops before it), then the video's link read
+#   public   an uploaded video (the job's video_id) made Public on its Studio page
 # Driven by automations/sites/dotcoin/youtube.py (a host timer), never by an agent.
 key: youtube-web
-version: "2026-11-17.2"
+version: "2026-11-17.3"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -79,8 +81,8 @@ tasks:
       - {do: click, selector: "#next-button", timeout_s: 30}
       - {do: pause, ms: 1500}
       - {do: click, selector: "#next-button", timeout_s: 30}
-      - {do: wait, selector: "tp-yt-paper-radio-button[name='PUBLIC']", timeout_s: 30}
-      - {do: click, selector: "tp-yt-paper-radio-button[name='PUBLIC']"}
+      - {do: wait, selector: "tp-yt-paper-radio-button[name='{visibility}']", timeout_s: 30}
+      - {do: click, selector: "tp-yt-paper-radio-button[name='{visibility}']"}
       - {do: pause, ms: 1500}
       # the file is sent before the dialog closes (a closed page would end the upload)
       - {do: wait, selector: "ytcp-video-upload-progress[upload-progress-ended], ytcp-video-info a", state: attached, timeout_s: 300}
@@ -90,3 +92,19 @@ tasks:
       - {do: wait, selector: "ytcp-video-share-dialog, ytcp-uploads-still-processing-dialog", state: attached, timeout_s: 120}
       - {do: pause, ms: 3000}
       - {do: read, selector: "ytcp-video-share-dialog #share-url", alt: ["ytcp-video-info a", ".video-url-fadeable a"]}
+  public:
+    # NOT yet run on the live page (2026-11-17): the video's details page, its visibility menu,
+    # Public, the menu's Done, the page's Save
+    timeout_s: 150
+    steps:
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: wait, selector: "ytcp-video-metadata-visibility, #visibility-select", state: attached, timeout_s: 60}
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "ytcp-video-metadata-visibility #select-button, ytcp-video-metadata-visibility", timeout_s: 20}
+      - {do: wait, selector: "tp-yt-paper-radio-button[name='PUBLIC']", timeout_s: 20}
+      - {do: click, selector: "tp-yt-paper-radio-button[name='PUBLIC']"}
+      - {do: click, selector: "ytcp-video-visibility-select #save-button, #save-button", timeout_s: 20}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "ytcp-button#save, #save", timeout_s: 20}
+      - {do: pause, ms: 4000}
+      - {do: read, selector: "ytcp-video-metadata-visibility", alt: ["ytcp-video-info", "body"]}

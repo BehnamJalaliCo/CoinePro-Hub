@@ -291,14 +291,19 @@ def test_the_youtube_recipe_reads_or_uploads_one_public_short() -> None:
     """⟨2026-11-17⟩ YouTube Studio: two reads, and one upload that types only the job's title and
     description, attaches its video, marks it not made for kids and makes it Public."""
     yt = RC.load(recipes_dir())["youtube-web"]
-    assert set(yt.tasks) == {"channel", "titles", "upload"}
+    assert set(yt.tasks) == {"channel", "titles", "upload", "public"}
     for name in ("channel", "titles"):
         assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read", "click"}
     up = yt.tasks["upload"].steps
     assert [s.text for s in up if s.do == "fill"] == ["{prompt}", "{description}"]
     assert sum(s.do == "attach" for s in up) == 1
     sels = " ".join(str(s.selector) for s in up if s.do == "click")
-    assert "VIDEO_MADE_FOR_KIDS_NOT_MFK" in sels and "PUBLIC" in sels and "PRIVATE" not in sels
+    # the visibility is the job's own (PUBLIC or UNLISTED); never Private
+    assert (
+        "VIDEO_MADE_FOR_KIDS_NOT_MFK" in sels and "{visibility}" in sels and "PRIVATE" not in sels
+    )
+    pub = yt.tasks["public"].steps
+    assert "{video_id}" in str(pub[0].url) and any("PUBLIC" in str(s.selector) for s in pub)
     assert up[-1].do == "read"
 
 
@@ -323,6 +328,13 @@ async def test_an_upload_carries_its_description_and_its_own_file_cap(
     assert r["ok"] is True
     sent = fake.sent[-1]
     assert sent["description"] == body["description"] and sent["prompt"] == body["prompt"]
+    assert sent["visibility"] is None and sent["video_id"] is None
+    r = (await c.post("/v1/substitutes/web", json={**body, "visibility": "unlisted",
+                                                   "video_id": "abcDEF12_-x"})).json()  # fmt: skip
+    assert r["ok"] is True and fake.sent[-1]["visibility"] == "unlisted"
+    assert fake.sent[-1]["video_id"] == "abcDEF12_-x"
+    for bad in ({"visibility": "private"}, {"video_id": "../x"}):
+        assert (await c.post("/v1/substitutes/web", json={**body, **bad})).status_code == 422
     assert sent["max_file_bytes"] == RC.TASK_FILE_BYTES["upload"] > state.settings.web_file_bytes
     # over the upload's own cap: refused before the browser
     state.settings = dataclasses.replace(state.settings, web_file_bytes=1)
