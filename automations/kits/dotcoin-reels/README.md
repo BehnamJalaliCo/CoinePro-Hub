@@ -44,7 +44,7 @@ mark each step done with `order.progress`.
 
 ## The day, step by step
 0. **Setup:** `mkdir -p script qc direction/inspo build out assets motion tools`
-   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,word_probe}.py tools/`
+   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/`
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`
 1. **Topic** (above) → `out/topic.txt` (line 1 the title; line 2 «سبک: <the look, 3–6 words>»).
 2. **Pinterest — the reel's own references (DIRECTION §1, take your time here):** 6–10 queries
@@ -55,10 +55,17 @@ mark each step done with `order.progress`.
    for: a script (≈ 2.4 Persian words a second of the target length) with a 1.5-second hook, one
    clear idea, an example the viewer knows, and the call to action; the caption. Fix every word
    yourself → `script/voice.txt` (names as spoken, DIRECTION §0.5). True facts only.
-4. **Voice:** `speech.make` with voice **"Arlo"** (NO style, NO narrator.set). QC: `tools/asr_words.py`
-   → `tools/qc_compare.py` (a wrong word: remake ONLY that sentence) → `tools/assemble_voice.py` →
-   `tools/audio_qc.py` → `qc/voice_final.wav`; word times → `direction/word_times.json` (the
-   Pro-Chart kit's steps 3–4); probe every name.
+4. **Voice:** `speech.make` with voice **"Arlo"** (NO style, NO narrator.set), the WHOLE script in
+   one call (the hub reads it in parts and joins them cleanly). Pauses too long for the pace:
+   `build/asr/venv/bin/python -I tools/voice_seams.py pauses <voice> qc/voice_raw.wav 0.45` (the
+   only pause trim). QC: `tools/asr_words.py` → `tools/qc_compare.py` (a wrong word: `speech.make`
+   the WHOLE script again, the word spelled as said; never splice a sentence in) →
+   `build/asr/venv/bin/python -I tools/assemble_voice.py <voice> qc/asr.json - qc/voice_final.wav`
+   (no slogan: `-`) → `build/asr/venv/bin/python -I tools/audio_qc.py qc/voice_final.wav qc/audio_qc.json`,
+   which must report **0 clicks, 0 cuts, 0 bursts** or the voice is rebuilt; word times →
+   `direction/word_times.json` (the Pro-Chart kit's steps 3–4); probe every name.
+   **Never splice clips or trim pauses by hand** (no ffmpeg/sox/numpy cuts, no tighten scripts; the
+   owner, 2026-11-17: a «تق» or a choke at a paragraph's end ruins the reel).
 5. **Assets:** what the look asks (DIRECTION §2): designed diagrams and type by you; AI stills from
    ChatGPT and Gemini (no text in them), each checked by looking; cut-outs with COMMON/tools/cutout.py.
 6. **Contract:** finish `direction/CONTRACT.md` — the shot list on the word times, camera,

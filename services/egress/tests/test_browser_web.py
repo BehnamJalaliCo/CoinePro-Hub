@@ -52,6 +52,13 @@ document.getElementById('send').onclick = async () => {
   }, 300);
 };
 </script></body></html>"""
+# ⟨2026-11-17⟩ DeepSeek's answer with web search: each source mark is an <a> around
+# span.ds-markdown-cite whose only visible text is its number (a hidden "-" before it).
+CITED = """<html lang='fa' dir='rtl'><body><div class='ds-markdown'>
+<p>بیت‌کوین سقف ۲۱ میلیون دارد<a href='https://src.test/cap' target='_blank'><span class='ds-markdown-cite'><span style='opacity:0'>-</span><span>1</span></span></a>.</p>
+<p>راهنما: <a href='https://src.test/guide'>راهنمای کیف پول</a> و <a href='https://src.test/raw'>https://src.test/raw</a></p>
+<p>منبع دوم<a href='https://src.test/two'><span class='ds-markdown-cite'><span>-</span><span>12</span></span></a></p>
+</div></body></html>""".encode()
 # A chat whose box is a form (chatgpt.com's composer): its send is a form submit.
 CHAT_FORM = b"""<html><body>
 <form id='f'><textarea id='prompt'></textarea><button id='send' type='submit'>Send</button></form>
@@ -145,6 +152,8 @@ class Site:
             body = CHAT_FORM
         elif path == "/fa":
             body = CHAT_FA
+        elif path == "/cited":
+            body = CITED
         elif path == "/to-login":
             status, extra = 302, "Location: /login\r\n"
         elif path == "/login":
@@ -295,6 +304,23 @@ async def test_the_profile_persists_its_files_are_600_and_logout_wipes_it(world:
     assert (await d.logout("chatgpt-web")) == {"ok": True}
     got = await d.job(_job(site, buckets, server, "/whoami", task="text", steps=who))
     assert got["text_md"] == "no"
+
+
+async def test_a_read_with_links_keeps_source_marks_as_markdown_links(world: Any) -> None:
+    site, d, buckets, server, _ = world
+    steps = [{"do": "goto", "url": "{start_url}"},
+             {"do": "read", "selector": ".ds-markdown", "links": True}]  # fmt: skip
+    got = await d.job(_job(site, buckets, server, "/cited", task="text", steps=steps))
+    assert got["ok"] is True, got
+    text = got["text_md"]
+    assert "[1](https://src.test/cap)" in text
+    assert "[12](https://src.test/two)" in text
+    assert "[راهنمای کیف پول](https://src.test/guide)" in text
+    assert "https://src.test/raw" in text and "[https://src.test/raw]" not in text
+    assert "\n" in text  # the paragraphs keep their line breaks
+    plain = [{"do": "goto", "url": "{start_url}"}, {"do": "read", "selector": ".ds-markdown"}]
+    got = await d.job(_job(site, buckets, server, "/cited", task="text", steps=plain))
+    assert "src.test/cap" not in got["text_md"]  # without `links` the old plain text
 
 
 async def test_a_login_page_is_expired_never_a_sign_in(world: Any) -> None:

@@ -44,7 +44,8 @@ def test_chatgpts_slides_task_loads_with_its_long_wait() -> None:
 
 
 def test_only_the_slides_task_waits_past_ten_minutes() -> None:
-    assert {k for k, v in R.TASK_CAP_S.items() if v > 600} == {"slides"}
+    # ⟨2026-11-17⟩ and a long video's upload (up to 1 GB through Studio)
+    assert {k for k, v in R.TASK_CAP_S.items() if v > 600} == {"slides", "upload_long"}
 
 
 # ------------------------------------------------------------- egress's answer --

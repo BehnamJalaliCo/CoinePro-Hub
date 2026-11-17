@@ -2,10 +2,15 @@
 """Build the final narration: clean the take, swap its spoken slogan for the fixed, checked slogan clip.
 
 Usage: build/asr/venv/bin/python -I tools/assemble_voice.py MAIN_AUDIO MAIN_ASR.json SLOGAN_AUDIO OUT.wav [OUT.json]
+       SLOGAN_AUDIO "-": a kit without a slogan (DotCoin, ipoxxo, zaribsad): the take alone, cleaned, with
+       the same lead, tail, loudness and limiter (MAIN_ASR.json is then not read).
 
 Why (QC findings, 2026-11-13): every file from the speech path starts with a ~25 ms click and ends with a ~170 ms
 burst of broadband noise after the last word, and the decoded Opus goes up to +4 dBFS. So this tool
 - works in 32-bit float end to end (nothing is clipped before the gain is set),
+- (2026-11-17) first mutes, in place, every head click and tail burst both clips still carry, at their
+  edges and at each joint of digital silence inside them (tools/voice_seams.py mute_seams; the sample
+  times stay, so the ASR's word times still fit), so no «تق» or noise is left at any seam,
 - cuts the head click and the tail noise of both clips (speech-envelope based, ASR only to find the slogan),
 - cuts the take inside the silence before its own slogan («اول …», last occurrence) and keeps the take's own pause,
 - matches the slogan clip's speech level to the slogan it replaces, so the end does not jump,
@@ -13,7 +18,9 @@ burst of broadband noise after the last word, and the decoded Opus goes up to +4
 - sets the whole to -16 LUFS with one linear gain and a gentle limiter only if the true peak would pass -1.5 dBTP.
 Writes OUT.wav (48 kHz, mono, 24-bit) and a JSON with every cut point and level.
 """
+import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -29,6 +36,15 @@ def load(path):
     raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
     return np.frombuffer(raw, dtype=np.float32).astype(np.float64)
+
+
+def voice_seams():
+    """tools/voice_seams.py next to this file (python -I does not put this folder on sys.path)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_seams.py")
+    spec = importlib.util.spec_from_file_location("voice_seams", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def env_db(x):
@@ -105,12 +121,26 @@ def write_wav(path, x, fmt="pcm_f32le"):
 def main() -> None:
     main_audio, asr_json, slogan_audio, out = sys.argv[1:5]
     out_json = sys.argv[5] if len(sys.argv) > 5 else None
-    m, s = load(main_audio), load(slogan_audio)
-    em, es = env_db(m), env_db(s)
+    vs = voice_seams()
+    m, m_muted = vs.mute_seams(load(main_audio), SR)
+    em = env_db(m)
 
     # 1) take: head click and onset
     m_on, m_click = head_onset(em)
     m_start = max(m_on * HOP - 0.08, m_click * HOP)
+
+    if slogan_audio == "-":  # no slogan: the take from its onset to its speech end (+80 ms decay)
+        m_end_i, m_junk = tail_end(em)
+        m_stop = min(m_end_i * HOP + 0.08, (m_junk - 0.02) if m_junk else len(m) / SR)
+        y = np.concatenate([np.zeros(int(LEAD * SR)), fade(m[int(m_start * SR): int(m_stop * SR)], 0.01, 0.05),
+                            np.zeros(int(TAIL * SR))])
+        res = {"take": {"head_click_s": round(m_click * HOP, 2), "speech_onset_s": round(m_on * HOP, 2),
+                        "start_cut_s": round(m_start, 3), "end_cut_s": round(m_stop, 3), "tail_noise_at_s": m_junk},
+               "seams_muted": {"take": m_muted}, "slogan": None}
+        master(y, out, out_json, res)
+        return
+    s, s_muted = vs.mute_seams(load(slogan_audio), SR)
+    es = env_db(s)
 
     # 2) take: the silence before its own slogan («اول», last occurrence)
     words = json.load(open(asr_json, encoding="utf-8"))["words"]
@@ -152,7 +182,21 @@ def main() -> None:
     y = np.concatenate([np.zeros(int(LEAD * SR)), body, np.zeros(int(gap * SR)), fade(clip, 0.01, 0.05),
                         np.zeros(int(TAIL * SR))])
 
-    # 6) loudness: one linear gain to -16 LUFS, limiter only if needed
+    res = {
+        "take": {"head_click_s": round(m_click * HOP, 2), "speech_onset_s": round(m_on * HOP, 2),
+                 "start_cut_s": round(m_start, 3), "slogan_word_at": sl_start, "gap_start_s": round(gap_start, 2),
+                 "gap_len_s": round(gap_len, 2), "cut_s": round(cut, 3), "tail_noise_at_s": m_junk},
+        "slogan": {"head_click_s": round(s_click * HOP, 2), "speech_onset_s": round(s_on * HOP, 2),
+                   "from_s": round(s_a, 3), "to_s": round(s_b, 3), "tail_noise_at_s": s_junk,
+                   "level_match_db": round(match_db, 2)},
+        "seams_muted": {"take": m_muted, "slogan": s_muted},
+        "pause_before_slogan_s": round(pause, 2), "slogan_starts_at_s": round(LEAD + (cut - m_start) + gap, 2),
+    }
+    master(y, out, out_json, res)
+
+
+def master(y, out, out_json, res):
+    """6) loudness: one linear gain to -16 LUFS, a limiter only if needed; OUT.wav and the JSON."""
     tmp = out + ".f32.wav"
     write_wav(tmp, y)
     lufs0, _ = ffmpeg_stats(tmp)
@@ -166,22 +210,12 @@ def main() -> None:
           if limited else "")
     subprocess.run(["ffmpeg", "-v", "error", "-i", tmp, "-af", af + "aformat=sample_fmts=s32:channel_layouts=mono",
                     "-c:a", "pcm_s24le", "-ar", str(SR), "-y", out], check=True)
-    import os
     os.remove(tmp)
     lufs2, tp2 = ffmpeg_stats(out)
     dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out],
                                capture_output=True, text=True).stdout)
-    res = {
-        "take": {"head_click_s": round(m_click * HOP, 2), "speech_onset_s": round(m_on * HOP, 2),
-                 "start_cut_s": round(m_start, 3), "slogan_word_at": sl_start, "gap_start_s": round(gap_start, 2),
-                 "gap_len_s": round(gap_len, 2), "cut_s": round(cut, 3), "tail_noise_at_s": m_junk},
-        "slogan": {"head_click_s": round(s_click * HOP, 2), "speech_onset_s": round(s_on * HOP, 2),
-                   "from_s": round(s_a, 3), "to_s": round(s_b, 3), "tail_noise_at_s": s_junk,
-                   "level_match_db": round(match_db, 2)},
-        "pause_before_slogan_s": round(pause, 2), "lead_s": LEAD, "tail_s": TAIL,
-        "gain_db": round(gain, 2), "limiter": limited, "lufs": lufs2, "true_peak_dbtp": tp2,
-        "out_duration_s": round(dur, 2), "slogan_starts_at_s": round(LEAD + (cut - m_start) + gap, 2),
-    }
+    res.update({"lead_s": LEAD, "tail_s": TAIL, "gain_db": round(gain, 2), "limiter": limited, "lufs": lufs2,
+                "true_peak_dbtp": tp2, "out_duration_s": round(dur, 2)})
     print(json.dumps(res, ensure_ascii=False))
     if out_json:
         json.dump(res, open(out_json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

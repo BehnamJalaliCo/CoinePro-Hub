@@ -15,8 +15,10 @@
 # the 'Stop' button never matched). An answer is read only once the action bar
 # under the answer (the message with the thinking block) shows; checked on a
 # finished chat of the profile. The read takes the last .ds-markdown: the answer.
+# 2026-11-17.1: the read keeps links (`links: true`): a source mark, an <a> around
+# span.ds-markdown-cite with only its number, becomes [n](url) instead of a bare number.
 key: deepseek-web
-version: "2026-10-31.2"
+version: "2026-11-17.1"
 site: chat.deepseek.com
 start_url: "https://chat.deepseek.com/"
 hosts:
@@ -62,4 +64,4 @@ tasks:
       - {do: press, selector: "textarea", key: Enter}
       - {do: wait, selector: ".ds-markdown", timeout_s: 120}
       - {do: wait, selector: ".ds-message:has([class*=ds-think]) + div div[role=button]", timeout_s: 280}
-      - {do: read, selector: ".ds-markdown"}
+      - {do: read, selector: ".ds-markdown", links: true}

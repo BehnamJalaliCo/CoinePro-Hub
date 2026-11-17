@@ -42,7 +42,7 @@ At most 2 Chromium workers (the workshop has 4 GB); close Chromium after each us
 
 ## The day, step by step
 0. **Setup:** `mkdir -p script qc direction build out in assets motion tools`
-   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,word_probe}.py tools/`
+   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/`
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`
 1. **Idea** (above) → `out/topic.txt`.
 2. **Script with ChatGPT:** ONE `substitute.call` (player gpt) with the idea, what the channel gives,
@@ -52,9 +52,13 @@ At most 2 Chromium workers (the workshop has 4 GB); close Chromium after each us
    the channel and how to join); 10 short public replies to comments, all different. While it is
    queued: the contract (step 5) and the asset briefs. Then fix every word yourself →
    `script/voice.txt` (names spelled as spoken, COMMON/DIRECTION.md §0.4).
-3. **Voice:** `speech.make` (Cruz). QC chain: `tools/asr_words.py` → `tools/qc_compare.py` (a wrong
-   word: remake ONLY that sentence) → `tools/assemble_voice.py` → `tools/audio_qc.py`
-   → `qc/voice_final.wav`; word times → `direction/word_times.json` (the Pro-Chart kit's step 3–4).
+3. **Voice:** `speech.make` (Cruz), the WHOLE script in one call. QC chain: (pauses only with
+   `tools/voice_seams.py pauses`) → `tools/asr_words.py` → `tools/qc_compare.py` (a wrong word:
+   `speech.make` the WHOLE script again; never splice a sentence in) →
+   `tools/assemble_voice.py <voice> qc/asr.json - qc/voice_final.wav` (no slogan: `-`) →
+   `tools/audio_qc.py qc/voice_final.wav`: **0 clicks, 0 cuts, 0 bursts** or the voice is rebuilt
+   (never splice clips or trim pauses by hand; owner, 2026-11-17); word times →
+   `direction/word_times.json` (the Pro-Chart kit's step 3–4).
    Probe «آی‌پی‌اکسو» and every app name (DIRECTION §0.4).
 4. **Inspiration, then key art:** DIRECTION §1.1 (Pinterest + top reels → direction/inspo/), then
    ≥ 6 images (DIRECTION §2), gpt photoreal / 3D render; check each by looking; cut-outs; upscale.

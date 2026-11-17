@@ -48,7 +48,7 @@ transitions and sound, scored shot by shot.)
 
 ## The day, step by step
 0. **Setup** (in your folder): `mkdir -p script qc direction build out in assets motion tools`
-   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,word_probe}.py tools/ && cp KIT/tools/coin_facts.py tools/`
+   `cp PCKIT/motion/engine6.py PCKIT/motion/audio4.py motion/ && cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/ && cp KIT/tools/coin_facts.py tools/`
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`
 1. **The coin — chosen with care (owner: «روی پیدا کردن نماد خیلی حساس باشیم»):** take the unused coins
    of KIT/bank/coins.json (ZEC is used), get facts for the 4–5 most promising today
@@ -66,12 +66,18 @@ transitions and sound, scored shot by shot.)
    (exactly 3 hashtags); the DM reply (≤600 chars, warm, emoji, numbered steps: sign up with the
    link, verify, deposit, buy the coin); 10 short public replies, all different. Its answer comes
    later: do the direction meanwhile. Check every fact yourself; fix the Persian; keep `script/voice.txt`.
-4. **Voice:** `speech.make` (voice Cruz, the script; one call per sentence is allowed for exact
-   timing). Files land in `in/`. Then the Pro-Chart QC chain (adapted paths):
+4. **Voice:** `speech.make` (voice Cruz, the WHOLE script in one call; the hub reads it in parts and
+   joins them cleanly). Clips made one per sentence are joined ONLY by
+   `build/asr/venv/bin/python -I tools/voice_seams.py join <clip1> <clip2> … qc/voice_raw.wav`; pauses
+   are shortened ONLY by `tools/voice_seams.py pauses`. Files land in `in/`. Then the Pro-Chart QC
+   chain (adapted paths):
    `build/asr/venv/bin/python -I tools/asr_words.py build/asr/models <voice> qc/asr.txt qc/asr.json`
-   `python3 -I tools/qc_compare.py script/voice.txt qc/asr.txt qc/qc.json` — a wrong word: remake
-   ONLY that sentence; `tools/assemble_voice.py` (no slogan: pass an empty/short silence file if
-   it needs one) → `qc/voice_final.wav`; `python3 -I tools/audio_qc.py qc/voice_final.wav`.
+   `python3 -I tools/qc_compare.py script/voice.txt qc/asr.txt qc/qc.json` — a wrong word:
+   `speech.make` the WHOLE script again (never splice a sentence in);
+   `build/asr/venv/bin/python -I tools/assemble_voice.py <voice> qc/asr.json - qc/voice_final.wav`
+   (no slogan: `-`); `build/asr/venv/bin/python -I tools/audio_qc.py qc/voice_final.wav`: **0 clicks,
+   0 cuts, 0 bursts** or the voice is rebuilt (never splice clips or trim pauses by hand; the
+   owner, 2026-11-17).
    Word times: `build/asr/venv/bin/python -I tools/word_times.py script/voice.txt qc/asr.json qc/voice_final.wav direction/word_times.json`.
 5. **Direction (on paper first):** write `direction/CONTRACT.md`: the style track and why (from the
    topic), the palette, the type scale, the camera language, the motion rules, a shot list with

@@ -57,7 +57,7 @@ def job(n: int, size: int = 10) -> Any:
     files = [
         {"name": f"ref{i}.jpg", "b64": base64.b64encode(b"x" * size).decode()} for i in range(n)
     ]
-    return SimpleNamespace(files=files, max_file_bytes=1000, account="youtube-web")
+    return SimpleNamespace(files=files, spooled=[], max_file_bytes=1000, account="youtube-web")
 
 
 @pytest.fixture

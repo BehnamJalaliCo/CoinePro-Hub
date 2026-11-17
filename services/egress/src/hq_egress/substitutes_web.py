@@ -26,20 +26,21 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from hq_common.redact import scrub
 from hq_egress.guard import Blocked
 from hq_egress.hosts import covered
 from hq_egress.net import Entry, track
-from hq_egress.recipes import MAX_IMAGES, TASK_FILE_BYTES, Account, TaskName
+from hq_egress.recipes import MAX_IMAGES, NOTE, TASK_FILE_BYTES, Account, TaskName
 from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")
@@ -57,6 +58,19 @@ MAX_JOB_FILES = 10
 # The hub's own cap on a call's question (TEXT_LIMIT, substitutes.calls.input_md); a long_read
 # seat or a work's brief longer than the old 20 000 was refused here with a 422 every time
 PROMPT_CHARS = 200_000
+# ⟨2026-11-17⟩ a file already in the profile browser's spool (a long video, its thumbnail): a plain
+# name of that account's spool directory, never a path (browser_web.SPOOL_NAME)
+SPOOL_NAME = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+SpoolName = Annotated[str, StringConstraints(pattern=SPOOL_NAME)]
+# what the pages of an upload's job add to its bucket, beyond its files (Studio's own heavy pages;
+# a long upload's 25 minutes of them)
+PAGES_BYTES = 64 * 1024 * 1024
+UPLOAD_PAGES_BYTES = {"upload": 64 * 1024 * 1024, "upload_long": 256 * 1024 * 1024}
+# an answer's `notes` (a step's read kept apart: whether a thumbnail was taken) and `skipped` (the
+# optional steps that did not happen), as the profile browser gave them, capped
+NOTES = 10
+NOTE_CHARS = 4000
+PARTIAL_CHARS = 300
 
 
 class JobFile(BaseModel):
@@ -84,6 +98,11 @@ class WebIn(BaseModel):
     # uploaded video a later task acts on
     visibility: Literal["public", "unlisted"] | None = None
     video_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
+    # ⟨2026-11-17⟩ a long video's job: its files by name, already in the profile browser's spool
+    # (the uploader copied them there; never base64 through two JSON hops), after `files` in the
+    # job's file order; and its tags (comma-separated; YouTube: at most 500 characters)
+    spooled: list[SpoolName] = Field(default_factory=list, max_length=MAX_JOB_FILES)
+    tags: str | None = Field(default=None, max_length=500)
     timeout_s: int = Field(default=300, ge=10, le=1800)  # (⟨2026-11-17⟩ slides: up to 25 min)
     # ⟨1.10⟩ §28.4 the hub's one retry after a recipe failure
     reload: bool = False
@@ -101,6 +120,7 @@ def failed(
     step: str | None = None,
     version: str | None = None,
     screenshot: dict[str, str] | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> JSONResponse:
     assert error in ERRORS
     body: dict[str, Any] = {
@@ -112,7 +132,30 @@ def failed(
     }
     if screenshot is not None and error == "recipe_failed":
         body["screenshot"] = screenshot
-    return JSONResponse(body)
+    return JSONResponse({**body, **(extra or {})})
+
+
+def extras(got: dict[str, Any], *, partial: bool = False) -> dict[str, Any]:
+    """⟨2026-11-17⟩ What a job says beside its answer: `notes` (named reads), `skipped` (the
+    optional steps that did not happen) and, for a failed job, `partial` (the text read before it
+    failed: an upload's link), each masked and capped; nothing when the job said none."""
+    out: dict[str, Any] = {}
+    notes = got.get("notes")
+    if isinstance(notes, dict):
+        kept = {
+            str(k): scrub(str(v))[:NOTE_CHARS]
+            for k, v in list(notes.items())[:NOTES]
+            if re.fullmatch(NOTE, str(k))
+        }
+        if kept:
+            out["notes"] = kept
+    skipped = got.get("skipped")
+    if isinstance(skipped, list) and skipped:
+        out["skipped"] = [str(x)[:60] for x in skipped[:50]]
+    text = got.get("partial")
+    if partial and isinstance(text, str) and text:
+        out["partial"] = scrub(text)[:PARTIAL_CHARS]
+    return out
 
 
 def screenshot_of(got: dict[str, Any]) -> dict[str, str] | None:
@@ -141,7 +184,7 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
     version = recipe.version
     if a.task not in recipe.tasks:
         return failed("recipe_failed", f"the recipe has no {a.task} task", version=version)
-    if a.files and not any(st.do == "attach" for st in recipe.tasks[a.task].steps):
+    if (a.files or a.spooled) and not any(st.do == "attach" for st in recipe.tasks[a.task].steps):
         return failed(
             "unsupported",
             f"the recipe's {a.task} task cannot attach files",
@@ -152,6 +195,8 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
     file_cap = max(s.web_file_bytes, TASK_FILE_BYTES.get(a.task, 0))
     if any(len(f.b64) * 3 // 4 > file_cap for f in a.files):
         return failed("unsupported", "a file is over its cap", step="attach", version=version)
+    if len(a.files) + len(a.spooled) > MAX_JOB_FILES:
+        return failed("unsupported", "too many files", step="attach", version=version)
     lock = state.web_locks[a.account]
     if lock.locked():
         return failed("busy", "one job per account at a time", version=version)
@@ -161,11 +206,12 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
         key, password = state.buckets.open(
             "substitute.web",
             "A2",
-            # the pages and the file (⟨2026-11-17⟩ a set of slides: each of its pictures)
+            # the pages and the file (⟨2026-11-17⟩ a set of slides: each of its pictures; a long
+            # video: each spooled file, at most its cap)
             # (an upload: the video going out, and Studio's own heavy pages)
-            file_cap * (MAX_IMAGES if a.task == "slides" else 1)
-            + 64 * 1024 * 1024
-            + (64 * 1024 * 1024 if a.task == "upload" else 0),
+            file_cap * (MAX_IMAGES if a.task == "slides" else max(1, len(a.spooled)))
+            + PAGES_BYTES
+            + UPLOAD_PAGES_BYTES.get(a.task, 0),
             site=recipe.site,
             hosts=recipe.own_hosts(),
             ttl_s=timeout + 120,
@@ -186,6 +232,9 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             "description": scrub(a.description) if a.description else None,
             "visibility": a.visibility,
             "video_id": a.video_id,
+            # (only when the job has them: an older profile browser refuses fields it lacks)
+            **({"spooled": list(a.spooled)} if a.spooled else {}),
+            **({"tags": scrub(a.tags)} if a.tags else {}),
         }
         start = time.monotonic()
         try:
@@ -213,6 +262,7 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
             step=str(step)[:60] if step is not None else None,
             version=version,
             screenshot=screenshot_of(got) if err == "recipe_failed" else None,
+            extra=extras(got, partial=True),
         )
     text = got.get("text_md")
     file = got.get("file") if isinstance(got.get("file"), dict) else None
@@ -247,6 +297,7 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
             "file": file,
             **({"files": files} if many else {}),
             "recipe_version": version,
+            **extras(got),
         }
     )
 
