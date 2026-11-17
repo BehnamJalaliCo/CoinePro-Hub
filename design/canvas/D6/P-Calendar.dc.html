@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>مرکز انتشار · تقویم</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.wk{font-size:11px;color:var(--mu);text-align:center;height:22px}
+.dy{height:58px;border-radius:12px;background:var(--cd);border:1px solid var(--ln);padding:5px 6px;display:flex;flex-direction:column;justify-content:space-between;font-size:12px;line-height:16px}
+.dy.e{background:transparent;border-color:transparent}
+.dy.fu{background:transparent;border-style:dashed;color:var(--mu)}
+.dy.now{border-color:var(--gd);background:var(--sg)}
+.dy .n{font-weight:650}
+.dy .k{font-size:10px;color:var(--t2)}
+.ds{display:flex;gap:2px} .ds i{width:5px;height:5px;border-radius:3px;display:block}
+.p1{background:#2BB89F} .p2{background:#86A6FF} .p3{background:#B48CFF} .p4{background:#E2B65A}
+</style></helmet>
+<div class="{{cls}}" style="height: 980px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <h1 class="h2 f1" style="font-size: 20px;">مرکز انتشار</h1>
+    <button class="ib" aria-label="جستجو"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg></button>
+  </div>
+  <nav class="tabs" aria-label="بخش‌ها">
+    <button class="tab">امروز</button><button class="tab">میز</button><button class="tab on">تقویم</button><button class="tab">بایگانی</button>
+  </nav>
+  <div class="rb">
+    <div class="r">
+      <button class="ib" aria-label="ماه قبل" style="width: 36px; height: 36px;"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+      <h2 class="h2">آبان ۱۴۰۵</h2>
+      <button class="ib" aria-label="ماه بعد" style="width: 36px; height: 36px;"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 5l-7 7 7 7"></path></svg></button>
+    </div>
+    <div class="tabs" style="padding: 3px;"><button class="tab on" style="height: 30px; padding: 0 10px;">ماه</button><button class="tab" style="height: 30px; padding: 0 10px;">هفته</button><button class="tab" style="height: 30px; padding: 0 10px;">روز</button></div>
+  </div>
+
+  <div class="cal">
+    <span class="wk">ش</span><span class="wk">ی</span><span class="wk">د</span><span class="wk">س</span><span class="wk">چ</span><span class="wk">پ</span><span class="wk">ج</span>
+    <div class="dy e"></div><div class="dy e"></div><div class="dy e"></div><div class="dy e"></div><div class="dy e"></div><div class="dy e"></div>
+    <div class="dy"><span class="n">۱</span><span class="k">۱</span></div>
+    <div class="dy"><span class="n">۲</span><span class="k">۲</span></div><div class="dy"><span class="n">۳</span><span class="k">۱</span></div><div class="dy"><span class="n">۴</span><span class="k">۳</span></div><div class="dy"><span class="n">۵</span><span class="k">۲</span></div><div class="dy"><span class="n">۶</span><span class="k">۲</span></div><div class="dy"><span class="n">۷</span><span class="k">۱</span></div><div class="dy"><span class="n">۸</span><span class="k">۲</span></div>
+    <div class="dy"><span class="n">۹</span><span class="k">۳</span></div><div class="dy"><span class="n">۱۰</span><span class="k">۲</span></div><div class="dy"><span class="n">۱۱</span><span class="k">۴</span></div><div class="dy"><span class="n">۱۲</span><span class="k">۳</span></div><div class="dy"><span class="n">۱۳</span><span class="k">۲</span></div><div class="dy"><span class="n">۱۴</span><span class="k">۳</span></div><div class="dy"><span class="n">۱۵</span><span class="k">۲</span></div>
+    <div class="dy"><span class="n">۱۶</span><span class="k">۳</span></div><div class="dy"><span class="n">۱۷</span><span class="k">۴</span></div><div class="dy"><span class="n">۱۸</span><span class="k">۳</span></div><div class="dy"><span class="n">۱۹</span><span class="k">۵</span></div><div class="dy"><span class="n">۲۰</span><span class="k">۴</span></div><div class="dy"><span class="n">۲۱</span><span class="k">۳</span></div><div class="dy"><span class="n">۲۲</span><span class="k">۴</span></div>
+    <div class="dy"><span class="n">۲۳</span><div class="rb"><span class="k">۳</span><span class="ds"><i class="p1"></i><i class="p2"></i></span></div></div>
+    <div class="dy"><span class="n">۲۴</span><div class="rb"><span class="k">۱۰</span><span class="ds"><i class="p1"></i><i class="p2"></i></span></div></div>
+    <div class="dy"><span class="n">۲۵</span><div class="rb"><span class="k">۱۳</span><span class="ds"><i class="p1"></i><i class="p2"></i><i class="p3"></i></span></div></div>
+    <div class="dy now"><span class="n gi">۲۶</span><div class="rb"><span class="k">۶ از ۳۰</span><span class="ds"><i class="p1"></i><i class="p2"></i><i class="p3"></i><i class="p4"></i></span></div></div>
+    <div class="dy fu"><span class="n">۲۷</span><span class="k">۳۰</span></div><div class="dy fu"><span class="n">۲۸</span><span class="k">۳۰</span></div><div class="dy fu"><span class="n">۲۹</span><span class="k">۳۰</span></div>
+    <div class="dy fu"><span class="n">۳۰</span><span class="k">۳۰</span></div>
+  </div>
+  <div class="r" style="flex-wrap: wrap; gap: 12px;">
+    <span class="r xs t2" style="gap: 4px;"><i class="p1" style="width: 8px; height: 8px; border-radius: 4px; display: block;"></i><span class="L">@zaribsad</span></span>
+    <span class="r xs t2" style="gap: 4px;"><i class="p2" style="width: 8px; height: 8px; border-radius: 4px; display: block;"></i><span class="L">@theprochart</span></span>
+    <span class="r xs t2" style="gap: 4px;"><i class="p3" style="width: 8px; height: 8px; border-radius: 4px; display: block;"></i><span class="L">@ipoxxo.vpn</span></span>
+    <span class="r xs t2" style="gap: 4px;"><i class="p4" style="width: 8px; height: 8px; border-radius: 4px; display: block;"></i><span class="L">@dotcoin.me</span></span>
+    <span class="xs mu">خط‌چین: ساخته میشود</span>
+  </div>
+
+  <div class="card" style="gap: 8px;">
+    <div class="rb"><h2 class="h3">چهارشنبه ۲۷ آبان</h2><span class="pill mt">۳۰ برنامه</span></div>
+    <div class="kv"><span>ساخته میشود</span><span>۸ ریلز · ۲۲ استوری</span></div>
+    <div class="kv"><span>اولین</span><span>۰۸:۳۰ استوری <span class="L">@zaribsad</span></span></div>
+    <div class="kv"><span>اتوماسیون‌ها</span><span>۱۲ روشن · هیچ نوبتی رد نشده</span></div>
+    <p class="xs mu" style="margin: 0;">روز آینده از برنامه‌ی اتوماسیون‌ها حساب میشود؛ وقتی ساخته شد، هر مورد عنوان و کاور خودش را میگیرد.</p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

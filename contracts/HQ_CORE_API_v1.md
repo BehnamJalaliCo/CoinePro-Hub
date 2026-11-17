@@ -21,6 +21,8 @@
 
 > **v1.35 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۷):** تیم جلسه، یک نفر در هر بار (§۵۷): ردیف «تیم این جلسه»، گفتگوی کوتاه کنار جلسه با هر نفر، استخدام یک‌ضربه‌ای صندلی خالی، گوینده از همان ردیف، و نام درست هر تحویل با نسخه‌ها در یک خط.
 
+> **v1.39 (۲۰۲۶-۱۱-۱۷، پرامپت ۳۹):** «انتشار» و «اتوماسیون‌ها»، دو بخش اصلی اپ. هر انتشار یک ردیف دائمی است (`media.publications`) با متن‌ها، فایل‌ها و منشأ: مرکز انتشار (امروز، میز مرتب، تقویم، بایگانی شرکت ← پیج ← نوع، صفحه‌ی هر مورد، دسته‌ی استوری، جستجو، «منتظر شما») از همین ردیف‌ها خوانده میشود (§۶۰). روندهای کدی هاب ردیف دیتابیس میشوند و در اپ ویرایش میشوند، با نسخه، برگشت، هشدار و سلامت، روی ساعت خود هاب؛ اتوماسیون تازه با یک ویزارد (§۶۱). ماکاپ: `design/canvas/D6/`.
+>
 > **v1.38 (۲۰۲۶-۱۱-۱۵):** نقشه‌ی هر اتوماسیون، مثل n8n (§۵۹.۷.۱): لاین‌ها، گره‌ها و اتصال‌ها از `graph` هاب، و رنگ زنده‌ی هر گره در اجرای همان روز. اتوماسیون‌های n8n خود هاب (`N8:<key>`، نوع `n8n` در تابلو) هم ثبت شد: کنترلشان فقط کلید است. `last.steps` اختیاری در کارت تابلو برای نوار رنگی (§۵۹.۱۰). سمت هاب ساخته و زنده است (commit `cba9fbb4`).
 >
 > **v1.37 (۲۰۲۶-۱۱-۱۳، پرامپت ۳۸):** کتابخانه‌ی کارگروه‌ها و بخش اتوماسیون‌ها (§۵۹): هر کارگروه نسخه، قدم‌ها، بسته و درس‌هایش را دارد؛ با یک فرم در هر شرکتی به کار میرود؛ روند روزانه‌اش یک اتوماسیون `flow` است که n8n تیک میزند و روی موتور خط تولید (§۳۰) اجرا میشود؛ لینک‌های شرکت با UTM هر مسیر، سیاست جواب کامنت و استوری و دایرکت، خط زمان هر اجرا، نتیجه‌ها، خلاصه‌ی روزانه، و تابلوی همه‌ی اتوماسیون‌ها با کلید یک‌ضربه‌ای مالک. §۵۸.۳ بازنویسی شد. قاعده‌ی پست منتشرشده (۳۷.۱ و ۳۷.۲) هم ثبت شد (§۵۹.۶).
@@ -5725,3 +5727,216 @@ F-0018 carried ~74 hub tools (~22K tokens) into every step, and a fresh direct s
   one line with «دوباره از همین قدم» and «رد کردن این نوبت»), the owner's daily line on the home.
 - **Web:** unchanged (the owner's rule of 2026-11-13: the web only with his word); it keeps working with this hub.
 - A hub without these routes: the new places say «با به‌روزرسانی بعدی هاب»; nothing breaks.
+
+## 60. The publish centre: every publication, kept for good ⟨1.39⟩ (2026-11-17, prompt 39)
+
+The owner (2026-11-17): «قسمت انتشار … باید خیلی خیلی خیلی جامع و پرمیوم باشه چون همه چیز ما و شرکت ها روی انتشار
+میچرخه» and «هر ریلز و استوری و کامنت و کپشن که ساخته میشه یه بایگانی باید به اسم همون پیج و شرکت وجود داشته باشه».
+Until now a publication lived only in its `publish` jobs (§44.5, §55.4) and in the output's files, which the 72-hour sweep
+thins (§58.4); the words of a comment rule, a story's reply word, the DM and its buttons were nowhere to look back at. From
+1.39 every publication is **one permanent row**, and the apps read the centre (today, desk, calendar, archive, item, search,
+«منتظر شما») from those rows. Design: `design/canvas/D6/` (D6, the owner's approval).
+
+### 60.1 One row per publication (`media.publications`, KEEP on a fresh start)
+```
+Publication {
+  ref: "P-000001", company, company_fa, channel: "instagram"|"youtube"|"telegram"|"website",   # x, newsletter later
+  account, kind: "reel"|"story"|"post"|"carousel"|"short"|"video"|"tg_post"|"article",
+  state: "scheduled"|"publishing"|"published"|"held"|"failed"|"cancelled", state_note_fa | null,
+  scheduled_at | null, published_at | null, at,               # at = published_at ?? scheduled_at ?? created_at
+  url | null, external_id | null,
+  title_fa, topic_fa | null, caption | null,
+  comment: {keywords: [str], match, reply, link, buttons: [{title, url}], public_replies: [str]} | null,
+  story_word | null,
+  seo: {slug, meta_title, meta_description, canonical} | null,                    # article only
+  files: [{role: "video"|"cover"|"slide"|"image"|"thumb", file_id, name, mime, size, n | null}],
+  thumb_file_id | null,
+  set_key | null, set: [{ref, n, at, state, file_id}] | null,                     # the item route only
+  source: {automation | null, automation_fa | null, flow_key | null, version | null, day | null,
+           order | null, work | null, output | null, session | null, job_id},
+  insights: {views?, likes?, comments?, dms?, best_hour?, updated_at} | null,
+  created_at, updated_at }
+```
+- **Written at the one place every publication passes** (`session_publish._send`: a session's tap, a working group's
+  standing word, `flows._publish`, `_publish_stories`): the row is made with the job, in the same transaction. **No second
+  publishing path.** Every later answer of IG-Hub on that chain (§46 `meta.check`, §51 `meta.cancel`, `held` since
+  2026-11-16) updates **the same row** (§55.4: one row per chain; a new tap after a failure or a cancel is a new row).
+- `state`: `scheduled` (IG-Hub holds it for its hour), `publishing` (sent, not yet answered), `published` (with `url`,
+  `published_at`), `held` (the page is closed; `state_note_fa` «صفحه بسته است؛ به محض باز شدن پیج میرود»; it goes by itself
+  when the page opens), `failed` (with IG-Hub's reason in plain Persian), `cancelled` (the owner's or the hub's cancel).
+- `title_fa`: the topic when known (the flow's day, `growth.topics`, the session's), else the caption's first line (≤ 80
+  characters), **never a file name** («video و ۱ فایل دیگر» is gone).
+- **A set:** the slides of one day's stories of one account and one output share `set_key = "{account}:{day}:{output}"`
+  (day in Tehran); each slide is its own row with `files[0].n` its place. `GET /publications?group=set` gives a set as one
+  card (below).
+- **Files are kept for good.** Every `file_id` in `files` (and every slide of a set) is out of the 72-hour sweep (§58.4
+  amended: «unless … a publication row refers to it»). The video's frame at 1 s (JPEG, 540 wide) is made once when a reel
+  has no cover; it is the row's `thumb` file.
+- **Backfill** (in the migration's job, idempotent, re-runnable): one row per chain of every `infra.server_jobs` with
+  `kind='publish'` (done, failed, cancelled and pending), the texts from `args` (`caption`, `meta.comment`, `meta.story_rule`),
+  the source from `args.session` and `run_meta.flow` where it still is, `url` from `result`. It must hold after the
+  2026-11-17 clean start (`cartable.deliverables`, `archive.records`, `work.work` gone): what is missing stays `null`, never
+  invented.
+- FORCE RLS by `company_id` as its neighbours; in KEEP of the clean start (§0 of `OPERATING_MODEL.md`) and in
+  `test_rls_all_tables`.
+
+### 60.2 Routes (owner; `404` for an unknown `company` or `account`)
+```
+PublicationCard { ref, company, company_fa, channel, account, kind, state, state_note_fa | null, at, title_fa,
+                  thumb_file_id | null, files_n, url | null, set_key | null,
+                  set: {n, done, next_at | null} | null,          # with group=set: the set as one card
+                  automation | null, automation_fa | null }
+PlannedItem { automation, automation_fa, account, kind, title_fa, build_at, publish_at, state: "planned"|"building" }
+```
+- `GET /api/v1/publications/today?company=&account=&channel=` → `{day, items: [PublicationCard], planned: [PlannedItem],
+  next: PublicationCard | null, counts: {published, scheduled, held, failed}}`: the owner's day in Tehran, sets grouped,
+  in time order; `planned` is what the automations will still make today (§61.2), not yet a row.
+- `GET /api/v1/publications/tree?from=&to=` → `{companies: [{code, name_fa, mark_file_id | null, total,
+  accounts: [{channel, account, avatar_file_id | null, total, by_kind: {reel: n, story: n, …}, automations: n}]}]}`:
+  every company and account with at least one row in the range (default the last 30 days); no fixed number of either.
+- `GET /api/v1/publications?company=&account=&channel=&kind=&state=&from=&to=&q=&automation=&group=set&cursor=&limit=`
+  → `{items: [PublicationCard], next | null}`, newest first, `limit` 30 (at most 100). `q` searches `title_fa`, `topic_fa`,
+  `caption`, `comment.keywords`, `story_word` through `hq_common.persian` (ی/ي، ک/ك، نیم‌فاصله و فاصله، ارقام), so «بلاکچین»,
+  «بلاک چین» and «بلاک‌چین» find the same; each item then carries `match: "title"|"topic"|"caption"|"word"` and a
+  `snippet_fa` of ≤ 80 characters around the hit.
+- `GET /api/v1/publications/{ref}` → `Publication` (with `set` for a slide of a set).
+- `GET /api/v1/publications/calendar?from=&to=&company=&account=` → `{days: [{day, published, scheduled, held, failed,
+  planned, accounts: [account]}]}` (Tehran days; the future counts what §61's flows will make); a day's list is
+  `GET /publications?from=day&to=day`.
+- `GET /api/v1/publications/waiting` → `{items: [Waiting]}`; empty means the app hides «منتظر شما».
+  `Waiting {id, kind: "publish_ask"|"budget_cap", title_fa, account | null, at, deadline_at | null,
+  publication: PublicationCard | null, actions: [{key, label_fa, primary: bool}]}`: only what cannot move without the owner
+  (a working group or flow in `ask` mode at its publish step, §45 and §59.7; a run at its day's cap, §61.4). Never routine
+  notices, agents' suggestions or hiring cards. `POST /api/v1/publications/waiting/{id}/{key}` runs the action (each a tap,
+  no step-up, except a cap above the company's month envelope: 🔏 `automation.budget`, §59.7).
+- Files: `GET /files/{id}` and `/meta` as today (§17); the app downloads one file or all of a row.
+
+### 60.3 The desk, tidied (§55.2 amended)
+- `ready` holds only a **complete package with a named account**: a video with its cover, or a picture or a carousel, of an
+  output whose company has a publishing path. A pilot without an account, a cover alone, and a version superseded by a newer
+  one of the same chain (§57.6) get no card.
+- The card's `title_fa` is the topic (as §60.1); `group_fa` is the working group's or the automation's name, never empty.
+- `held` is its own list: `PublishDesk {ready, queue, held, done}` (`held` additive; an older app ignores it).
+
+### 60.4 Stream (§42)
+- New topic `publish` = `("publication.",)`; `publication.updated {ref, state, at, company, account, kind, set_key | null}`
+  on every change of a row. The holding view passes it in full. The home's card and the centre move with it, no refresh.
+
+### 60.5 The apps (Android 1.3.0)
+- **Home:** the line becomes the card «انتشار امروز» (today's counts, the next one with its countdown, the latest five as
+  thumbnails, a held one in one line), beside the card «اتوماسیون‌ها» (§61.8).
+- **The publish centre:** «امروز» (a timeline in Tehran hours, sets as one row with their progress, what is still to be made
+  dashed), «میز» (§60.3), «تقویم» (month, week, day; Jalali), «بایگانی» (company → page → kind → item), the item's page
+  (player with its cover, every text with «کپی», times, the source with «ساخته‌شده با», files, an empty «بینش» place), a set
+  as a full-screen swipe with each slide's hour, search, and «منتظر شما» only when something waits.
+- **Web:** unchanged (the owner's rule of 2026-11-13). A hub without these routes: the old desk stays, the new places say
+  «با به‌روزرسانی بعدی هاب».
+
+## 61. Automations as data: edited in the app, versioned, on one clock ⟨1.39⟩ (2026-11-17, prompt 39)
+
+The owner: «بخش اتوماسیون خیلی مبتدیه و باید یک قسمت مهم آپ باشه با کلی فیچر … و با قابلیت تغییرات». Every daily flow
+that publishes today is code (`domain/flows.py` → `FLOWS`), each with its own n8n workflow; changing an hour meant editing
+code and re-importing n8n, and the app could only switch it (§59.7.1). From 1.39 the flows are **rows** the owner edits;
+`FLOWS` is only the migration's seed. There is still **one** model: no second automation system is built.
+
+### 61.1 Data (`automations.flows`, `automations.flow_versions`, `automations.alerts`; KEEP; FORCE RLS)
+```
+FlowDef {
+  ref: "AF-0001", key, company, company_fa, channel, account, title_fa, kit, kit_fa,
+  kind: "reel"|"stories"|"short"|"video"|"article"|"tg_post",
+  state: "on"|"off"|"paused", paused_until | null,
+  schedule: {hours: ["HH:MM" | null], best_week: bool, days: [0..6], stories: ["HH:MM"],
+             trigger_at: "HH:MM", same_day: bool, start: date, when_fa},
+  model, model_fa, effort: "high"|"xhigh"|"max",
+  budget: {usd_cap, month_estimate_usd, envelope_usd | null, envelope_left_usd | null, over_envelope: bool},
+  cycle: [str], story_word_mode: "fixed"|"fresh", story_word | null, note_fa | null, pair | null, recipe | null,
+  version, next: {build_at, publish_at, kind_fa | null} | null,
+  today: {runs, published, cost_usd}, month_cost_usd,
+  health: {state: "ok"|"warn"|"down", note_fa}, alerts_open,
+  legacy_ref: "N8:<key>", created_at, updated_at }
+FlowVersion { version, at, by_fa, note_fa | null, changes: [{field, label_fa, before_fa, after_fa}], body }
+```
+- **Seeded** from today's `FLOWS`, one row each, **same `key` and same behaviour** (hours, the fourth week's best hour,
+  `trigger_at`, `same_day`, stories, `story_word`, `cycle`, `model`/`model_from`, `effort`, `usd_cap`, `budget_tokens`,
+  `pair`, `recipe`, `note_fa`), version 1 «ساخته شد از روند کدی هاب». The code reads the table from then on.
+- `hours`: the round of weeks from `start` (`null` = that week's best hour, §49); `days`: Saturday = 0 … Friday = 6;
+  `stories`: the day's picture stories, one hour each.
+- **Old refs keep working:** `N8:<key>` resolves to its row in every route of §59.7.1 (`GET /automations/N8:…`, the board's
+  `n8n` items, `/line-runs/F-…`), so Android 1.2.0 is untouched.
+- `automations.flow_versions`: one row per save (`body` = every editable field), never deleted. `automations.alerts`
+  (§61.6). No fixed number of flows, accounts or companies anywhere.
+
+### 61.2 One clock: the hub's
+- The minute tick n8n already sends (`hq-flows`, `POST /internal/v1/flows/tick`, §59.7) **also** starts every
+  `automations.flows` row that is `on`, whose `trigger_at` (Tehran) has come on one of its `days`, and that has no run for
+  that day: the existing «one order a day» lock makes a second call a no-op. If no tick came for 10 minutes, the hub's own
+  scheduler does the same (`growth.flow_clock`) and health says «n8n خاموش است؛ هاب خودش اجرا کرد».
+- A change of hour applies from the next minute; nothing in n8n is edited. The per-flow workflows (`flow-*.json`) stay during
+  the move (their call is a no-op once the hub's clock has started the day) and are retired by the hub's Claude once the
+  clock has run a full week without a miss (P3, in its report).
+- `paused` with `paused_until`: the clock skips the days before it; `off`: no day starts. The board's switch writes
+  `state` (the old `owner.settings.flows_off` moves into it).
+
+### 61.3 Routes (owner; each a tap; no step-up unless said; `Idempotency-Key` on POST; audit `automation.flow.<verb>` with before and after)
+- `GET /api/v1/automations/flows?company=&account=&channel=` → `{items: [FlowDef], health: [Health], today: {runs, published,
+  cost_usd}}` (`Health` as §59.10).
+- `GET /api/v1/automations/flows/options` → `{models: [{id, name_fa, efforts}], efforts: ["high","xhigh","max"],
+  usd_cap: {min: 1, max: 500}, stories_max: 15, cycle_max: 7, note_max: 2000, kits: [Kit]}`; `models` comes from the
+  LLM router's allowed list, so the app never writes a model name of its own.
+- `GET /api/v1/automations/flows/{ref}` → `FlowDef`.
+- `PATCH /api/v1/automations/flows/{ref}` with `If-Match: <version>` and any of `{schedule, model, effort, usd_cap, cycle,
+  story_word_mode, story_word, note_fa, title_fa, note_change_fa}` → `FlowDef` (a new version). `409 version_conflict` when
+  the version moved; `422 invalid_flow {errors: [{field, message_fa}]}` (§61.4).
+- `POST …/flows/{ref}/state {state: "on"|"off"}`; `POST …/pause {until}`; `POST …/skip {day, skip: bool}`;
+  `POST …/run-now {day?}` → `{run}` (one run per flow and day: a second one answers `409 already_ran` with that run).
+- `GET …/flows/{ref}/versions` → `[FlowVersion]`; `POST …/rollback {version}` → `FlowDef` (that body saved again as the
+  next version; nothing is deleted).
+- `GET …/flows/{ref}/runs?limit=&before=` → `{items: [{run, day, state, topic_fa | null, started_at, ended_at | null,
+  cost_usd, publications: [PublicationCard], note_fa}], next}`; the run's timeline stays `GET /line-runs/{ref}` (§59.8).
+- `GET …/flows/{ref}/health` → `{state, note_fa, last_run, success_30d: {ok, all}, cost: {today, month}, next, alerts:
+  [Alert]}`.
+- `GET …/flows/{ref}/graph` → the map of §59.7.1, from the kit's steps.
+- Its publications are `GET /publications?automation={ref}` (§60.2).
+
+### 61.4 What a save may hold (`422` with one Persian line per field)
+- An hour is `HH:MM` (Tehran). Each publish hour is at least 90 minutes after `trigger_at` on the same day when `same_day`,
+  else any hour of the next day. No two story hours are the same, and none is on the minute of a reel of the same account.
+- `model` is one of `options.models`; `effort` one of three; `usd_cap` 1 to 500; stories 1 to `stories_max`; `cycle` 0 to 7
+  kinds; `days` a non-empty subset of 0..6; `note_fa` ≤ 2000 characters; `start` and `paused_until` dates.
+- A day's cap whose month estimate (`usd_cap × 30`, with the account's other flows) passes the company's month envelope
+  (§18.11) needs 🔏 `automation.budget` (target `<ref>:<usd_cap>`); lowering is a tap.
+- A run that reaches its day's cap waits at the step that would pass it; the owner sees it in «منتظر شما» (§60.2,
+  `budget_cap`: «سقف را … کن» / «این نوبت رد شود»), once.
+
+### 61.5 A new automation (`POST /api/v1/automations/flows`)
+- `Kit {key, title_fa, about_fa, kinds, avg_usd | null, avg_minutes | null, used_on: [account]}`: the kits that run today,
+  from the workshop's kit folder and the flows using them.
+- `POST /automations/flows {account, channel, kit, title_fa, schedule, model, effort, usd_cap, cycle?, story_word_mode?}` →
+  `FlowDef` (`on`, version 1), validated as §61.4; its map preview is `GET /automations/kits/{key}/graph`.
+- «کیت تازه»: `POST /api/v1/automations/kits/request {account, note_fa}` opens a direct session with the workshop (§53),
+  as the owner's DotCoin pilot was made; the sample comes to that session for his yes; the kit then appears in `kits`.
+
+### 61.6 Alerts, made by code
+- Kinds: `run_failed`, `cap_reached`, `page_held` (a publication `held`), `login_expired` (ChatGPT, AI Studio, Gemini),
+  `clock_missed` (no tick and no backup run), `late` (a publish hour passed without its package). One open alert per flow
+  and kind; it closes by itself when the cause is gone (`closed_at`, `note_fa` of how).
+- Shown on the flow's card (health dot) and its page. **Only a real crisis notifies the owner** (the standing rule): a day
+  that did not go out (`late` past its hour by 60 minutes with no run left) or the clock down for 30 minutes. Everything
+  else stays on the page.
+
+### 61.7 The week (`GET /api/v1/automations/week?from=`)
+→ `{from, to, totals: {runs, published, cost_usd}, by_day: [{day, published, planned}], accounts: [{company, company_fa,
+account, runs, published, cost_usd, flows, best: PublicationCard | null}]}`; `best` is the row with the most views once
+`insights` exist, else `null`. The same lines go into the owner's weekly summary.
+
+### 61.8 The apps (Android 1.3.0)
+- **The board:** today's runs, posts and cost; health; companies → pages → each automation's card (kind, hours, model and
+  effort, the switch, the next run with its countdown, the last result, today's and the month's cost against the cap, a
+  health dot); the off ones last; the week's summary.
+- **An automation's page:** «نمای کلی» (the next one, run-now, pause until, skip; today's map and steps), «تنظیمات» (hours of
+  each week of the round with the best-hour switch, days, the build's start with its sentence, model and effort, the day's
+  cap with the month's estimate against the envelope, the cycle, the stories on a 24-hour line, the reply word, the note,
+  start and pause; «چه عوض میشود» before every save), «اجراها», «خروجی‌ها» (§60.2 with `automation`), «نسخه‌ها» (with
+  «برگشت به این نسخه»), «سلامت» (and the alerts).
+- **«اتوماسیون تازه»:** page → kit → hours → model and cap → preview → «بساز و روشن کن»; «کیت تازه» as §61.5.
+- **Web:** unchanged. A hub without §61: the board and pages of 1.2.0 stay as they are.

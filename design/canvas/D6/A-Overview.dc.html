@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>یک اتوماسیون · نمای کلی</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.map{position:relative;border-radius:18px;background:var(--tl);padding:14px 10px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 10px}
+.nd{background:var(--cd);border:1.5px solid var(--ok);border-radius:12px;padding:6px 7px;display:flex;flex-direction:column;gap:1px;font-size:10px;line-height:14px;position:relative}
+.nd b{font-size:11px;line-height:16px}
+.nd.w{border-color:var(--wn)} .nd.p{border-color:var(--st);border-style:dashed}
+.nd::before{content:"";position:absolute;left:-11px;top:50%;width:10px;height:1.5px;background:var(--st)}
+.nd.e::before{display:none}
+.st{display:flex;gap:10px;align-items:flex-start;padding:8px 0}
+.st .tm{width:44px;flex:none;font-size:12px;color:var(--mu);padding-top:2px}
+.st .ck{width:20px;height:20px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.qa{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:16px;background:var(--cd);border:1px solid var(--ln);color:var(--tx);font:inherit;font-size:11px}
+.qa svg{color:var(--gi)}
+</style></helmet>
+<div class="{{cls}}" style="height: 1320px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <div class="c f1" style="gap: 0;"><span class="h3">ریلز آموزشی دات‌کوین</span><span class="xs mu"><span class="L">@dotcoin.me</span> · <span class="L">IG-Hub</span> · نسخه‌ی ۱</span></div>
+    <button class="sw on" aria-label="روشن" style="margin-left: 8px;"></button>
+  </div>
+  <nav class="utabs" aria-label="بخش‌ها">
+    <button class="utab on">نمای کلی</button><button class="utab">تنظیمات</button><button class="utab">اجراها</button><button class="utab">خروجی‌ها</button><button class="utab">نسخه‌ها</button><button class="utab">سلامت</button>
+  </nav>
+
+  <div class="card" style="gap: 10px; border-color: rgba(216,168,72,.25);">
+    <div class="rb"><span class="xs mu">انتشار بعدی</span><span class="pill ok"><span class="dot"></span>سالم</span></div>
+    <div class="rb"><span class="h2">امروز ۱۳:۰۰</span><span class="pill gd">۱ ساعت و ۲۰ دقیقه</span></div>
+    <span class="sm t2">«کیف پول سرد چیست؟» آماده است و در صف <span class="L">IG-Hub</span> است. ساخت بعدی: فردا ۰۰:۳۰.</span>
+    <div class="r" style="gap: 8px;">
+      <button class="qa"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 5v14l11-7z"></path></svg>همین حالا بساز</button>
+      <button class="qa"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="7" y="6" width="3.5" height="12" rx="1"></rect><rect x="13.5" y="6" width="3.5" height="12" rx="1"></rect></svg>مکث تا…</button>
+      <button class="qa"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg>این نوبت نه</button>
+    </div>
+  </div>
+
+  <div class="rb"><h2 class="h3">نقشه‌ی امروز</h2><button class="lnk">نقشه‌ی کامل</button></div>
+  <div class="map">
+    <div class="nd e"><b>ساعت هاب</b><span class="mu">۰۰:۳۰</span></div>
+    <div class="nd"><b>موضوع</b><span class="mu">بانک موضوع</span></div>
+    <div class="nd"><b>متن و کپشن</b><span class="mu L">ChatGPT</span></div>
+    <div class="nd"><b>کاور</b><span class="mu L">ChatGPT</span></div>
+    <div class="nd e"><b>گوینده</b><span class="mu L">AI Studio</span></div>
+    <div class="nd"><b>ویدیو</b><span class="mu">کارگاه · <span class="L">Fable</span></span></div>
+    <div class="nd"><b>کلمه و دایرکت</b><span class="mu">ستاد</span></div>
+    <div class="nd w"><b>انتشار ۱۳:۰۰</b><span class="mu L">IG-Hub</span></div>
+  </div>
+
+  <div class="rb"><h2 class="h3">اجرای امروز</h2><span class="xs t2"><span class="L">$10.60</span> از سقف <span class="L">$100</span></span></div>
+  <div class="card" style="gap: 0; padding: 6px 14px;">
+    <div class="st"><span class="tm">۰۰:۳۰</span><span class="ck ok"><svg aria-hidden="true" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span><div class="c f1" style="gap: 0;"><span class="sm b">ساعت هاب کار را شروع کرد</span></div></div>
+    <div class="st"><span class="tm">۰۰:۳۲</span><span class="ck ok"><svg aria-hidden="true" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span><div class="c f1" style="gap: 0;"><span class="sm b">موضوع: «کیف پول سرد چیست؟»</span><span class="xs mu">از بانک موضوع، تکراری نیست</span></div></div>
+    <div class="st"><span class="tm">۰۰:۴۰</span><span class="ck ok"><svg aria-hidden="true" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span><div class="c f1" style="gap: 0;"><span class="sm b">متن، کپشن و کاور</span><span class="xs mu"><span class="L">ChatGPT</span> · ۲۵ دقیقه</span></div></div>
+    <div class="st"><span class="tm">۰۱:۲۰</span><span class="ck ok"><svg aria-hidden="true" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span><div class="c f1" style="gap: 0;"><span class="sm b">صدای گوینده</span><span class="xs mu"><span class="L">AI Studio</span> · ۰:۵۱</span></div></div>
+    <div class="st"><span class="tm">۰۱:۲۵</span><span class="ck ok"><svg aria-hidden="true" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span><div class="c f1" style="gap: 0;"><span class="sm b">ویدیو در کارگاه ساخته و رندر شد</span><span class="xs mu"><span class="L">Fable 5.2</span> · خیلی بالا · ۸۳ دقیقه · <span class="L">$9.80</span></span></div></div>
+    <div class="st"><span class="tm">۱۳:۰۰</span><span class="ck wn"><svg aria-hidden="true" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.5 1.5"></path></svg></span><div class="c f1" style="gap: 0;"><span class="sm b">انتشار در <span class="L">@dotcoin.me</span></span><span class="xs mu">منتظر ساعتش · کلمه‌ی کامنت «سرد»</span></div></div>
+  </div>
+  <a href="P-Item.dc.html" class="it"><span class="th c-dc" style="width: 40px; height: 56px;">ریلز</span><div class="c f1" style="gap: 0;"><span class="sm b">خروجی امروز در بایگانی</span><span class="xs mu">ویدیو، کاور، کپشن، کلمه و دایرکت</span></div><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--mu)" stroke-width="1.8" stroke-linecap="round"><path d="M15 5l-7 7 7 7"></path></svg></a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":1320}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

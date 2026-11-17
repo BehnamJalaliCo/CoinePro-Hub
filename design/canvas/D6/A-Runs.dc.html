@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>یک اتوماسیون · اجراها و خروجی‌ها</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.bars{display:flex;align-items:flex-end;gap:4px;height:64px}
+.bars i{flex:1;border-radius:3px 3px 1px 1px;background:var(--rs);display:block}
+.bars i.t{background:var(--gd)} .bars i.f{background:var(--ng)}
+.run{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.run:last-child{border-bottom:0}
+</style></helmet>
+<div class="{{cls}}" style="height: 1080px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <div class="c f1" style="gap: 0;"><span class="h3">ریلز روزانه‌ی پروچارت</span><span class="xs mu"><span class="L">@theprochart</span> · نسخه‌ی ۳</span></div>
+    <button class="sw on" aria-label="روشن" style="margin-left: 8px;"></button>
+  </div>
+  <nav class="utabs" aria-label="بخش‌ها">
+    <button class="utab">نمای کلی</button><button class="utab">تنظیمات</button><button class="utab on">اجراها</button><button class="utab">خروجی‌ها</button><button class="utab">نسخه‌ها</button><button class="utab">سلامت</button>
+  </nav>
+  <div class="r" style="gap: 8px;">
+    <div class="stat"><b>۳ از ۳</b><span class="xs t2">موفق از ۲۳ آبان</span></div>
+    <div class="stat"><b class="L">$5.2</b><span class="xs t2">میانگین هر روز</span></div>
+    <div class="stat"><b>۷۲′</b><span class="xs t2">میانگین ساخت</span></div>
+  </div>
+  <div class="card" style="gap: 8px;">
+    <div class="rb"><span class="sm b">هزینه‌ی هر روز</span><span class="xs mu">سقف روز <span class="L">$10</span></span></div>
+    <div class="bars">
+      <i class="f" style="height: 70%;"></i><i style="height: 2%;"></i><i style="height: 45%;"></i><i class="t" style="height: 41%;"></i><i style="height: 0; border: 1px dashed var(--st); background: transparent; height: 100%; opacity: .5;"></i><i style="height: 0; border: 1px dashed var(--st); background: transparent; height: 100%; opacity: .5;"></i><i style="height: 0; border: 1px dashed var(--st); background: transparent; height: 100%; opacity: .5;"></i>
+    </div>
+    <div class="rb xs mu"><span>۲۳ آبان</span><span>امروز</span><span>سه روز بعد</span></div>
+  </div>
+  <div class="chips"><button class="chip on">همه</button><button class="chip">منتشرشده</button><button class="chip">ناموفق ۱</button><button class="chip">ردشده ۱</button></div>
+  <div class="card" style="gap: 0; padding: 4px 14px;">
+    <a href="P-Item.dc.html" class="run"><span class="th c-pc" style="width: 40px; height: 56px;">ریلز</span><div class="c f1" style="gap: 0;"><span class="sm b">اندیکاتور RSI در سه دقیقه</span><span class="xs mu">امروز · ۰۹:۳۰ · ساخت ۶۸ دقیقه</span></div><div class="c" style="align-items: flex-end; gap: 2px;"><span class="pill ok">منتشر شد</span><span class="xs t2 L">$4.10</span></div></a>
+    <a href="P-Item.dc.html" class="run"><span class="th c-pc" style="width: 40px; height: 56px;">ریلز</span><div class="c f1" style="gap: 0;"><span class="sm b">حمایت و مقاومت با یک ابزار</span><span class="xs mu">دوشنبه ۲۵ · ۱۹:۳۰ · پربازدیدترین</span></div><div class="c" style="align-items: flex-end; gap: 2px;"><span class="pill ok">منتشر شد</span><span class="xs t2 L">$4.50</span></div></a>
+    <a href="P-Item.dc.html" class="run"><span class="th" style="width: 40px; height: 56px; background: transparent; border: 1px dashed var(--st); color: var(--mu);">—</span><div class="c f1" style="gap: 0;"><span class="sm b">یکشنبه ۲۴</span><span class="xs mu">این نوبت را رد کردی</span></div><div class="c" style="align-items: flex-end; gap: 2px;"><span class="pill mt">رد شد</span><span class="xs t2 L">$0</span></div></a>
+    <a href="P-Item.dc.html" class="run"><span class="th c-pc" style="width: 40px; height: 56px;">ریلز</span><div class="c f1" style="gap: 0;"><span class="sm b">۳ الگوی شمعی برای شروع</span><span class="xs" style="color: var(--ng);">شنبه ۲۳ · رندر در کارگاه ایستاد؛ دوباره ساخته شد و ۲۰:۱۰ رفت</span></div><div class="c" style="align-items: flex-end; gap: 2px;"><span class="pill wn">دیر رفت</span><span class="xs t2 L">$7.00</span></div></a>
+  </div>
+  <span class="xs mu" style="text-align: center;">هر ردیف: یک لمس به خط زمان همان روز؛ بندانگشتی: به همان مورد در بایگانی. «خروجی‌ها» همه‌ی انتشارهای این اتوماسیون را مثل بایگانی نشان میدهد.</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

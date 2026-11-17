@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>منتظر شما</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="{{cls}}" style="height: 760px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <h1 class="h2 f1" style="font-size: 20px;">منتظر شما</h1>
+    <span class="pill gd" style="margin-left: 8px;">۲</span>
+  </div>
+  <p class="sm t2" style="margin: 0;">فقط چیزی که بی تو جلو نمیرود. وقتی چیزی منتظر نیست، این بخش در مرکز انتشار دیده نمیشود.</p>
+
+  <div class="card" style="border-color: rgba(216,168,72,.28);">
+    <div class="rb"><span class="xs mu">کارگروه «ریلز خبری پروچارت» · هر بار بپرس</span><span class="xs gi">تا پایان امروز</span></div>
+    <div class="r" style="gap: 12px; align-items: flex-start;">
+      <div class="th c-pc" style="width: 84px; height: 150px; font-size: 11px; line-height: 16px;"><span style="color: var(--gd);">خبر</span>نرخ بهره و بازار</div>
+      <div class="c f1" style="gap: 6px;">
+        <span class="h3">فدرال رزرو و بازار امروز</span>
+        <span class="xs mu"><span class="L">@theprochart</span> · ساعت پیشنهادی ۱۹:۳۰</span>
+        <p class="tx" style="font-size: 12px; line-height: 20px; padding: 8px 10px;">فدرال رزرو نرخ را ثابت نگه داشت؛ سه نمودار که امروز باید ببینی…</p>
+      </div>
+    </div>
+    <div class="r">
+      <button class="btn" style="flex: 1;">انتشار ۱۹:۳۰</button>
+      <button class="btn2" style="flex: 1;">این بار نه</button>
+    </div>
+    <span class="xs mu">اگر تا پایان روز جواب ندهی، این نوبت منتشر نمیشود و همین در بایگانی ثبت میشود.</span>
+  </div>
+
+  <div class="card">
+    <div class="rb"><span class="xs mu">اتوماسیون «ریلز معرفی ارز ضریب صد»</span><span class="pill wn">سقف روز</span></div>
+    <span class="h3">به سقف هزینه‌ی امروز رسید</span>
+    <div class="rb"><span class="sm t2">مصرف امروز</span><span class="sm b L">$100.00 / $100</span></div>
+    <div class="track"><b style="width: 100%; background: var(--wn);"></b></div>
+    <span class="xs mu">ساخت در قدم رندر ایستاده؛ ریلز ۱۹:۰۰ هنوز آماده نیست.</span>
+    <div class="r">
+      <button class="btn" style="flex: 1;">سقف را ۱۵۰ کن</button>
+      <button class="btn2" style="flex: 1;">این نوبت رد شود</button>
+    </div>
+  </div>
+
+  <div class="c" style="gap: 2px; padding: 0 4px;">
+    <span class="xs mu">این‌جا نمی‌آید:</span>
+    <span class="xs mu">اعلان روزمره · پیشنهاد ایجنت‌ها · کارت استخدام · هر چیزی که خودکار جلو میرود</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

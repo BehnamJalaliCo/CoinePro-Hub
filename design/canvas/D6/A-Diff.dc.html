@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>پیش از ذخیره: چه عوض میشود</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.df{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:16px;background:var(--tl)}
+.old{color:var(--mu);text-decoration:line-through}
+.new{color:var(--gi);font-weight:750}
+</style></helmet>
+<div class="{{cls}}" style="height: 844px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <div class="c f1" style="gap: 0;"><span class="h3">ریلز روزانه‌ی پروچارت</span><span class="xs mu">تنظیمات</span></div>
+  </div>
+  <div class="card" style="height: 150px;"></div>
+  <div class="card" style="height: 110px;"></div>
+  <div class="card" style="height: 120px;"></div>
+  <div class="scrim"></div>
+  <div class="sheet">
+    <span class="grab"></span>
+    <div class="rb"><h2 class="h2">چه عوض میشود</h2><span class="pill gd">نسخه‌ی ۴</span></div>
+    <div class="df">
+      <span class="xs mu">ساعت انتشار · هفته‌ی ۱</span>
+      <div class="r" style="font-size: 18px;"><span class="old">۰۹:۳۰</span><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--mu)" stroke-width="1.8" stroke-linecap="round"><path d="M15 5l-7 7 7 7"></path></svg><span class="new">۱۰:۰۰</span></div>
+    </div>
+    <div class="c" style="gap: 6px;">
+      <span class="sm"><span class="b">از کی:</span> اجرای فردا، چهارشنبه ۲۷ آبان، ساعت ۱۰:۰۰ منتشر میشود.</span>
+      <span class="sm"><span class="b">ساخت:</span> همان ۰۰:۳۰ میماند؛ ۹ ساعت و ۳۰ دقیقه زودتر آماده است.</span>
+      <span class="sm"><span class="b">کار دیگری لازم نیست:</span> ساعت هاب از دقیقه‌ی بعد همین را میخواند.</span>
+    </div>
+    <label class="fd" style="min-height: 44px;"><input aria-label="یادداشت این تغییر" placeholder="یادداشت این تغییر (اختیاری)" style="flex: 1; border: 0; background: transparent; color: var(--tx); font: inherit; font-size: 13px; outline: none;"></label>
+    <div class="r">
+      <button class="btn" style="flex: 2;">ذخیره</button>
+      <button class="btn2" style="flex: 1;">برگرد</button>
+    </div>
+    <span class="xs mu" style="text-align: center;">نسخه‌ی ۳ میماند؛ هر وقت خواستی با یک لمس به آن برمیگردی.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

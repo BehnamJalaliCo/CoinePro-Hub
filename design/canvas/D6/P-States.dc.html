@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>حالت‌ها: بارگذاری، خالی، خطا</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.lbl{font-size:11px;color:var(--mu);letter-spacing:0;margin:4px 0 -6px}
+.emp{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:22px 12px}
+.ico{width:56px;height:56px;border-radius:18px;background:var(--tl);display:flex;align-items:center;justify-content:center;color:var(--gi)}
+</style></helmet>
+<div class="{{cls}}" style="height: 1040px; padding-top: 16px;">
+  <p class="lbl">بارگذاری · شکل همان فهرست، بی چرخ‌زدن</p>
+  <div class="card" style="gap: 10px;">
+    <div class="r"><span class="sk" style="width: 40px; height: 56px;"></span><div class="c f1" style="gap: 8px;"><span class="sk" style="height: 12px; width: 70%;"></span><span class="sk" style="height: 10px; width: 45%;"></span></div><span class="sk" style="width: 56px; height: 22px; border-radius: 11px;"></span></div>
+    <div class="r"><span class="sk" style="width: 40px; height: 56px;"></span><div class="c f1" style="gap: 8px;"><span class="sk" style="height: 12px; width: 60%;"></span><span class="sk" style="height: 10px; width: 40%;"></span></div><span class="sk" style="width: 56px; height: 22px; border-radius: 11px;"></span></div>
+    <div class="r"><span class="sk" style="width: 40px; height: 56px;"></span><div class="c f1" style="gap: 8px;"><span class="sk" style="height: 12px; width: 75%;"></span><span class="sk" style="height: 10px; width: 35%;"></span></div><span class="sk" style="width: 56px; height: 22px; border-radius: 11px;"></span></div>
+  </div>
+
+  <p class="lbl">خالی · فیلتری که چیزی نیافت</p>
+  <div class="card emp">
+    <span class="ico"><svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="3"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg></span>
+    <span class="h3">در این بازه چیزی منتشر نشده</span>
+    <span class="sm t2"><span class="L">@ipoxxo.vpn</span> از ۲۵ آبان شروع کرده است</span>
+    <button class="btn2" style="height: 40px;">همه‌ی تاریخ‌ها</button>
+  </div>
+
+  <p class="lbl">خالی · امروز هنوز چیزی نرفته</p>
+  <div class="card emp" style="padding: 16px 12px;">
+    <span class="h3">اولین انتشار امروز: ۰۸:۳۰</span>
+    <span class="sm t2">استوری <span class="L">@zaribsad</span> · ۲ ساعت و ۱۰ دقیقه دیگر</span>
+  </div>
+
+  <p class="lbl">خطا · هاب جواب نداد</p>
+  <div class="card emp" style="border-color: rgba(246,70,93,.3);">
+    <span class="ico" style="color: var(--ng); background: var(--sn);"><svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg></span>
+    <span class="h3">بایگانی باز نشد</span>
+    <span class="sm t2">هاب جواب نداد؛ آنچه آخرین بار دیدی همین زیر میماند.</span>
+    <button class="btn" style="height: 40px;">دوباره</button>
+  </div>
+
+  <p class="lbl">هاب قدیمی · این بخش هنوز روی هاب نیست</p>
+  <div class="card emp" style="padding: 16px 12px;">
+    <span class="h3">با به‌روزرسانی بعدی هاب</span>
+    <span class="sm t2">تا آن موقع «میز» و «خروجی‌ها» مثل قبل کار میکنند.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>یک اتوماسیون · تنظیمات</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.sec{display:flex;flex-direction:column;gap:10px}
+.lab{display:flex;justify-content:space-between;align-items:baseline}
+.wk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--ln)}
+.wk:last-child{border-bottom:0}
+.mod{box-shadow:0 0 0 2px var(--gd)}
+.ch{position:relative;height:56px;border-radius:14px;background:var(--tl)}
+.ch i{position:absolute;top:10px;width:3px;height:22px;border-radius:2px;background:var(--gd)}
+.ch i.rl{background:var(--lp);height:30px;top:6px}
+.ch i.bad{background:var(--ng)}
+.ch b{position:absolute;bottom:4px;font-size:9px;color:var(--mu);font-weight:400}
+.save{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 20px;background:var(--cd);border-top:1px solid var(--ln);display:flex;align-items:center;gap:10px}
+</style></helmet>
+<div class="{{cls}}" style="height: 2060px; padding-bottom: 100px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <div class="c f1" style="gap: 0;"><span class="h3">ریلز روزانه‌ی پروچارت</span><span class="xs mu"><span class="L">@theprochart</span> · نسخه‌ی ۳</span></div>
+    <button class="sw on" aria-label="روشن" style="margin-left: 8px;"></button>
+  </div>
+  <nav class="utabs" aria-label="بخش‌ها">
+    <button class="utab">نمای کلی</button><button class="utab on">تنظیمات</button><button class="utab">اجراها</button><button class="utab">خروجی‌ها</button><button class="utab">نسخه‌ها</button><button class="utab">سلامت</button>
+  </nav>
+
+  <div class="card sec">
+    <div class="lab"><span class="h3">ساعت انتشار</span><span class="xs mu">به وقت تهران · دور ۴ هفته</span></div>
+    <div class="c" style="gap: 0;">
+      <div class="wk"><span class="sm f1">هفته‌ی ۱</span><span class="hc on mod">۱۰:۰۰</span></div>
+      <div class="wk"><span class="sm f1">هفته‌ی ۲</span><span class="hc">۱۴:۰۰</span></div>
+      <div class="wk"><span class="sm f1">هفته‌ی ۳</span><span class="hc">۱۹:۳۰</span></div>
+      <div class="wk"><div class="c f1" style="gap: 0;"><span class="sm">هفته‌ی ۴ · پربازدیدترین ساعت</span><span class="xs mu">از بازدید سه هفته‌ی قبل؛ الان ۱۹:۳۰</span></div><button class="sw on" aria-label="پربازدیدترین ساعت"></button></div>
+    </div>
+    <span class="xs mu">این هفته: هفته‌ی ۱ · فردا ریلز ساعت ۱۰:۰۰ میرود</span>
+  </div>
+
+  <div class="card sec">
+    <div class="lab"><span class="h3">روزهای هفته</span><span class="xs mu">۷ روز</span></div>
+    <div class="rb"><button class="wd on">ش</button><button class="wd on">ی</button><button class="wd on">د</button><button class="wd on">س</button><button class="wd on">چ</button><button class="wd on">پ</button><button class="wd on">ج</button></div>
+  </div>
+
+  <div class="card sec">
+    <div class="lab"><span class="h3">شروع ساخت</span><span class="hc">۰۰:۳۰</span></div>
+    <div class="rb"><span class="sm t2">همان روز انتشار بساز</span><button class="sw on" aria-label="همان روز"></button></div>
+    <p class="tx" style="font-size: 12px; line-height: 20px;">ساخت از ۰۰:۳۰ شروع میشود و ریلز تا ۱۰:۰۰ آماده است. هر ساعت انتشار باید دست‌کم ۹۰ دقیقه بعد از شروع ساخت باشد.</p>
+  </div>
+
+  <div class="card sec">
+    <span class="h3">مدل و تلاش</span>
+    <div class="tabs"><button class="tab on L">Opus 5.5</button><button class="tab L">Fable 5.2</button><button class="tab L">Sonnet 5.5</button></div>
+    <div class="tabs"><button class="tab">بالا</button><button class="tab">خیلی بالا</button><button class="tab on">بیشینه</button></div>
+    <span class="xs mu">فقط مدل‌هایی که هاب اجازه داده؛ تلاش بیشتر یعنی ساخت دقیق‌تر و گران‌تر.</span>
+  </div>
+
+  <div class="card sec">
+    <div class="lab"><span class="h3">سقف هزینه‌ی روز</span><span class="h2 L">$10</span></div>
+    <div style="position: relative; height: 28px; display: flex; align-items: center;"><div class="track" style="flex: 1;"><b style="width: 8%;"></b></div><span style="position: absolute; right: 8%; width: 22px; height: 22px; border-radius: 11px; background: var(--gd); border: 3px solid var(--cd); box-shadow: 0 0 0 1px var(--gd);"></span></div>
+    <div class="rb xs t2"><span><span class="L">$1</span></span><span>تخمین ماه ≈ <span class="L">$300</span></span><span><span class="L">$500</span></span></div>
+    <span class="pill ok" style="align-self: flex-start;">در پاکت ماه پروچارت</span>
+    <span class="xs mu">بالاتر از پاکت ماه شرکت، مُهر تو را میخواهد.</span>
+  </div>
+
+  <div class="card sec">
+    <div class="lab"><span class="h3">چرخه‌ی نوع روز</span><span class="xs mu">هر روز یکی، به نوبت</span></div>
+    <div class="r" style="flex-wrap: wrap; gap: 6px;">
+      <span class="chip on">۱ · آموزش اندیکاتور</span><span class="chip on">۲ · خبر و بازار</span><span class="chip on">۳ · ابزار سایت</span>
+      <button class="chip" style="border-style: dashed;">+ نوع تازه</button>
+    </div>
+    <span class="xs mu">نگه‌دار و بکش تا ترتیب عوض شود · تا ۷ نوع</span>
+  </div>
+
+  <div class="card sec" style="border-style: dashed;">
+    <div class="lab"><span class="h3">استوری‌ها</span><span class="xs mu">در اتوماسیون استوری · ۷ تا</span></div>
+    <div class="ch">
+      <i style="right: 35%;"></i><i style="right: 43%;"></i><i class="bad" style="right: 51%;"></i><i style="right: 64%;"></i><i style="right: 72%;"></i><i style="right: 85%;"></i><i style="right: 93%;"></i>
+      <i class="rl" style="right: 50%;"></i>
+      <b style="right: 4px;">۰۰</b><b style="right: 25%;">۰۶</b><b style="right: 50%;">۱۲</b><b style="right: 75%;">۱۸</b><b style="left: 4px;">۲۴</b>
+    </div>
+    <span class="xs" style="color: var(--ng);">استوری ۱۲:۰۰ هم‌دقیقه‌ی ریلز همین پیج است؛ یک ساعت دیگر انتخاب کن.</span>
+    <div class="r" style="gap: 6px; flex-wrap: wrap;"><span class="hc">۰۸:۳۰</span><span class="hc">۱۰:۳۰</span><span class="hc" style="border-color: var(--ng); color: var(--ng);">۱۲:۰۰</span><span class="hc">۱۵:۳۰</span><span class="xs mu">…</span></div>
+  </div>
+
+  <div class="card sec">
+    <span class="h3">کلمه‌ی ریپلای استوری</span>
+    <div class="tabs"><button class="tab on">تازه هر روز</button><button class="tab">همیشه یک کلمه</button></div>
+    <span class="xs mu">«همیشه یک کلمه» برای پیجی مثل <span class="L">@ipoxxo.vpn</span> که جوابش همیشه لینک کانال است.</span>
+  </div>
+
+  <div class="card sec">
+    <div class="lab"><span class="h3">یادداشت اضافه برای سازنده</span><span class="xs mu">۴۲ از ۲۰۰۰</span></div>
+    <p class="tx" style="min-height: 72px;">رنگ‌بندی کاورها مثل نمونه‌های آبان بماند.</p>
+  </div>
+
+  <div class="card sec" style="gap: 0; padding: 6px 16px;">
+    <div class="kv"><span>شروع دور</span><span>۲۳ آبان</span></div>
+    <div class="kv"><span>مکث تا</span><span class="mu">مکث نیست</span></div>
+  </div>
+
+  <div class="save">
+    <div class="c f1" style="gap: 0;"><span class="sm b">۱ تغییر</span><span class="xs mu">هفته‌ی ۱: ۰۹:۳۰ ← ۱۰:۰۰</span></div>
+    <a href="A-Diff.dc.html" class="btn" style="padding: 0 28px;">ذخیره</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":2060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

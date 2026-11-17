@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>خلاصه‌ی هفته</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.bars{display:flex;align-items:flex-end;gap:6px;height:70px}
+.bars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+.bars i{width:100%;border-radius:4px 4px 2px 2px;background:var(--gd);display:block}
+.bars i.f{background:transparent;border:1px dashed var(--st)}
+.bars span{font-size:10px;color:var(--mu)}
+.pr{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-bottom:1px solid var(--ln)}
+.pr:last-child{border-bottom:0}
+.nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.nums span{display:flex;flex-direction:column;font-size:11px;color:var(--t2)}
+.nums b{font-size:15px;color:var(--tx);font-weight:700}
+</style></helmet>
+<div class="{{cls}}" style="height: 980px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <div class="c f1" style="gap: 0;"><span class="h3">خلاصه‌ی هفته</span><span class="xs mu">شنبه ۲۳ تا جمعه ۲۹ آبان</span></div>
+  </div>
+  <div class="r" style="gap: 8px;">
+    <div class="stat"><b>۴۴</b><span class="xs t2">ساخت</span></div>
+    <div class="stat"><b>۴۱</b><span class="xs t2">انتشار</span></div>
+    <div class="stat"><b class="L">$121</b><span class="xs t2">هزینه</span></div>
+  </div>
+  <div class="card" style="gap: 8px;">
+    <span class="sm b">انتشار هر روز</span>
+    <div class="bars">
+      <div><i style="height: 15%;"></i><span>ش</span></div>
+      <div><i style="height: 45%;"></i><span>ی</span></div>
+      <div><i style="height: 60%;"></i><span>د</span></div>
+      <div><i style="height: 30%;"></i><span>س</span></div>
+      <div><i class="f" style="height: 100%;"></i><span>چ</span></div>
+      <div><i class="f" style="height: 100%;"></i><span>پ</span></div>
+      <div><i class="f" style="height: 100%;"></i><span>ج</span></div>
+    </div>
+    <span class="xs mu">خط‌چین: روزهای مانده، ۳۰ مورد در برنامه‌ی هر روز</span>
+  </div>
+
+  <div class="card" style="gap: 0; padding: 4px 14px;">
+    <div class="pr">
+      <div class="rb"><span class="sm b"><span class="L">@zaribsad</span> · تریدیار</span><span class="pill ok">۳ اتوماسیون</span></div>
+      <div class="nums"><span><b>۲۶</b>ساخت</span><span><b>۲۴</b>انتشار</span><span><b class="L">$64</b>هزینه</span></div>
+      <a href="P-Item.dc.html" class="r" style="text-decoration: none; color: inherit; gap: 8px;"><span class="th c-ty" style="width: 30px; height: 42px;"></span><span class="xs t2 f1">بهترین: زی‌کش؛ حریم خصوصی در بلاک‌چین</span><span class="xs gi">۲٫۴ هزار بازدید</span></a>
+    </div>
+    <div class="pr">
+      <div class="rb"><span class="sm b"><span class="L">@theprochart</span> · پروچارت</span><span class="pill ok">۲ اتوماسیون</span></div>
+      <div class="nums"><span><b>۷</b>ساخت</span><span><b>۶</b>انتشار</span><span><b class="L">$27</b>هزینه</span></div>
+      <a href="P-Item.dc.html" class="r" style="text-decoration: none; color: inherit; gap: 8px;"><span class="th c-pc" style="width: 30px; height: 42px;"></span><span class="xs t2 f1">بهترین: حمایت و مقاومت با یک ابزار</span><span class="xs gi">۱٫۱ هزار بازدید</span></a>
+    </div>
+    <div class="pr">
+      <div class="rb"><span class="sm b"><span class="L">@ipoxxo.vpn</span> · <span class="L">IG-Hub</span></span><span class="pill wn">۱ نگه‌داشته</span></div>
+      <div class="nums"><span><b>۹</b>ساخت</span><span><b>۸</b>انتشار</span><span><b class="L">$22</b>هزینه</span></div>
+      <span class="xs mu">بهترین: وقتی بازدیدها برسد</span>
+    </div>
+    <div class="pr">
+      <div class="rb"><span class="sm b"><span class="L">@dotcoin.me</span> · <span class="L">IG-Hub</span></span><span class="pill lp">از امروز</span></div>
+      <div class="nums"><span><b>۲</b>ساخت</span><span><b>۳</b>انتشار</span><span><b class="L">$8</b>هزینه</span></div>
+      <span class="xs mu">بهترین: وقتی بازدیدها برسد</span>
+    </div>
+  </div>
+  <p class="xs mu" style="margin: 0;">همین خلاصه، جمعه شب در گزارش هفتگی تو هم می‌آید.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>

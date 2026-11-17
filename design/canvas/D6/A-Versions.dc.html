@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>یک اتوماسیون · نسخه‌ها و سلامت</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="d6.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}
+.vr{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--ln)}
+.vr:last-child{border-bottom:0}
+.vn{width:36px;height:36px;border-radius:12px;background:var(--tl);display:flex;align-items:center;justify-content:center;font-weight:750;flex:none}
+.vn.cur{background:var(--gd);color:var(--og)}
+.al{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--ln)}
+.al:last-child{border-bottom:0}
+</style></helmet>
+<div class="{{cls}}" style="height: 1220px;">
+  <div class="top">
+    <button class="ib" aria-label="بازگشت"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <div class="c f1" style="gap: 0;"><span class="h3">ریلز روزانه‌ی پروچارت</span><span class="xs mu"><span class="L">@theprochart</span> · نسخه‌ی ۴</span></div>
+    <button class="sw on" aria-label="روشن" style="margin-left: 8px;"></button>
+  </div>
+  <nav class="utabs" aria-label="بخش‌ها">
+    <button class="utab">نمای کلی</button><button class="utab">تنظیمات</button><button class="utab">اجراها</button><button class="utab">خروجی‌ها</button><button class="utab on">نسخه‌ها</button><button class="utab">سلامت</button>
+  </nav>
+  <div class="card" style="gap: 0; padding: 4px 14px;">
+    <div class="vr"><span class="vn cur">۴</span><div class="c f1" style="gap: 2px;"><div class="rb"><span class="sm b">امروز ۱۱:۴۲ · تو</span><span class="pill gd">در کار</span></div><span class="sm">ساعت هفته‌ی ۱: <span class="mu">۰۹:۳۰</span> ← <span class="gi b">۱۰:۰۰</span></span></div></div>
+    <div class="vr"><span class="vn">۳</span><div class="c f1" style="gap: 4px;"><div class="rb"><span class="sm b">دوشنبه ۲۵ آبان · تو</span></div><span class="sm">مدل: <span class="mu L">Fable 5.2</span> ← <span class="b L">Opus 5.5</span></span><button class="btn2" style="height: 36px; font-size: 12px; align-self: flex-start;"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"></path><path d="M20 9H10a6 6 0 0 0 0 12h3"></path></svg>برگشت به این نسخه</button></div></div>
+    <div class="vr"><span class="vn">۲</span><div class="c f1" style="gap: 2px;"><span class="sm b">یکشنبه ۲۴ آبان · Claude سرور هاب</span><span class="sm">سقف روز: <span class="mu L">$5</span> ← <span class="b L">$10</span></span><span class="xs mu">«رندر ۴۵ ثانیه‌ای بیش از ۵ دلار شد»</span></div></div>
+    <div class="vr"><span class="vn">۱</span><div class="c f1" style="gap: 2px;"><span class="sm b">شنبه ۲۳ آبان · ساخته شد</span><span class="sm t2">از روند کدی امروز هاب؛ همان ساعت‌ها و همان رفتار</span></div></div>
+  </div>
+  <span class="xs mu">برگشت یعنی همان نسخه دوباره، به‌عنوان نسخه‌ی تازه؛ هیچ نسخه‌ای پاک نمیشود.</span>
+
+  <div class="rb" style="margin-top: 10px;"><h2 class="h2">سلامت</h2><span class="pill ok"><span class="dot"></span>سالم</span></div>
+  <div class="card" style="gap: 0; padding: 6px 16px;">
+    <div class="kv"><span>آخرین اجرا</span><span>امروز ۰۹:۳۰ · منتشر شد</span></div>
+    <div class="kv"><span>موفق از شروع</span><span>۳ از ۳ · یکی دیر رفت</span></div>
+    <div class="kv"><span>هزینه</span><span>امروز <span class="L">$4.10</span> · ماه <span class="L">$15.60</span></span></div>
+    <div class="kv"><span>اجرای بعدی</span><span>فردا ۰۰:۳۰ · انتشار ۱۰:۰۰</span></div>
+  </div>
+  <div class="rb"><h2 class="h3">هشدارها</h2><span class="xs mu">باز: هیچ</span></div>
+  <div class="card" style="gap: 0; padding: 4px 14px;">
+    <div class="al"><span class="pill ng" style="margin-top: 2px;">اجرا</span><div class="c f1" style="gap: 0;"><span class="sm b">رندر در کارگاه ایستاد</span><span class="xs mu">شنبه ۲۳ آبان ۱۸:۰۲ · خودش دوباره ساخت و ۲۰:۱۰ رفت · بسته شد</span></div></div>
+    <div class="al"><span class="pill wn" style="margin-top: 2px;">ورود</span><div class="c f1" style="gap: 0;"><span class="sm b">ورود <span class="L">ChatGPT</span> منقضی شد</span><span class="xs mu">یکشنبه ۲۴ آبان · تیم فنی دوباره وارد شد · بسته شد</span></div></div>
+    <div class="al"><span class="pill mt" style="margin-top: 2px;">ساعت</span><div class="c f1" style="gap: 0;"><span class="sm b">تیک ساعت ۱۰ دقیقه نیامد</span><span class="xs mu">۲۴ آبان · پشتیبان هاب سر وقت اجرا کرد · بسته شد</span></div></div>
+  </div>
+  <span class="xs mu">هشدار را کد میسازد، نه مدل. فقط بحرانی واقعی به تو اعلان میشود؛ بقیه همین‌جا میماند.</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"day":{"editor":"boolean","default":false,"section":"نما"},"$preview":{"width":390,"height":1220}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { cls: this.props.day ? 'ph day' : 'ph' };
+  }
+}
+</script>
+</body>
+</html>
