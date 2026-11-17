@@ -7,6 +7,7 @@ stdlib-only Python generator and deployed to Cloudflare Pages (project `dotcoin`
 content/site.json            site-wide facts (name, URL, socials, "today" lesson, ideas bank path)
 content/pages/*.md           the fixed pages: home, learn, glossary, exchanges, about, 404
 content/articles/<slug>.md   one lesson per file (format: content/FORMAT.md)
+content/auto/<slug>.md       the hub's daily lessons (sync.py; only on branch site/dotcoin-content)
 content/glossary.txt         `slug | term | English | definition`, one per line
 content/exchanges.json       THE one place for each exchange's link, code, button, logo
 content/exchanges/<slug>.md  the exchange pages' text (SEO fields, features, steps, body, FAQ)
@@ -18,6 +19,7 @@ tools/prep_assets.py         fonts -> woff2 subsets, logo -> sizes/favicons (int
 tools/render.py              headless Chromium: OG cards (dist/og/*.jpg) and review screenshots
 build.py                     content -> dist/
 deploy.sh                    assets (if missing) -> build -> OG cards -> wrangler pages deploy
+sync.py                      the hub's article.md files -> content/auto -> commit, push, deploy
 ```
 
 `private/`, `dist/` and `.venv/` are git-ignored: the fonts and the owner's logo (and every file
@@ -30,6 +32,19 @@ made from it) are never committed; deploy.sh copies them from the studio kits at
 2. Put the reel URL in `reel:` when it exists (else the block links to the Instagram page).
 3. `./deploy.sh` (or `./deploy.sh --no-deploy` to look first). To make it «درس امروز» on the home
    page, set `"today"` in content/site.json to its slug.
+
+## The daily lessons (sync.py, from 2026-11-17)
+
+Every educational reel's session (kit dotcoin-reels) leaves `out/article.md` (seo/ARTICLE_BRIEF.md).
+`dotcoin-site-sync.timer` (infra/systemd, every 10 minutes, user Hub) runs `sync.py` from the
+content worktree `/home/Hub/sites/dotcoin-content` (branch `site/dotcoin-content`, used only by
+the sync): it reads new article.md files from the hub (read only), validates them, writes
+`content/auto/<slug>.md`, fills `reel:` once the reel is out, commits, pushes the branch and
+deploys. State: `/home/Hub/sites/dotcoin-sync.json`; log: `journalctl -u dotcoin-site-sync`.
+
+**The live site is deployed from the content worktree.** A site change made on
+`server/dotcoin-site` is merged into `site/dotcoin-content` (in that worktree) before the next
+deploy; a deploy from anywhere else would drop the daily lessons.
 
 ## How a page's SEO fields are set
 
