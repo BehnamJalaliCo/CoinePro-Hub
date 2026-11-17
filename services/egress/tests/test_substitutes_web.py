@@ -295,7 +295,8 @@ def test_the_youtube_recipe_reads_or_uploads_one_public_short() -> None:
     description, attaches its video, marks it not made for kids and makes it Public."""
     yt = RC.load(recipes_dir())["youtube-web"]
     assert set(yt.tasks) == {
-        "channel", "titles", "upload", "public", "upload_long", "features", "videos",
+        "channel", "titles", "upload", "public", "upload_long", "features", "videos", "details",
+        "subtitles",
     }  # fmt: skip
     for name in ("channel", "titles"):
         assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read", "click"}
@@ -381,6 +382,12 @@ def test_the_youtube_recipe_uploads_a_long_video_from_the_spool() -> None:
     for name in ("features", "videos"):
         assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read"}
     assert all(not s.alt for s in yt.tasks["videos"].steps if s.do == "read")
+    # ⟨2026-11-17.6⟩ an uploaded video's tags and language, and its subtitle file: by its id only
+    det, sub = yt.tasks["details"].steps, yt.tasks["subtitles"].steps
+    assert "{video_id}" in str(det[0].url) and "{video_id}" in str(sub[0].url)
+    assert [s.text for s in det if s.do == "fill"] == ["{tags}"]
+    assert [s.file for s in sub if s.do == "attach"] == [0]
+    assert det[-1].do == "read" and sub[-1].do == "read"
 
 
 @pytest.mark.parametrize(
