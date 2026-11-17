@@ -76,7 +76,7 @@ def recipe(flow: FL.Flow) -> str:
     if flow.stories:
         return "stories"
     if flow.recipe:  # ⟨2026-11-16⟩ ipoxxo: Zarib×100's premium recipe on its own page
-        return "zaribsad" if flow.recipe == "ipoxxo" else flow.recipe
+        return "zaribsad" if flow.recipe == "ipoxxo" else flow.recipe  # (⟨11-17⟩ «dotcoin»)
     return "zaribsad" if "/zaribsad-" in flow.kit else "reel"
 
 
@@ -86,6 +86,17 @@ STORY_TEXT: dict[str, dict[str, tuple[str, str]]] = {
         "data": ("داده‌ی بازار و کارنامه‌ی VIP", "قیمت‌ها، ترس و طمع، آمار سیگنال‌ها از سایت تریدیار"),
         "dm": ("جواب دایرکت با سه دکمه", "comment.txt: ورود رایگان VIP، ثبت‌نام LBank، راهنما"),
         "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، دعوت VIP با سه دکمه میگیرد"),
+    },
+    # ⟨2026-11-17⟩ DotCoin.me: the day's lesson in twelve slides from ONE ChatGPT chat
+    "dotcoin": {
+        "data": ("درس روز از بانک ایده‌ها", "یک موضوع آموزشی تازه، در ۱۲ قدم"),
+        "pictures": (
+            "۱۲ اسلاید با ChatGPT در یک گفتگو",
+            "سه لایه‌ی رنگ: خردلی و مشکی برند، محتوای تمام‌رنگی، سبز و قرمز معنا",
+        ),
+        "compose": ("نشان پیج، شماره‌ی اسلاید و کلمه‌ی امروز روی هر اسلاید", ""),
+        "dm": ("جواب دایرکت با خلاصه‌ی درس", "comment.txt: خلاصه‌ی درس روز در چند خط"),
+        "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، خلاصه‌ی درس را میگیرد"),
     },
     "ipoxxo": {
         "data": (
@@ -149,7 +160,15 @@ def _tail(flow: FL.Flow) -> list[FS.FlowStep]:
 
 
 def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
-    """What the flow does, in order (the kit's README for the workshop's part)."""
+    """What the flow does, in order (the kit's README for the workshop's part); ⟨2026-11-17⟩ a
+    flow's own effort on its model's steps (DotCoin.me: xhigh)."""
+    steps = _steps_of(flow)
+    if not flow.effort:
+        return steps
+    return [s.model_copy(update={"effort": flow.effort}) if s.model else s for s in steps]
+
+
+def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
     m = _model(flow)
     kind = recipe(flow)
     if kind == "stories":
@@ -159,7 +178,8 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
                   inp=f"ساعت {hm}".translate(FA_DIGITS), out=f"story_{i}.jpg")
             for i, hm in enumerate(flow.stories, 1)
         ]  # fmt: skip
-        txt = STORY_TEXT.get(flow.recipe) or STORY_TEXT[""]
+        own = STORY_TEXT.get(flow.recipe) or {}
+        txt = own or STORY_TEXT[""]
         word = (
             _step("word", f"کلمه‌ی ثابت «{flow.story_word}»", "workshop", "workshop", model=m,
                   rules=("هر روز همین کلمه؛ جواب همیشه همان لینک است",))
@@ -171,9 +191,13 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             *_head(flow),
             _step("data", txt["data"][0], "workshop", "code", out=txt["data"][1]),
             word,
-            _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop", "gpt",
-                  out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
-            _step("compose", "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
+            _step("pictures", txt["pictures"][0], "workshop", "gpt", out=txt["pictures"][1],
+                  rules=(("بی انیمه، بی جمله‌ی هشدار",) if "pictures" not in own else ()))
+            if "pictures" in txt
+            else _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop",
+                       "gpt", out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
+            _step("compose", txt["compose"][0] if "compose" in txt
+                  else "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
                   out=f"story_1.jpg تا story_{n}.jpg".translate(FA_DIGITS)),
             _step("dm", txt["dm"][0], "workshop", "workshop", model=m, out=txt["dm"][1]),
             _step("package", "بسته‌ی روز", "package", "code",
@@ -184,6 +208,32 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             *posts,
             _step("rule", txt["rule"][0], "publish", "ighub", out=txt["rule"][1]),
             _step("report", "خبر به مدیر کل", "report", "code", out="«آماده شد» با کلمه‌ی امروز"),
+        ]  # fmt: skip
+    if kind == "dotcoin":
+        # ⟨2026-11-17⟩ DotCoin.me: a look of its own from its own Pinterest search, every reel
+        topic = ("درس روز از بانک ایده‌ها (آموزشی)" if "آموزشی" in flow.cycle
+                 else "خبر مهم روز با داده‌ی همان لحظه (اطلاع‌رسانی)")  # fmt: skip
+        return [
+            *_head(flow),
+            _step("topic", topic, "workshop", "workshop", out="topic.txt", model=m),
+            _step("inspire", "جستجو و دانلود نمونه از پینترست", "workshop", "workshop", model=m,
+                  out="۴ تا ۸ نمونه‌ی همین ریلز و سبک آن در CONTRACT.md",
+                  rules=("هر ریلز سبک خودش؛ هیچ‌وقت سبک ریلز قبلی",)),
+            _step("script", "سناریو با ChatGPT", "workshop", "gpt", out="متن گوینده",
+                  rules=("فقط آموزشی و اطلاع‌رسانی؛ بی پیش‌بینی قیمت و سیگنال",)),
+            _step("voice", "صدای گوینده (Arlo)", "workshop", "aistudio", out="فایل صدا"),
+            _step("voice_check", "بازبینی صدا، نام‌ها و زمان هر کلمه", "workshop", "code"),
+            _step("keyart", "تصویرها با ChatGPT و Gemini", "workshop", "gpt",
+                  out="تصویرهای بی متن، به سبک نمونه‌ها"),
+            _step("direction", "کارگردانی: نماها، دوربین، ترنزیشن و صدا", "workshop", "workshop",
+                  model=m, rules=("سه لایه‌ی رنگ: برند خردلی و مشکی، محتوا آزاد، سبز و قرمز معنا",)),
+            _step("render", "موشن‌گرافی، یک بار رندر ۶۰ فریم", "workshop", "workshop",
+                  out="video.mp4", model=m, rules=("فونت IRANYekanX Pro، تمیز و شارپ",)),
+            _step("cover", "کاور کامل با ChatGPT از فولدر مدیر کل", "workshop", "gpt",
+                  out="cover.jpg", rules=("خود مدیر کل با کت‌وشلوار تازه؛ هر حرف فارسی چک میشود",)),
+            _step("texts", "کپشن، کلمه‌ی کامنت و خلاصه‌ی دایرکت", "workshop", "workshop",
+                  out="caption.txt، comment.txt", model=m),
+            *_tail(flow),
         ]  # fmt: skip
     if kind == "zaribsad":
         topic = ("ارز روز و داده‌های واقعی آن" if "coin" in flow.key

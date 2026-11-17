@@ -679,3 +679,57 @@ async def test_dotcoins_pilot_is_a_ten_second_sample_on_fable_at_extra_high_effo
     assert await DR.effort_of(Tx({"flow": True, "effort": None}), w) == DR.BUILD_EFFORT  # type: ignore[arg-type]
     assert await DR.effort_of(Tx({"flow": True, "effort": "low"}), w) == DR.BUILD_EFFORT  # type: ignore[arg-type]
     assert await DR.effort_of(Tx({"flow": False, "effort": None}), w) == DR.DIRECT_EFFORT  # type: ignore[arg-type]
+
+
+def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
+    """⟨2026-11-17⟩ The owner, after the pilot («هم کاور و هم ریلز عالی بود»; «ساعت دو ریلز عالیه»):
+    an educational reel at 13:00 and an informational one at 20:30 every day, each built the same
+    day on Fable 5.2 at extra-high effort; the day's educational stories are twelve slides from one
+    ChatGPT chat, with a fresh reply word a day. Each has its n8n workflow file, and the map shows
+    DotCoin's own steps at its own effort."""
+    import json
+    from pathlib import Path
+
+    from hq_api.domain import flow_view as FV
+
+    one, two = FL.FLOWS["dotcoin_reels"], FL.FLOWS["dotcoin_reels_2"]
+    st = FL.FLOWS["dotcoin_stories"]
+    for f in (one, two, st):
+        assert (f.company, f.account, f.model, f.effort) == (
+            "IG", "dotcoin.me", "claude-fable-5-2", "xhigh",
+        )  # fmt: skip
+        assert f.same_day and not f.story and f.recipe == "dotcoin"
+    assert set(one.hours) == {"13:00"} and set(two.hours) == {"20:30"}
+    assert (one.cycle, two.cycle, two.pair) == (("آموزشی",), ("اطلاع‌رسانی",), "dotcoin_reels")
+    assert len(st.stories) == 12 and not st.story_word and st.kit.endswith("/dotcoin-stories")
+    assert "13:00" not in st.stories and "20:30" not in st.stories  # (never on a reel's minute)
+    day = date(2026, 11, 18)
+    at = datetime(2026, 11, 18, 9, 30, tzinfo=UTC)
+    assert "نوع ریلز امروز: «آموزشی»" in FL.brief_of(one, day, at)
+    assert "نوع ریلز امروز: «اطلاع‌رسانی»" in FL.brief_of(two, day, at)
+    assert "story_12.jpg" in FL.brief_of(st, day, at, [])
+    # each n8n workflow calls its own flow at its own hour (Tehran); the repository's files (the
+    # api's test image has apps/api only: there, this part is checked by the repository's run)
+    here = Path(__file__).resolve()
+    root = next((d / "automations/n8n" for d in here.parents if (d / "automations/n8n").is_dir()),
+                None)  # fmt: skip
+    pairs = ((one, "flow-dotcoin-reels.json"), (two, "flow-dotcoin-reels-2.json"),
+             (st, "flow-dotcoin-stories.json"))  # fmt: skip
+    for f, name in pairs if root is not None else ():
+        wf = json.loads((root / name).read_text())
+        assert wf["id"] == f.n8n and wf["settings"]["timezone"] == "Asia/Tehran"
+        text = json.dumps(wf, ensure_ascii=False)
+        hh, mm = (int(x) for x in f.trigger_at.split(":"))
+        assert f'"{mm} {hh} * * *"' in text and f"/internal/v1/flows/{f.key}/run" in text
+        assert f"flow:{f.key}:" in text
+    # the map: DotCoin's own steps (Pinterest, Arlo, the owner's cover) at xhigh
+    steps = FV.steps_of(one)
+    keys = [s.key for s in steps]
+    assert {"inspire", "voice", "cover", "texts"} <= set(keys)
+    assert all(s.effort == "xhigh" for s in steps if s.model)
+    assert any("Arlo" in s.title_fa for s in steps)
+    slides = FV.steps_of(st)
+    assert any("۱۲ اسلاید" in s.title_fa for s in slides)
+    assert all(s.effort == "xhigh" for s in slides if s.model)
+    # the other flows keep their map (no own effort: max)
+    assert all(s.effort == "max" for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"]) if s.model)

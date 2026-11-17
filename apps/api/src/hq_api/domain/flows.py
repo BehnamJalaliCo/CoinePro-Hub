@@ -91,6 +91,12 @@ class Flow:
     note_fa: str = ""
 
 
+# ⟨2026-11-17⟩ DotCoin.me's twelve story slides a day, about one an hour (never on a reel's minute)
+DOTCOIN_STORY_HOURS = (
+    *("09:00", "10:15", "11:30", "12:30", "14:00", "15:00"),
+    *("16:00", "17:15", "18:30", "19:30", "21:30", "23:00"),
+)
+
 FLOWS = {
     "prochart_reels": Flow(
         key="prochart_reels",
@@ -281,6 +287,75 @@ FLOWS = {
             "با همه‌ی قدم‌های کیت در همان اندازه (جستجو و دانلود نمونه‌های پینترست، صدای Arlo، کاور طبق "
             "سیستم کاور مدیر کل). comment.txt لازم نیست."
         ),
+    ),
+    # ⟨2026-11-17⟩ the owner, after the pilot («هم کاور و هم ریلز عالی بود»): the daily DotCoin.me
+    # package, phase one. Two reels a day at fixed hours, «ساعت دو ریلز عالیه»: 13:00 educational,
+    # 20:30 informational, each built the same day (the news cannot wait; the educational one has
+    # the night for its Pinterest search, the owner: «باید توی n8n تایم داده بشه بهش»). Every comment
+    # with the reel's word gets the lesson's summary in a DM («کامنت ها جواب دایرکت بگیرند»; the
+    # site's link joins it later). Colour in three layers (kit 5f960440).
+    "dotcoin_reels": Flow(
+        key="dotcoin_reels",
+        company="IG",
+        account="dotcoin.me",
+        title_fa="ریلز آموزشی دات‌کوین",
+        kit="/home/studio/kits/dotcoin-reels",
+        start=date(2026, 11, 17),
+        hours=("13:00", "13:00", "13:00", "13:00"),
+        story=False,  # (the page's stories are their own flow)
+        budget_tokens=10_000_000,
+        n8n="hqFlowDotcoinReels1",
+        trigger_at="00:30",
+        same_day=True,
+        usd_cap=Decimal("100"),
+        cycle=("آموزشی",),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        recipe="dotcoin",
+    ),
+    "dotcoin_reels_2": Flow(
+        key="dotcoin_reels_2",
+        company="IG",
+        account="dotcoin.me",
+        title_fa="ریلز اطلاع‌رسانی دات‌کوین",
+        kit="/home/studio/kits/dotcoin-reels",
+        start=date(2026, 11, 17),
+        hours=("20:30", "20:30", "20:30", "20:30"),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowDotcoinReels2",
+        trigger_at="15:00",  # (the day's news as late as the build allows)
+        same_day=True,
+        usd_cap=Decimal("100"),
+        cycle=("اطلاع‌رسانی",),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        pair="dotcoin_reels",
+        recipe="dotcoin",
+    ),
+    # ⟨2026-11-17⟩ the owner: «ریلز عکس نداریم اصلا، منظورم تعدادی عکس برای استوری که هم آموزشی باشه و در
+    # آینده هر وقت گفتم تبلیغاتی باشه» (12-15 a day), and «چت جی پی تی میتونه ۱۰ الی ۱۵ عکس رو یکجا
+    # طراحی بکنه و تحویل بده در اسلاید های مجزا»: the day's lesson in twelve slides from ONE ChatGPT
+    # chat (substitute.call images), one an hour or so through the day; a fresh reply word a day,
+    # answered with the lesson's summary
+    "dotcoin_stories": Flow(
+        key="dotcoin_stories",
+        company="IG",
+        account="dotcoin.me",
+        title_fa="استوری‌های آموزشی دات‌کوین",
+        kit="/home/studio/kits/dotcoin-stories",
+        start=date(2026, 11, 17),
+        hours=("09:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowDotcoinStories1",
+        trigger_at="04:00",
+        usd_cap=Decimal("60"),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        stories=DOTCOIN_STORY_HOURS,
+        same_day=True,
+        recipe="dotcoin",
     ),
     # the first reel, for the owner's eyes only: no account (nothing is published), no n8n
     "ipoxxo_pilot": Flow(
