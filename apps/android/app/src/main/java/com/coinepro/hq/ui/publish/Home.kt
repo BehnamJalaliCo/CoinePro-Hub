@@ -86,7 +86,7 @@ fun PublishTodayCard(modifier: Modifier = Modifier) {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("بعدی", style = Divan.type.micro, color = c.textMuted)
-                    Text(plain("${n.automationFa ?: "${pubKindFa(n.kind)} ${n.titleFa}"} · @${n.account} · ${faHour(n.at)}"),
+                    Text(plain("${faHour(n.at)} · ${n.automationFa ?: "${pubKindFa(n.kind)} ${n.titleFa}"} · @${n.account}"),
                         style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 countdownFa(n.at, HqClock.millis())?.let { Pill(it, Tone.GOLD, icon = DivanIcon.TIME) }

@@ -2,7 +2,6 @@ package com.coinepro.hq.core.data
 
 import com.coinepro.hq.core.format.OWNER_TZ
 import com.coinepro.hq.core.format.Tone
-import com.coinepro.hq.core.format.instant
 import com.coinepro.hq.core.net.PlannedItem
 import com.coinepro.hq.core.net.PubCalendarDay
 import com.coinepro.hq.core.net.Publication
@@ -16,6 +15,12 @@ import java.time.ZoneId
 // without a device; the Jalali calendar is the arithmetic one (no ICU), right for this era.
 
 private val TEHRAN: ZoneId = ZoneId.of(OWNER_TZ)
+
+/** An instant from the hub's ISO text (with or without its offset), without the formatting module's ICU (so the tests read it). */
+internal fun instant(iso: String?): Instant? = iso?.let { s ->
+    runCatching { Instant.parse(s) }.getOrNull() ?: runCatching { java.time.OffsetDateTime.parse(s).toInstant() }.getOrNull()
+        ?: runCatching { java.time.LocalDateTime.parse(s).atZone(java.time.ZoneOffset.UTC).toInstant() }.getOrNull()
+}
 private val FA_DIGITS = charArrayOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
 
 /** "09:30" → «۰۹:۳۰» ([faNum] of Playbooks.kt for a count). */

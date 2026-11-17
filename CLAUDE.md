@@ -107,7 +107,7 @@
   - `last.steps` در کارت تابلو اختیاری است؛ اگر هاب بفرستد، نوار رنگی زیر کارت روشن میشود.
 
 - **⟨۲۰۲۶-۱۱-۱۷⟩ «انتشار» و «اتوماسیون‌ها»، دو بخش اصلی اپ (قرارداد §۶۰ و §۶۱، v1.39):** از درخواست نسخه‌ی ۲ Claude سرور هاب.
-  - **ماکاپ D6:** ۲۱ قاب در `design/canvas/D6/` (بوم: https://claude.ai/artifact/GV26tyynUQMQgMezfTmkJs). منتظر تأیید مالک است؛ اندروید 1.3.0 بعد از تأیید ساخته میشود.
+  - **ماکاپ D6:** ۲۱ قاب در `design/canvas/D6/` (بوم: https://claude.ai/artifact/GV26tyynUQMQgMezfTmkJs). مالک تأیید کرد (۱۷ آبان) و اندروید 1.3.0 از روی آن ساخته شد، روی شاخه‌ی `ccr-52c47ceb-bbpt5d`.
   - **هاب:** بک‌اند را Claude سرور هاب طبق `docs/server-prompts/PROMPT_39_PUBLISH_AUTOMATIONS.md` میسازد و deploy میکند (P1، بعد P2).
   - هر انتشار یک ردیف دائمی در `media.publications` است و روندهای کدی هاب ردیف `automations.flows` میشوند، با ویرایش، نسخه و ساعت خود هاب.
 

@@ -37,6 +37,8 @@ class StreamTopicsTest {
         "money",
         // ⟨1.17⟩ §35.7: the company links (`links.`)
         "holding",
+        // ⟨1.39⟩ §60.4: the publications' rows (`publication.updated`)
+        "publish",
     )
 
     @Test

@@ -259,7 +259,7 @@ fun PublishCalendarScreen() {
                 when {
                     list == null -> item(key = "daysk") { Skeletons(2) }
                     list.isEmpty() && (dayInfo?.planned ?: 0) == 0 -> item(key = "dayempty") { Text("این روز چیزی نرفته و چیزی در برنامه نیست.", style = Divan.type.small, color = c.textSecondary) }
-                    else -> items(list, key = { "d-${it.ref}" }) { k -> TimeRow(k.at) { PubRow(k) } }
+                    else -> items(list.sortedBy { com.coinepro.hq.core.data.instant(it.at) }, key = { "d-${it.ref}" }) { k -> TimeRow(k.at) { PubRow(k) } }
                 }
                 if ((dayInfo?.planned ?: 0) > 0) item(key = "planned") {
                     com.coinepro.hq.designsystem.HqCard(Modifier.fillMaxWidth()) {

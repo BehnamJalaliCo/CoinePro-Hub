@@ -346,7 +346,13 @@ fun SaveBar(f: FlowDef, base: FlowDraft, draft: FlowDraft, o: FlowOptions, onErr
                 toasts.ok("نسخه‌ی ${faNum(out.version)} ذخیره شد")
             }
         }, icon = DivanIcon.SEAL, state = if (act.busy) com.coinepro.hq.designsystem.DecisionState.WORKING else com.coinepro.hq.designsystem.DecisionState.IDLE)
-    }) {
+    }) { DiffBody(f, changes, note) { note = it } }
+}
+
+/** «چه عوض میشود»: each change, before and after; when it holds; that nothing else is needed; a note; the version that stays. */
+@Composable
+internal fun DiffBody(f: FlowDef, changes: List<com.coinepro.hq.core.net.FlowChange>, note: String, onNote: (String) -> Unit) {
+    val c = Divan.colors
         Column(Modifier.testTag("diff-sheet"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             for (ch in changes) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(ch.labelFa, style = Divan.type.micro, color = c.textMuted)
@@ -356,14 +362,11 @@ fun SaveBar(f: FlowDef, base: FlowDraft, draft: FlowDraft, o: FlowOptions, onErr
                     Text(plain(ch.afterFa), style = Divan.type.body.copy(fontWeight = FontWeight.Bold), color = c.goldInk)
                 }
             }
-            f.next?.let { n ->
-                Text(plain("از کی: از دقیقه‌ی بعد؛ نوبت بعدی با همین تنظیم‌ها ساخته و منتشر میشود."), style = Divan.type.small)
-            }
+            if (f.next != null) Text(plain("از کی: از دقیقه‌ی بعد؛ نوبت بعدی با همین تنظیم‌ها ساخته و منتشر میشود."), style = Divan.type.small)
             Text("کار دیگری لازم نیست: ساعت هاب از دقیقه‌ی بعد همین را میخواند.", style = Divan.type.small, color = c.textSecondary)
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) {
-                HqTextField(note, { note = it }, "یادداشت این تغییر (اختیاری)", Modifier.fillMaxWidth(), maxLength = 200)
+                HqTextField(note, onNote, "یادداشت این تغییر (اختیاری)", Modifier.fillMaxWidth(), maxLength = 200)
             }
             Text("نسخه‌ی ${faNum(f.version)} میماند؛ هر وقت خواستی با یک لمس به آن برمیگردی.", style = Divan.type.micro, color = c.textMuted)
         }
-    }
 }

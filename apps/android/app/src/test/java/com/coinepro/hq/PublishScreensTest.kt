@@ -4,22 +4,23 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
-import com.coinepro.hq.core.net.Decision
-import com.coinepro.hq.core.net.FileRef
-import com.coinepro.hq.core.net.PublishPanel
-import com.coinepro.hq.core.net.SessionPublish
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.DivanTheme
 import com.coinepro.hq.ui.LocalEnv
@@ -27,21 +28,8 @@ import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Nav
 import com.coinepro.hq.ui.Toasts
-import com.coinepro.hq.ui.cartable.needsStepUp
-import com.coinepro.hq.ui.outputs.PUBLISH_SHEET_FA
-import com.coinepro.hq.ui.outputs.PUBLISH_SHEET_SUB_FA
-import com.coinepro.hq.ui.outputs.PublishDecisionBar
-import com.coinepro.hq.ui.outputs.PublishFields
-import com.coinepro.hq.ui.outputs.PublishSection
-import com.coinepro.hq.ui.outputs.PublishState
-import com.coinepro.hq.ui.outputs.kindsOf
-import com.coinepro.hq.ui.outputs.publishOf
-import com.coinepro.hq.ui.outputs.publishable
-import com.coinepro.hq.ui.rememberQuery
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -53,52 +41,74 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * ⟨0.19.8⟩ §44.5 «تأیید و انتشار» on a session's output, night and day, each on its own as the page shows it (the section sits
- * under the output's files, far down a long page): the reel and its cover, each a row with its quiet action (on the output's page
- * the first one is carried by the decision bar); the publish sheet the tap opens, as the shared spring sheet with «انتشار» in its
- * decision bar (which account, as what, the caption, the time, the comment word); and where each publish stands once he tapped (one
- * published with its link, one on its way, one Instagram refused, said plainly, with «دوباره»). Each is checked to show its words
- * before it is drawn.
+ * ⟨1.3.0⟩ Contracts §60 and §61 with the D6 mockup's day (the demo of [V60Demo], 2026-11-17 11:40 Tehran), night and day:
+ * - the home's two cards; the centre's today (sets as one row, a held story, «اکنون», what is still to be made), the desk under the
+ *   centre's tabs, the Jalali month, «منتظر شما», the archive by company and page, @zaribsad's grid by day, P-000214 whole, DotCoin's
+ *   twelve slides full screen, the search folding «بلاکچین»;
+ * - the board by company, AF-0001's overview, its editor with a day switched off and its save bar, «چه عوض میشود», its runs, versions
+ *   and health; the wizard at its kits and at its preview; the week.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w400dp-h900dp-xxhdpi")
+@Config(sdk = [35], qualifiers = "w400dp-h1800dp-xxhdpi")
 class PublishScreensTest(private val name: String, private val night: Boolean) {
-    /** [tap]: a node tapped once the scene has settled (its words), before it is checked and drawn. */
-    private class Scene(val ref: String, val sheet: Boolean, val shows: List<String>, val tap: String? = null)
+    private class Scene(
+        val shows: List<String>,
+        val hides: List<String> = emptyList(),
+        val act: ((SemanticsNodeInteractionsProvider, () -> Unit) -> Unit)? = null,
+        val content: @Composable () -> Unit,
+    )
 
     companion object {
-        private val SCREENS: Map<String, Scene> = linkedMapOf(
-            "output-publish" to Scene("O-000950", false, listOf("انتشار در اینستاگرام", "تأیید و انتشار", "gold-levels-reel.mp4", "کارت و اثر انگشت ندارد")),
-            "output-publish-sheet" to Scene("O-000950", true, listOf("به شکل", "ریلز", "استوری", "@coineprofx.academy", "کاور", "gold-levels-cover.webp", "بدون کاور", "اول حساب را انتخاب کن.", "تأیید و انتشار", "بی کارت و بی اثر انگشت")),
-            "output-publish-states" to Scene("O-000951", false, listOf("منتشر شد", "با کاور", "باز کن", "در حال انتشار", "سقف انتشار", "دوباره")),
-            // ⟨0.19.9⟩ §45 a working group's daily output (no session): it went out on the owner's standing word, and the sheet of a
-            // file of it opens with the package's own caption and cover
-            "output-publish-auto" to Scene("O-000952", false, listOf("خودکار", "منتشر شد", "استوری: در حال انتشار", "خروجی هر روز را خودکار منتشر میکند")),
-            "output-publish-auto-sheet" to Scene(
-                "O-000952", true,
-                // ⟨0.20.0⟩ §46 the time and the comment rule of this post, the package's own word and link already in place
-                listOf("@tradeyar", "ریلز", "gold-levels-cover.webp", "حد ضرر را در ۳۰ ثانیه یاد بگیر", "زمان", "ساعت مشخص", "کامنت و لینک", "۳۰", "tradeyar.com/learn"),
-            ),
-            // ⟨0.20.0⟩ §46 a reel set for this evening with its comment word, and a carousel of two files on its way
-            "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت \u206618:30\u2069", "کامنت «۷»", "اسلاید", "در حال انتشار")),
-            // ⟨1.0.1⟩ §51 a scheduled post taken back: a reel he can still cancel («لغو»), a post taken back («لغو شد», his to publish
-            // again), a story whose cancel is on its way, and a post IG-Hub would not cancel (he may try again)
-            "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "لغو شد", "در حال لغو", "لغو انجام نشد")),
-            // …asked once, in the row's own place
-            "output-publish-cancel-ask" to Scene("O-000954", false, listOf("این انتشار لغو شود؟", "لغو کن", "نه"), tap = "لغو"),
-            // ⟨1.0.1⟩ §49 «بهترین ساعت» among the sheet's times (chosen: what it rests on, «زمان‌بندی» in the bar with the hour in its
-            // one line), and §52 the quiet line under a cover that is no JPEG
-            "output-publish-best-sheet" to Scene(
-                "O-000952", true,
-                listOf("بهترین ساعت (", "21:00", "از روی لایک و کامنت", "زمان‌بندی", "این تصویر هنگام انتشار خودکار به"),
-                tap = "بهترین ساعت (",
-            ),
+        private val SCENES: Map<String, Scene> = linkedMapOf(
+            "d6-home" to Scene(listOf("انتشار امروز", "نگه‌داشته", "تازه‌ترین‌ها", "اتوماسیون‌ها", "ساخت بعدی", "هزینه‌ی امروز")) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    com.coinepro.hq.ui.publish.PublishTodayCard()
+                    com.coinepro.hq.ui.automation.AutomationsCard()
+                }
+            },
+            "d6-today" to Scene(listOf("مرکز انتشار", "منتظر شما", "اکنون", "۷ استوری امروز", "اندیکاتور", "صفحه بسته است", "ساخت ۱۴:۰۰")) { com.coinepro.hq.ui.publish.PublishTodayScreen() },
+            "d6-desk" to Scene(listOf("مرکز انتشار", "میز")) { com.coinepro.hq.ui.look.PublishDeskScreen() },
+            "d6-calendar" to Scene(listOf("آبان ۱۴۰۵", "۶ از ۳۰", "ساخته میشود")) { com.coinepro.hq.ui.publish.PublishCalendarScreen() },
+            "d6-waiting" to Scene(listOf("منتظر شما", "فدرال رزرو و بازار امروز", "این بار نه"), hides = listOf("سقف را")) { com.coinepro.hq.ui.publish.PublishWaitingScreen() },
+            "d6-archive" to Scene(listOf("تریدیار", "@zaribsad", "استوری ۵۱", "IG-Hub", "@dotcoin.me")) { com.coinepro.hq.ui.publish.PublishArchiveScreen() },
+            "d6-page" to Scene(listOf("@zaribsad", "امروز", "دیروز", "زی‌کش", "ناموفق")) { com.coinepro.hq.ui.publish.PublishPageScreen("zaribsad") },
+            "d6-item" to Scene(listOf("زی‌کش؛ حریم خصوصی در بلاک‌چین", "کپشن", "کلمه‌ی کامنت", "پیام دایرکت", "جواب‌های عمومی", "ساخته‌شده با", "reel.mp4", "بینش")) {
+                com.coinepro.hq.ui.publish.PublicationScreen("P-000214")
+            },
+            "d6-set" to Scene(listOf("اسلاید ۳ از ۱۲", "«سرد»")) { com.coinepro.hq.ui.publish.StorySetScreen("P-000301") },
+            "d6-search" to Scene(listOf("زی‌کش؛ حریم خصوصی", "کیف پول سرد"), act = { c, _ -> c.onAllNodesWithTag("pub-search")[0].performTextInput("بلاکچین") }) {
+                com.coinepro.hq.ui.publish.PublishSearchScreen()
+            },
+            "d6-board" to Scene(listOf("اتوماسیون‌ها", "تریدیار", "ریلز چرخشی ضریب صد", "دور ۴ هفته", "هزینه‌ی امروز")) { com.coinepro.hq.ui.automation.FlowsBoardScreen() },
+            "d6-overview" to Scene(listOf("ریلز روزانه‌ی پروچارت", "نمای کلی", "انتشار بعدی", "همین حالا بساز")) { com.coinepro.hq.ui.automation.FlowDefScreen("AF-0001") },
+            "d6-settings" to Scene(listOf("ساعت انتشار", "هفته‌ی ۴", "روزهای هفته", "شروع ساخت", "هشدار هزینه‌ی روز", "۱ تغییر"), act = { c, _ -> c.onAllNodesWithText("ج")[0].performClick() }) {
+                com.coinepro.hq.ui.automation.FlowDefScreen("AF-0001", tab0 = "settings")
+            },
+            // the sheet opens in its own window: its body here, over the page, as the owner sees it
+            "d6-diff" to Scene(listOf("چه عوض میشود", "ساعت انتشار", "روزهای هفته", "نسخه‌ی ۳ میماند")) {
+                val f = com.coinepro.hq.ui.rememberQuery("test-flowdef", "flows") { flowDef("AF-0001") }.data
+                if (f != null) {
+                    val before = com.coinepro.hq.core.data.flowDraftOf(f)
+                    val after = before.copy(hours = listOf("10:00") + before.hours.drop(1), days = before.days - 6)
+                    com.coinepro.hq.designsystem.SpringSheetPreview("چه عوض میشود", sub = "نسخه‌ی ۴", fill = true) {
+                        com.coinepro.hq.ui.automation.DiffBody(f, com.coinepro.hq.core.data.draftChanges(before, after) { "Opus 5.5" }, "") {}
+                    }
+                }
+            },
+            "d6-runs" to Scene(listOf("هزینه‌ی هر روز", "اندیکاتور", "رد شد")) { com.coinepro.hq.ui.automation.FlowDefScreen("AF-0001", tab0 = "runs") },
+            "d6-versions" to Scene(listOf("برگشت به این نسخه", "سرور هاب", "در کار")) { com.coinepro.hq.ui.automation.FlowDefScreen("AF-0001", tab0 = "versions") },
+            "d6-health" to Scene(listOf("سلامت", "هشدارها", "بسته شد")) { com.coinepro.hq.ui.automation.FlowDefScreen("AF-0001", tab0 = "health") },
+            "d6-wizard" to Scene(listOf("اتوماسیون تازه", "قالب", "ریلز خبری", "کیت تازه میخواهی؟")) { com.coinepro.hq.ui.automation.NewFlowScreen("dotcoin.me", step0 = 1) },
+            "d6-wizard-preview" to Scene(listOf("ساعت‌ها", "مدل و هزینه", "پیش‌نمایش", "بساز و روشن کن")) {
+                com.coinepro.hq.ui.automation.NewFlowScreen("dotcoin.me", step0 = 4, kit0 = "dotcoin-news")
+            },
+            "d6-week" to Scene(listOf("خلاصه‌ی هفته", "انتشار هر روز", "@zaribsad", "بهترین")) { com.coinepro.hq.ui.automation.FlowWeekScreen() },
         )
 
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
-        fun params(): List<Array<Any>> = SCREENS.keys.flatMap { listOf(arrayOf<Any>(it, true), arrayOf<Any>(it, false)) }
+        fun params(): List<Array<Any>> = SCENES.keys.flatMap { listOf(arrayOf<Any>(it, true), arrayOf<Any>(it, false)) }
     }
 
     @get:Rule
@@ -108,23 +118,18 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
 
     @Before
     fun setUp() {
-        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
-        // ⟨1.0.1⟩ the files of a session and of an output are drawn as they are (their pictures and posters)
-        picturesOn()
+        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-17T08:10:00Z")
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.link.setForeground(false)
         graph.enterDemo()
         DemoLive.servers?.still = true
     }
 
-    private fun settle(times: Int) = repeat(times) {
+    private fun settle(rounds: Int) = repeat(rounds) {
         Thread.sleep(200)
         shadowOf(Looper.getMainLooper()).idle()
         compose.mainClock.advanceTimeBy(250)
     }
-
-    @org.junit.After
-    fun tearDown() = picturesOff()
 
     @Test
     fun screen() {
@@ -132,7 +137,7 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             override fun go(route: String) = Unit
             override fun back() = Unit
         }
-        val scene = SCREENS.getValue(name)
+        val scene = SCENES.getValue(name)
         compose.mainClock.autoAdvance = false
         compose.setContent {
             DivanTheme(night) {
@@ -140,26 +145,14 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
                     LocalEnv provides graph.env.value, LocalToasts provides Toasts(), LocalNav provides nav,
                     com.coinepro.hq.designsystem.LocalReducedMotion provides true,
                 ) {
-                    val q = rememberQuery("deliverable:${scene.ref}", "deliverables") { deliverable(scene.ref) }
-                    val panel = rememberQuery("publish-panel:${scene.ref}", "publish") { publishPanel(scene.ref) }
-                    val d = q.data
-                    val p = panel.data
-                    if (d != null && scene.sheet && p != null) {
-                        // the sheet as it stands over its page: the fields, and its one act stuck to its bottom
-                        val s = androidx.compose.runtime.remember(d, p) { PublishState(d, publishable(d).first(), p) }
-                        com.coinepro.hq.designsystem.SpringSheetPreview(PUBLISH_SHEET_FA, sub = PUBLISH_SHEET_SUB_FA, bar = { PublishDecisionBar(s, false) {} }, fill = true) { PublishFields(s) }
-                    } else Column(Modifier.fillMaxSize().background(Divan.colors.page).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (d != null) PublishSection(d)
-                    }
+                    Box(Modifier.fillMaxSize().background(Divan.colors.page)) { scene.content() }
                 }
             }
         }
-        settle(16)
-        scene.tap?.let { t ->
-            compose.onAllNodesWithText(t, substring = true)[0].performClick()
-            settle(6)
-        }
-        for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())
+        settle(20)
+        scene.act?.let { it(compose) { settle(8) }; settle(10) }
+        for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        for (t in scene.hides) assertTrue("$name does not show «$t»", compose.onAllNodesWithText(t, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         compose.onRoot().captureRoboImage(
             "src/test/screenshots/$name-${if (night) "night" else "day"}.png",
             roborazziOptions = RoborazziOptions(
@@ -167,62 +160,5 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
                 compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.002f),
             ),
         )
-    }
-}
-
-/** ⟨0.19.8⟩ §44.4, §44.5 the rules behind the section (no screen). */
-class PublishRulesTest {
-    private fun card(kind: String, cls: String) =
-        com.coinepro.hq.core.net.Api.json.decodeFromString(
-            Decision.serializer(),
-            """{"id":"d1","ref":"D-000001","company":"FX","kind":"$kind","title":"t","action_class":"$cls","status":"pending","proposer":{"kind":"agent","code":"FX-MEDIA-01"},"created_at":"2026-11-10T00:00:00Z"}""",
-        )
-
-    @Test
-    fun whatGoesOutAndCanBeTakenBackIsATap() {
-        assertFalse(needsStepUp(card("media_publish", "A3")))
-        // the passkey stays for money, deleting for good, keys and access, a destructive command
-        for ((kind, cls) in listOf("hire" to "A2", "budget_change" to "A2", "server_destructive" to "A3", "line_publish" to "A3", "a3_action" to "A3")) {
-            assertTrue(kind, needsStepUp(card(kind, cls)))
-        }
-    }
-
-    @Test
-    fun aVideoIsAReelOrAStoryAndTheNewestPublishOfAFileIsItsState() {
-        assertEquals(listOf("reel", "story"), kindsOf(FileRef(id = "v", kind = "video")))
-        assertEquals(listOf("post", "story"), kindsOf(FileRef(id = "i", kind = "image")))
-        val panel = PublishPanel(
-            order = "F-0100",
-            publishes = listOf(SessionPublish(job = "2", fileId = "v", state = "published"), SessionPublish(job = "1", fileId = "v", state = "failed")),
-        )
-        assertEquals("published", publishOf(panel, "v")?.state)
-        assertEquals(null, publishOf(panel, "i"))
-        // ⟨0.19.9⟩ the same video as a reel and (newer) as a story: the reel is the row, the story a line under it
-        val both = PublishPanel(publishes = listOf(
-            SessionPublish(job = "4", fileId = "v", kind = "story", state = "publishing", auto = true),
-            SessionPublish(job = "3", fileId = "v", kind = "reel", state = "published", auto = true),
-            SessionPublish(job = "5", fileId = "s", kind = "story", state = "failed"),
-        ))
-        assertEquals("reel", publishOf(both, "v")?.kind)
-        assertEquals("publishing", com.coinepro.hq.ui.outputs.storyOf(both, "v")?.state)
-        assertEquals("story", publishOf(both, "s")?.kind)
-        assertEquals(null, com.coinepro.hq.ui.outputs.storyOf(both, "s"))
-        // ⟨0.20.0⟩ §46 with other files in the output, a carousel too; the time he set, in the owner's zone; a comment rule needs both
-        assertEquals(listOf("reel", "story", "carousel"), kindsOf(FileRef(id = "v", kind = "video"), 2))
-        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
-        assertEquals("2026-11-06T18:30:00+03:30", com.coinepro.hq.ui.outputs.scheduledIso(0, "۱۸:۳۰"))
-        assertEquals("2026-11-07T09:05:00+03:30", com.coinepro.hq.ui.outputs.scheduledIso(1, "9:05"))
-        assertEquals(null, com.coinepro.hq.ui.outputs.scheduledIso(0, "25:00"))
-        com.coinepro.hq.core.format.HqClock.fixed = null
-        assertEquals(listOf("۷", "هفت"), com.coinepro.hq.ui.outputs.commentOf("۷، هفت", " لینک ", "http://x")!!.keywords)
-        assertEquals(null, com.coinepro.hq.ui.outputs.commentOf("۷", " لینک ", "http://x")!!.link)
-        assertTrue(com.coinepro.hq.ui.outputs.commentHalf("۷", "", ""))
-        assertTrue(com.coinepro.hq.ui.outputs.commentHalf("", "", "https://x.test"))
-        assertFalse(com.coinepro.hq.ui.outputs.commentHalf("", "", ""))
-        assertFalse(com.coinepro.hq.ui.outputs.commentHalf("۷", "سلام", ""))
-        assertEquals("18:30", com.coinepro.hq.core.data.clockOf(" ۱۸:۳۰ "))
-        assertEquals("09:05", com.coinepro.hq.core.data.clockOf("9:05"))
-        assertEquals(null, com.coinepro.hq.core.data.clockOf("18"))
-        assertEquals("cover.png", com.coinepro.hq.ui.outputs.coverOf(listOf(FileRef(id = "a", name = "chart.png", kind = "image"), FileRef(id = "b", name = "cover.png", kind = "image")))?.name)
     }
 }

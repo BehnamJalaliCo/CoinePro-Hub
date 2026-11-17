@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -273,7 +274,7 @@ private fun WizardHour(label: String, value: String, onChange: (String) -> Unit)
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = Divan.type.small, modifier = Modifier.weight(1f))
         Box(Modifier.clip(RoundedCornerShape(12.dp)).background(c.softGold).border(1.dp, c.goldFill, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp)) {
-            HqTextField(text, { t -> text = t; clockOf(t)?.let(onChange) }, "18:00", Modifier.size(width = 64.dp, height = 24.dp), maxLength = 5, figure = true)
+            HqTextField(text, { t -> text = t; clockOf(t)?.let(onChange) }, "18:00", Modifier.width(72.dp), maxLength = 5, figure = true)
         }
     }
 }
