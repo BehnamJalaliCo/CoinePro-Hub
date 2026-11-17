@@ -64,7 +64,7 @@ GRANT USAGE ON SEQUENCE automations.flow_ref_seq TO {APP_ROLES};
 CREATE TABLE automations.flows (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     ref            text NOT NULL UNIQUE
-                   DEFAULT 'AF-' || lpad(nextval('automations.flow_ref_seq')::text, 4, '0'),
+                   DEFAULT core.pad_ref('AF-', nextval('automations.flow_ref_seq'), 4),
     key            text NOT NULL UNIQUE CHECK (key ~ '^[a-z][a-z0-9_]{{0,40}}$'),
     company_id     uuid NOT NULL REFERENCES core.companies (id),
     channel        text NOT NULL DEFAULT 'instagram' CHECK (channel ~ '^[a-z][a-z0-9_]{{1,30}}$'),

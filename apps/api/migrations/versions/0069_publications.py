@@ -52,7 +52,7 @@ GRANT USAGE ON SEQUENCE media.publication_ref_seq TO {APP_ROLES};
 CREATE TABLE media.publications (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     ref            text NOT NULL UNIQUE
-                   DEFAULT 'P-' || lpad(nextval('media.publication_ref_seq')::text, 6, '0'),
+                   DEFAULT core.pad_ref('P-', nextval('media.publication_ref_seq'), 6),
     company_id     uuid NOT NULL REFERENCES core.companies (id),
     channel        text NOT NULL DEFAULT 'instagram'
                    CHECK (channel IN ('instagram', 'youtube', 'telegram', 'website')),
