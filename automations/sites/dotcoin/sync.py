@@ -178,8 +178,29 @@ def norm(s) -> str:
     return re.sub(r"[\s‌‏‎؟?،,.:;!«»\"'()|-]+", "", s)
 
 
-def topics(meta: dict) -> set[str]:
-    return {norm(meta.get(k)) for k in ("keyword", "title") if norm(meta.get(k))}
+def topics(meta: dict, aliases: bool = False) -> set[str]:
+    """The topic keys of an article: its keyword and title; with `aliases`, also its `keywords`
+    (a lesson's own near-synonyms, e.g. «رمز ارز چیست» for «ارز دیجیتال چیست»)."""
+    vals = [meta.get("keyword"), meta.get("title")]
+    if aliases:
+        kw = meta.get("keywords")
+        vals += kw if isinstance(kw, list) else str(kw or "").split("،" if "،" in str(kw or "") else ",")
+    return {norm(v) for v in vals if norm(v)}
+
+
+def same_lesson(meta: dict, lessons: dict[str, dict]) -> str | None:
+    """The lesson already on the site that this reel's article is about: the same slug, the same
+    idea (ideas.json id) or the same topic. Such a reel joins that lesson (never a second article)."""
+    slug = str(meta.get("slug") or "")
+    if slug in lessons:
+        return slug
+    idea = str(meta.get("idea") or "")
+    if idea.isdigit():
+        hit = next((s for s, m in lessons.items() if str(m.get("idea") or "") == idea), None)
+        if hit:
+            return hit
+    mine = topics(meta)
+    return next((s for s, m in lessons.items() if mine & topics(m, aliases=True)), None) if mine else None
 
 
 def validate(text: str, taken: set[str]) -> tuple[dict, list[str], list[str]]:
@@ -197,7 +218,7 @@ def validate(text: str, taken: set[str]) -> tuple[dict, list[str], list[str]]:
     if not SLUG_RE.fullmatch(slug or "") or slug in RESERVED or slug.startswith("what-is"):
         errs.append(f"bad slug {slug[:40]!r}")
     elif slug in taken:
-        errs.append(f"slug {slug} is taken")
+        errs.append(f"slug {slug} is taken: if this reel teaches that lesson, write only `attach: {slug}`")
     if m.get("pillar") not in PILLARS:
         errs.append("bad pillar")
     if m.get("motif") not in MOTIFS:
@@ -478,21 +499,28 @@ def ingest(state: dict, fid: str, ws: str, raw: bytes, job: dict, dry: bool, liv
         meta = parse(text)[0]
     except (UnicodeDecodeError, ValueError) as e:
         return skip(f"unreadable: {e}")
-    # `attach: <slug>`: the reel's lesson is already on the site (written by hand before the reel)
-    if meta.get("attach"):
-        slug = str(meta["attach"]).strip()
+    def join(slug: str, how: str) -> str:
+        """Bind this reel (its video, later its Short) to a lesson already on the site."""
         if own and own != slug:
             return skip(f"this reel already has its article {own}")
         if slug not in local_articles():
             return skip(f"attach: no lesson {slug}")
         if (k := owner_of(state, slug)) and k != key:
-            return skip(f"attach: {slug} already belongs to {k}")
+            return skip(f"{how}: {slug} already belongs to {k}")
         if not dry:
             state["sources"][key] = {**src, "key": key, "slug": slug, "job": job.get("job"), "w": ws}
-            state["files"][fid] = {"w": ws, "status": "ok", "slug": slug, "attach": True}
-        log(f"reel {ws} -> existing lesson {slug}")
+            state["files"][fid] = {"w": ws, "status": "ok", "slug": slug, "attach": True, "how": how}
+        log(f"reel {ws} -> existing lesson {slug} ({how})")
         return ""
+
+    # `attach: <slug>`: the reel's lesson is already on the site (written by hand before the reel)
+    if meta.get("attach"):
+        return join(str(meta["attach"]).strip(), "attach")
     others = local_articles(skip=own or "")
+    # a full article about a lesson that is already there (same slug, idea or topic): the reel joins
+    # that lesson instead of becoming a second article on the same topic
+    if not own and (hit := same_lesson(meta, others)):
+        return join(hit, "same lesson")
     taken = set(others) | ((live or set()) - ({own} if own else set()))
     meta, errs, warns = validate(text, taken)
     slug = meta.get("slug") or ""
