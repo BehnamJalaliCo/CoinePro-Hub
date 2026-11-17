@@ -325,7 +325,8 @@ fun FlowWeekScreen() {
             })
         }
         when {
-            !more -> item(key = "old") { Empty("خلاصه‌ی هفته با به‌روزرسانی بعدی هاب می‌آید", icon = DivanIcon.CHART) }
+            // a hub before §61 P2 reads `/automations/week` as §59's automation «week»: its own 404 is the same «not yet»
+            !more || (w == null && q.error?.status == 404) -> item(key = "old") { Empty("خلاصه‌ی هفته با به‌روزرسانی بعدی هاب می‌آید", icon = DivanIcon.CHART) }
             w == null && q.error != null -> item(key = "error") { ErrorBlock(q.error, { q.refresh() }) }
             w == null -> item(key = "sk") { Skeleton(Modifier.fillMaxWidth().height(320.dp), radius = 18.dp) }
             else -> {
