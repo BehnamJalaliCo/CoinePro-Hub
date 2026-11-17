@@ -29,6 +29,8 @@ Never prints a cookie, a token or a screenshot (a failed step's screenshot is sa
     youtube.py --dry-run             find, build the title and description, print them; upload nothing
     youtube.py --task channel|titles one read-only job in the profile (its text printed)
     youtube.py --only W-000583       limit the pass to one reel
+    youtube.py --only W-000583 --unlisted   a check upload: Unlisted (state `unlisted`; no article link)
+    youtube.py --make-public W-000583       an Unlisted check upload made Public (then `done`)
 """
 from __future__ import annotations
 
@@ -263,10 +265,14 @@ except httpx.HTTPError as e:
 
 
 def egress(task: str, prompt: str, timeout_s: int, *, description: str | None = None,
-           video: Path | None = None) -> dict:
+           video: Path | None = None, visibility: str | None = None, video_id: str | None = None) -> dict:
     job: dict = {"account": PROFILE, "task": task, "prompt": prompt, "timeout_s": timeout_s}
     if description:
         job["description"] = description
+    if visibility:
+        job["visibility"] = visibility
+    if video_id:
+        job["video_id"] = video_id
     if video is not None:
         job["file_name"] = "dotcoin-short.mp4"
     with tempfile.TemporaryFile() as stdin:
@@ -380,12 +386,12 @@ def sync_slugs() -> dict[str, str]:
     return {k: str(v["slug"]) for k, v in src.items() if SLUG_RE.fullmatch(str(v.get("slug") or ""))}
 
 
-def one(state: dict, row: dict, slugs: dict[str, str], dry: bool) -> None:
+def one(state: dict, row: dict, slugs: dict[str, str], dry: bool, unlisted: bool = False) -> None:
     source = f"instagram:{row['w']}"
     key = f"{CHANNEL}|{source}"
     up = state["uploads"].setdefault(key, {"source": source, "w": row["w"]}) if not dry else \
         dict(state["uploads"].get(key) or {})
-    if up.get("status") in ("done", "exists", "check", "failed"):
+    if up.get("status") in ("done", "unlisted", "exists", "check", "failed"):
         return
     other = next((k for k, u in state["uploads"].items() if k != key and u.get("sha") == row["sha"]), None)
     if other:
@@ -420,14 +426,16 @@ def one(state: dict, row: dict, slugs: dict[str, str], dry: bool) -> None:
         up["tries"] = up.get("tries", 0) + 1
         up["tried_at"] = now()
         save_state(state)  # a crash from here on still counts the try
-        ans = egress("upload", title, 600, description=desc, video=work / "short.mp4")
+        ans = egress("upload", title, 600, description=desc, video=work / "short.mp4",
+                     visibility="unlisted" if unlisted else "public")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     text = str(ans.get("text_md") or "")
     m = YT_URL.search(text)
     if ans.get("ok") and m:
-        up.update(status="done", url=f"https://youtube.com/shorts/{m.group(1)}", video_id=m.group(1), at=now())
-        log(f"{row['w']}: uploaded {up['url']}")
+        up.update(status="unlisted" if unlisted else "done", url=f"https://youtube.com/shorts/{m.group(1)}",
+                  video_id=m.group(1), at=now())
+        log(f"{row['w']}: uploaded{' (Unlisted)' if unlisted else ''} {up['url']}")
         return
     step = str(ans.get("step") or "")
     late = ans.get("ok") or (step.split(":", 1)[0].isdigit() and int(step.split(":", 1)[0]) >= publish_step())
@@ -443,7 +451,24 @@ def one(state: dict, row: dict, slugs: dict[str, str], dry: bool) -> None:
         log(f"{row['w']}: upload failed, tried again next run ({why(ans)})")
 
 
+def make_public(state: dict, w: str) -> int:
+    up = state["uploads"].get(f"{CHANNEL}|instagram:{w}") or {}
+    if up.get("status") != "unlisted" or not up.get("video_id"):
+        log(f"{w}: no Unlisted check upload in the state")
+        return 1
+    ans = egress("public", "public", 150, video_id=up["video_id"])
+    if not ans.get("ok"):
+        log(f"{w}: not made Public ({why(ans)})")
+        return 1
+    up.update(status="done", public_at=now())
+    save_state(state)
+    log(f"{w}: Public {up['url']}")
+    return 0
+
+
 def one_pass(args) -> int:
+    if args.make_public:
+        return make_public(load_state(), args.make_public)
     if args.task:
         ans = egress(args.task, "read", 90)
         log(json.dumps({k: v for k, v in ans.items() if k != "file"}, ensure_ascii=False, indent=1))
@@ -459,11 +484,11 @@ def one_pass(args) -> int:
     for row in published_reels():
         if args.only and row["w"] != args.only:
             continue
-        if state["uploads"].get(f"{CHANNEL}|instagram:{row['w']}", {}).get("status") in ("done", "exists", "check",
-                                                                                          "failed"):
+        if state["uploads"].get(f"{CHANNEL}|instagram:{row['w']}", {}).get("status") in (
+                "done", "unlisted", "exists", "check", "failed"):
             continue
         try:
-            one(state, row, slugs, args.dry_run)
+            one(state, row, slugs, args.dry_run, unlisted=args.unlisted)
         except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
             log(f"{row['w']}: {str(e)[:200]} (tried again next run)")
         if not args.dry_run and json.dumps(state, sort_keys=True) != before:
@@ -493,7 +518,11 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--task", choices=("channel", "titles"))
     ap.add_argument("--only")
+    ap.add_argument("--unlisted", action="store_true")
+    ap.add_argument("--make-public", dest="make_public")
     args = ap.parse_args()
+    if args.unlisted and not args.only:
+        ap.error("--unlisted is a check upload of one reel: give --only W-…")
     HOME.mkdir(parents=True, exist_ok=True)
     with open(LOCK, "w") as lock:
         try:
