@@ -148,16 +148,19 @@ async def test_the_desk_follows_an_output_from_ready_to_published(
         assert r.status_code == 200, r.text
         return r.json()
 
-    # 1. ready, before the company's path is set: a card with no action
+    # 1. ⟨1.39⟩ §60.3 no card before the company's path is set (nothing to tap); then ready
+    d = await desk()
+    assert d["ready"] == [] and d["queue"] == [] and d["done"] == [] and d["held"] == []
+    rn = await connected(client, hub, owner_session, ig, co)
     d = await desk()
     [card] = d["ready"]
     assert d["queue"] == [] and d["done"] == []
     assert card["output"] == output and card["order"] == order and card["company"] == co
     assert card["kind"] == "reel" and card["file"]["id"] == reel and card["cover"]["id"] == cover
-    assert card["state"] == "ready" and card["publish"] is None and card["route_ready"] is False
+    assert card["state"] == "ready" and card["publish"] is None and card["route_ready"] is True
+    assert card["group_fa"] and card["title_fa"] != "reel.mp4"
 
-    # 2. the path is set; he sets it for a time: it waits in the queue, one row for it
-    rn = await connected(client, hub, owner_session, ig, co)
+    # 2. he sets it for a time: it waits in the queue, one row for it
     later = datetime.now(UTC) + timedelta(hours=5)
     r = await tap(client, owner, order, {"output": output, "file_id": reel, "caption": "سه سطح",
                                          "cover_file_id": cover, "scheduled_at": later.isoformat()})  # fmt: skip

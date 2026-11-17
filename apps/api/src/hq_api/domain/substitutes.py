@@ -2128,8 +2128,10 @@ def template_prompt(brief: str, placement: str, kind: str, duration: int | None)
 REFERENCE_MAX = 10
 # ⟨2026-11-17⟩ what every set of slides asks ChatGPT, whatever its brief says
 SLIDES_NOTE = (
-    "Make exactly {n} separate images in this one answer, one per slide, in order (slide 1 first): "
-    "each its own full picture, never a grid, a collage or a contact sheet of several slides."
+    "IMPORTANT: generate {n} separate images now, one per slide, one after another in this answer "
+    "(slide 1 first, then slide 2 … up to slide {n}): each its own full picture, never a grid, a "
+    "collage, a contact sheet or a sheet of objects. Do not ask anything first and do not stop "
+    "before all {n} are made. If you must stop, the next message says «continue»."
 )
 
 
@@ -2178,7 +2180,10 @@ async def create_creative(
     # ⟨2026-11-17⟩ a set of slides is designed whole, its words by ChatGPT as the brief asks (the
     # session checks every letter)
     if images > 1:
-        prompt = f"{prompt_md.rstrip()}\n\n{SLIDES_NOTE.format(n=images)}"
+        # ⟨2026-11-17⟩ first, then again last: CR-0142 (the note only at the end) came back as one
+        # sheet of objects for twelve slides
+        note = SLIDES_NOTE.format(n=images)
+        prompt = f"{note}\n\n{prompt_md.rstrip()}\n\n{note}"
     else:
         prompt = prompt_md if refs or NO_TEXT in prompt_md else f"{prompt_md.rstrip()}\n{NO_TEXT}"
     found = await holder(tx, "creative", player, kind)
@@ -2866,6 +2871,8 @@ async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> in
             }
         else:
             extra: dict[str, Any] = {"files": files} if files else {}
+            if int(c.get("images") or 1) > 1:
+                extra["limit"] = int(c["images"])  # (the slides task asks again until it has them)
             if int(c.get("attempt") or 1) > 1:
                 extra["reload"] = True
             answer = await egress.web(

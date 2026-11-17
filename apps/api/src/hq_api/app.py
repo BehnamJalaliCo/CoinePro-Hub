@@ -71,6 +71,7 @@ from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
 from hq_api.routes import automation_board as board_routes  # ⟨1.37⟩ §59.9-§59.10 board, day
+from hq_api.routes import automation_flows as automation_flow_routes  # ⟨1.39⟩ §61.3
 from hq_api.routes import automations as automation_routes  # prompt 22 part 3: §31.7
 from hq_api.routes import campaigns as campaign_routes  # prompt 22 part 3: §31.5
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
@@ -98,6 +99,7 @@ from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: �
 from hq_api.routes import office as office_routes  # prompt 25: §35.5 the owner's office
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import playbooks as playbook_routes  # ⟨1.22⟩ §40 a session's playbook
+from hq_api.routes import publications as publication_routes  # ⟨1.39⟩ §60 the publish centre
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import routines as routine_routes  # ⟨1.31⟩ §50 a routine from one sentence
@@ -337,6 +339,8 @@ def create_app(
     # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
     # ⟨1.37⟩ §59 the flow automations, the board and the owner's day (before /automations/{ref}),
     # a company's links and a flow's replies; n8n's tick and summary
+    # ⟨1.39⟩ §61 the automations as data (/automations/flows…, before /automations/{ref})
+    app.include_router(automation_flow_routes.router, prefix="/api/v1")
     app.include_router(flow_auto_routes.router, prefix="/api/v1")
     app.include_router(flow_auto_routes.internal_router, prefix="/internal/v1")
     app.include_router(board_routes.router, prefix="/api/v1")
@@ -370,6 +374,7 @@ def create_app(
     app.include_router(narrator_routes.internal_router, prefix="/internal/v1")
     app.include_router(routine_routes.router, prefix="/api/v1")
     app.include_router(look_routes.router, prefix="/api/v1")
+    app.include_router(publication_routes.router, prefix="/api/v1")
     # ⟨1.20⟩ §38: hub operations (hub.ops, its dispatcher) and the owner's services page
     app.include_router(hubops_routes.router, prefix="/api/v1")
     app.include_router(hubops_routes.internal_router, prefix="/internal/v1")

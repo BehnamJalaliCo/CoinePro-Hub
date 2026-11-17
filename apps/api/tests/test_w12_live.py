@@ -87,6 +87,7 @@ def test_the_holding_view_passes_the_live_events_in_full() -> None:
         "server.state", "network.link", "holding.flow", "employee.state", "llm.tick",
         "session.updated", "session.activity", "control.changed", "links.updated",
         "activity.changed", "session.team",  # ⟨1.35⟩ §57.4
+        "publication.updated",  # ⟨1.39⟩ §60.2 the publish centre
     } == HOLDING_FULL  # fmt: skip
     for type_ in HOLDING_FULL:
         env = {"id": "x", "type": type_, "at": "t", "company": "AB", "ref": "r", "data": {"a": 1}}

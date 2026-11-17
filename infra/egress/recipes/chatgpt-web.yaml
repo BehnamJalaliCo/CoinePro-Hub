@@ -48,7 +48,7 @@
 # and an unnamed twin of the same blob; the site's file addresses (estuary, oaiusercontent) stay
 # as a last fallback. The last such image is the made one (a cover's attached files come first).
 key: chatgpt-web
-version: "2026-11-17.1"
+version: "2026-11-17.2"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -170,7 +170,7 @@ tasks:
       - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
-      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 1400}
+      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 600}
       - do: wait
         selector: >-
           [data-testid=copy-turn-action-button], [data-testid=good-response-turn-action-button],
@@ -178,6 +178,16 @@ tasks:
         timeout_s: 20
         optional: true
       - {do: pause, ms: 4000}
+      # 2026-11-17.2: the first real set (CR-0142) came back as ONE sheet of objects for twelve
+      # slides: the rest are asked for in the same chat, one by one, until the set is whole
+      - do: more_images
+        selector: >-
+          img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
+          img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
+        composer: "div[contenteditable=true]"
+        busy: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']"
+        timeout_s: 1300
+      - {do: pause, ms: 3000}
       - do: download_images
         selector: >-
           img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],

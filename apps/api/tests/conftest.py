@@ -9,6 +9,7 @@ each test that needs isolation creates its own company (`new_company`).
 
 from __future__ import annotations
 
+import asyncio
 import os
 import secrets
 import string
@@ -85,6 +86,18 @@ def _run(module: str, cwd: Path, user: str, password_var: str, extra_path: str) 
 def migrated() -> None:
     _run("llm_router.migrate", ROUTER_DIR, "hq", "HQ_DB_PASSWORD", "/w/llm-router/src")
     _run("hq_api.migrate", API_DIR, "hq", "HQ_DB_PASSWORD", "/api/src")
+    asyncio.run(_flows_off())
+
+
+async def _flows_off() -> None:
+    """⟨1.39⟩ §61.2 the hub's clock starts every automations.flows row that is `on`; migration 0070
+    seeded the code flows of the companies the test DB has (and a test DB outlives a run): a test
+    turns on only its own flows."""
+    conn = await superuser()
+    try:
+        await conn.execute("UPDATE automations.flows SET state = 'off', paused_until = NULL")
+    finally:
+        await conn.close()
 
 
 def settings(**over: Any) -> Settings:

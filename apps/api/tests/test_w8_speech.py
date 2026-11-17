@@ -28,6 +28,7 @@ from hq_api import audit
 from hq_api.domain import speech_make as SM
 from hq_api.hub import Hub
 from hq_api.lines.adapters import _common as C
+from hq_api.lines.adapters import tts
 
 from .conftest import agent_headers, idem
 from .test_p13a_media import hire
@@ -151,7 +152,9 @@ async def test_refusals_come_before_anything_leaves(
     co = await new_company()
     writer = await hire(su, co, "scriptwriter")
     r = await make(client, writer, {"text_fa": "متن", "voice": "Nobody"})
-    assert r.status_code == 422 and "Kore" in r.json()["message_fa"], r.text
+    # (the refusal names the first prebuilt voices, ⟨2026-11-16⟩ Arlo's list since eebe59b7)
+    first = tts.DOCUMENTED[0][0]
+    assert r.status_code == 422 and first in r.json()["message_fa"], r.text
     r = await make(client, writer, {"text_fa": "با من تماس بگیر: ali.rezaei@example.com"})
     assert r.status_code == 403 and r.json()["message_fa"], r.text
     r = await make(client, writer, {"text_fa": "متن", "style": "sk-ant-api03-" + "Q" * 40})

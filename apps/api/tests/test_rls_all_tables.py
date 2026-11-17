@@ -48,6 +48,7 @@ SCHEMAS = (
     "growth",
     "feedback",
     "intake",
+    "automations",  # ⟨1.39⟩ §61 the flows, their versions and alerts are each company's
     # prompt 11 §1-§2: the meeting room and the charter (knowledge.entries is in "knowledge");
     # §4-§10: the cards, OKRs, outcomes, risks, the calendar, batches
     "meetings",
@@ -1602,6 +1603,13 @@ async def _fill_w20(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO files.opened (file_id, company_id) VALUES (gen_random_uuid(), $1)", c
     )
+    # ⟨1.39⟩ §60.1 (migration 0069): a publication, kept for good
+    await su.execute(
+        """INSERT INTO media.publications (company_id, account, kind, state, title_fa, chain)
+           VALUES ($1, 'rls.account', 'reel', 'published', 'سه سطح طلا',
+                   ARRAY[gen_random_uuid()])""",
+        c,
+    )
     # ⟨1.37⟩ §59.5, §59.9 (migration 0066): a company's links, and what a flow run's post did
     await su.execute(
         """INSERT INTO growth.site_links (company_id, site)
@@ -1624,6 +1632,28 @@ async def _fill_w20(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO growth.run_results (run_id, company_id, likes) VALUES ($1, $2, 3)", run, c
     )
+
+
+async def _fill_p39(su: Any, co: dict[str, Any]) -> None:
+    """⟨1.39⟩ §61 (migration 0070): a flow of company `co`, its version and an alert."""
+    c = co["id"]
+    flow = await su.fetchval(
+        """INSERT INTO automations.flows (key, company_id, account, title_fa, kit, kind, schedule,
+               usd_cap, budget_tokens, state)
+           VALUES ('rls_' || substr(md5(random()::text), 1, 10), $1, 'rls.page', 'rls', '/kit',
+                   'reel', '{"hours": ["12:00"], "trigger_at": "09:00", "start": "2026-11-17"}', 5,
+                   1000, 'off') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO automations.flow_versions (company_id, flow_id, version, by_kind, by_code,
+               by_fa, body) VALUES ($1, $2, 1, 'system', 'hub', 'rls', '{}')""",
+        c, flow,
+    )  # fmt: skip
+    await su.execute(
+        "INSERT INTO automations.alerts (company_id, flow_id, kind, note_fa) VALUES ($1, $2, 'late', 'rls')",
+        c, flow,
+    )  # fmt: skip
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
@@ -1653,6 +1683,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p22(su, b)
     await _fill_p24(su, b)
     await _fill_w20(su, b)
+    await _fill_p39(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

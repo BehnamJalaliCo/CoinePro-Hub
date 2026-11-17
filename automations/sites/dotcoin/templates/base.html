@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fa" dir="rtl" data-page="{{page_kind}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>if(location.hostname==="www.dotcoin.me")location.replace("https://dotcoin.me"+location.pathname+location.search+location.hash);(function(){var d=document.documentElement,t;try{t=localStorage.getItem("dc-theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}d.setAttribute("data-theme",t);d.className+=" js"})()</script>
+<title>{{seo_title}}</title>
+<meta name="description" content="{{description}}">
+<link rel="canonical" href="{{canonical}}">
+{{robots}}<meta name="author" content="{{author}}">
+<meta name="theme-color" content="#F3C242" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="{{og_type}}">
+<meta property="og:site_name" content="{{site_name}}">
+<meta property="og:locale" content="fa_IR">
+<meta property="og:title" content="{{og_title}}">
+<meta property="og:description" content="{{og_description}}">
+<meta property="og:url" content="{{canonical}}">
+<meta property="og:image" content="{{og_image}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{og_title}}">
+{{og_extra}}<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{og_title}}">
+<meta name="twitter:description" content="{{og_description}}">
+<meta name="twitter:image" content="{{og_image}}">
+<link rel="icon" href="/assets/img/favicon.ico" sizes="48x48">
+<link rel="icon" href="/assets/img/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="alternate" type="application/rss+xml" title="{{site_name}}" href="/feed.xml">
+<link rel="preload" href="/assets/fonts/yekan-950.woff2{{v}}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/yekan-400.woff2{{v}}" as="font" type="font/woff2" crossorigin>
+<style>{{css}}</style>
+{{jsonld}}
+</head>
+<body class="{{body_class}}">
+<a class="skip" href="#main">رفتن به محتوا</a>
+<div class="progress" aria-hidden="true"><i></i></div>
+<header class="hdr" id="top">
+  <div class="wrap hdr-in">
+    <a class="brand" href="/" aria-label="دات‌کوین، صفحه‌ی اصلی">
+      <img src="/assets/img/logo-96.webp{{v}}" width="40" height="40" alt="" class="brand-logo">
+      <span class="brand-word" dir="ltr">DOTCOIN<b>.</b>ME</span>
+    </a>
+    <nav class="nav" aria-label="منوی اصلی">
+      {{nav}}
+    </nav>
+    <div class="hdr-tools">
+      <button class="tbtn theme-btn" type="button" aria-label="تغییر حالت روشن و تیره" title="روشن / تیره">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle class="sun" cx="12" cy="12" r="4.2"/><g class="rays"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M5.2 18.8l1.6-1.6M17.2 6.8l1.6-1.6"/></g><path class="moon" d="M20 14.2A8 8 0 0 1 9.8 4a8 8 0 1 0 10.2 10.2z"/></svg>
+      </button>
+      <a class="btn btn-ig hdr-ig" href="{{instagram}}" target="_blank" rel="noopener">{{ig_icon}}<span>اینستاگرام</span></a>
+      <button class="tbtn menu-btn" type="button" aria-label="منو" aria-expanded="false" aria-controls="drawer"><i></i><i></i></button>
+    </div>
+  </div>
+</header>
+<div class="drawer" id="drawer" hidden>
+  <nav class="drawer-nav" aria-label="منوی موبایل">{{drawer}}</nav>
+  <div class="drawer-foot"><a href="{{instagram}}" target="_blank" rel="noopener">Instagram</a><a href="{{youtube}}" target="_blank" rel="noopener">YouTube</a></div>
+</div>
+<main id="main">
+{{main}}
+</main>
+<footer class="ftr">
+  <div class="wrap">
+    <div class="ftr-top">
+      <div class="ftr-brand">
+        <img src="/assets/img/logo-192.webp{{v}}" width="64" height="64" alt="لوگوی دات‌کوین" loading="lazy">
+        <p><b>دات‌کوین</b> — آموزش کریپتو به فارسی ساده، از بهنام جلالی.</p>
+      </div>
+      <nav class="ftr-links" aria-label="پیوندهای پایین صفحه">
+        <div><h2>سایت</h2>{{foot_nav}}</div>
+        <div><h2>درس‌ها</h2>{{foot_lessons}}</div>
+        <div><h2>همراه ما</h2><a href="{{instagram}}" target="_blank" rel="noopener">اینستاگرام</a><a href="{{youtube}}" target="_blank" rel="noopener">یوتیوب</a><a href="/feed.xml">خوراک RSS</a></div>
+      </nav>
+    </div>
+    <div class="ftr-giant" aria-hidden="true" dir="ltr" style="--fit:{{ftr_fit}}"><span>DOTCOIN</span><b>.</b><span>ME</span></div>
+    <div class="ftr-bottom"><span>© {{year_fa}} دات‌کوین</span><a href="#top" class="totop">بازگشت به بالا ↑</a></div>
+  </div>
+</footer>
+<script src="/assets/js/site.js{{v}}" defer></script>
+</body>
+</html>

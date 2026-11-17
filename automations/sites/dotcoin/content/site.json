@@ -1,0 +1,35 @@
+{
+  "name": "DotCoin.me",
+  "name_fa": "دات‌کوین",
+  "url": "https://dotcoin.me",
+  "locale": "fa_IR",
+  "lang": "fa-IR",
+  "author": "بهنام جلالی",
+  "author_en": "Behnam Jalali",
+  "instagram": "https://www.instagram.com/dotcoin.me",
+  "instagram_handle": "dotcoin.me",
+  "youtube": "https://www.youtube.com/@DotCoin-me",
+  "tagline": "آموزش کریپتو به فارسی ساده",
+  "title_suffix": " | دات‌کوین",
+  "pillars_en": {
+    "basics": "BASICS",
+    "security": "SECURITY",
+    "exchange": "EXCHANGES",
+    "market": "MARKET",
+    "defi": "DEFI",
+    "myths": "MYTHS",
+    "terms": "TERMS"
+  },
+  "ideas": "../../kits/dotcoin-reels/bank/ideas.json",
+  "today": "blockchain",
+  "path": [
+    "blockchain|بلاک‌چین چیست؟",
+    "bitcoin|بیت‌کوین چیست؟",
+    "coin-vs-token|تفاوت کوین و توکن",
+    "stablecoin|استیبل‌کوین چیست؟",
+    "cold-wallet|کیف‌پول سرد و گرم",
+    "seed-phrase|عبارت بازیابی (سید فریز)",
+    "usdt-networks|تتر را با کدام شبکه بفرستیم؟",
+    "cex-vs-dex|صرافی متمرکز و غیرمتمرکز"
+  ]
+}

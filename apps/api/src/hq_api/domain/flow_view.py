@@ -39,16 +39,31 @@ def ref_of(key: str) -> str:
     return f"N8:{key}"
 
 
-def flow_of(ref: str) -> FL.Flow | None:
+def key_of(ref: str) -> str | None:
+    """The key of an `N8:<key>` ref (None: not one)."""
     m = REF.fullmatch(ref)
-    return FL.FLOWS.get(m.group(1)) if m else None
+    return m.group(1) if m else None
 
 
-def load(ref: str) -> FL.Flow:
-    flow = flow_of(ref)
+async def flow_of(tx: Tx, ref: str) -> FL.Flow | None:
+    """⟨1.39⟩ `N8:<key>` resolves to its row of automations.flows (§61.1), so the apps of 1.2.0
+    keep their refs; None: not such a ref, or no such flow."""
+    key = key_of(ref)
+    return await FL.flow_by_key(tx, key) if key else None
+
+
+async def load(tx: Tx, ref: str) -> FL.Flow:
+    flow = await flow_of(tx, ref)
     if flow is None:
         raise ApiError(404, "not_found", f"no automation {ref}")
     return flow
+
+
+async def state_of(tx: Tx, flow: FL.Flow) -> str:
+    """on · off · paused: a row's own state; a flow with no row is off when flows_off names it."""
+    if flow.ref:
+        return flow.state
+    return "off" if await FL.is_off(tx, flow) else "on"
 
 
 def not_here() -> ApiError:
@@ -194,8 +209,8 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             _step("pictures", txt["pictures"][0], "workshop", "gpt", out=txt["pictures"][1],
                   rules=(("بی انیمه، بی جمله‌ی هشدار",) if "pictures" not in own else ()))
             if "pictures" in txt
-            else _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop",
-                       "gpt", out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
+            else _step("pictures", f"{n} عکس واقعی با ChatGPT و Gemini".translate(FA_DIGITS), "workshop",
+                       "gpt", out="هر استوری از هر دو، بهترینش؛ بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
             _step("compose", txt["compose"][0] if "compose" in txt
                   else "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
                   out=f"story_1.jpg تا story_{n}.jpg".translate(FA_DIGITS)),
@@ -392,6 +407,7 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
         o=order,
     )
     usd = await FL.spent_usd(tx, str(d["ref"]))
+    flow = await FL.flow_by_key(tx, str(meta.get("key") or ""))
     tokens = await tx.scalar(
         """SELECT COALESCE(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
@@ -420,7 +436,7 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     return {"meta": meta, "turns": [dict(t) for t in turns], "files": newest, "jobs": jobs,
             "scheduled": scheduled, "out": out, "failed": failed, "rules": rules,
             "said": [dict(x) for x in said], "usd": usd, "tokens": int(tokens or 0),
-            "reel_url": reel_url, "dropped": bool(post) and not live}  # fmt: skip
+            "reel_url": reel_url, "dropped": bool(post) and not live, "flow": flow}  # fmt: skip
 
 
 def _ext(j: dict[str, Any]) -> str:
@@ -432,7 +448,7 @@ def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
     """The day as a run: queued · running · waiting · done · failed · cancelled, and one line."""
     meta = f["meta"]
     running = any(t["state"] in ("queued", "running") for t in f["turns"])
-    flow = FL.FLOWS.get(str(meta.get("key")))
+    flow = f.get("flow")
     if flow is not None and flow.stories and (f["out"] or f["scheduled"]):
         # ⟨2026-11-15⟩ the day's stories: done when none is still waiting for its hour
         posts = [j for j in f["jobs"] if j["kind"] == "story" and not j["rule"]]
@@ -492,7 +508,7 @@ async def run_ref(tx: Tx, hub: Any, d: dict[str, Any]) -> FS.FlowRunRef:
 async def runs(
     tx: Tx, hub: Any, ref: str, limit: int = 20, before: str | None = None
 ) -> FS.FlowRuns:
-    flow = load(ref)
+    flow = await load(tx, ref)
     days = await _days(tx, flow, limit + 1, before)
     items = [await run_ref(tx, hub, d) for d in days[:limit]]
     nxt = items[-1].ref if len(days) > limit and items else None
@@ -539,10 +555,18 @@ async def _company(tx: Tx, flow: FL.Flow) -> dict[str, Any]:
     return dict(row) if row is not None else {"id": None, "code": flow.company, "name_fa": ""}
 
 
+def _paused_at(flow: FL.Flow) -> datetime | None:
+    """A paused row's `paused_until` (a Tehran day) as the instant it ends."""
+    if flow.state != "paused" or flow.paused_until is None:
+        return None
+    return datetime.combine(flow.paused_until, time(0, 0), _tz()).astimezone(UTC)
+
+
 async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
-    flow = load(ref)
+    flow = await load(tx, ref)
     co = await _company(tx, flow)
-    off = flow.key in await FL.off_keys(tx)
+    state = await state_of(tx, flow)
+    off = state != "on"
     days = await _days(tx, flow, 1)
     last = await run_ref(tx, hub, days[0]) if days else None
     n, usd = await _today_cost(tx, flow)
@@ -563,7 +587,7 @@ async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
     return FS.FlowAutomation(
         ref=ref, kind="flow", company=flow.company, company_fa=co["name_fa"] or "",
         playbook=None, version=None, line=None, title_fa=flow.title_fa,
-        state="off" if off else "on",
+        state=state, paused_until=_paused_at(flow),
         schedule=FS.FlowSchedule(mode="fixed", at=flow.trigger_at, when_fa=when_fa(flow, tomorrow)),
         account=flow.account, story=flow.story, mode="auto",
         budget=FS.FlowBudget(per_run_usd=float(flow.usd_cap), per_day_usd=float(flow.usd_cap),
@@ -577,13 +601,13 @@ async def render(tx: Tx, hub: Any, ref: str) -> FS.FlowAutomation:
 
 async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardItem]:
     out = []
-    off = await FL.off_keys(tx)
-    for key, flow in FL.FLOWS.items():
+    for key, flow in (await FL.active_flows(tx)).items():
         if company and company != flow.company:
             continue
         if not flow.account:
             continue  # ⟨2026-11-15⟩ a test flow (it publishes nothing): not an automation of the board
         co = await _company(tx, flow)
+        state = await state_of(tx, flow)
         days = await _days(tx, flow, 1)
         last = await run_ref(tx, hub, days[0]) if days else None
         day = await day_run(tx, hub, last.ref, with_files=False) if last else None
@@ -593,12 +617,12 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
         out.append(FS.BoardItem(
             ref=ref_of(key), kind="n8n", title_fa=flow.title_fa, company=flow.company,
             company_fa=co["name_fa"] or None, when_fa=when_fa(flow, tomorrow),
-            state="off" if key in off else "on", switchable=True,
+            state=state, switchable=True,
             last=FS.BoardLast(
                 at=last.at, state=last.state, note_fa=last.note_fa,
                 steps=[FS.BoardStep(key=s.key, state=s.state) for s in day.steps] if day else None,
             ) if last else None,
-            next_at=None if key in off else trig, cost_today_usd=usd,
+            next_at=None if state != "on" else trig, cost_today_usd=usd,
             opens=f"automation/{ref_of(key)}",
         ))  # fmt: skip
     return out
@@ -613,10 +637,10 @@ async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> stor
     d = await _day_by_order(tx, order)
     if d is None:
         return None
-    flow = FL.FLOWS.get(str(d["flow"].get("key")))
+    f = await _facts(tx, d)
+    flow = f["flow"]
     if flow is None:
         return None
-    f = await _facts(tx, d)
     state, note = _state(d, f)
     co = await _company(tx, flow)
     files = (

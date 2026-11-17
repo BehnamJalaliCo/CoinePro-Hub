@@ -1,0 +1,112 @@
+# YouTube Studio in the hub's browser profile `youtube-web` (2026-11-17): DotCoin.me's reels go
+# out once each as a public Short on the owner's channel @DotCoin-me (the YouTube API keeps an
+# unaudited app's uploads private, so the browser comes first). The owner's own Google account:
+# the profile began as a copy of `aistudio-web` (same account); `make youtube-web-login` is the
+# owner's fallback sign-in. A reviewed file.
+#   channel  read only: Studio opened, the active channel's name read
+#   titles   read only: the channel's content list (a duplicate check before an upload)
+#   upload   the job's video (its one file) as a Short: title = the job's prompt, description =
+#            the job's description, not made for kids, the job's visibility (PUBLIC or UNLISTED;
+#            a job without one stops before it), then the video's link read
+#   public   an uploaded video (the job's video_id) made Public on its Studio page
+# Driven by automations/sites/dotcoin/youtube.py (a host timer), never by an agent.
+key: youtube-web
+version: "2026-11-17.4"
+site: studio.youtube.com
+start_url: "https://studio.youtube.com/"
+hosts:
+  - studio.youtube.com
+  - youtube.com
+  - upload.youtube.com
+  - googlevideo.com
+  - ytimg.com
+  - ggpht.com
+  - gstatic.com
+  - googleapis.com
+  - googleusercontent.com
+  # the Google session's own upkeep (cookie rotation, the account menu)
+  - accounts.google.com
+  - accounts.youtube.com
+  - www.google.com
+  - apis.google.com
+  - play.google.com
+login_hosts:
+  - gds.google.com
+  - consent.google.com
+  - consent.youtube.com
+  - ogs.google.com
+  - myaccount.google.com
+  # 2026-11-17: the owner's YouTube sign-in broke on Google's consent page and its country domain
+  - policies.google.com
+  - accounts.google.co.uk
+  - accounts.google.de
+  # 2026-11-17: the same Google account (dotcoin.me) holds dotcoin.me's Search Console (domain property + sitemap)
+  - search.google.com
+expired:
+  url_contains: ["accounts.google.com", "ServiceLogin"]
+  hosts: [accounts.google.com]
+  selectors:
+    - "a[href*='ServiceLogin']"
+tasks:
+  channel:
+    timeout_s: 90
+    steps:
+      - {do: goto, url: "{start_url}"}
+      - {do: wait, selector: "ytcp-navigation-drawer, #entity-name", state: attached, timeout_s: 60}
+      - {do: pause, ms: 3000}
+      - {do: read, selector: "ytcp-navigation-drawer #entity-name", alt: ["ytcp-navigation-drawer", "body"]}
+  titles:
+    # the channel's public Shorts (a duplicate check before an upload): their titles as text
+    timeout_s: 90
+    steps:
+      - {do: goto, url: "https://www.youtube.com/@DotCoin-me/shorts"}
+      - {do: wait, selector: "ytd-rich-grid-renderer, ytd-browse", state: attached, timeout_s: 45}
+      - {do: pause, ms: 3000}
+      - {do: read, selector: "ytd-rich-grid-renderer #contents", alt: ["ytd-browse #contents", "body"]}
+  upload:
+    timeout_s: 600
+    steps:
+      # the upload dialog of the active channel (Studio's own route)
+      - {do: goto, url: "https://www.youtube.com/upload"}
+      - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
+      - {do: attach, selector: "input[type=file]", timeout_s: 60}
+      # the details step: title (the job's prompt) and description, both rich text boxes
+      - {do: wait, selector: "#title-textarea #textbox", timeout_s: 180}
+      - {do: pause, ms: 2000}
+      - {do: fill, selector: "#title-textarea #textbox", text: "{prompt}"}
+      - {do: fill, selector: "#description-textarea #textbox", text: "{description}"}
+      - {do: click, selector: "tp-yt-paper-radio-button[name='VIDEO_MADE_FOR_KIDS_NOT_MFK']", timeout_s: 30}
+      - {do: pause, ms: 1500}
+      # details -> video elements -> checks -> visibility
+      - {do: click, selector: "#next-button", timeout_s: 30}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "#next-button", timeout_s: 30}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "#next-button", timeout_s: 30}
+      - {do: wait, selector: "tp-yt-paper-radio-button[name='{visibility}']", timeout_s: 30}
+      - {do: click, selector: "tp-yt-paper-radio-button[name='{visibility}']"}
+      - {do: pause, ms: 1500}
+      # the file is sent before the dialog closes (a closed page would end the upload)
+      - {do: wait, selector: "ytcp-video-upload-progress[upload-progress-ended], ytcp-video-info a", state: attached, timeout_s: 300}
+      - {do: read, selector: "ytcp-video-info a", alt: [".video-url-fadeable a"]}
+      - {do: click, selector: "#done-button", timeout_s: 30}
+      # the "published" dialog and its link (the answer)
+      - {do: wait, selector: "ytcp-video-share-dialog, ytcp-uploads-still-processing-dialog", state: attached, timeout_s: 120}
+      - {do: pause, ms: 3000}
+      - {do: read, selector: "ytcp-video-share-dialog #share-url", alt: ["ytcp-video-info a", ".video-url-fadeable a"]}
+  public:
+    # NOT yet run on the live page (2026-11-17): the video's details page, its visibility menu,
+    # Public, the menu's Done, the page's Save
+    timeout_s: 150
+    steps:
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: wait, selector: "ytcp-video-metadata-visibility, #visibility-select", state: attached, timeout_s: 60}
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "ytcp-video-metadata-visibility #select-button, ytcp-video-metadata-visibility", timeout_s: 20}
+      - {do: wait, selector: "tp-yt-paper-radio-button[name='PUBLIC']", timeout_s: 20}
+      - {do: click, selector: "tp-yt-paper-radio-button[name='PUBLIC']"}
+      - {do: click, selector: "ytcp-video-visibility-select #save-button, #save-button", timeout_s: 20}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "ytcp-button#save, #save", timeout_s: 20}
+      - {do: pause, ms: 4000}
+      - {do: read, selector: "ytcp-video-metadata-visibility", alt: ["ytcp-video-info", "body"]}

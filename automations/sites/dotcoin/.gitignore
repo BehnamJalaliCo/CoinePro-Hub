@@ -1,0 +1,6 @@
+# Built output and private brand assets (fonts, the owner's logo and every file made from it):
+# never committed; deploy.sh makes them from the studio kits at build time.
+dist/
+private/
+.venv/
+__pycache__/

@@ -144,6 +144,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.37⟩ §59.11 topic `automations`: automation.run, .step, .changed, .summary (they still
     # reach `growth` too, as automation.run always did)
     "automations": ("automation.",),
+    # ⟨1.39⟩ §60.4 topic `publish`: publication.updated (a row of the publish centre changed)
+    "publish": ("publication.",),
 }
 
 

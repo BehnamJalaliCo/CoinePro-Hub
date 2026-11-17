@@ -316,14 +316,14 @@ async def test_a_routines_output_goes_out_and_a_held_one_keeps_an_open_tech_work
         cid,
     )
     assert told == 0
-    # the working group's page says it (the run's line), and so does the desk card
+    # the working group's page says it (the run's line); ⟨1.39⟩ §60.3 the desk has no card for a
+    # company without a publishing path (nothing to tap there)
     r = await client.get(f"/api/v1/groups/{g['key']}/runs", headers=owner_session["headers"],
                          params={"company": co})  # fmt: skip
     assert any(x["note_fa"] == SPB.WAIT_SETUP_FA for x in r.json()["items"]), r.json()
     async with await all_tx(hub) as tx:
         desk = await PD.desk(tx, hub, cid)
-    card = next(c for c in desk.ready if c.output == held["output"])
-    assert card.route_ready is False
+    assert all(c.output != held["output"] for c in desk.ready)
     # review 3: the hook after a deliver and the groups' tick never both send one run (it is
     # locked for the call; the other says "busy")
     async with await all_tx(hub) as tx:

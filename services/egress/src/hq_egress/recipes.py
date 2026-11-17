@@ -21,24 +21,66 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web")
-Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
+ACCOUNTS = (
+    "chatgpt-web",
+    "gemini-web",
+    "deepseek-web",
+    "aistudio-web",
+    "pinterest-web",
+    "youtube-web",
+)
+Account = Literal[
+    "chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web", "youtube-web"
+]
 # prompt 22 (production lines): `tts` (speech in AI Studio: the audio file), `search`
 # (Pinterest, read only: the pins as JSON text) and `cover` (an image made from the files the
 # job carries) join the substitutes' three tasks. ⟨2026-11-17⟩ `slides`: several images made in
 # ONE chat (the owner: ChatGPT designs 10-15 story slides at once, each a picture of its own).
-TASKS = ("text", "image", "video", "tts", "search", "cover", "slides")
-TaskName = Literal["text", "image", "video", "tts", "search", "cover", "slides"]
+# ⟨2026-11-17⟩ YouTube Studio (youtube-web): `channel` reads the active channel, `titles` the
+# channel's video titles (a duplicate check), `upload` publishes the job's video as a Short (its
+# title the prompt, its description the job's `description`, its visibility the job's), `public`
+# makes an uploaded video (the job's `video_id`) Public.
+TASKS = (
+    "text",
+    "image",
+    "video",
+    "tts",
+    "search",
+    "cover",
+    "slides",
+    "channel",
+    "titles",
+    "upload",
+    "public",
+)
+TaskName = Literal[
+    "text",
+    "image",
+    "video",
+    "tts",
+    "search",
+    "cover",
+    "slides",
+    "channel",
+    "titles",
+    "upload",
+    "public",
+]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 # The longest a task may wait for its answer (image 3 min, video 10 min, a set of slides 25 min).
 TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300,
-              "slides": 1500}  # fmt: skip
+              "slides": 1500, "channel": 120, "titles": 120, "upload": 600,
+              "public": 180}  # fmt: skip
+# ⟨2026-11-17⟩ the largest file a task's job carries, where it is over egress's web_file_bytes
+# (a Short's video: about 6 Mbit/s for up to two minutes)
+TASK_FILE_BYTES = {"upload": 96 * 1024 * 1024}
 # the most pictures one `download_images` takes (a day's story slides)
 MAX_IMAGES = 15
 
 
 # What a `fill` may type: the job's prompt or its style note (never a literal from the recipe).
-FILL_TEXTS = ("{prompt}", "{style}", "{voice}")  # ⟨2026-11-13⟩ a voice typed into a search box
+# ⟨2026-11-13⟩ a voice typed into a search box; ⟨2026-11-17⟩ a video's description (YouTube)
+FILL_TEXTS = ("{prompt}", "{style}", "{voice}", "{description}")
 
 
 class RStep(BaseModel):
@@ -57,6 +99,9 @@ class RStep(BaseModel):
         "read",  # the last match of selector -> the answer's text
         "download_image",  # the last match's `attr` (src) -> the original file
         "download_images",  # ⟨2026-11-17⟩ every made picture of the answer, in order (<= 15)
+        # ⟨2026-11-17⟩ while the chat holds fewer made pictures (`selector`) than the job's `limit`,
+        # ask in the same chat for the next one (typed into `composer`, done when `busy` is gone)
+        "more_images",
         "download",  # click selector -> the file the site sends
         # prompt 22
         "select",  # choose the option named by the job's `voice` in the control `selector`
@@ -77,6 +122,9 @@ class RStep(BaseModel):
     # ⟨20.1⟩ `read` only: other selectors tried in turn when `selector` matches
     # nothing (a structural one first, a labelled one after: lesson of 19.3)
     alt: list[str] | None = Field(default=None, max_length=4)
+    # ⟨2026-11-17⟩ `more_images` only: the chat's input and its "still answering" control
+    composer: str | None = Field(default=None, max_length=500)
+    busy: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
     def _needs(self) -> RStep:
@@ -90,11 +138,15 @@ class RStep(BaseModel):
         if self.do == "press" and not self.key:
             raise ValueError("press needs a key")
         if self.do == "fill" and self.text not in FILL_TEXTS:
-            raise ValueError("fill types the prompt, the style or the voice only")
+            raise ValueError("fill types the prompt, the style, the voice or the description only")
         if self.do == "select" and self.text != "{voice}":
             raise ValueError("select chooses the job's voice only")
         if self.alt is not None and self.do != "read":
             raise ValueError("alt is for read only")
+        if (self.composer is not None or self.busy is not None) != (self.do == "more_images"):
+            raise ValueError("composer and busy are for more_images, which needs both")
+        if self.do == "more_images" and not (self.composer and self.busy):
+            raise ValueError("more_images needs composer and busy")
         if any(not a or len(a) > 500 for a in self.alt or []):
             raise ValueError("an alt selector is 1-500 characters")
         return self

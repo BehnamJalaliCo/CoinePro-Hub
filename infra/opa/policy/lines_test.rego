@@ -76,3 +76,15 @@ test_a_budget_past_the_envelope_needs_the_step_up if {
 		"context": {"step_up": true},
 	}
 }
+
+# ⟨1.39⟩ §61.3 an automation's row (`AF-…`): the owner's taps, nobody else's
+test_an_automations_row_is_the_owners if {
+	every op in {"flow.state", "flow.pause", "flow.skip", "flow.run", "flow.update"} {
+		lines.allow with input as {"principal": owner, "op": op, "target": {"automation": "AF-0001"}}
+		not lines.allow with input as {"principal": agent, "op": op, "target": {"automation": "AF-0001"}}
+	}
+	not lines.allow with input as {
+		"principal": owner, "op": "flow.update",
+		"target": {"automation": "AF-0001", "budget_rise": true, "over_envelope": true},
+	}
+}

@@ -33,6 +33,7 @@ import logging
 import os
 import re
 import shutil
+import socket
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -52,7 +53,14 @@ from hq_egress import browser as B
 from hq_egress.hosts import covered
 
 log = logging.getLogger("hq_egress.browser_web")
-ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web")
+ACCOUNTS = (
+    "chatgpt-web",
+    "gemini-web",
+    "deepseek-web",
+    "aistudio-web",
+    "pinterest-web",
+    "youtube-web",
+)
 SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
 # 2026-10-29 (the owner): jobs in a real window on the image's Xvfb, as the
 # owner's sign-in window, not the headless shell the sites' bot check turns
@@ -60,6 +68,8 @@ SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
 HEADED = os.environ.get("BROWSER_WEB_HEADED", "0") == "1"
 XVFB_DISPLAY = ":99"
 PROFILES = Path(os.environ.get("BROWSER_WEB_PROFILES", "/profiles"))
+# ⟨2026-11-17⟩ a job's large attached file (an upload's video) while the page sends it
+SPOOL = PROFILES / ".spool"
 LOGIN_S = 15 * 60
 STEP_S = 30.0
 # ⟨1.10.1⟩ a player's answer is read whole; this only stops a page gone wrong,
@@ -73,8 +83,12 @@ LOGIN_PAGES = {
     # prompt 22: AI Studio (the owner's Google account; speech) and Pinterest (read only)
     "aistudio-web": "https://aistudio.google.com/",
     "pinterest-web": "https://www.pinterest.com/",
+    # ⟨2026-11-17⟩ YouTube Studio (the owner's Google account: DotCoin.me's Shorts)
+    "youtube-web": "https://studio.youtube.com/",
 }
-Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
+Account = Literal[
+    "chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web", "youtube-web"
+]
 B64_JS = """async (u) => {
   const r = await fetch(u);
   const b = new Uint8Array(await r.arrayBuffer());
@@ -122,6 +136,12 @@ class JobIn(BaseModel):
     style: str | None = None
     limit: int = Field(default=10, ge=1, le=30)
     files: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+    # ⟨2026-11-17⟩ an upload's description (YouTube; the title is the prompt), its visibility (a
+    # selector's `{visibility}`: PUBLIC or UNLISTED) and an uploaded video's id (`{video_id}` in
+    # a goto's url)
+    description: str | None = Field(default=None, max_length=5000)
+    visibility: Literal["public", "unlisted"] | None = None
+    video_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
 
 
 class RunIn(B.RunIn):
@@ -146,16 +166,77 @@ def fail(error: str, detail: str, step: str | None = None) -> dict[str, Any]:
 
 
 STALE_LOCK_S = 20 * 60
+# ⟨2026-11-17⟩ until when the profile is open (epoch seconds), written by whoever opens it (a job
+# here, the owner's sign-in window in its own container): another container's lock is live only
+# while this says so
+OPEN_MARK = ".hq-open-until"
 
 
-def clear_stale_lock(profile: Path, now: float | None = None) -> None:
-    """A window or job that died leaves Chromium's Singleton* lock behind (it
-    names the dead container), and Chromium then refuses the profile. A lock
-    older than 20 minutes is stale: a job or a sign-in window lasts at most 15."""
+def _lock_owner(profile: Path) -> tuple[str, int] | None:
+    """Chromium's SingletonLock names its holder `<hostname>-<pid>`; None when there is none."""
+    try:
+        target = os.readlink(profile / "SingletonLock")
+    except OSError:
+        return None
+    host, _, pid = target.rpartition("-")
+    return host, int(pid) if pid.isdigit() else 0
+
+
+def _alive(pid: int) -> bool:
+    """Whether a process of this container runs under `pid` (a zombie does not)."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    with contextlib.suppress(OSError, IndexError):
+        stat = Path(f"/proc/{pid}/stat").read_text()
+        return stat.rsplit(")", 1)[1].split()[0] != "Z"
+    return True
+
+
+def _open_until(profile: Path) -> float:
+    try:
+        return float((profile / OPEN_MARK).read_text().strip())
+    except (OSError, ValueError):
+        return 0.0
+
+
+def mark_open(profile: Path, seconds: float, now: float | None = None) -> None:
     now = time.time() if now is None else now
+    with contextlib.suppress(OSError):
+        (profile / OPEN_MARK).write_text(f"{now + seconds:.0f}")
+
+
+def unmark_open(profile: Path) -> None:
+    with contextlib.suppress(OSError):
+        (profile / OPEN_MARK).unlink()
+
+
+def clear_stale_lock(profile: Path, now: float | None = None, host: str | None = None) -> None:
+    """A window or job that died leaves Chromium's Singleton* lock behind (it
+    names the dead container), and Chromium then refuses the profile. The lock
+    is stale, and removed before a launch: ⟨2026-11-17⟩ at once when another
+    container holds it and no open mark of its own says it is still open (the
+    owner's sign-in window left one pointing at its own dead hostname, and the
+    next job failed with TargetClosedError), or when its process here is gone;
+    in any case once it is older than 20 minutes (a job or a sign-in window
+    lasts at most 15, a set of slides 25 under the account's own lock)."""
+    now = time.time() if now is None else now
+    host = socket.gethostname() if host is None else host
+    owner = _lock_owner(profile)
+    if owner is None:
+        dead = False
+    elif owner[0] == host:
+        dead = not _alive(owner[1])
+    else:
+        dead = _open_until(profile) < now
     for p in profile.glob("Singleton*"):
         with contextlib.suppress(OSError):
-            if now - p.lstat().st_mtime > STALE_LOCK_S:
+            if dead or now - p.lstat().st_mtime > STALE_LOCK_S:
                 p.unlink()
 
 
@@ -206,11 +287,13 @@ class Webd:
         return d
 
     async def open(
-        self, account: str, proxy: Proxy, *, headless: bool | None = None
+        self, account: str, proxy: Proxy, *, headless: bool | None = None, hold_s: float = LOGIN_S
     ) -> BrowserContext:
-        """`headless`: None for a job's (headless unless `headed`)."""
+        """`headless`: None for a job's (headless unless `headed`). `hold_s`: how long the profile
+        may stay open (its open mark; `close` removes it)."""
         profile = self.profile_dir(account)
         clear_stale_lock(profile)
+        mark_open(profile, hold_s + 60)
         ctx: BrowserContext = await self._pw.chromium.launch_persistent_context(
             str(profile),
             headless=not self.headed if headless is None else headless,
@@ -242,14 +325,19 @@ class Webd:
         hosts = frozenset(str(h).lower() for h in j.recipe.get("hosts") or [])
         if not hosts:
             return fail("recipe_failed", "a recipe without hosts")
-        ctx = await self.open(j.account, j.proxy)
+        ctx = await self.open(j.account, j.proxy, hold_s=j.timeout_s)
         try:
             await ctx.route("**/*", _only(hosts))
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             return await run_recipe(page, ctx, j, hosts)
         finally:
-            with contextlib.suppress(Error):
-                await ctx.close()
+            await self.close(ctx, j.account)
+            shutil.rmtree(spool_dir(j.account), ignore_errors=True)
+
+    async def close(self, ctx: BrowserContext, account: str) -> None:
+        with contextlib.suppress(Error):
+            await ctx.close()
+        unmark_open(self.profiles / account)
 
     # -------------------------------------------------- a web.browse call --
     async def run(self, a: RunIn) -> dict[str, Any]:
@@ -259,7 +347,7 @@ class Webd:
         async with lock:
             hosts = frozenset(h.lower() for h in a.allowed_hosts)
             deadline = time.monotonic() + a.time_s
-            ctx = await self.open(a.profile, Proxy(**a.proxy.model_dump()))
+            ctx = await self.open(a.profile, Proxy(**a.proxy.model_dump()), hold_s=a.time_s)
             try:
                 return await asyncio.wait_for(
                     B.steps_in(ctx, a, deadline, allowed=lambda h: covered(h, hosts)),
@@ -268,8 +356,7 @@ class Webd:
             except TimeoutError:
                 return {"steps": [], "error": "timeout"}
             finally:
-                with contextlib.suppress(Error):
-                    await ctx.close()
+                await self.close(ctx, a.profile)
 
     async def logout(self, account: str) -> dict[str, Any]:
         async with self.locks[account]:
@@ -284,7 +371,7 @@ class Webd:
         """A visible browser on the profile, for the owner to sign in; closed
         when the owner closes it, or after `seconds`. The hub never sees what
         the owner types."""
-        ctx = await self.open(account, proxy, headless=False)
+        ctx = await self.open(account, proxy, headless=False, hold_s=seconds)
         try:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             with contextlib.suppress(Error):
@@ -299,8 +386,7 @@ class Webd:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(closed, timeout=seconds)
         finally:
-            with contextlib.suppress(Error):
-                await ctx.close()
+            await self.close(ctx, account)
 
 
 def _only(hosts: frozenset[str]) -> Any:
@@ -335,7 +421,12 @@ async def expired(page: Page, rule: dict[str, Any]) -> bool:
 
 
 def _fill(template: str | None, j: JobIn) -> str:
-    return (template or "").replace("{start_url}", str(j.recipe.get("start_url") or ""))
+    url = (template or "").replace("{start_url}", str(j.recipe.get("start_url") or ""))
+    if "{video_id}" in url:  # ⟨2026-11-17⟩ an uploaded video's own page (YouTube Studio)
+        if not j.video_id:
+            raise StepFailed("goto", "the job names no video")
+        url = url.replace("{video_id}", j.video_id)
+    return url
 
 
 VOICE_NAME = re.compile(r"[A-Za-z][A-Za-z' -]{0,39}")
@@ -347,7 +438,8 @@ def _selector(st: dict[str, Any], j: JobIn) -> str:
     value is quoted for the CSS string it stands in. A selector that names an empty value fails
     the step (an `optional` one is skipped: no style, no preset)."""
     sel = str(st.get("selector") or "")
-    for key, value in (("{voice}", j.voice), ("{style}", j.style)):
+    visibility = j.visibility.upper() if j.visibility else None
+    for key, value in (("{voice}", j.voice), ("{style}", j.style), ("{visibility}", visibility)):
         if key not in sel:
             continue
         v = (value or "").strip()
@@ -452,7 +544,11 @@ async def _recipe_step(
         if await page.locator(str(st.get("unless"))).count() == 0:
             await page.locator(sel).first.click(timeout=ms)
     elif do == "fill":
-        given = {"{style}": j.style or "", "{voice}": j.voice or ""}
+        given = {
+            "{style}": j.style or "",
+            "{voice}": j.voice or "",
+            "{description}": j.description or "",
+        }
         value = given.get(str(st.get("text")), j.prompt)
         await page.locator(sel).first.fill(value, timeout=ms)
     elif do == "select":
@@ -483,6 +579,8 @@ async def _recipe_step(
         return await _image(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
     elif do == "download_images":
         return await _images(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
+    elif do == "more_images":
+        await _more_images(page, sel, str(st.get("composer")), str(st.get("busy")), ms, j)
     elif do == "download":
         async with page.expect_download(timeout=ms) as info:
             await page.locator(sel).first.click(timeout=ms)
@@ -510,19 +608,28 @@ async def _select(page: Page, sel: str, option: str | None, ms: float) -> None:
 
 
 ATTACH_GAP_MS = 2500  # between two files put one by one: the site takes each in
+# ⟨2026-11-17⟩ a file over this (a Short's video) goes in from a file of its own on the profiles'
+# volume, not from memory: Playwright refuses a buffer over 50 MB and would spool it to /tmp,
+# which is a small tmpfs here
+SPOOL_BYTES = 16 * 1024 * 1024
 
 
 async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
     """The job's files into a file input (decoded here; none outside the job)."""
     if not j.files:
         raise StepFailed("attach", "the job carries no files")
-    payload = []
+    payload: list[dict[str, Any]] = []
     for f in j.files[:10]:
         data = base64.b64decode(str(f.get("b64") or ""), validate=True)
         if len(data) > j.max_file_bytes:
             raise StepFailed("attach", "a file is over its cap")
         name = Path(str(f.get("name") or "file")).name[:120] or "file"
         payload.append({"name": name, "mimeType": _mime_of(name), "buffer": data})
+    if len(payload) == 1 and len(payload[0]["buffer"]) > SPOOL_BYTES:
+        # (the page reads the file while it uploads, after this step: the job's end removes it)
+        path = await asyncio.to_thread(_spool, j.account, payload[0]["name"], payload[0]["buffer"])
+        await page.locator(sel).first.set_input_files(path, timeout=ms)
+        return
     if len(payload) == 1:
         await page.locator(sel).first.set_input_files(payload, timeout=ms)
         return
@@ -537,6 +644,20 @@ async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
     for one in payload:
         await page.locator(sel).first.set_input_files([one], timeout=ms)
         await page.wait_for_timeout(ATTACH_GAP_MS)
+
+
+def spool_dir(account: str) -> Path:
+    """⟨2026-11-17⟩ Where a job's large file waits while the page uploads it: the profiles'
+    volume (one job per account at a time; the job's end removes it)."""
+    return SPOOL / account
+
+
+def _spool(account: str, name: str, data: bytes) -> str:
+    d = spool_dir(account)
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = d / name
+    path.write_bytes(data)
+    return str(path)
 
 
 def _mime_of(name: str) -> str:
@@ -634,6 +755,34 @@ async def _images(
         ext = next((e for magic, e in EXT if data.startswith(magic)), "png")
         out.append(_file(data[: j.max_file_bytes + 1], f"slide_{k:02d}.{ext}", j))
     return out
+
+
+NEXT_SLIDE = (
+    "Continue the same set now: make slide {k} of {n} as its own separate image (one image only, "
+    "the same series and style, the exact Persian text given for slide {k}). Do not ask anything."
+)
+
+
+async def _more_images(page: Page, sel: str, composer: str, busy: str, ms: float, j: JobIn) -> None:
+    """⟨2026-11-17⟩ ChatGPT may end its answer after fewer pictures than the set asks for (a first
+    real run: one sheet for twelve slides). While the chat holds fewer made pictures than the job's
+    `limit`, the next slide is asked for in the same chat, once per missing slide at most, within
+    the step's time (the time left for the download is kept)."""
+    want = min(int(j.limit or 1), MAX_IMAGES)
+    end = time.monotonic() + ms / 1000 - 60
+    for _ in range(want):
+        have = len(await page.locator(sel).evaluate_all(MADE_JS, "src"))
+        left = end - time.monotonic()
+        if have >= want or left <= 30:
+            return
+        box = page.locator(composer).first
+        await box.fill(NEXT_SLIDE.format(k=have + 1, n=want), timeout=30_000)
+        await box.press("Enter", timeout=10_000)
+        with contextlib.suppress(PwTimeout):
+            await page.locator(busy).first.wait_for(state="visible", timeout=20_000)
+        wait_s = max(1.0, end - time.monotonic())
+        await page.locator(busy).first.wait_for(state="hidden", timeout=wait_s * 1000)
+        await page.wait_for_timeout(3000)
 
 
 async def _fetch(
