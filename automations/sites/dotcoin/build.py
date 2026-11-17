@@ -994,7 +994,7 @@ def page_glossary(terms, arts):
             for t in letters[ch])
         groups += f'<section class="gl-g" id="l-{k}" aria-label="حرف {ch}"><h2 class="gl-l">{ch}</h2><dl>{items}</dl></section>'
     search = ('<div class="gl-search ld" style="--d:4"><label for="q" class="sr">جست‌وجو در واژه‌نامه</label>'
-              '<input id="q" type="search" placeholder="جست‌وجوی واژه… مثلاً «هش» یا Wallet" autocomplete="off">'
+              '<input id="q" type="search" placeholder="مثلاً «هش» یا Wallet" autocomplete="off">'
               f'<span class="gl-count" aria-live="polite">{fa(len(terms))} واژه</span></div>')
     main = page_hero(meta, "GLOSSARY", crumbs, search) + f"""
 <section class="sec sec-tight"><div class="wrap">
