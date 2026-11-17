@@ -779,11 +779,12 @@ async def save(
         return flow, False
     co = await _company(tx, flow.company)
     rise = float(after["usd_cap"]) > float(before["usd_cap"])
-    await ctx.hub.policy.require("lines", {
-        "principal": ctx.who.opa(), "op": "flow.update",
-        "target": {"automation": flow.ref, "budget_rise": rise, "over_envelope": False},
-        "context": {"step_up": False},
-    })  # fmt: skip
+    if ctx.who is not HUB:  # (the hub's own change, update_by_hub, is no principal's request)
+        await ctx.hub.policy.require("lines", {
+            "principal": ctx.who.opa(), "op": "flow.update",
+            "target": {"automation": flow.ref, "budget_rise": rise, "over_envelope": False},
+            "context": {"step_up": False},
+        })  # fmt: skip
     version = flow.version + 1
     sch = after["schedule"]
     await tx.exec(
@@ -1224,6 +1225,30 @@ async def create_by_hub(
     await _audit(tx, HUB, flow, co.id, "create", None, body_of(flow) | {"kind": kind})
     await _changed(tx, flow, flow.state, flow.version)
     return await render(tx, hub, flow)
+
+
+async def update_by_hub(
+    tx: Tx, hub: Any, ref: str, body: FlowDefPatch, *, drop_skips: tuple[date, ...] = ()
+) -> tuple[FL.Flow, bool]:
+    """⟨2026-11-17⟩ A change the hub itself makes on the owner's word given elsewhere (his order to
+    the hub's Claude, e.g. DotCoin's long videos every day): a new version through `save` (the
+    same checks, the changes in Persian, audit `automation.flow.update`), as the hub's service.
+    `drop_skips`: days skipped before that the change makes days again (audited too)."""
+    from types import SimpleNamespace
+
+    flow, changed = await save(SimpleNamespace(hub=hub, who=HUB), tx, None, ref, body, None)
+    gone = [d for d in drop_skips if d in flow.skips]
+    if gone:
+        await tx.exec(
+            "UPDATE automations.flows SET skips = :s, updated_at = now() WHERE ref = :r",
+            s=sorted(set(flow.skips) - set(gone)),
+            r=flow.ref,
+        )
+        co = await _company(tx, flow.company)
+        await _audit(tx, HUB, flow, co["id"], "skip", {"skips": [d.isoformat() for d in flow.skips]},
+                     {"skips": [d.isoformat() for d in sorted(set(flow.skips) - set(gone))]})  # fmt: skip
+        flow = await load(tx, flow.ref)
+    return flow, changed or bool(gone)
 
 
 async def _kit_flow(tx: Tx, key: str) -> FL.Flow:
