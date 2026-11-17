@@ -1,11 +1,23 @@
 # DotCoin.me — the brand
 
-## The two colours (the owner's, from his cover system; never others as a theme)
-- **Mustard #F3C242** (RGB 243,194,66) — never neon yellow, never gold.
-- **Black #000000.**
-- White #FFFFFF only as a small support colour (body text on black, a highlight), never a third
-  dominant one. Inside an AI picture other colours live naturally (a suit, a phone, skin), but every
-  designed surface (grounds, type, bars, shapes, transitions) is mustard / black / white.
+## Colour: three layers (the owner, 2026-11-17: «از ۳ لایه استفاده بشه»)
+Two colours alone cannot carry a detailed video, yet the page must be known at a glance. So:
+1. **Brand layer, fixed: mustard #F3C242 (RGB 243,194,66; never neon yellow, never gold) + black
+   #000000, with white #FFFFFF as support.** It carries the mark, titles and key-word chips,
+   subtitles, the call to action, lower thirds and bars, the first and the last frame, and every
+   cover (cover/COVER_SYSTEM.md). It is visible in every frame: about a third of the frame or more,
+   and more on the hook, the titles and the end card.
+2. **Content layer, free, full colour:** scenes, illustrations, 3D, photos, AI stills, gradients and
+   light — whatever the reel's topic and its Pinterest references ask. A different palette each
+   reel is welcome. It must sit well beside mustard and black: no other yellow or gold as a
+   dominant colour, and nothing that drowns the brand layer.
+3. **Meaning layer, fixed rules:** up, gain or bullish = green #16C784; down, loss or bearish = red
+   #EA3943 (candles, arrows, % changes). Never swapped, never used as decoration. A coin or a
+   company appears in its own real colours (Bitcoin #F7931A, Ethereum #627EEA, Tether #26A17B …),
+   and only where it is the subject.
+
+Delivery: Instagram and YouTube re-encode to 8-bit SDR. Render clean 8-bit sRGB / BT.709, and give
+smooth gradients an invisible dither (noise of ±1 level) so they do not band. Never visible grain.
 
 ## Fonts (/home/studio/kits/fonts-pro)
 - Persian: **IRANYekanX Pro** — the whole family (Thin … ExtraBlack); FaNum files for Persian digits.

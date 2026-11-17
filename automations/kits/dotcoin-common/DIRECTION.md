@@ -13,8 +13,13 @@ You are that maker: Fable 5.2, extra-high effort. Cost has no limit; the bar is 
 2. **Its own look, from its own Pinterest search, every reel** (§1). Never the look of the page's
    last reel; never the look of Pro-Chart, Zarib×100 or ipoxxo (no navy/cyan neon, no glassy
    crypto-neon, no Eco font).
-3. **The brand:** mustard #F3C242 + black #000000 (+ white support), IRANYekanX Pro, the page's round
-   photo as its mark (brand/README.md). The two colours carry every designed surface.
+3. **The brand: three colour layers** (brand/README.md; the owner, 2026-11-17):
+   - **brand:** mustard #F3C242 + black (+ white) on the mark, titles, key-word chips, subtitles,
+     the call to action, the first and the last frame, and the cover;
+   - **content:** full colour, as the reel's look asks;
+   - **meaning:** green = up, red = down, a coin in its own colours.
+
+   Also IRANYekanX Pro, and the page's round photo as its mark.
 4. **The narrator: Arlo** — `speech.make` with voice "Arlo", NO style, NO narrator.set (the same
    settings Cruz has on the other pages; the owner: «همون تنظیمات ولی … Arlo به جای Cruz»). A clear,
    friendly teacher's Persian with «تو»; calm pace, never shouting.
@@ -24,7 +29,8 @@ You are that maker: Fable 5.2, extra-high effort. Cost has no limit; the bar is 
 6. **A cover from the owner's cover system, every reel** (cover/COVER_SYSTEM.md): the owner himself,
    a new suit and accessories each time; never a video frame.
 7. **No full stop at the end of on-screen text** («.», «،», «؛»). Persian digits on screen.
-8. **Crisp:** no grain, haze, bokeh or blur on the picture; motion blur only on a fast move.
+8. **Crisp:** no grain, haze, bokeh or blur on the picture; motion blur only on a fast move. Give
+   smooth gradients an invisible dither (±1 level), so they do not band after the 8-bit re-encode.
 9. **No politics, no religion, no person's face but the owner's** (and his only from his own photos
    or the cover). Real people only as anonymous hands or silhouettes.
 10. **Clean audio to the last frame:** the voice ends, the music fades ≥ 1 s, no hit or new sound in
@@ -39,7 +45,8 @@ Before any design, for THIS reel only:
    kinds:
    - the topic as a visual («crypto wallet security illustration», «bitcoin halving infographic»,
      «blockchain explained motion», «stablecoin concept art» …);
-   - a style family that fits it, in mustard/yellow + black when you can («yellow black editorial
+   - a style family that fits it, in any palette: the content layer is free, and mustard/yellow +
+     black families are welcome but not required («yellow black editorial
      motion design», «swiss typography motion poster», «kinetic typography reel yellow»,
      «paper cut collage animation», «isometric 3d explainer», «bold minimal infographic animation»,
      «brutalist grid motion», «halftone retro poster», «3d clay render explainer», «risograph
@@ -51,7 +58,8 @@ Before any design, for THIS reel only:
 3. **Write in `direction/CONTRACT.md`:** the queries, each chosen pin (its link and file), and what
    you take from it (a layout, a type treatment, a transition, a texture, a camera move, a way to
    draw a diagram). Then **the look of this reel in one paragraph**, derived from those references
-   and translated into the brand (mustard/black/white, IRANYekanX Pro). Take ideas; never copy a
+   and set into the brand: the three colour layers of brand/README.md (the content's own palette,
+   with the mustard/black brand layer on top) and IRANYekanX Pro. Take ideas; never copy a
    frame, a character or someone's artwork.
 4. If Pinterest gives nothing usable (blocked, empty), say so in one line in CONTRACT.md and use top
    design references you know (Swiss posters, editorial magazines, top explainer channels) — never

@@ -27,6 +27,9 @@ samples set the bar for craft, not one fixed template. `cover_compose.py` takes 
 
 ## The fixed rules (his pack)
 - **Two colours only for the design:** mustard **#F3C242** and black **#000000** (white only small).
+  The cover is the brand layer of the page's three colour layers (brand/README.md); the owner
+  approved this look on 2026-11-17. Inside the reel, the content is in full colour. On the cover,
+  only the suit, the accessories and the element keep their natural colours.
   - **A:** mustard ground + black English words + black title bar (white Persian, mustard key word).
   - **B:** black ground + mustard English words + mustard title bar (black Persian, white key word).
   - The covers alternate A/B/A/B in the grid: **the day's first reel = A, the second = B** (a pilot

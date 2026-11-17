@@ -15,7 +15,8 @@ export PLAYWRIGHT_BROWSERS_PATH=/home/studio/kits/prochart-reels/ms-playwright.
 
 ## This page is NOT the other three
 Its own look every reel (from its own Pinterest references), its own voice (**Arlo**), its own font
-(**IRANYekanX Pro**), its own two colours (**mustard #F3C242 + black**), the owner himself on the
+(**IRANYekanX Pro**), its own colours in three layers (the **mustard #F3C242 + black** brand layer in
+every frame, full-colour content, green up / red down; COMMON/brand/README.md), the owner himself on the
 cover. If anything you make could pass for a Pro-Chart, Zarib×100 or ipoxxo reel, redo it.
 
 ## Today's reel — your order names the kind; none named = «آموزشی»
