@@ -1225,11 +1225,11 @@ async def get(tx: Tx, ref: str) -> Publication:
 
 async def planned_today(tx: Tx, day: date) -> list[PlannedItem]:
     """§60.2 `planned`: what the daily flows will still make on `day` (Tehran), not yet a row. The
-    ONE place the centre reads the flows' definitions (today the code's FLOWS through `slot_of`
-    and `story_times`; §61's table and its loader replace them here)."""
+    ONE place the centre reads the flows' definitions: §61's rows through the loader
+    (`flows.active_flows`, those `on`), each day as the clock holds it (paused, skipped, not one of
+    its days)."""
     from hq_api.domain import flows as FL
 
-    off = await FL.off_keys(tx)
     now = datetime.now(UTC)
     rows = await tx.all(
         """SELECT DISTINCT source ->> 'flow_key' AS k FROM media.publications
@@ -1237,10 +1237,9 @@ async def planned_today(tx: Tx, day: date) -> list[PlannedItem]:
         d=day.isoformat(),
     )
     made = {str(r["k"]) for r in rows}
-    tz = ZoneInfo(FL.TEHRAN)
     out: list[PlannedItem] = []
-    for flow in FL.FLOWS.values():
-        if not flow.account or flow.key in off or flow.key in made:
+    for flow in (await FL.active_flows(tx, on_only=True)).values():
+        if not flow.account or flow.key in made or FL.held_why(flow, day) is not None:
             continue
         co = await tx.scalar("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
         if co is None:
@@ -1251,9 +1250,7 @@ async def planned_today(tx: Tx, day: date) -> list[PlannedItem]:
         else:
             publish_at, _ = await FL.slot_of(tx, flow, day, co)
             last, kind = publish_at, "reel"
-        hh, mm = (int(x) for x in flow.trigger_at.split(":"))
-        build_day = day if flow.same_day else day - timedelta(days=1)
-        build_at = datetime.combine(build_day, time(hh, mm), tz).astimezone(UTC)
+        build_at = FL.trigger_of(flow, day)
         building = await tx.scalar(
             """SELECT 1 FROM work.work WHERE run_meta -> 'flow' ->> 'key' = :k
                  AND run_meta -> 'flow' ->> 'day' = :d AND status NOT IN ('failed', 'cancelled')
@@ -1656,13 +1653,19 @@ async def _act_line(
 
 
 async def _act_cap(ctx: Any, tx: Tx, x: dict[str, Any], key: str, body: WaitingIn) -> None:
-    """A code flow's day at its cap: a higher cap for this day (the run's own `usd_cap`; §61 moves
-    it to the flow's row), or the day is skipped."""
+    """A code flow's day at its cap: a higher cap, or the day is skipped. ⟨1.39⟩ §61.4 a flow with
+    its row (automations.flows) takes the cap as its own `usd_cap`, saved as its next version (🔏
+    automation.budget on `<AF-ref>:<usd_cap>` past the month envelope, flow_defs.patch); a flow with
+    no row (a test's) keeps it on this day's run (`N8:<key>:<usd_cap>`)."""
     from hq_api.domain import flow_auto as FA
+    from hq_api.domain import flow_defs as FD
+    from hq_api.domain import flows as FL
     from hq_api.security import stepup
 
     work, meta = x["work"], dict(x["meta"])
-    ref = f"N8:{meta.get('key')}"
+    row = await FL.flow_by_key(tx, str(meta.get("key") or ""))
+    row = row if row is not None and row.ref else None
+    ref = row.ref if row is not None else f"N8:{meta.get('key')}"
     w = await tx.first(
         "SELECT run_meta -> 'flow' AS flow FROM work.work WHERE id = :w FOR UPDATE", w=work["id"]
     )
@@ -1674,18 +1677,19 @@ async def _act_cap(ctx: Any, tx: Tx, x: dict[str, Any], key: str, body: WaitingI
     else:
         if body.usd_cap is None:
             raise ApiError(422, "validation_failed", fields={"usd_cap": "required"})
-        from hq_api.domain import flows as FL
-
         spent = await FL.spent_usd(tx, str(work["ref"]))
         if body.usd_cap <= spent:
             raise ApiError(422, "validation_failed", fields={"usd_cap": f"above today's {spent:.2f}"},
                            message_fa="سقف تازه باید بیشتر از هزینه‌ی امروز باشد")  # fmt: skip
-        limit = await FA.month_limit_usd(tx, work["company_id"])
-        if limit is None or float(body.usd_cap) * DAYS_A_MONTH > limit:
-            await stepup.consume(tx, ctx.request, ctx.who, "automation.budget",
-                                 FA.budget_target(ref, float(body.usd_cap)))  # fmt: skip
-            step_up = True
-        meta["usd_cap"] = str(body.usd_cap)
+        if row is not None:
+            step_up = await FD.raise_cap(ctx, tx, ctx.request, row, body.usd_cap)
+        else:
+            limit = await FA.month_limit_usd(tx, work["company_id"])
+            if limit is None or float(body.usd_cap) * DAYS_A_MONTH > limit:
+                await stepup.consume(tx, ctx.request, ctx.who, "automation.budget",
+                                     FA.budget_target(ref, float(body.usd_cap)))  # fmt: skip
+                step_up = True
+            meta["usd_cap"] = str(body.usd_cap)
         meta.pop("capped", None)
     await tx.exec(
         "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb)) WHERE id = :w",

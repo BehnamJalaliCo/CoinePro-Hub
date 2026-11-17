@@ -906,7 +906,9 @@ async def over_cap(tx: Tx, work_id: UUID) -> bool:
     meta = w["flow"]
     flow = await flow_by_key(tx, str(meta.get("key")))
     cap = flow.usd_cap if flow else FLOW_USD_CAP
-    if meta.get("usd_cap"):  # ⟨1.39⟩ §60.2 the owner raised this day's cap («منتظر شما»)
+    if meta.get("usd_cap") and not (flow and flow.ref):
+        # ⟨1.39⟩ §60.2 a flow with no row (a test's): the day's own cap the owner raised («منتظر
+        # شما»); a row's raise is its `usd_cap` (§61.4, flow_defs.patch), read above
         cap = Decimal(str(meta["usd_cap"]))
     if usd < cap:
         return False

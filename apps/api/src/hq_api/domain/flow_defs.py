@@ -2,7 +2,7 @@
 
 The owner: «بخش اتوماسیون خیلی مبتدیه و باید یک قسمت مهم آپ باشه با کلی فیچر … و با قابلیت
 تغییرات». Every daily flow is a row of automations.flows (seeded from domain/flows.py FLOWS by
-migration 0069); domain/flows.py reads it (`active_flows`, `flow_by_key`) and its clock starts each
+migration 0070); domain/flows.py reads it (`active_flows`, `flow_by_key`) and its clock starts each
 day (§61.2). Here: the FlowDef the apps read, the options a save may pick from, the save itself (a
 new version with its changes in Persian, `If-Match`, §61.4's checks, 🔏 automation.budget past
 the month envelope), and the switch, the pause, the skip and run-now.
@@ -68,6 +68,7 @@ WORD_FA = "برای کلمه‌ی ثابت، خود کلمه را بنویس (ح
 WORD_MODE_FA = "حالت کلمه باید fixed یا fresh باشد"
 TITLE_FA = "عنوان باید ۱ تا ۳۰۰ نویسه باشد"
 UNTIL_FA = "پایان توقف باید روزی بعد از امروز باشد"
+CAP_RAISED_FA = "سقف روز از «منتظر شما» بالا رفت"
 PAST_DAY_FA = "این روز گذشته است"
 NOT_FOUND_FA = "این اتوماسیون پیدا نشد."
 OK_FA = "روبه‌راه"
@@ -254,7 +255,7 @@ def body_of(flow: FL.Flow) -> dict[str, Any]:
 
 
 def seed_rows() -> list[dict[str, Any]]:
-    """Migration 0069's seed: every flow of FLOWS as it is in code, the pilots too."""
+    """Migration 0070's seed: every flow of FLOWS as it is in code, the pilots too."""
     return [
         {
             "ord": i,
@@ -759,16 +760,35 @@ async def switch(tx: Tx, who: Principal, flow: FL.Flow, state: str) -> bool:
 
 
 async def patch(ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch) -> FlowDef:
-    """§61.3 a save: `If-Match` is the version it was read at (409 version_conflict otherwise);
-    §61.4's checks (422 invalid_flow); a raised cap whose month estimate passes the company's USD
-    envelope is 🔏 automation.budget (`<ref>:<usd_cap>`); a new version with its changes."""
-    from hq_api.domain import flow_auto as FA
+    """§61.3 a save: `If-Match` is the version it was read at (409 version_conflict otherwise)."""
     from hq_api.http import if_match
-    from hq_api.security import stepup
 
     want = if_match(request)
+    flow, _ = await save(ctx, tx, request, ref, body, want)
+    return await render(tx, ctx.hub, flow)
+
+
+async def raise_cap(ctx: Any, tx: Tx, request: Any, flow: FL.Flow, usd_cap: Decimal) -> bool:
+    """§61.4 «سقف را بالا ببر» of «منتظر شما» (§60.2): the flow's day cap, saved as its next
+    version (as a save of the app; no `If-Match`: the owner's tap answers the day that waits).
+    Returns whether the step-up was taken."""
+    body = FlowDefPatch(usd_cap=float(usd_cap), note_change_fa=CAP_RAISED_FA)
+    _, su = await save(ctx, tx, request, flow.ref, body, None)
+    return su
+
+
+async def save(
+    ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch, want: int | None
+) -> tuple[FL.Flow, bool]:
+    """A new version of the flow: §61.4's checks (422 invalid_flow); a raised cap whose month
+    estimate passes the company's USD envelope, or with no USD envelope at all (as §59.7's PATCH),
+    is 🔏 automation.budget (`<ref>:<usd_cap>`); the changes in Persian, the audit, the event.
+    Returns the flow as saved and whether the step-up was taken."""
+    from hq_api.domain import flow_auto as FA
+    from hq_api.security import stepup
+
     flow = await load(tx, ref, lock=True)
-    if want != flow.version:
+    if want is not None and want != flow.version:
         raise ApiError(409, "version_conflict", f"{flow.ref} is at version {flow.version}")
     before = body_of(flow)
     after = merged(before, body)
@@ -778,13 +798,13 @@ async def patch(ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch) ->
                        message_fa=errors[0]["message_fa"])  # fmt: skip
     changes = changes_of(before, after)
     if not changes:
-        return await render(tx, ctx.hub, flow)
+        return flow, False
     co = await _company(tx, flow.company)
     rise = float(after["usd_cap"]) > float(before["usd_cap"])
     over, su = False, False
     if rise:
         limit = await FA.month_limit_usd(tx, co["id"])
-        over = limit is not None and await month_estimate(tx, flow, float(after["usd_cap"])) > limit
+        over = limit is None or await month_estimate(tx, flow, float(after["usd_cap"])) > limit
         if over:
             await stepup.consume(
                 tx, request, ctx.who, "automation.budget",
@@ -825,7 +845,7 @@ async def patch(ctx: Any, tx: Tx, request: Any, ref: str, body: FlowDefPatch) ->
                  {k: flat_a.get(k) for k in sorted(keys)} | {"version": version}, step_up=su)  # fmt: skip
     fresh = await load(tx, flow.ref)
     await _changed(tx, fresh, fresh.state, version)
-    return await render(tx, ctx.hub, fresh)
+    return fresh, su
 
 
 async def _policy(ctx: Any, op: str, flow: FL.Flow, **target: Any) -> None:

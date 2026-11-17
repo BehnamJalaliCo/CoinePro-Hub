@@ -48,7 +48,7 @@ def migration() -> ModuleType:
 
 
 async def seed(su: Any, monkeypatch: pytest.MonkeyPatch, *flows: FL.Flow) -> dict[str, str]:
-    """Rows for these flows exactly as migration 0069 made the code flows' (their refs by key)."""
+    """Rows for these flows exactly as migration 0070 made the code flows' (their refs by key)."""
     monkeypatch.setattr(FL, "FLOWS", {f.key: f for f in flows})
     await su.execute(migration().seed_sql(FD.seed_rows()))
     rows = await su.fetch(
@@ -465,5 +465,62 @@ async def test_the_routes_are_the_owners_and_a_company_sees_only_its_rows(
             assert await tx.scalar(
                 "SELECT count(*) FROM automations.flows WHERE company_id = :b", b=b["id"]
             )
+    finally:
+        await all_off(su, key)
+
+
+# ------------------------------------------------- «منتظر شما»: a raised cap --
+async def test_a_cap_raised_from_waiting_is_the_rows_next_version(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """§61.4 with §60.2: «سقف را بالا ببر» of a flow's day at its cap saves the row's `usd_cap` as its
+    next version (🔏 automation.budget on `<AF-ref>:<usd_cap>`: no USD envelope), and over_cap reads
+    it from the row; the day's run keeps no cap of its own."""
+    from .conftest import step_up
+    from .test_w17_session_publish import an_output
+
+    co = await new_company()
+    key = fk()
+    ref = (await seed(su, monkeypatch, a_flow(co["code"], key)))[key]
+    made = await an_output(client, hub, owner, owner_session, su, co["code"], ("cover.png",))
+    meta = {"key": key, "day": datetime.now(TZ).date().isoformat(), "account": f"p39.{key}",
+            "capped": "20.00", "publish_at": (datetime.now(TZ) + timedelta(hours=3)).isoformat()}  # fmt: skip
+    await su.execute(
+        """UPDATE work.work SET run_meta = coalesce(run_meta, '{}'::jsonb)
+               || jsonb_build_object('flow', $2::jsonb) WHERE id = $1""",
+        made["work_id"], json.dumps(meta),
+    )  # fmt: skip
+    path = f"/api/v1/publications/waiting/cap:{made['work_ref']}/raise_cap"
+    h = owner_session["headers"]
+    try:
+        r = await client.post(path, headers=h, json={"usd_cap": 150})
+        assert r.status_code == 403 and r.json()["code"] == "step_up_required", r.text
+        seal = await step_up(hub, owner_session["session_id"], "automation.budget", f"{ref}:150")
+        r = await client.post(path, headers={**h, **seal}, json={"usd_cap": 150})
+        assert r.status_code == 200, r.text
+        row = await su.fetchrow(
+            "SELECT usd_cap, version FROM automations.flows WHERE ref = $1", ref
+        )
+        assert row["usd_cap"] == Decimal("150") and row["version"] == 2
+        assert await su.fetchval(
+            """SELECT v.note_fa FROM automations.flow_versions v JOIN automations.flows f
+                 ON f.id = v.flow_id WHERE f.ref = $1 AND v.version = 2""",
+            ref,
+        ) == FD.CAP_RAISED_FA  # fmt: skip
+        day = json.loads(
+            await su.fetchval(
+                "SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", made["work_id"]
+            )
+        )
+        assert "usd_cap" not in day and "capped" not in day
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await FL.over_cap(tx, made["work_id"]) is False
     finally:
         await all_off(su, key)
