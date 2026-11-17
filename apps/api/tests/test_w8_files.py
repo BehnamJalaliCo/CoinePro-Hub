@@ -760,7 +760,11 @@ async def test_a_set_of_slides_is_one_chatgpt_chat_and_keeps_every_picture(
             for i in range(1, 13)
         ]  # fmt: skip (each its own bytes)
         fake = FakeEgress({"ok": True, "file": pics[0], "files": pics})
-        c = dict(await su.fetchrow("SELECT * FROM substitutes.calls WHERE id = $1", c["id"]))
+        # (as the web jobs pass claims it: running)
+        c = dict(await su.fetchrow(
+            """UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = $1
+               RETURNING *""", c["id"],
+        ))  # fmt: skip
         assert await S._web_job(hub, fake, c, "chatgpt-web") == 1
         [sent] = fake.calls
         assert sent["task"] == "slides" and sent["timeout_s"] == S.SLIDES_TIMEOUT_S
@@ -770,7 +774,10 @@ async def test_a_set_of_slides_is_one_chatgpt_chat_and_keeps_every_picture(
         assert row["state"] == "review" and len(row["file_ids"]) == 12
         names = [await su.fetchval("SELECT name FROM files.files WHERE id = $1", f)
                  for f in row["file_ids"]]  # fmt: skip
-        assert [n.split(".")[0] for n in names] == [f"slide_{i:02d}" for i in range(1, 13)]
+        # (each named for its creative, then its place in the set: CR-…-slide_01 …)
+        assert [n.split(".")[0].rsplit("-", 1)[-1] for n in names] == [
+            f"slide_{i:02d}" for i in range(1, 13)
+        ]
         # Gemini makes one picture a chat: a set is ChatGPT's
         r = await client.post("/internal/v1/substitutes/call", headers=holder,
                               json={**call, "player": "gemini"})  # fmt: skip

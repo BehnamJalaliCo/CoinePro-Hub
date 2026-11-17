@@ -96,7 +96,7 @@ You are the day's session, started by n8n at 04:00 Tehran. Fable 5.2, extra-high
      ```
    - The hub adds "exactly 12 separate images, one per slide".
    - It takes 10–25 minutes. End the turn with `order.progress` («اسلایدها در راه است»).
-   - The slides reach `in/` as slide_01 … slide_12, ten at a turn: if only ten came, end the turn
+   - The slides reach `in/` as CR-…-slide_01 … CR-…-slide_12, ten at a turn: if only ten came, end the turn
      once more and the rest follow.
 5. **Read EVERY slide** (Read), and check:
    - every Persian letter and word against build/lesson.md (a wrong or missing letter, a reversed

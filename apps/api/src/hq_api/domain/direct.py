@@ -318,7 +318,9 @@ def compose(
         lines += [
             "",
             f"**فایل‌های ورودی این نوبت در پوشه‌ی {HANDS.IN_DIR}/ هستند** (از ستاد رسیده‌اند):",
-            *[f"- {HANDS.IN_DIR}/{i['name']} ({i['mime']})" for i in inputs],
+            # ⟨2026-11-17⟩ with its file id: a picture a turn received (a Gemini illustration, a
+            # slide) can go with a ChatGPT image as a reference (substitute.call file_ids)
+            *[f"- {HANDS.IN_DIR}/{i['name']} ({i['mime']}{fid(i)})" for i in inputs],
         ]
     packed = json.dumps(state, ensure_ascii=False, default=str)
     lines += ["", "## وضع جلسه", packed[:BRIEF_JSON_CHARS]]
@@ -414,6 +416,11 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
             args = OR._j(j["args"]) or {}
             sent.update(str(i.get("file_id")) for i in args.get("inputs") or [])
     return [i for i in ids if i not in sent][: HANDS.INPUTS_MAX]
+
+
+def fid(i: dict[str, Any]) -> str:
+    """«، file_id …» of an input that has one."""
+    return f"، file_id {i['file_id']}" if i.get("file_id") else ""
 
 
 def _plain(text: str) -> str:
