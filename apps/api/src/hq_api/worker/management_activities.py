@@ -74,6 +74,7 @@ class EgressWeb:
         timeout_s: int,
         reload: bool = False,
         files: list[dict[str, str]] | None = None,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "account": account, "task": task, "prompt": prompt, "timeout_s": timeout_s,
@@ -82,6 +83,8 @@ class EgressWeb:
             body["reload"] = True
         if files:  # the call's files (named, base64): the recipe's attach step puts them in
             body["files"] = files
+        if limit:  # ⟨2026-11-17⟩ a set of slides: how many pictures the chat must hold
+            body["limit"] = limit
         return await self._post("/v1/substitutes/web", body, limit_s=timeout_s + 30)
 
     async def web_logout(self, *, account: str) -> dict[str, Any]:

@@ -483,6 +483,8 @@ async def _recipe_step(
         return await _image(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
     elif do == "download_images":
         return await _images(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
+    elif do == "more_images":
+        await _more_images(page, sel, str(st.get("composer")), str(st.get("busy")), ms, j)
     elif do == "download":
         async with page.expect_download(timeout=ms) as info:
             await page.locator(sel).first.click(timeout=ms)
@@ -634,6 +636,34 @@ async def _images(
         ext = next((e for magic, e in EXT if data.startswith(magic)), "png")
         out.append(_file(data[: j.max_file_bytes + 1], f"slide_{k:02d}.{ext}", j))
     return out
+
+
+NEXT_SLIDE = (
+    "Continue the same set now: make slide {k} of {n} as its own separate image (one image only, "
+    "the same series and style, the exact Persian text given for slide {k}). Do not ask anything."
+)
+
+
+async def _more_images(page: Page, sel: str, composer: str, busy: str, ms: float, j: JobIn) -> None:
+    """⟨2026-11-17⟩ ChatGPT may end its answer after fewer pictures than the set asks for (a first
+    real run: one sheet for twelve slides). While the chat holds fewer made pictures than the job's
+    `limit`, the next slide is asked for in the same chat, once per missing slide at most, within
+    the step's time (the time left for the download is kept)."""
+    want = min(int(j.limit or 1), MAX_IMAGES)
+    end = time.monotonic() + ms / 1000 - 60
+    for _ in range(want):
+        have = len(await page.locator(sel).evaluate_all(MADE_JS, "src"))
+        left = end - time.monotonic()
+        if have >= want or left <= 30:
+            return
+        box = page.locator(composer).first
+        await box.fill(NEXT_SLIDE.format(k=have + 1, n=want), timeout=30_000)
+        await box.press("Enter", timeout=10_000)
+        with contextlib.suppress(PwTimeout):
+            await page.locator(busy).first.wait_for(state="visible", timeout=20_000)
+        wait_s = max(1.0, end - time.monotonic())
+        await page.locator(busy).first.wait_for(state="hidden", timeout=wait_s * 1000)
+        await page.wait_for_timeout(3000)
 
 
 async def _fetch(

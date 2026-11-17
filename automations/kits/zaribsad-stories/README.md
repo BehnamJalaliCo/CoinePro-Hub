@@ -5,7 +5,7 @@ The owner: «اتوماسیون استوری ضریب صد روزانه ۷ عد�
 Earlier: stories are PICTURES (no video), very REALISTIC (photoreal, not anime), made with ChatGPT or
 Gemini; the page's own mark, never TradeYar's logo. The owner, 2026-11-15, on the first test: «از عکس‌های
 جدید استفاده کن و دیگه انیمه نباشه و جدید باشه و از طریق چت جی پی تی با کیفیت 4k»: every picture is
-NEW (made today for that story), photoreal (never anime, never an earlier reel's art), by ChatGPT.
+NEW (made today for that story), photoreal (never anime, never an earlier reel's art), by ChatGPT and Gemini (the better of the two; the owner, 2026-11-17).
 
 You are the day's session, started by n8n at 06:00 Tehran. Work alone: never `order.ask`, never wait
 for an approval. NEVER call `workshop.run`. KIT = /home/studio/kits/zaribsad-stories (read only).
@@ -21,7 +21,9 @@ user's money. This is advertising: NO warning or disclaimer lines anywhere (owne
 real (the day's data) and nothing promises a sure profit.
 
 ## Fixed rules
-- Photoreal key art by ChatGPT (cinematic, real light, real people/places/objects), made today, never
+- **Every story's picture is made by ChatGPT AND Gemini** (the owner, 2026-11-17: «تمام استوری ها
+  باید با چت جی پی تی و جمنای باشند … تمامشون»): the same brief to both, the better one kept.
+- Photoreal key art (cinematic, real light, real people/places/objects), made today, never
   anime or illustration, never a picture of an earlier day or reel; crisp: no blur, no grain,
   no particles or bokeh (COMMON/DIRECTION.md §0.7). Graded to the page: navy #030B26, teal #0FB5AE,
   off-white #F4F7FF (COMMON/cover/COVER_PACK.md).
@@ -58,17 +60,20 @@ real (the day's data) and nothing promises a sure profit.
    chance (never «سلام», «مرسی», «ممنون», «اوکی», «vip», «سیگنال»), and NOT in the taken list in your
    order (IG-Hub answers a story reply with the OLDEST rule that has its word: a taken word never
    reaches today's DM). Themes: gems, space, chess, sea … e.g. «الماس», «زحل», «رخ».
-3. **Pictures — send ALL seven briefs at once** (ChatGPT ~100 s each, one job at a time):
-   `substitute.call` seat **creative**, kind **image**, placement **other**, player **gpt** (ChatGPT
-   only: the owner). Each brief: "Photorealistic, 4K ultra-detailed, razor-sharp, shot on a full-frame
+3. **Pictures — ChatGPT AND Gemini for every story; send ALL fourteen calls at once** (~100 s each,
+   one job at a time): for each story the SAME brief twice, `substitute.call` seat **creative**, kind
+   **image**, placement **other**, once with player **gpt** and once with player **gemini** (the
+   owner, 2026-11-17; his «ChatGPT only» of 11-15 is replaced). Each brief: "Photorealistic, 4K ultra-detailed, razor-sharp, shot on a full-frame
    cinema camera" + one 9:16 scene for that story's idea, cinematic light, the navy/teal grade, a calm
    empty area where the text sits (the lower half for a bottom layout), and "no text, no letters, no
    numbers, no logos, no watermark, no UI, not anime, not illustration". ChatGPT returns about
    941×1672: upscale to 1080×1920 with Lanczos (Instagram shows a story at 1080×1920 at most). Real people only as
    anonymous traders (no celebrity, no real person's face). Then end the turn with `order.progress`
    («تصویرها در راه است»): pictures made during a turn reach `in/` at your next turn.
-4. **Read every picture** (Read): photoreal, crisp, nothing written, no warped hands or faces, the
-   text area calm. A bad one: ask again (≤ 2 more tries) saying exactly what was wrong. Still bad:
+4. **Read every picture** (Read), both versions of each story: photoreal, crisp, nothing written, no
+   warped hands or faces, the text area calm. Keep the better of the two for that story (write in
+   build/ideas.md which one and why). Both bad: ask both again (≤ 2 more tries) saying exactly what
+   was wrong; one player failing: the other's picture. Still bad:
    another of today's good pictures, re-cropped (`focus`), never code-drawn art as a story's hero.
 5. **Compose:** one spec per story (see the tool's docstring) → `VENV/bin/python -I KIT/tools/story_card.py
    build/s1.json` … → out/story_1.jpg … out/story_7.jpg, in the hours' order. Layout: `bottom` for

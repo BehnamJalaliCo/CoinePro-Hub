@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import yaml
@@ -170,3 +171,76 @@ async def test_an_answer_without_a_made_picture_fails_the_step() -> None:
     with pytest.raises(BW.StepFailed):
         await BW._images(Page([El(_data(b"r"), in_user=True)]), None, "img", "src", 1000, j,  # type: ignore[arg-type]
                          frozenset())  # fmt: skip
+
+
+def test_the_slides_task_asks_again_in_the_same_chat_before_taking_the_set() -> None:
+    path = Path(os.environ.get("HQ_EGRESS_RECIPES", "/recipes")) / "chatgpt-web.yaml"
+    if not path.is_file():
+        pytest.skip("the recipes are mounted by test-env.sh (HQ_EGRESS_RECIPES)")
+    steps = R.Recipe.model_validate(yaml.safe_load(path.read_text())).tasks["slides"].steps
+    dos = [s.do for s in steps]
+    assert dos.index("more_images") < dos.index("download_images")
+    more = steps[dos.index("more_images")]
+    assert more.composer and more.busy and more.selector
+
+
+def test_more_images_needs_its_composer_and_its_busy_control() -> None:
+    with pytest.raises(ValueError):
+        R.RStep(do="more_images", selector="img")
+    with pytest.raises(ValueError):
+        R.RStep(do="read", selector="p", composer="div")
+    R.RStep(do="more_images", selector="img", composer="div[contenteditable=true]", busy="button")
+
+
+class Chat:
+    """A chat that answers each «continue» with `per_turn` new pictures."""
+
+    def __init__(self, first: int, per_turn: int) -> None:
+        self.made, self.per_turn = first, per_turn
+        self.sent: list[str] = []
+
+    def locator(self, sel: str) -> Any:
+        chat = self
+
+        class L:
+            @property
+            def first(self) -> Any:
+                return self
+
+            async def evaluate_all(self, js: str, attr: str) -> list[int]:
+                return list(range(chat.made))
+
+            async def fill(self, text: str, timeout: float) -> None:  # noqa: ASYNC109
+                chat.sent.append(text)
+
+            async def press(self, key: str, timeout: float) -> None:  # noqa: ASYNC109
+                chat.made += chat.per_turn
+
+            async def wait_for(self, state: str, timeout: float) -> None:  # noqa: ASYNC109
+                return None
+
+        return L()
+
+    async def wait_for_timeout(self, ms: float) -> None:
+        return None
+
+
+@needs_browser
+@pytest.mark.anyio
+async def test_a_short_answer_is_continued_until_the_set_is_whole() -> None:
+    chat = Chat(first=1, per_turn=1)
+    j = SimpleNamespace(limit=12)
+    await BW._more_images(chat, "img", "div", "button", 1_500_000, j)  # type: ignore[arg-type]
+    assert chat.made == 12 and len(chat.sent) == 11
+    assert "slide 2 of 12" in chat.sent[0] and "slide 12 of 12" in chat.sent[-1]
+
+
+@needs_browser
+@pytest.mark.anyio
+async def test_a_whole_set_asks_nothing_more_and_a_stuck_chat_stops() -> None:
+    whole = Chat(first=12, per_turn=1)
+    await BW._more_images(whole, "img", "div", "button", 1_500_000, SimpleNamespace(limit=12))  # type: ignore[arg-type]
+    assert whole.sent == []
+    stuck = Chat(first=1, per_turn=0)  # never makes another: at most one ask per missing slide
+    await BW._more_images(stuck, "img", "div", "button", 1_500_000, SimpleNamespace(limit=4))  # type: ignore[arg-type]
+    assert len(stuck.sent) == 4

@@ -57,6 +57,9 @@ class RStep(BaseModel):
         "read",  # the last match of selector -> the answer's text
         "download_image",  # the last match's `attr` (src) -> the original file
         "download_images",  # ⟨2026-11-17⟩ every made picture of the answer, in order (<= 15)
+        # ⟨2026-11-17⟩ while the chat holds fewer made pictures (`selector`) than the job's `limit`,
+        # ask in the same chat for the next one (typed into `composer`, done when `busy` is gone)
+        "more_images",
         "download",  # click selector -> the file the site sends
         # prompt 22
         "select",  # choose the option named by the job's `voice` in the control `selector`
@@ -77,6 +80,9 @@ class RStep(BaseModel):
     # ⟨20.1⟩ `read` only: other selectors tried in turn when `selector` matches
     # nothing (a structural one first, a labelled one after: lesson of 19.3)
     alt: list[str] | None = Field(default=None, max_length=4)
+    # ⟨2026-11-17⟩ `more_images` only: the chat's input and its "still answering" control
+    composer: str | None = Field(default=None, max_length=500)
+    busy: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
     def _needs(self) -> RStep:
@@ -95,6 +101,10 @@ class RStep(BaseModel):
             raise ValueError("select chooses the job's voice only")
         if self.alt is not None and self.do != "read":
             raise ValueError("alt is for read only")
+        if (self.composer is not None or self.busy is not None) != (self.do == "more_images"):
+            raise ValueError("composer and busy are for more_images, which needs both")
+        if self.do == "more_images" and not (self.composer and self.busy):
+            raise ValueError("more_images needs composer and busy")
         if any(not a or len(a) > 500 for a in self.alt or []):
             raise ValueError("an alt selector is 1-500 characters")
         return self

@@ -44,4 +44,3 @@ f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vau
 /scan/docs/ops/reports/PROMPT_34.md:generic-api-key:16
 # 2026-11-17: the second DotCoin flow's name in flows.py (line 317), not a secret
 89dca5cac3ca68da2297d4bd6aa062c1f2cbf477:apps/api/src/hq_api/domain/flows.py:generic-api-key:317
-/scan/apps/api/src/hq_api/domain/flows.py:generic-api-key:317
