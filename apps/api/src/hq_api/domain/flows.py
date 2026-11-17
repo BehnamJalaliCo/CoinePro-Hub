@@ -328,7 +328,7 @@ FLOWS = {
         recipe="dotcoin",
     ),
     "dotcoin_reels_2": Flow(
-        key="dotcoin_reels_2",
+        key="dotcoin_reels_2",  # gitleaks:allow (a flow's name, not a key)
         company="IG",
         account="dotcoin.me",
         title_fa="ریلز اطلاع‌رسانی دات‌کوین",
