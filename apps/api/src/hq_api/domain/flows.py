@@ -97,6 +97,11 @@ DOTCOIN_STORY_HOURS = (
     *("16:00", "17:15", "18:30", "19:30", "21:30", "23:00"),
 )
 
+# ⟨2026-11-17⟩ the owner: «هر چی اتوماسیونه بذار روی مدل اوپس ۵.۵ با افورت اکسترا»: every flow on
+# Opus 5.5 at extra-high effort from its next day (a day already started keeps the model and effort
+# its run_meta holds: «اگر الان در حال ساخت هستند بذار بسازه»)
+XHIGH = "xhigh"
+
 FLOWS = {
     "prochart_reels": Flow(
         key="prochart_reels",
@@ -107,6 +112,8 @@ FLOWS = {
         start=date(2026, 11, 14),
         hours=("09:30", "14:00", "19:30", None),
         n8n="hqFlowProchartReels1",
+        model="claude-opus-5-5",
+        effort=XHIGH,
     ),
     # ⟨2026-11-15⟩ the owner: «اگر بخواییم پرو چارت رو روزی دو تا بکنیم … اگر آره اونم هر روز دو تا
     # باشه»: the bank holds 730 topics (two a day for a year); the same kit, made later in the day,
@@ -122,6 +129,8 @@ FLOWS = {
         n8n="hqFlowProchartReels2",
         trigger_at="16:30",
         pair="prochart_reels",
+        model="claude-opus-5-5",
+        effort=XHIGH,
     ),
     # ⟨2026-11-14⟩ the owner: TradeYar's page @zaribsad, a coin-profile reel at 19:00 every day
     # (what the coin is, how it was built, its advantages, today's price, its year), the video made
@@ -145,8 +154,8 @@ FLOWS = {
         cycle=("آموزش", "کمپین صرافی", "خبر و بازار"),
         # ⟨2026-11-15⟩ the owner, after the two ZEC reels side by side: «با مدل فیبل ۵.۲ برای ضریب صد؛
         # ریلز امروز رو که هیچ، ولی از فردا»
-        model="claude-fable-5-2",
-        model_from=date(2026, 11, 16),
+        model="claude-opus-5-5",
+        effort=XHIGH,
         same_day=True,
     ),
     "zaribsad_coin": Flow(
@@ -161,8 +170,8 @@ FLOWS = {
         n8n="hqFlowZaribsadCoin1",
         trigger_at="14:00",
         usd_cap=Decimal("100"),
-        model="claude-fable-5-2",  # (as the 12:00 one: from tomorrow)
-        model_from=date(2026, 11, 16),
+        model="claude-opus-5-5",
+        effort=XHIGH,  # (as the 12:00 one: from tomorrow)
         same_day=True,
     ),
     # ⟨2026-11-15⟩ the owner: «اتوماسیون استوری ضریب صد روزانه ۷ عدد که مطالبی باشه که برای کاربر
@@ -181,7 +190,8 @@ FLOWS = {
         n8n="hqFlowZaribsadStories1",
         trigger_at="06:00",
         usd_cap=Decimal("60"),
-        model="claude-fable-5-2",
+        model="claude-opus-5-5",
+        effort=XHIGH,
         stories=("08:30", "10:30", "13:30", "15:30", "17:30", "20:30", "22:30"),
         same_day=True,
     ),
@@ -199,7 +209,8 @@ FLOWS = {
         story=False,
         budget_tokens=10_000_000,
         usd_cap=Decimal("100"),
-        model="claude-fable-5-2",
+        model="claude-opus-5-5",
+        effort=XHIGH,
     ),
     # ⟨2026-11-16⟩ the owner: the page @ipoxxo.vpn (on IG-Hub) for the free proxy and VPN channel
     # t.me/ipoxxo, registered under IG-Hub (the owner: «ثبت زیر ig-hub»; its CEO holds the sessions,
@@ -224,6 +235,7 @@ FLOWS = {
         trigger_at="21:00",  # (the evening before: the workshop is free then)
         usd_cap=Decimal("100"),
         model="claude-opus-5-5",
+        effort=XHIGH,
         recipe="ipoxxo",
     ),
     "ipoxxo_reels_2": Flow(
@@ -240,6 +252,7 @@ FLOWS = {
         trigger_at="23:30",
         usd_cap=Decimal("100"),
         model="claude-opus-5-5",
+        effort=XHIGH,
         pair="ipoxxo_reels",
         recipe="ipoxxo",
     ),
@@ -257,6 +270,7 @@ FLOWS = {
         trigger_at="02:30",
         usd_cap=Decimal("40"),
         model="claude-opus-5-5",
+        effort=XHIGH,
         stories=("10:00", "16:30", "21:00"),
         same_day=True,
         story_word="لینک",
@@ -280,8 +294,8 @@ FLOWS = {
         story=False,
         budget_tokens=10_000_000,
         usd_cap=Decimal("100"),
-        model="claude-fable-5-2",
-        effort="xhigh",
+        model="claude-opus-5-5",
+        effort=XHIGH,
         note_fa=(
             "این نوبت فقط نمونه‌ی ۱۰ ثانیه‌ای برای دیدن مدیر کل است و منتشر نمیشود: ویدیو ۹ تا ۱۱ ثانیه، "
             "با همه‌ی قدم‌های کیت در همان اندازه (جستجو و دانلود نمونه‌های پینترست، صدای Arlo، کاور طبق "
@@ -309,8 +323,8 @@ FLOWS = {
         same_day=True,
         usd_cap=Decimal("100"),
         cycle=("آموزشی",),
-        model="claude-fable-5-2",
-        effort="xhigh",
+        model="claude-opus-5-5",
+        effort=XHIGH,
         recipe="dotcoin",
     ),
     "dotcoin_reels_2": Flow(
@@ -328,8 +342,8 @@ FLOWS = {
         same_day=True,
         usd_cap=Decimal("100"),
         cycle=("اطلاع‌رسانی",),
-        model="claude-fable-5-2",
-        effort="xhigh",
+        model="claude-opus-5-5",
+        effort=XHIGH,
         pair="dotcoin_reels",
         recipe="dotcoin",
     ),
@@ -351,8 +365,8 @@ FLOWS = {
         n8n="hqFlowDotcoinStories1",
         trigger_at="04:00",
         usd_cap=Decimal("60"),
-        model="claude-fable-5-2",
-        effort="xhigh",
+        model="claude-opus-5-5",
+        effort=XHIGH,
         stories=DOTCOIN_STORY_HOURS,
         same_day=True,
         recipe="dotcoin",
@@ -370,6 +384,7 @@ FLOWS = {
         budget_tokens=10_000_000,
         usd_cap=Decimal("100"),
         model="claude-opus-5-5",
+        effort=XHIGH,
         recipe="ipoxxo",
     ),
 }

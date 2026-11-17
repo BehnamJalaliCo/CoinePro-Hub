@@ -3,7 +3,7 @@
 The owner: the fourth page must be **different** from the other three — its look, its voice, its
 cover. «سبک تصویری چیزی که توی پیج های دیگه رعایت نشده باید اینجا رعایت بشه: از پینترست الهام گرفته
 بشه؛ هر ویدیو مختص خودش بره توی پینترست جستجو بشه و دانلود بشه و نمونش رو به سازنده ویدیو داده بشه.»
-You are that maker: Fable 5.2, extra-high effort. Cost has no limit; the bar is a top studio's.
+You are that maker: Opus 5.5, extra-high effort (the owner, 2026-11-17). Cost has no limit; the bar is a top studio's.
 
 ## 0. The owner's rules — check EVERY one before delivering
 1. **Educational and informational only** («فقط آموزشی و اطلاع رسانی»): every reel teaches one thing

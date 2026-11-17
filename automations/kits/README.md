@@ -17,7 +17,7 @@ Zarib×100 bar) and three photoreal stories a day; original Instagram ads, never
 
 dotcoin-reels (+ dotcoin-common): the page @dotcoin.me («Dot Coin | بهنام جلالی»), under IG-Hub (owner,
 2026-11-16), designed anew: educational / informational reels, each with its own look from its own
-Pinterest references, Fable 5.2 at extra-high effort, the narrator Arlo, IRANYekanX Pro
+Pinterest references, Opus 5.5 at extra-high effort (11-17; was Fable 5.2), the narrator Arlo, IRANYekanX Pro
 (/home/studio/kits/fonts-pro), colour in three layers (mustard + black brand, full-colour content, green
 up / red down), and the owner's own cover system (he is on every cover).
 dotcoin-stories (2026-11-17): the day's educational lesson in twelve story slides, designed by ChatGPT

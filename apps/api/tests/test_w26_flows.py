@@ -314,9 +314,10 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
     ws = await workshop(client, hub, owner_session, su)
     day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=1)
     fable = "claude-fable-5-2"
-    for key in ("zaribsad_noon", "zaribsad_coin"):
-        assert FL.model_on(FL.FLOWS[key], date(2026, 11, 15)) == ""
-        assert FL.model_on(FL.FLOWS[key], date(2026, 11, 16)) == fable
+    # ⟨2026-11-17⟩ the owner: every automation on Opus 5.5 at extra-high effort
+    for key, f in FL.FLOWS.items():
+        assert (f.model, f.effort, f.model_from) == ("claude-opus-5-5", "xhigh", None), key
+        assert FL.model_on(f, date(2026, 11, 18)) == "claude-opus-5-5"
     for model, since, want in (
         (fable, None, fable),
         ("", None, HANDS.MODEL),
@@ -650,7 +651,7 @@ def test_ipoxxos_dm_opens_the_telegram_channel_on_any_comment() -> None:
     assert body["buttons"][0]["url"].startswith("https://t.me/ipoxxo")
 
 
-async def test_dotcoins_pilot_is_a_ten_second_sample_on_fable_at_extra_high_effort() -> None:
+async def test_dotcoins_pilot_is_a_ten_second_sample_at_extra_high_effort() -> None:
     """⟨2026-11-16⟩ The owner, for the fourth page DotCoin.me (the maker Fable 5.2 at extra-high
     effort; first a 10-second sample and a sample cover): the pilot publishes nothing, runs on
     Fable 5.2 at xhigh, and its order says its size."""
@@ -658,7 +659,7 @@ async def test_dotcoins_pilot_is_a_ten_second_sample_on_fable_at_extra_high_effo
 
     pilot = FL.FLOWS["dotcoin_pilot"]
     assert pilot.company == "IG" and pilot.account == "" and not pilot.n8n and not pilot.story
-    assert (pilot.model, pilot.effort) == ("claude-fable-5-2", "xhigh")
+    assert (pilot.model, pilot.effort) == ("claude-opus-5-5", "xhigh")  # (⟨11-17⟩ Opus 5.5)
     assert pilot.kit == "/home/studio/kits/dotcoin-reels"
     text = FL.brief_of(pilot, date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC))
     assert text.endswith(pilot.note_fa) and "۱۰ ثانیه" in text and "Arlo" in text
@@ -684,7 +685,7 @@ async def test_dotcoins_pilot_is_a_ten_second_sample_on_fable_at_extra_high_effo
 def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
     """⟨2026-11-17⟩ The owner, after the pilot («هم کاور و هم ریلز عالی بود»; «ساعت دو ریلز عالیه»):
     an educational reel at 13:00 and an informational one at 20:30 every day, each built the same
-    day on Fable 5.2 at extra-high effort; the day's educational stories are twelve slides from one
+    day on Opus 5.5 at extra-high effort (⟨11-17⟩, was Fable 5.2); the day's educational stories are twelve slides from one
     ChatGPT chat, with a fresh reply word a day. Each has its n8n workflow file, and the map shows
     DotCoin's own steps at its own effort."""
     import json
@@ -696,7 +697,7 @@ def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
     st = FL.FLOWS["dotcoin_stories"]
     for f in (one, two, st):
         assert (f.company, f.account, f.model, f.effort) == (
-            "IG", "dotcoin.me", "claude-fable-5-2", "xhigh",
+            "IG", "dotcoin.me", "claude-opus-5-5", "xhigh",
         )  # fmt: skip
         assert f.same_day and not f.story and f.recipe == "dotcoin"
     assert set(one.hours) == {"13:00"} and set(two.hours) == {"20:30"}
@@ -731,5 +732,5 @@ def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
     slides = FV.steps_of(st)
     assert any("۱۲ اسلاید" in s.title_fa for s in slides)
     assert all(s.effort == "xhigh" for s in slides if s.model)
-    # the other flows keep their map (no own effort: max)
-    assert all(s.effort == "max" for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"]) if s.model)
+    # ⟨2026-11-17⟩ every flow's map shows its own effort (all xhigh now)
+    assert all(s.effort == "xhigh" for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"]) if s.model)
