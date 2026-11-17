@@ -1,0 +1,17 @@
+{
+  "name": "DotCoin.me",
+  "name_fa": "دات‌کوین",
+  "url": "https://dotcoin.me",
+  "locale": "fa_IR",
+  "lang": "fa-IR",
+  "author": "بهنام جلالی",
+  "author_en": "Behnam Jalali",
+  "instagram": "https://www.instagram.com/dotcoin.me",
+  "instagram_handle": "dotcoin.me",
+  "youtube": "https://www.youtube.com/@DotCoin-me",
+  "tagline": "آموزش کریپتو به فارسی ساده",
+  "title_suffix": " | دات‌کوین",
+  "pillars_en": {"basics": "BASICS", "security": "SECURITY", "exchange": "EXCHANGES", "market": "MARKET", "defi": "DEFI", "myths": "MYTHS", "terms": "TERMS"},
+  "ideas": "../../kits/dotcoin-reels/bank/ideas.json",
+  "today": "blockchain"
+}
