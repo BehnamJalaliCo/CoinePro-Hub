@@ -118,7 +118,7 @@ def test_the_brief_says_who_it_is_once_and_only_what_is_new_after() -> None:
     assert "تو مدیر رسانه در پروچارت هستی" in first and "جلسه‌ی F-0014" in first
     assert "mcp__hq__" in first and "order_ask، speech_make، topic_claim" in first
     assert "skill_read" in first and "You direct the company's media." in first
-    assert "گوینده Charon است." in first and "in/logo.png (image/png)" in first
+    assert "گوینده Charon است." in first and "in/logo.png (image/png، file_id " in first
     assert "DIRECT: do it yourself." in first and "یک ریلز بساز" in first
     assert first.rstrip().endswith("- شعار آخرش باشد")  # his last word is the last thing it reads
     assert "مدیر کل همین حالا در جلسه حرف زد" in first

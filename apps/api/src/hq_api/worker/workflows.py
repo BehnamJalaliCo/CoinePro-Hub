@@ -287,7 +287,8 @@ ONCE = RetryPolicy(maximum_attempts=1)  # a long pull is never run twice at once
 # The advisor's sweep is rule-only until it would wake the advisor (the
 # launch gate decides); the web jobs and the daily pass ask the gate too.
 ONCE_P12 = RetryPolicy(maximum_attempts=1)  # a web job is never sent twice
-SUBSTITUTE_WEB_LIMIT = timedelta(minutes=17)
+# ⟨2026-11-17⟩ a set of slides in one ChatGPT chat runs up to 27 minutes (SLIDES_TIMEOUT_S)
+SUBSTITUTE_WEB_LIMIT = timedelta(minutes=32)
 
 
 @workflow.defn(name="AdvisorSweep")
@@ -303,7 +304,8 @@ class AdvisorSweep:
 @workflow.defn(name="SubstituteWebJobs")
 class SubstituteWebJobs:
     """Every minute: the substitutes' queued web calls through egress. ⟨2026-11-11⟩ 17 minutes:
-    each picked job may take its own timeout and 30 s, and the reaper's deadline is past them."""
+    each picked job may take its own timeout and 30 s, and the reaper's deadline is past them.
+    ⟨2026-11-17⟩ 32: a set of slides waits up to SLIDES_TIMEOUT_S (27 min)."""
 
     @workflow.run
     async def run(self) -> dict[str, Any]:

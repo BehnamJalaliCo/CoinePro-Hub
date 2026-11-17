@@ -56,7 +56,9 @@ HOW = {
     "cover_image": (
         "substitute.call {seat: creative, kind: image, player?: gpt | gemini, input_md: the "
         "brief, placement: instagram_post | instagram_story | telegram_post | …, overlay?: the "
-        "Persian words}: a creative CR-… that waits for review; deliver its ref with your work; "
+        "Persian words, images?: 2-15 (ChatGPT only: a set of slides made in ONE chat, each a "
+        "picture of its own, all reaching in/ as slide_01 … in order)}: a creative CR-… that "
+        "waits for review; deliver its ref with your work; "
         "the owner accepts it on the creatives screen. Publishing it once is the owner's: propose "
         "{kind: a3_action, payload: {action: publish, target: 'CR-… → the channel', preview}} (A3); "
         "nothing is published by itself"

@@ -48,7 +48,7 @@
 # and an unnamed twin of the same blob; the site's file addresses (estuary, oaiusercontent) stay
 # as a last fallback. The last such image is the made one (a cover's attached files come first).
 key: chatgpt-web
-version: "2026-11-14.2"
+version: "2026-11-17.1"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -152,6 +152,33 @@ tasks:
         optional: true
       - {do: pause, ms: 2000}
       - do: download_image
+        selector: >-
+          img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
+          img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
+        attr: src
+  # 2026-11-17.1: a set of slides in ONE chat (the owner: «چت جی پی تی میتونه ۱۰ الی ۱۵ عکس رو یکجا
+  # طراحی بکنه و تحویل بده در اسلاید های مجزا»): the brief asks for each slide as a picture of its
+  # own; the answer runs as long as ChatGPT makes them, then every made picture is taken, in order
+  # (none of the job's attached files). Attaching is optional: a set may carry references.
+  slides:
+    timeout_s: 1500
+    steps:
+      - {do: goto, url: "https://chatgpt.com/"}
+      - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
+      - {do: attach, selector: "input[type=file]", optional: true}
+      - {do: pause, ms: 3000}
+      - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
+      - {do: press, selector: "div[contenteditable=true]", key: Enter}
+      - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
+      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 1400}
+      - do: wait
+        selector: >-
+          [data-testid=copy-turn-action-button], [data-testid=good-response-turn-action-button],
+          button[aria-label*='کپی'], button[aria-label*='Copy']
+        timeout_s: 20
+        optional: true
+      - {do: pause, ms: 4000}
+      - do: download_images
         selector: >-
           img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
           img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']

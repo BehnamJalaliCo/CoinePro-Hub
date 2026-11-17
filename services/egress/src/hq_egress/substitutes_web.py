@@ -39,7 +39,7 @@ from hq_common.redact import scrub
 from hq_egress.guard import Blocked
 from hq_egress.hosts import covered
 from hq_egress.net import Entry, track
-from hq_egress.recipes import Account, TaskName
+from hq_egress.recipes import MAX_IMAGES, Account, TaskName
 from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")
@@ -77,7 +77,7 @@ class WebIn(BaseModel):
     style: str | None = Field(default=None, max_length=2000)
     limit: int = Field(default=10, ge=1, le=30)
     files: list[JobFile] = Field(default_factory=list, max_length=MAX_JOB_FILES)
-    timeout_s: int = Field(default=300, ge=10, le=900)
+    timeout_s: int = Field(default=300, ge=10, le=1800)  # (⟨2026-11-17⟩ slides: up to 25 min)
     # ⟨1.10⟩ §28.4 the hub's one retry after a recipe failure
     reload: bool = False
 
@@ -150,7 +150,8 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
         key, password = state.buckets.open(
             "substitute.web",
             "A2",
-            s.web_file_bytes + 64 * 1024 * 1024,  # the pages and the file
+            # the pages and the file (⟨2026-11-17⟩ a set of slides: each of its pictures)
+            s.web_file_bytes * (MAX_IMAGES if a.task == "slides" else 1) + 64 * 1024 * 1024,
             site=recipe.site,
             hosts=recipe.own_hosts(),
             ttl_s=timeout + 120,
@@ -198,9 +199,12 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
         )
     text = got.get("text_md")
     file = got.get("file") if isinstance(got.get("file"), dict) else None
-    if file is not None:
+    # ⟨2026-11-17⟩ a set of slides: every picture checked as the one file is
+    many = [f for f in got.get("files") or [] if isinstance(f, dict)][:MAX_IMAGES]
+    files: list[dict[str, str]] = []
+    for one in many or ([file] if file is not None else []):
         try:
-            data = base64.b64decode(str(file.get("b64") or ""), validate=True)
+            data = base64.b64decode(str(one.get("b64") or ""), validate=True)
         except ValueError:
             return failed("recipe_failed", "the file was not readable", version=version)
         if not data or len(data) > max_bytes:
@@ -212,8 +216,9 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
                 "the download is not an image, a video or an audio file",
                 version=version,
             )
-        name = str(file.get("name") or "file")[:120]
-        file = {"name": name, "mime": mime, "b64": base64.b64encode(data).decode()}
+        name = str(one.get("name") or "file")[:120]
+        files.append({"name": name, "mime": mime, "b64": base64.b64encode(data).decode()})
+    file = files[0] if files else None
     if text is None and file is None:
         return failed("recipe_failed", "the recipe read nothing", version=version)
     return JSONResponse(
@@ -223,6 +228,7 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
             # long answer in its file store)
             "text_md": scrub(str(text)) if text is not None else None,
             "file": file,
+            **({"files": files} if many else {}),
             "recipe_version": version,
         }
     )

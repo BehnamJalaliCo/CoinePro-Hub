@@ -6790,6 +6790,13 @@
             ],
             "title": "Head Sha"
           },
+          "images": {
+            "default": 1,
+            "maximum": 15.0,
+            "minimum": 1.0,
+            "title": "Images",
+            "type": "integer"
+          },
           "input_md": {
             "maxLength": 200000,
             "minLength": 1,
@@ -181220,6 +181227,7 @@
                   "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                 ],
                 "head_sha": "x",
+                "images": 1,
                 "input_md": "x",
                 "kind": "text",
                 "overlay": {

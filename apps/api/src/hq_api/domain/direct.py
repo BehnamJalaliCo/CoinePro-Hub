@@ -390,12 +390,14 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
     # creative's file names no order), so a reel's key art waited in the hub's store
     refs = [str(r) for r in rep.get("work_refs") or []]
     if refs:
+        # ⟨2026-11-17⟩ every picture of a set of slides, in its order (a turn takes INPUTS_MAX;
+        # the rest reach the next turn)
         art = await tx.all(
-            """SELECT c.file_ids[1] AS id FROM substitutes.creatives c
+            """SELECT f.id FROM substitutes.creatives c
                JOIN work.work w ON w.id = c.work_id
+               CROSS JOIN LATERAL unnest(c.file_ids) WITH ORDINALITY AS f(id, n)
                WHERE w.ref = ANY(:refs) AND c.state IN ('review', 'accepted')
-                 AND cardinality(c.file_ids) > 0
-               ORDER BY c.updated_at DESC LIMIT :l""",
+               ORDER BY c.updated_at DESC, f.n LIMIT :l""",
             refs=refs,
             l=HANDS.INPUTS_MAX * 4,
         )

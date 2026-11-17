@@ -269,7 +269,9 @@ def compose(
             [
                 f"**فایل‌های ورودی این نوبت در پوشه‌ی {IN_DIR}/ هستند** (از ستاد رسیده‌اند؛ همان‌ها را "
                 "به کار ببر، مثلاً صدای گوینده را زیر تصویر بگذار و تصویر را با آن هم‌زمان کن):",
-                *[f"- {IN_DIR}/{i['name']} ({i['mime']})" for i in inputs],
+                # ⟨2026-11-17⟩ with its file id: a picture a turn received can go with a ChatGPT
+                # image as a reference (substitute.call file_ids; DotCoin.me's slides)
+                *[f"- {IN_DIR}/{i['name']} ({i['mime']}، file_id {i['file_id']})" for i in inputs],
             ]
             if inputs
             else []

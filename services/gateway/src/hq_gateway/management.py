@@ -98,6 +98,9 @@ class SubstituteCallIn(T.In):
     ) = None
     overlay: Overlay | None = None
     duration_s: int | None = Field(default=None, ge=1, le=10)
+    # ⟨2026-11-17⟩ a set of pictures in ONE ChatGPT chat (story slides, each a picture of its own;
+    # kind image, player gpt): 1 as before, up to 15
+    images: int = Field(default=1, ge=1, le=15)
 
 
 async def memo_write(api: T.Api, call: T.Call, a: MemoWriteIn) -> T.Result:
@@ -126,6 +129,8 @@ async def memo_write(api: T.Api, call: T.Call, a: MemoWriteIn) -> T.Result:
 
 async def substitute_call(api: T.Api, call: T.Call, a: SubstituteCallIn) -> T.Result:
     body = a.model_dump(mode="json", exclude_none=True)
+    if a.images == 1:
+        body.pop("images", None)  # (one picture: the request as it always was)
     body["input_md"] = await T._text(a.input_md)
     resp = await api.request("POST", "/internal/v1/substitutes/call", call.token, json=body)
     r = T.from_response(resp, None)

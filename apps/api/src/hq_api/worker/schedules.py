@@ -569,7 +569,8 @@ def management_fixed() -> list[Desired]:
             (),
             every(1),
             timedelta(minutes=2),
-            timedelta(minutes=18),  # ⟨2026-11-11⟩ its activity may take 17
+            # ⟨2026-11-11⟩ its activity may take 17; ⟨2026-11-17⟩ 32: a set of slides in one chat
+            timedelta(minutes=33),
         ),
         Desired(
             SUBSTITUTE_DAILY,
