@@ -58,7 +58,8 @@ You are the day's session, started by n8n at 04:00 Tehran. Opus 5.5, extra-high 
    - Choose 3–5 pins and download them with `COMMON/tools/pin_get.py`.
    - Write the look in one paragraph in direction/CONTRACT.md.
    - A different style family from the last days' stories.
-3. **Art from Gemini (when the look has pictures):** 1–3 `substitute.call`, each:
+3. **Art from Gemini, always** (the owner, 2026-11-17: every story with ChatGPT AND Gemini): 1–3
+   `substitute.call`, each:
    - seat creative, kind image, placement instagram_story, player **gemini**;
    - one hero object or scene of the lesson (a 3D wallet, a chain of blocks, a hand with a phone …)
      in the look;

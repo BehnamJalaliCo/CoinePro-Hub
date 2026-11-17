@@ -194,8 +194,8 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             _step("pictures", txt["pictures"][0], "workshop", "gpt", out=txt["pictures"][1],
                   rules=(("بی انیمه، بی جمله‌ی هشدار",) if "pictures" not in own else ()))
             if "pictures" in txt
-            else _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop",
-                       "gpt", out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
+            else _step("pictures", f"{n} عکس واقعی با ChatGPT و Gemini".translate(FA_DIGITS), "workshop",
+                       "gpt", out="هر استوری از هر دو، بهترینش؛ بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
             _step("compose", txt["compose"][0] if "compose" in txt
                   else "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
                   out=f"story_1.jpg تا story_{n}.jpg".translate(FA_DIGITS)),

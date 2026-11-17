@@ -1,7 +1,7 @@
 # ipoxxo (@ipoxxo.vpn) — the day's three stories (owner, 2026-11-16)
 
 The owner: «روزانه ۳ تا استوری گذاشته میشه», as Zarib×100's: pictures (no video), very REALISTIC
-(photoreal, never anime), NEW every day, made by ChatGPT at 4K. Every story brings Instagram viewers
+(photoreal, never anime), NEW every day, made by ChatGPT and Gemini at 4K (the better of the two). Every story brings Instagram viewers
 to the FREE Telegram channel **t.me/ipoxxo** (free MTProto proxies for Telegram, free V2Ray configs
 for the whole phone, fresh again and again). **Original Instagram content, never the channel's posts**
 (owner: «محتوای اون مناسب تلگرام و تبلیغات کانال نیست، ما میخواییم از اینستاگرام کاربر جذب کنیم»).
@@ -17,7 +17,9 @@ proposed): it is on every story, every day; IG-Hub answers it with the page's ol
 the DM text must be timeless (no date, no "today").
 
 ## Fixed rules
-- Photoreal key art by ChatGPT (cinematic, real light, real people/places/objects), made today, never
+- **Every story's picture is made by ChatGPT AND Gemini** (the owner, 2026-11-17: «تمام استوری ها
+  باید با چت جی پی تی و جمنای باشند … تمامشون»): the same brief to both, the better one kept.
+- Photoreal key art (cinematic, real light, real people/places/objects), made today, never
   anime or illustration; crisp: no blur, no grain, no particles or bokeh. Graded to the page: navy
   #000928, neon cyan #04F6FF, electric blue #1498ED, white (COMMON/brand/README.md).
 - Persian text ONLY by our tool (KIT/tools/story_card.py, IRANYekanX Eco): never let ChatGPT write
@@ -43,16 +45,18 @@ reason); never two days alike.
 0. `mkdir -p build out in`; `order.ack` with these steps (the hub wakes you while steps are open).
 1. **The three ideas** (above) → write them in build/ideas.md, and `topic.claim` «استوری: <idea>» for
    each (refused = choose another).
-2. **Pictures — send all three briefs at once** (ChatGPT ~100 s each, one job at a time):
-   `substitute.call` seat **creative**, kind **image**, placement **other**, player **gpt**. Each
-   brief: "Photorealistic, 4K ultra-detailed, razor-sharp, shot on a full-frame cinema camera" + one
+2. **Pictures — ChatGPT AND Gemini for every story; send all six calls at once** (~100 s each, one
+   job at a time): for each story the SAME brief twice, `substitute.call` seat **creative**, kind
+   **image**, placement **other**, once with player **gpt** and once with player **gemini** (the
+   owner, 2026-11-17). Each brief: "Photorealistic, 4K ultra-detailed, razor-sharp, shot on a full-frame cinema camera" + one
    9:16 scene for that story's idea, cinematic light, the navy/cyan grade, a calm empty area where
    the text sits (the lower half for a bottom layout), and "no text, no letters, no numbers, no
    logos, no watermark, no UI, not anime, not illustration". ChatGPT returns about 941×1672: upscale
    to 1080×1920 with Lanczos. Real people only as anonymous everyday users. Then end the turn with
    `order.progress` («تصویرها در راه است»): pictures made during a turn reach `in/` at your next turn.
-3. **Read every picture** (Read): photoreal, crisp, nothing written, no warped hands or faces, the
-   text area calm. A bad one: ask again (≤ 2 more tries) saying exactly what was wrong.
+3. **Read every picture** (Read), both versions of each story: photoreal, crisp, nothing written, no
+   warped hands or faces, the text area calm. Keep the better of the two for that story; both bad:
+   ask both again (≤ 2 more tries) saying exactly what was wrong; one player failing: the other's.
 4. **Compose:** one spec per story (the tool's docstring) → `VENV/bin/python -I KIT/tools/story_card.py
    build/s1.json` … → out/story_1.jpg, out/story_2.jpg, out/story_3.jpg in the hours' order. Headline
    ≤ 7 words, at most 3 short lines, a step card only on the how-to; `foot`: «t.me/ipoxxo».
