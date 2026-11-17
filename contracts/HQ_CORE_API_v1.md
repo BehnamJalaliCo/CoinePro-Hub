@@ -5584,6 +5584,8 @@ FlowRunRef { ref, at, state, topic_fa | null, note_fa, cost_usd | null }
   - `POST /automations/{ref}/pause {until?}` (`paused`; no `until`: till `state on`);
   - `POST /automations/{ref}/skip {at?, skip: bool}` (the next occurrence, or the one at `at`; `skip: false` undoes it);
   - `PATCH /automations/{ref} {schedule?, account?, story?, mode?, budget?, title_fa?}` → `FlowAutomation`.
+- ⟨2026-11-17⟩ **For an automation that publishes, cost never stops a run** (§61.4: the cap is a warning line). The rule
+  below stays only for the agents' own work the owner gives a token budget to.
 - **Budget:** before each step the engine checks the run's and the day's spend; the step that would pass a cap does not
   start: the run is `waiting` with `note_fa` «به سقف بودجه‌ی امروز رسید ($x از $y)» and the owner gets **one**
   notification (category decision) with «سقف را بالا ببر» and «این نوبت رد شود». Lowering a cap is a tap; raising one is a
@@ -5804,11 +5806,11 @@ PlannedItem { automation, automation_fa, account, kind, title_fa, build_at, publ
   planned, accounts: [account]}]}` (Tehran days; the future counts what §61's flows will make); a day's list is
   `GET /publications?from=day&to=day`.
 - `GET /api/v1/publications/waiting` → `{items: [Waiting]}`; empty means the app hides «منتظر شما».
-  `Waiting {id, kind: "publish_ask"|"budget_cap", title_fa, account | null, at, deadline_at | null,
+  `Waiting {id, kind: "publish_ask", title_fa, account | null, at, deadline_at | null,
   publication: PublicationCard | null, actions: [{key, label_fa, primary: bool}]}`: only what cannot move without the owner
-  (a working group or flow in `ask` mode at its publish step, §45 and §59.7; a run at its day's cap, §61.4). Never routine
-  notices, agents' suggestions or hiring cards. `POST /api/v1/publications/waiting/{id}/{key}` runs the action (each a tap,
-  no step-up, except a cap above the company's month envelope: 🔏 `automation.budget`, §59.7).
+  (a working group or flow in `ask` mode at its publish step, §45 and §59.7; ⟨2026-11-17⟩ no cost item: §61.4). Never
+  routine notices, agents' suggestions or hiring cards. `POST /api/v1/publications/waiting/{id}/{key}` runs the action
+  (each a tap, no step-up).
 - Files: `GET /files/{id}` and `/meta` as today (§17); the app downloads one file or all of a row.
 
 ### 60.3 The desk, tidied (§55.2 amended)
@@ -5915,10 +5917,12 @@ FlowVersion { version, at, by_fa, note_fa | null, changes: [{field, label_fa, be
   else any hour of the next day. No two story hours are the same, and none is on the minute of a reel of the same account.
 - `model` is one of `options.models`; `effort` one of three; `usd_cap` 1 to 500; stories 1 to `stories_max`; `cycle` 0 to 7
   kinds; `days` a non-empty subset of 0..6; `note_fa` ≤ 2000 characters; `start` and `paused_until` dates.
-- A day's cap whose month estimate (`usd_cap × 30`, with the account's other flows) passes the company's month envelope
-  (§18.11) needs 🔏 `automation.budget` (target `<ref>:<usd_cap>`); lowering is a tap.
-- A run that reaches its day's cap waits at the step that would pass it; the owner sees it in «منتظر شما» (§60.2,
-  `budget_cap`: «سقف را … کن» / «این نوبت رد شود»), once.
+- ⟨the owner, 2026-11-17⟩ **Cost never stops a publishing automation:** «ریلز رو که نمیتونم پاکت بدم اومدیم به محدودیت
+  خورد یعنی نمیخواد ریلز رو بسازه؟ حتما باید بسازه پس این موارد پاکت نمیخواد». `usd_cap` is the day's **warning line**,
+  1 to 500: a run that passes it goes on to the end, and a `cap_reached` alert opens on the flow's page (no notification,
+  nothing in «منتظر شما»). Raising or lowering it is a tap, no step-up. No month envelope applies to automations
+  (envelopes are for the tokens of the agents the owner hires); `budget.envelope_usd` and `envelope_left_usd` are `null`
+  and `over_envelope` is `false`. A run is still bounded by time (each workshop turn's own limit), never by cost.
 
 ### 61.5 A new automation (`POST /api/v1/automations/flows`)
 - `Kit {key, title_fa, about_fa, kinds, avg_usd | null, avg_minutes | null, used_on: [account]}`: the kits that run today,
@@ -5963,8 +5967,8 @@ account, runs, published, cost_usd, flows, best: PublicationCard | null}]}`; `be
 - `days` is weighed on the **publish** day, not the build day.
 - `options.models` is Opus 5.5 alone that day: every flow is on Opus 5.5 at `xhigh` (the owner's order); the list is the
   models a flow's workshop turn may run (prompt 39.1).
-- No company has a month envelope in USD on the hub, so raising any flow's cap is 🔏 `automation.budget` until the owner
-  sets one (§61.4); lowering stays a tap.
+- ⟨superseded the same day by the owner's word in §61.4⟩ ~~No company has a month envelope in USD on the hub, so raising
+  any flow's cap is 🔏 `automation.budget`~~: a flow's cap is a warning line, a tap either way, and never stops a run.
 - The per-flow n8n workflows still call at their old hours: from prompt 39.1 such a call before the row's `trigger_at`
   that day is a no-op, so a later build hour set in the app holds; the workflows are switched off (not deleted) after a
   week of the hub's clock without a miss.
