@@ -341,12 +341,15 @@ private fun RunLine(r: FlowRunDay, onClick: () -> Unit) {
     val c = Divan.colors
     val k = r.publications.firstOrNull()
     val today = HqClock.now().atZone(ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)).toLocalDate()
+    // ⟨1.3.1⟩ a run without its day (the hub's `day: null`) is placed by its start
+    val day = r.day?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: tehranDate(r.startedAt)
+    val dayFa = day?.let { dayHeadFa(it, today) }
     Row(Modifier.fillMaxWidth().testTag("run-line").clickable(role = Role.Button, onClickLabel = "خط زمان این روز") { onClick() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (k != null) com.coinepro.hq.ui.publish.PubCover(k.account, k.titleFa, k.thumbFileId, Modifier.size(width = 40.dp, height = 56.dp))
         else com.coinepro.hq.ui.publish.DashedFrame(Modifier.size(width = 40.dp, height = 56.dp)) { Text("—", style = Divan.type.caption, color = c.textMuted) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(plain(r.topicFa ?: dayHeadFa(LocalDate.parse(r.day), today)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(plain(listOfNotNull(if (r.topicFa != null) dayHeadFa(LocalDate.parse(r.day), today) else null, r.noteFa.ifBlank { null }).joinToString(" · ")), style = Divan.type.micro, color = if (r.state == "failed") c.negative else c.textMuted, maxLines = 2)
+            Text(plain(r.topicFa ?: dayFa ?: "—"), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(plain(listOfNotNull(if (r.topicFa != null) dayFa else null, r.noteFa.ifBlank { null }).joinToString(" · ")), style = Divan.type.micro, color = if (r.state == "failed") c.negative else c.textMuted, maxLines = 2)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Pill(when (r.state) { "done" -> "منتشر شد"; "skipped" -> "رد شد"; "failed" -> "ناموفق"; "running" -> "در کار"; else -> r.state },
@@ -447,7 +450,7 @@ private fun HealthTab(f: FlowDef, more: Boolean) {
         }
         Text(plain(h?.noteFa ?: f.health.noteFa), style = Divan.type.small, color = c.textSecondary)
         HqCard(Modifier.fillMaxWidth().testTag("flow-health-card")) {
-            h?.lastRun?.let { Line("آخرین اجرا", "${dayHeadFa(LocalDate.parse(it.day), HqClock.now().atZone(ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)).toLocalDate())} · ${it.noteFa}") }
+            h?.lastRun?.let { r -> Line("آخرین اجرا", listOfNotNull(r.at?.let { a -> nextWhenFa(a, now) }, r.noteFa.ifBlank { null }).joinToString(" · ").ifBlank { "—" }) }
             h?.success30d?.let { if (it.all > 0) Line("موفق در ۳۰ روز", "${faNum(it.ok)} از ${faNum(it.all)}") }
             Line("هزینه", "امروز ${usdShort(h?.cost?.today ?: f.today.costUsd)} · ماه ${usdShort(h?.cost?.month ?: f.monthCostUsd)}")
             (h?.next ?: f.next)?.let { Line("اجرای بعدی", "ساخت ${nextWhenFa(it.buildAt, now)} · انتشار ${faHour(it.publishAt)}") }
@@ -455,7 +458,7 @@ private fun HealthTab(f: FlowDef, more: Boolean) {
         val alerts = h?.alerts.orEmpty()
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("هشدارها", style = Divan.type.h3, modifier = Modifier.weight(1f))
-            Text("باز: ${if (alerts.none { it.state == "open" } && f.alertsOpen == 0) "هیچ" else faNum(alerts.count { it.state == "open" }.coerceAtLeast(f.alertsOpen))}", style = Divan.type.micro, color = c.textMuted)
+            Text("باز: ${if (alerts.none { it.open } && f.alertsOpen == 0) "هیچ" else faNum(alerts.count { it.open }.coerceAtLeast(f.alertsOpen))}", style = Divan.type.micro, color = c.textMuted)
         }
         if (alerts.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
             for ((i, a) in alerts.withIndex()) {
@@ -464,7 +467,7 @@ private fun HealthTab(f: FlowDef, more: Boolean) {
                     Pill(alertKindFa(a.kind), alertTone(a.kind))
                     Column(Modifier.weight(1f)) {
                         Text(plain(a.noteFa), style = Divan.type.small)
-                        Text(plain("${tehranDate(a.openedAt)?.let { jDayFa(it) } ?: ""} ${faHour(a.openedAt)}" + if (a.state == "closed") " · بسته شد" else " · باز"), style = Divan.type.micro, color = c.textMuted)
+                        Text(plain("${tehranDate(a.openedAt)?.let { jDayFa(it) } ?: ""} ${faHour(a.openedAt)}" + if (a.open) " · باز" else " · بسته شد" + (a.closedFa?.let { "؛ $it" } ?: "")), style = Divan.type.micro, color = c.textMuted)
                     }
                 }
             }

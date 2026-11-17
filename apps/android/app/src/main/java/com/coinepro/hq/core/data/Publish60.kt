@@ -238,7 +238,7 @@ fun cellCountFa(c: MonthCell): String? {
 // ---------------------------------------------------------------------------------------------------- an account's page --
 /** A page's grid in days, newest first: each day its Tehran date and its cards (a set as one). */
 fun cardsByDay(items: List<PublicationCard>): List<Pair<LocalDate, List<PublicationCard>>> =
-    items.groupBy { tehranDate(it.at) ?: LocalDate.MIN }.toSortedMap(compareByDescending { it }).map { it.key to it.value.sortedBy { c -> instant(c.at) } }
+    items.groupBy { tehranDate(it.at) ?: LocalDate.EPOCH }.toSortedMap(compareByDescending { it }).map { it.key to it.value.sortedBy { c -> instant(c.at) } }
 
 /** «امروز · سه‌شنبه ۲۶ آبان», «دیروز · …», else the day. */
 fun dayHeadFa(d: LocalDate, today: LocalDate): String = when (d) {

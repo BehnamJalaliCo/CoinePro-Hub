@@ -135,7 +135,8 @@ data class FlowVersion(
 @Serializable
 data class FlowRunDay(
     val run: String = "",
-    val day: String = "",
+    /** ⟨1.3.1⟩ null for a run the hub cannot place on a day (the app then reads [startedAt]). */
+    val day: String? = null,
     val state: String = "",
     val topicFa: String? = null,
     val startedAt: String? = null,
@@ -148,15 +149,21 @@ data class FlowRunDay(
 @Serializable
 data class FlowRunDays(val items: List<FlowRunDay> = emptyList(), val next: String? = null)
 
-/** A code-made alert (§61.6): `run_failed` · `cap_reached` · `page_held` · `login_expired` · `clock_missed` · `late`. */
+/** A code-made alert (§61.6): `run_failed` · `cap_reached` · `page_held` · `login_expired` · `clock_missed` · `late`. ⟨1.3.1⟩ As the
+ *  hub serves it (`flow_alerts.Alert`): open while [closedAt] is null; [closedFa] says how it closed; [notified] whether the owner was told. */
 @Serializable
 data class FlowAlert(
+    val id: String = "",
     val kind: String = "",
-    val state: String = "open",
-    val openedAt: String = "",
-    val closedAt: String? = null,
     val noteFa: String = "",
-)
+    val day: String? = null,
+    val openedAt: String = "",
+    val notified: Boolean = false,
+    val closedAt: String? = null,
+    val closedFa: String? = null,
+) {
+    val open: Boolean get() = closedAt == null
+}
 
 @Serializable
 data class SuccessRatio(val ok: Int = 0, val all: Int = 0)
@@ -169,7 +176,8 @@ data class CostPair(val today: Double = 0.0, val month: Double = 0.0)
 data class FlowHealthReport(
     val state: String = "ok",
     val noteFa: String = "",
-    val lastRun: FlowRunDay? = null,
+    /** ⟨1.3.1⟩ the hub's last run as §59.7's [FlowRunRef] (its `at`, state and line), not a day of `runs`. */
+    val lastRun: FlowRunRef? = null,
     val success30d: SuccessRatio = SuccessRatio(),
     val cost: CostPair = CostPair(),
     val next: FlowDefNext? = null,

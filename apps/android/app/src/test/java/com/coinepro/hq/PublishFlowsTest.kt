@@ -175,6 +175,18 @@ class PublishFlowsTest {
     }
 
     @Test
+    fun theHubsP2ShapesRead() {
+        // flow_defs.health_page and flow_alerts.Alert as the hub serves them (prompt 39.1)
+        val h = Api.json.decodeFromString(com.coinepro.hq.core.net.FlowHealthReport.serializer(), """{"state":"down","note_fa":"x","last_run":{"ref":"F-1","at":"2026-11-17T09:30:00Z","state":"done","note_fa":"منتشر شد","topic_fa":null,"cost_usd":4.1,"results":null},"success_30d":{"ok":3,"all":3},"cost":{"today":4.1,"month":15.6},"next":null,"alerts":[{"id":"a","kind":"late","note_fa":"دیر","day":"2026-11-17","opened_at":"2026-11-17T15:44:00Z","notified":true,"closed_at":null,"closed_fa":null},{"id":"b","kind":"run_failed","note_fa":"رندر","day":null,"opened_at":"2026-11-14T18:00:00Z","notified":false,"closed_at":"2026-11-14T20:10:00Z","closed_fa":"دوباره ساخت"}]}""")
+        assertEquals("F-1", h.lastRun!!.ref)
+        assertEquals(listOf(true, false), h.alerts.map { it.open })
+        assertEquals("دوباره ساخت", h.alerts[1].closedFa)
+        // a run the hub cannot place on a day
+        val r = Api.json.decodeFromString(com.coinepro.hq.core.net.FlowRunDays.serializer(), """{"items":[{"run":"F-2","day":null,"state":"done","started_at":"2026-11-16T21:00:00Z","cost_usd":3,"publications":[],"note_fa":""}],"next":null}""")
+        assertNull(r.items.single().day)
+    }
+
+    @Test
     fun theHubsShapesRead() {
         val f = Api.json.decodeFromString(FlowDef.serializer(), """{"ref":"AF-0004","key":"zaribsad_coin","schedule":{"hours":["19:00",null],"best_week":false,"days":[0,1,2],"stories":[],"trigger_at":"14:00","same_day":true,"start":"2026-11-14","when_fa":""},"budget":{"usd_cap":100,"month_estimate_usd":3000,"envelope_usd":null,"envelope_left_usd":null,"over_envelope":false},"version":2,"legacy_ref":"N8:zaribsad_coin","health":{"state":"warn","note_fa":"x"},"alerts_open":1}""")
         assertEquals(listOf("19:00", null), f.schedule.hours)

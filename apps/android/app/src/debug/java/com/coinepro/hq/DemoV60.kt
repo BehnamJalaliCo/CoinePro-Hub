@@ -314,19 +314,21 @@ internal class V60Demo {
             "publications" to listOfNotNull(rows.firstOrNull { it.ref == "P-000300" }?.let(::card)), "note_fa" to "منتشر شد"),
         mapOf("run" to "F-0036", "day" to day(-1), "state" to "done", "topic_fa" to "حمایت و مقاومت با یک ابزار", "started_at" to t(-1, "00:30"), "ended_at" to t(-1, "01:41"), "cost_usd" to 4.5,
             "publications" to emptyList<Any>(), "note_fa" to "منتشر شد · پربازدیدترین ساعت"),
-        mapOf("run" to "F-0031", "day" to day(-2), "state" to "skipped", "topic_fa" to null, "started_at" to null, "ended_at" to null, "cost_usd" to 0, "publications" to emptyList<Any>(), "note_fa" to "این نوبت را رد کردی"),
+        mapOf("run" to "F-0031", "day" to null, "state" to "skipped", "topic_fa" to null, "started_at" to null, "ended_at" to null, "cost_usd" to 0, "publications" to emptyList<Any>(), "note_fa" to "این نوبت را رد کردی"),
         mapOf("run" to "F-0027", "day" to day(-3), "state" to "done", "topic_fa" to "۳ الگوی شمعی برای شروع", "started_at" to t(-3, "00:30"), "ended_at" to t(-3, "20:05"), "cost_usd" to 7.0,
             "publications" to emptyList<Any>(), "note_fa" to "رندر در کارگاه ایستاد؛ دوباره ساخته شد و ۲۰:۱۰ رفت"),
     ), "next" to null)
 
     private fun health(ref: String): JsonObject {
         val f = flows.first { it.ref == ref }
-        return jo("state" to f.health.first, "note_fa" to f.health.second, "last_run" to (runs(ref)["items"] as JsonArray).firstOrNull(),
+        // the hub's shapes (flow_defs.health_page, flow_alerts.Alert): the last run as §59.7's run, an alert open while closed_at is null
+        val last = if (ref == "AF-0001") mapOf("ref" to "F-0040", "at" to t(0, "09:30"), "state" to "done", "topic_fa" to "اندیکاتور RSI در سه دقیقه", "note_fa" to "منتشر شد", "cost_usd" to 4.1) else null
+        return jo("state" to f.health.first, "note_fa" to f.health.second, "last_run" to last,
             "success_30d" to mapOf("ok" to 3, "all" to 3), "cost" to mapOf("today" to f.todayCost, "month" to f.month), "next" to nextOf(f),
             "alerts" to if (ref != "AF-0001") emptyList() else listOf(
-                mapOf("kind" to "run_failed", "state" to "closed", "opened_at" to t(-3, "18:02"), "closed_at" to t(-3, "20:10"), "note_fa" to "رندر در کارگاه ایستاد؛ خودش دوباره ساخت و ۲۰:۱۰ رفت"),
-                mapOf("kind" to "login_expired", "state" to "closed", "opened_at" to t(-2, "09:12"), "closed_at" to t(-2, "09:40"), "note_fa" to "ورود ChatGPT منقضی شد؛ تیم فنی دوباره وارد شد"),
-                mapOf("kind" to "clock_missed", "state" to "closed", "opened_at" to t(-2, "13:00"), "closed_at" to t(-2, "13:10"), "note_fa" to "تیک ساعت ۱۰ دقیقه نیامد؛ پشتیبان هاب سر وقت اجرا کرد"),
+                mapOf("id" to "a1", "kind" to "run_failed", "opened_at" to t(-3, "18:02"), "closed_at" to t(-3, "20:10"), "note_fa" to "رندر در کارگاه ایستاد", "closed_fa" to "خودش دوباره ساخت و ۲۰:۱۰ رفت", "notified" to false),
+                mapOf("id" to "a2", "kind" to "login_expired", "opened_at" to t(-2, "09:12"), "closed_at" to t(-2, "09:40"), "note_fa" to "ورود ChatGPT منقضی شد", "closed_fa" to "تیم فنی دوباره وارد شد", "notified" to false),
+                mapOf("id" to "a3", "kind" to "clock_missed", "opened_at" to t(-2, "13:00"), "closed_at" to t(-2, "13:10"), "note_fa" to "تیک ساعت ۱۰ دقیقه نیامد", "closed_fa" to "پشتیبان هاب سر وقت اجرا کرد", "notified" to false),
             ))
     }
 

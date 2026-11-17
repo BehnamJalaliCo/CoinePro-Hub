@@ -5972,4 +5972,16 @@ account, runs, published, cost_usd, flows, best: PublicationCard | null}]}`; `be
 - The per-flow n8n workflows still call at their old hours: from prompt 39.1 such a call before the row's `trigger_at`
   that day is a no-op, so a later build hour set in the app holds; the workflows are switched off (not deleted) after a
   week of the hub's clock without a miss.
+- ⟨prompt 39.1, live 2026-11-17 16:07Z on `server/p39-deploy`⟩ P2 built: versions, rollback, runs, health, graph, kits
+  (`GET /automations/kits`), a kit's map, a new flow from a kit, `POST /automations/kits/request` → `{order, work}`, the
+  week. Shapes the apps read as served: a health page's `last_run` is §59.7's `FlowRunRef` (`ref`, `at`, `state`,
+  `note_fa`), not a day of `runs`; an alert is `{id, kind, note_fa, day, opened_at, notified, closed_at, closed_fa}`, open
+  while `closed_at` is null (no `state`); a run's `day` may be `null`. `options.models` is the workshop runner's list (Opus 5.5,
+  Fable 5.2).
+- **One rule for «the day is made» (`flows.day_made`):** a day has its work, or its post queued or out that no other flow
+  claims (read from `media.publications` too). The clock, n8n's call, run-now (`409 already_ran`), the `late` alert and
+  the next run all use it, so a clean start that empties `work.work` never makes a day twice nor raises a false `late`
+  (the two incidents of 2026-11-17: seven `late` notifications for days that had gone out, and two days built again,
+  cancelled by hand before anything was published twice). `media.publications` is in KEEP.
+- Not yet: the week's lines in the owner's weekly summary (there is no weekly summary for the owner on the hub yet).
 
