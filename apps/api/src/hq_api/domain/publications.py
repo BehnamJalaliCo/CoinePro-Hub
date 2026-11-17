@@ -1133,7 +1133,8 @@ FROM media.publications p JOIN core.companies c ON c.id = p.company_id LEFT JOIN
     SELECT count(*) AS total, count(*) FILTER (WHERE x.state = 'published') AS done,
            min(x.at) FILTER (WHERE x.state IN ('scheduled', 'publishing', 'held')) AS next_at,
            (array_agg(x.id ORDER BY x.set_n NULLS LAST, x.at, x.ref))[1] AS first_id
-    FROM media.publications x WHERE p.set_key IS NOT NULL AND x.set_key = p.set_key) s ON true"""
+    FROM media.publications x
+    WHERE p.set_key IS NOT NULL AND x.set_key = p.set_key AND x.company_id = p.company_id) s ON true"""
 SET_FIRST = " AND (p.set_key IS NULL OR s.first_id = p.id)"
 
 
@@ -1213,9 +1214,10 @@ async def get(tx: Tx, ref: str) -> Publication:
         set_rows = [
             dict(x)
             for x in await tx.all(
-                """SELECT ref, set_n, at, state, files FROM media.publications WHERE set_key = :k
-                   ORDER BY set_n NULLS LAST, at, ref""",
+                """SELECT ref, set_n, at, state, files FROM media.publications
+                   WHERE set_key = :k AND company_id = :co ORDER BY set_n NULLS LAST, at, ref""",
                 k=r["set_key"],
+                co=r["company_id"],
             )
         ]
     return _publication(r, set_rows)
@@ -1504,17 +1506,22 @@ async def _waits_of_lines(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
     from hq_api.domain import flow_auto as FA
     from hq_api.lines import store
 
-    rows = await tx.all(store.RUN_SQL + " WHERE r.state = 'waiting' ORDER BY r.created_at LIMIT 50")
+    rows = await tx.all(store.RUN_SQL + " WHERE r.state = 'waiting' ORDER BY r.at LIMIT 50")
+    budget = tuple(x.split("(")[0] for x in (FA.BUDGET_DAY_FA, FA.BUDGET_RUN_FA))
     out = []
     for r in rows:
         run = dict(r)
         if not run.get("automation"):
             continue
-        flow = await FA.load(tx, str(run["automation"]))
+        try:
+            flow = await FA.load(tx, str(run["automation"]))
+        except ApiError:
+            continue
         title = str(flow.get("title_fa") or flow.get("sentence_fa") or run["automation"])
         step = await tx.first(
             """SELECT * FROM lines.step_runs WHERE run_id = :r AND state = 'waiting'
-                 AND gate IS NOT NULL AND decision_id IS NOT NULL ORDER BY idx LIMIT 1""",
+                 AND kind = 'publish' AND gate IS NOT NULL AND decision_id IS NOT NULL
+               ORDER BY pos LIMIT 1""",
             r=run["id"],
         )
         if step is not None:
@@ -1522,7 +1529,7 @@ async def _waits_of_lines(tx: Tx) -> list[tuple[Waiting, dict[str, Any]]]:
                         title_fa=LINE_ASK_FA.format(title=title)[:200], account=flow.get("account"),
                         at=step["started_at"] or run["updated_at"], actions=list(ASK_LABELS))  # fmt: skip
             out.append((w, {"run": run, "step": dict(step), "flow": flow}))
-        elif run.get("note_fa"):
+        elif str(run.get("note_fa") or "").startswith(budget):
             w = Waiting(id=f"line:{run['ref']}", kind="budget_cap",
                         title_fa=f"«{title}»: {run['note_fa']}"[:200], account=flow.get("account"),
                         at=run["updated_at"], actions=list(CAP_LABELS))  # fmt: skip
