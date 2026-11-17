@@ -1,6 +1,8 @@
 # Content format (read by build.py)
 
-## Articles: `content/articles/<slug>.md`
+## Articles: `content/articles/<slug>.md` (by hand) and `content/auto/<slug>.md` (the hub's, sync.py)
+
+A slug is unique across both folders (the build stops on a duplicate).
 
 ```
 ---

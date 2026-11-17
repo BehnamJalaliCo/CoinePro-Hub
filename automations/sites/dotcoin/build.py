@@ -236,11 +236,15 @@ PILLARS: dict[str, str] = IDEAS["pillars"]
 
 
 def load_articles() -> list[dict]:
-    arts = []
-    for p in sorted((CONTENT / "articles").glob("*.md")):
+    arts, seen = [], {}
+    # content/articles: written by hand; content/auto: the hub's daily lessons (sync.py, one per reel)
+    for p in sorted((CONTENT / "articles").glob("*.md")) + sorted((CONTENT / "auto").glob("*.md")):
         m, body = parse_doc(p)
         if m.get("draft") == "true":
             continue
+        if m.get("slug") in seen:
+            sys.exit(f"duplicate slug {m.get('slug')}: {seen[m['slug']].name} and {p.name}")
+        seen[m.get("slug")] = p
         main_md, faqs = split_faq(body)
         body_html, toc = markdown(main_md)
         m.update(
