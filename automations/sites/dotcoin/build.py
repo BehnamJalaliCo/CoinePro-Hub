@@ -900,7 +900,8 @@ def page_article(a, arts):
           f'loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'
           f'<figcaption><a class="lnk" href="https://www.youtube.com/watch?v={yt_id}" target="_blank" rel="noopener">'
           f'دیدن در یوتیوب</a></figcaption></figure>' if yt_id else "")
-    reel_block = "" if video else f"""<aside class="reel rv" aria-label="ویدیوی این درس">
+    # a lesson made for a long YouTube video (no reel of its own): the player is the lesson's video, no reel box
+    reel_block = "" if (video or (yt_id and not reel)) else f"""<aside class="reel rv" aria-label="ویدیوی این درس">
 <div class="reel-ph" aria-hidden="true"><img src="/assets/img/logo-192.webp{V}" width="96" height="96" alt="" loading="lazy"><span class="reel-play"></span></div>
 <div class="reel-copy"><span class="sec-n" dir="ltr">REEL</span><h2>{'ویدیوی کوتاه این درس' if reel else 'ویدیوی این درس در اینستاگرام'}</h2>
 <p>{'همین درس را در یک ویدیوی کوتاه در اینستاگرام دات‌کوین ببین.' if reel else 'ویدیوی کوتاه این درس در صفحه‌ی اینستاگرام دات‌کوین منتشر می‌شود. دنبال کن تا آن را ببینی.'}</p>
@@ -965,6 +966,13 @@ def page_article(a, arts):
             "@type": "VideoObject", "@id": URL + a["url"] + "#video", "name": a["title"], "description": a["description"],
             "thumbnailUrl": [URL + md["poster"]], "uploadDate": md.get("upload") or a["date_obj"].isoformat(),
             "contentUrl": URL + md["video"], "duration": md.get("duration"), "inLanguage": "fa"}.items() if v})
+    if yt_id and not md.get("video"):  # a long video's own lesson: its YouTube video (a reel lesson has its own copy)
+        ld.append({k: v for k, v in {
+            "@type": "VideoObject", "@id": URL + a["url"] + "#youtube", "name": a["title"], "description": a["description"],
+            "thumbnailUrl": [f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"], "uploadDate": a["date_obj"].isoformat(),
+            "embedUrl": f"https://www.youtube.com/embed/{yt_id}", "url": f"https://www.youtube.com/watch?v={yt_id}",
+            "duration": a.get("duration") if re.fullmatch(r"PT(\d+H)?(\d+M)?(\d+S)?", str(a.get("duration") or "")) else None,
+            "inLanguage": "fa"}.items() if v})
     og_extra = (f'<meta property="article:published_time" content="{a["date_obj"].isoformat()}">\n'
                 f'<meta property="article:modified_time" content="{a.get("updated") or a["date_obj"].isoformat()}">\n'
                 f'<meta property="article:author" content="{esc(SITE["author"])}">\n'
