@@ -28,7 +28,7 @@
 # Driven by automations/sites/dotcoin/youtube.py and youtube_long.py (host timers), never by an
 # agent.
 key: youtube-web
-version: "2026-11-17.17"
+version: "2026-11-17.18"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -252,4 +252,5 @@ tasks:
       - {do: wait, selector: "ytcp-button:has-text('Edit as text'):visible", timeout_s: 30}
       - {do: click, selector: "ytcp-button:has-text('Publish'):visible", timeout_s: 30}
       - {do: pause, ms: 5000}
-      - {do: read, selector: "ytgn-video-translation-row:has-text('Persian')", alt: ["ytgn-video-translations-section"]}
+      # the video language's row (our track); YouTube's automatic one is listed apart once ours is in
+      - {do: read, selector: "ytgn-video-translation-row:has-text('video language')", alt: ["ytgn-video-translations-section"]}
