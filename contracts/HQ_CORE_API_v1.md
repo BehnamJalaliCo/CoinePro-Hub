@@ -5832,6 +5832,18 @@ PlannedItem { automation, automation_fa, account, kind, title_fa, build_at, publ
 - **Web:** unchanged (the owner's rule of 2026-11-13). A hub without these routes: the old desk stays, the new places say
   «با به‌روزرسانی بعدی هاب».
 
+### 60.6 As built (hub, prompt 39 P1, 2026-11-17)
+- Migration `0069_publications` (`0068` was already `0068_slides`). Extra columns, not in the answers: `chain` (the chain's
+  job ids; unique on the first, so a publication is never recorded twice), `search_fa` (trigram), `set_n` (the slides of a
+  set), `file_ids` (what the sweeps keep).
+- A set: two or more picture stories of the same output, account and Tehran day.
+- The backfill: from `infra.server_jobs` only; `source.automation` is `null` for the past (`work.work` went with the
+  2026-11-17 clean start and nothing is guessed). About 72 chains (`zaribsad` 37, `theprochart` 16, `dotcoin.me` 13,
+  `ipoxxo.vpn` 6).
+- The desk's `ready` gives no card for a company without a publishing path.
+- `publish_ask` and a flow's `budget_cap` in «منتظر شما» are wired to the routes that hold them; neither had a live row
+  on the day, so neither was seen on real data yet.
+
 ## 61. Automations as data: edited in the app, versioned, on one clock ⟨1.39⟩ (2026-11-17, prompt 39)
 
 The owner: «بخش اتوماسیون خیلی مبتدیه و باید یک قسمت مهم آپ باشه با کلی فیچر … و با قابلیت تغییرات». Every daily flow
@@ -5940,3 +5952,20 @@ account, runs, published, cost_usd, flows, best: PublicationCard | null}]}`; `be
   «برگشت به این نسخه»), «سلامت» (and the alerts).
 - **«اتوماسیون تازه»:** page → kit → hours → model and cap → preview → «بساز و روشن کن»; «کیت تازه» as §61.5.
 - **Web:** unchanged. A hub without §61: the board and pages of 1.2.0 stay as they are.
+
+### 61.9 As built (hub, prompt 39 P1, 2026-11-17)
+- Migration `0070_automations_flows`. Built: list, options, get, `PATCH`, state, pause, skip, run-now. P2 (prompt 39.1):
+  versions, rollback, runs, health with alerts, graph, kits, create, a kit's request, the week. Until then a «برگشت» is
+  a `PATCH` with the earlier version's body.
+- New codes: `invalid_flow` (422), `already_ran` (409, a day's second run).
+- The pilots (no account, no n8n workflow) are seeded `off`, so the clock does not start them; `run-now` runs an `off`
+  flow; the old `/internal/v1/flows/{key}/run` refuses an `off` one.
+- `days` is weighed on the **publish** day, not the build day.
+- `options.models` is Opus 5.5 alone that day: every flow is on Opus 5.5 at `xhigh` (the owner's order); the list is the
+  models a flow's workshop turn may run (prompt 39.1).
+- No company has a month envelope in USD on the hub, so raising any flow's cap is 🔏 `automation.budget` until the owner
+  sets one (§61.4); lowering stays a tap.
+- The per-flow n8n workflows still call at their old hours: from prompt 39.1 such a call before the row's `trigger_at`
+  that day is a no-op, so a later build hour set in the app holds; the workflows are switched off (not deleted) after a
+  week of the hub's clock without a miss.
+
