@@ -422,6 +422,13 @@ async def options(tx: Tx) -> FlowOptions:
     return FlowOptions(models=models, kits=list(kits.values()))
 
 
+def kind_of_flow(flow: FL.Flow) -> Kind:
+    """What a day of it makes: its stories, DotCoin's long video (row kind `video`), else a reel."""
+    if flow.stories:
+        return "stories"
+    return "video" if getattr(flow, "kind", "") == "video" else "reel"
+
+
 def kit_key(flow: FL.Flow) -> str:
     return flow.kit.rstrip("/").rsplit("/", 1)[-1] or flow.kit
 
@@ -544,7 +551,7 @@ async def render(tx: Tx, hub: Any, flow: FL.Flow, now: datetime | None = None) -
     return FlowDef(
         ref=flow.ref, key=flow.key, company=flow.company, company_fa=co["name_fa"] or "",
         channel=flow.channel, account=flow.account, title_fa=flow.title_fa, kit=kit_key(flow),
-        kit_fa=f"کیت {kit_key(flow)}", kind="stories" if flow.stories else "reel",
+        kit_fa=f"کیت {kit_key(flow)}", kind=kind_of_flow(flow),
         state=flow.state,
         paused_until=flow.paused_until,
         schedule=FlowDefSchedule(**{**sch, "start": flow.start}, when_fa=FV.when_fa(flow, when_day)),
@@ -639,6 +646,9 @@ async def errors_of(tx: Tx, flow: FL.Flow, body: dict[str, Any]) -> list[dict[st
     if flow.account:  # §61.4 never on the minute of the same page's reel (or story)
         for other in (await FL.active_flows(tx)).values():
             if other.key == flow.key or other.account != flow.account or not other.ref:
+                continue
+            # ⟨2026-11-17⟩ a long video goes to YouTube, never into the page's Instagram grid
+            if "video" in (getattr(flow, "kind", ""), getattr(other, "kind", "")):
                 continue
             if stories_flow and not other.stories:
                 hit = next((h for h in stories if h in other.hours), None)
@@ -1146,6 +1156,73 @@ async def kits(tx: Tx) -> list[Kit]:
         if row is not None and row["minutes"] is not None:
             kit.avg_minutes = round(float(row["minutes"]), 1)
     return got
+
+
+HUB = Principal(kind="service", code="hub", role="service")
+KINDS = ("reel", "stories", "video")
+
+
+async def create_by_hub(
+    tx: Tx, hub: Any, *, key: str, account: str, kit: str, title_fa: str, kind: str,
+    schedule: dict[str, Any], model: str, effort: str, usd_cap: float, budget_tokens: int,
+    note_fa: str = "", recipe: str = "", channel: str = "instagram", skips: tuple[date, ...] = (),
+) -> FlowDef:  # fmt: skip
+    """⟨2026-11-17⟩ A new automation made by the hub itself (a kit no flow uses yet, e.g. DotCoin's
+    long YouTube videos, kind `video`): the same checks as a save (§61.4), version 1 and its audit
+    row, `on`; the hub's clock runs it. Not a route: the owner's own «بساز و روشن کن» is `create`.
+    A key that exists is refused (a second call changes nothing). `skips`: days its clock leaves out
+    (a first day the hub must not make yet)."""
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}", key):
+        raise ApiError(422, "invalid_flow", "bad key")
+    if kind not in KINDS:
+        raise ApiError(422, "invalid_flow", "bad kind")
+    if key in await FL.active_flows(tx):
+        raise ApiError(409, "conflict", f"the flow {key} exists")
+    account = account.strip().lstrip("@")
+    co = await company_of_account(tx, hub, account)
+    if co is None:
+        raise ApiError(422, "invalid_flow", "the page is not registered", message_fa=NO_PAGE_FA)
+    start = date.fromisoformat(str(schedule["start"]))
+    hours = tuple(schedule.get("hours") or ())
+    draft = FL.Flow(
+        key=key, company=co.code, account=account, title_fa=" ".join(title_fa.split()), kit=kit,
+        start=start, hours=hours, story=False, budget_tokens=budget_tokens, n8n="",
+        trigger_at=str(schedule.get("trigger_at") or "08:00"), usd_cap=Decimal(str(usd_cap)),
+        model=model, same_day=bool(schedule.get("same_day", True)), recipe=recipe, effort=effort,
+        note_fa=note_fa, days=tuple(int(d) for d in schedule.get("days") or FL.ALL_DAYS),
+        channel=channel,
+    )  # fmt: skip
+    if getattr(draft, "kind", None) != kind:  # (FL.Flow without `kind`: a hub not yet deployed)
+        object.__setattr__(draft, "kind", kind)
+    after = body_of(draft)
+    errors = await errors_of(tx, draft, after)
+    if errors:
+        raise ApiError(422, "invalid_flow", "the automation holds fields it may not", errors=errors,
+                       message_fa=errors[0]["message_fa"])  # fmt: skip
+    ref = await tx.scalar(
+        """INSERT INTO automations.flows (key, company_id, channel, account, title_fa, kit, kind,
+               state, schedule, story, model, effort, usd_cap, budget_tokens, cycle, story_word,
+               n8n, pair, recipe, note_fa, skips)
+           VALUES (:key, :co, :ch, :acc, :title, :kit, :kind, 'on', CAST(:sch AS jsonb), false,
+                   :model, :effort, :cap, :tokens, '{}', NULL, '', NULL, :recipe, :note, :skips)
+           RETURNING ref""",
+        key=key, co=co.id, ch=channel, acc=account, title=draft.title_fa, kit=kit, kind=kind,
+        sch=json.dumps(after["schedule"], ensure_ascii=False), model=model, effort=effort,
+        cap=Decimal(str(usd_cap)), tokens=budget_tokens, recipe=recipe or None, note=note_fa or None,
+        skips=sorted(skips),
+    )  # fmt: skip
+    flow = await load(tx, str(ref))
+    await tx.exec(
+        """INSERT INTO automations.flow_versions (company_id, flow_id, version, by_kind, by_code,
+               by_fa, note_fa, body)
+           SELECT company_id, id, 1, :bk, :bc, :bf, :n, CAST(:b AS jsonb)
+           FROM automations.flows WHERE ref = :r""",
+        bk=HUB.kind, bc=HUB.code, bf=HUB_FA, n=MADE_FROM_KIT_FA.format(kit=kit.rstrip("/").rsplit("/", 1)[-1]),
+        b=json.dumps(body_of(flow), ensure_ascii=False), r=flow.ref,
+    )  # fmt: skip
+    await _audit(tx, HUB, flow, co.id, "create", None, body_of(flow) | {"kind": kind})
+    await _changed(tx, flow, flow.state, flow.version)
+    return await render(tx, hub, flow)
 
 
 async def _kit_flow(tx: Tx, key: str) -> FL.Flow:

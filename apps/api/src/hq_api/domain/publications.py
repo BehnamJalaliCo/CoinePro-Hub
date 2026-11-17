@@ -1242,7 +1242,7 @@ async def planned_today(tx: Tx, day: date) -> list[PlannedItem]:
             publish_at, last, kind = times[0], times[-1], "story"
         else:
             publish_at, _ = await FL.slot_of(tx, flow, day, co)
-            last, kind = publish_at, "reel"
+            last, kind = publish_at, ("video" if flow.kind == "video" else "reel")
         build_at = FL.trigger_of(flow, day)
         building = await tx.scalar(
             """SELECT 1 FROM work.work WHERE run_meta -> 'flow' ->> 'key' = :k

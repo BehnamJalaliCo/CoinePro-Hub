@@ -33,7 +33,7 @@ from .test_p21_secretary import no_model  # noqa: F401 - the fixture
 
 TZ = ZoneInfo(FL.TEHRAN)
 OPUS = "claude-opus-5-5"
-ROW_ONLY = {"ref", "state", "paused_until", "skips", "days", "channel", "version"}
+ROW_ONLY = {"ref", "state", "paused_until", "skips", "days", "channel", "version", "kind"}
 
 
 def migration() -> ModuleType:
@@ -723,3 +723,55 @@ async def test_the_p2_pages_kits_a_new_automation_and_the_week(
         assert any(a["account"] == f"p39.{key}" and a["flows"] == 1 for a in week["accounts"])
     finally:
         await all_off(su, *made)
+
+
+async def test_the_hub_makes_a_long_video_flow_whose_day_is_youtubes(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-17⟩ create_by_hub: a kit no flow uses yet (DotCoin's long YouTube videos), kind
+    `video`, version 1 with its audit row, listed like any flow; its order asks for the YouTube
+    package (never a reel), and a second call with the same key changes nothing."""
+    from hq_api.errors import ApiError
+
+    from .test_w19_publish_time import connected
+
+    ig, co = await new_company(), await new_company()
+    await connected(client, hub, owner_session, ig, co["code"])
+    key = fk()
+    sch = {"hours": ["18:30"], "trigger_at": "08:00", "same_day": True, "days": [0, 2, 4],
+           "start": tomorrow().isoformat(), "stories": [], "best_week": False}  # fmt: skip
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            made = await FD.create_by_hub(
+                tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/p39-long",
+                title_fa="ویدیوی بلند آزمایشی", kind="video", schedule=sch, model=OPUS,
+                effort="xhigh", usd_cap=150, budget_tokens=30_000_000, note_fa="یادداشت ویدیو",
+            )  # fmt: skip
+        assert made.state == "on" and made.version == 1 and made.kind == "video"
+        with pytest.raises(ApiError):
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                await FD.create_by_hub(
+                    tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/p39-long",
+                    title_fa="دوباره", kind="video", schedule=sch, model=OPUS, effort="xhigh",
+                    usd_cap=150, budget_tokens=30_000_000,
+                )  # fmt: skip
+        rows = (await client.get("/api/v1/automations/flows", headers=owner)).json()["items"]
+        assert any(r["key"] == key and r["kind"] == "video" for r in rows)
+        n = await su.fetchval(
+            "SELECT count(*) FROM audit.entries WHERE action = 'automation.flow.create'"
+            " AND target_ref = $1", made.ref)  # fmt: skip
+        assert n == 1
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            flow = await FL.flow_by_key(tx, key)
+        assert flow is not None and flow.kind == "video" and flow.days == (0, 2, 4)
+        at = datetime.combine(tomorrow(), datetime.min.time(), TZ)
+        brief = FL.brief_of(flow, tomorrow(), at)
+        assert "یوتیوب" in brief and "meta.json" in brief and "caption.txt" in brief
+        assert "ریلز" not in brief and brief.endswith("یادداشت ویدیو")
+    finally:
+        await all_off(su, key)
