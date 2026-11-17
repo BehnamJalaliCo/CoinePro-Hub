@@ -18,7 +18,7 @@ SUDO     := $(if $(HQ_NO_SUDO),:,sudo)
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret newsletter-secret \
 	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login \
 	aistudio-web-login pinterest-web-login
-.PHONY: mcp-build mcp-test mcp-index catalogue-rerender
+.PHONY: mcp-build mcp-test mcp-index catalogue-rerender publications-backfill
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -98,6 +98,9 @@ bootstrap-month1: ## Month-1 setup work (seed/bootstrap/month1.yaml) as service 
 
 catalogue-rerender: ## Prompt 19.2: rebuild every finished catalogue in the one section shape from its stored answers; new deliverable + archive PDF for each company's latest (ALL=1: every one)
 	$(HQ) exec -T api python -m hq_api.catalogue_rerender $(if $(ALL),--all,)
+
+publications-backfill: ## Prompt 39 §60.1: one media.publications row per publish chain (idempotent; KEEP tables only), counts per account
+	$(HQ) exec -T api python -m hq_api.publications_backfill
 
 prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema and answer checked, nothing stored
 	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
