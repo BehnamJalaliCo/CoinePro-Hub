@@ -22,6 +22,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CONTENT, TPL, STATIC, PRIVATE = ROOT / "content", ROOT / "templates", ROOT / "static", ROOT / "private"
 DIST = Path(os.environ.get("DOTCOIN_DIST", ROOT / "dist"))
+# the reels' web copies (sync.py: <slug>.mp4, .jpg, .json); never in git, copied into dist/media/
+MEDIA = Path(os.environ.get("DOTCOIN_MEDIA", "/home/Hub/sites/dotcoin-media"))
 SITE = json.loads((CONTENT / "site.json").read_text("utf-8"))
 URL = SITE["url"].rstrip("/")
 TODAY = datetime.now(timezone.utc).date()
@@ -233,6 +235,7 @@ def motif(name: str, cls: str = "") -> str:
 # ---------------------------------------------------------------- content loading
 IDEAS = json.loads((ROOT / SITE["ideas"]).resolve().read_text("utf-8"))
 PILLARS: dict[str, str] = IDEAS["pillars"]
+PILLARS.setdefault("news", "خبر")  # the informational reels' articles (2026-11-17)
 
 
 def load_articles() -> list[dict]:
@@ -255,10 +258,33 @@ def load_articles() -> list[dict]:
         )
         m["minutes"] = read_minutes(m["words"])
         m["url"] = f"/learn/{m['slug']}/"
+        m["media"] = load_media(m["slug"])
+        if not m.get("reel") and m["media"].get("reel"):
+            m["reel"] = m["media"]["reel"]
         m.setdefault("motif", "generic")
         arts.append(m)
     arts.sort(key=lambda a: (-a["date_obj"].toordinal(), a["idea"] or 999))
     return arts
+
+
+def load_media(slug: str) -> dict:
+    """The reel's web copy for a lesson (sync.py): MEDIA/<slug>.json, with .mp4 and .jpg beside it."""
+    try:
+        meta = json.loads((MEDIA / f"{slug}.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not ((MEDIA / f"{slug}.mp4").is_file() and (MEDIA / f"{slug}.jpg").is_file()):
+        return {"reel": meta.get("reel") or ""}
+    return {**meta, "video": f"/media/{slug}.mp4", "poster": f"/media/{slug}.jpg"}
+
+
+def youtube_id(v: str) -> str:
+    """The optional `youtube:` field: a video id or any youtube.com / youtu.be link."""
+    v = (v or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", v):
+        return v
+    m = re.search(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/)([A-Za-z0-9_-]{11})", v)
+    return m.group(1) if m and re.match(r"https://(www\.|m\.)?(youtube\.com|youtu\.be)/", v) else ""
 
 
 def load_exchanges() -> list[dict]:
@@ -674,7 +700,8 @@ def page_learn(arts):
     crumbs = [("/", "خانه"), ("/learn/", "آموزش‌ها")]
     counts = {p: sum(1 for a in arts if a["pillar"] == p) for p in PILLARS}
     chips = f'<button class="fchip is-on" type="button" data-f="all" aria-pressed="true">همه <i>{fa(len(arts))}</i></button>' + "".join(
-        f'<button class="fchip" id="{p}" type="button" data-f="{p}" aria-pressed="false">{esc(n)} <i>{fa(counts[p])}</i></button>' for p, n in PILLARS.items())
+        f'<button class="fchip" id="{p}" type="button" data-f="{p}" aria-pressed="false">{esc(n)} <i>{fa(counts[p])}</i></button>'
+        for p, n in PILLARS.items() if counts[p] or p != "news")
     for i, a in enumerate(arts):
         a["n"] = len(arts) - i
     cards = "".join(lesson_card(a, i) for i, a in enumerate(arts))
@@ -731,7 +758,20 @@ def page_article(a, arts):
     sources = (f'<section class="prose srcs" aria-labelledby="src-t"><h2 id="src-t">منابع</h2><ul>{"".join(src_items)}</ul></section>'
                if src_items else "")
     reel = a.get("reel") or ""
-    reel_block = f"""<aside class="reel rv" aria-label="ویدیوی این درس">
+    md = a["media"]
+    video = ""
+    if md.get("video"):  # the reel itself, self-hosted, at the top of the lesson; the Instagram link under it
+        ig = (f'<figcaption><a class="lnk" href="{esc(reel)}" target="_blank" rel="noopener">{IG}'
+              f'<span>این ویدیو در اینستاگرام دات‌کوین</span></a></figcaption>' if reel else "")
+        video = (f'<figure class="vid rv"><video controls muted playsinline preload="none" data-unmute '
+                 f'poster="{md["poster"]}{V}" width="{int(md.get("width") or 720)}" height="{int(md.get("height") or 1280)}" '
+                 f'aria-label="ویدیوی {esc(a["title"])}"><source src="{md["video"]}{V}" type="video/mp4"></video>{ig}</figure>')
+    yt_id = youtube_id(a.get("youtube") or "")
+    yt = (f'<figure class="yt rv"><iframe src="https://www.youtube-nocookie.com/embed/{yt_id}" title="{esc(a["title"])}" '
+          f'loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'
+          f'<figcaption><a class="lnk" href="https://www.youtube.com/watch?v={yt_id}" target="_blank" rel="noopener">'
+          f'دیدن در یوتیوب</a></figcaption></figure>' if yt_id else "")
+    reel_block = "" if video else f"""<aside class="reel rv" aria-label="ویدیوی این درس">
 <div class="reel-ph" aria-hidden="true"><img src="/assets/img/logo-192.webp{V}" width="96" height="96" alt="" loading="lazy"><span class="reel-play"></span></div>
 <div class="reel-copy"><span class="sec-n" dir="ltr">REEL</span><h2>{'ویدیوی کوتاه این درس' if reel else 'ویدیوی این درس در اینستاگرام'}</h2>
 <p>{'همین درس را در یک ویدیوی کوتاه در اینستاگرام دات‌کوین ببین.' if reel else 'ویدیوی کوتاه این درس در صفحه‌ی اینستاگرام دات‌کوین منتشر می‌شود. دنبال کن تا آن را ببینی.'}</p>
@@ -759,6 +799,7 @@ def page_article(a, arts):
 <div class="wrap art-grid">
   <aside class="toc" aria-label="فهرست این درس"><details open><summary>فهرست این درس</summary><ol>{toc}</ol></details></aside>
   <div class="art-body" itemprop="articleBody">
+    {video}{yt}
     {answer}
     <section class="sum" aria-labelledby="sum-t"><h2 id="sum-t"><span dir="ltr">TL;DR</span> خلاصه</h2><ul>{summary}</ul></section>
     <div class="prose">{a['body_html']}</div>
@@ -790,6 +831,11 @@ def page_article(a, arts):
         "wordCount": a["words"], "isPartOf": {"@id": SITE_ID}}]
     if a["faqs"]:
         ld.append(faq_ld(a["faqs"]))
+    if md.get("video"):
+        ld.append({k: v for k, v in {
+            "@type": "VideoObject", "@id": URL + a["url"] + "#video", "name": a["title"], "description": a["description"],
+            "thumbnailUrl": [URL + md["poster"]], "uploadDate": md.get("upload") or a["date_obj"].isoformat(),
+            "contentUrl": URL + md["video"], "duration": md.get("duration"), "inLanguage": "fa"}.items() if v})
     og_extra = (f'<meta property="article:published_time" content="{a["date_obj"].isoformat()}">\n'
                 f'<meta property="article:modified_time" content="{a.get("updated") or a["date_obj"].isoformat()}">\n'
                 f'<meta property="article:author" content="{esc(SITE["author"])}">\n'
@@ -967,6 +1013,7 @@ def write_meta_files(arts):
         "  X-Frame-Options: SAMEORIGIN\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n"
         "/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n  Access-Control-Allow-Origin: *\n"
         "/og/*\n  Cache-Control: public, max-age=86400\n"
+        "/media/*\n  Cache-Control: public, max-age=604800\n"
         "https://:project.pages.dev/*\n  X-Robots-Tag: noindex\n", "utf-8")
     # referral links: built from content/exchanges.json, the one place to change a link
     red = ["# referral links (from content/exchanges.json)"]
@@ -1017,6 +1064,11 @@ def main() -> int:
     V = version_token()
     CSS = minify_css((STATIC / "css" / "site.css").read_text("utf-8")).replace(".woff2)", f".woff2{V})")
     arts, xs, terms = load_articles(), load_exchanges(), load_glossary()
+    for a in arts:
+        if a["media"].get("video"):
+            (DIST / "media").mkdir(exist_ok=True)
+            for ext in ("mp4", "jpg"):
+                shutil.copy2(MEDIA / f"{a['slug']}.{ext}", DIST / "media" / f"{a['slug']}.{ext}")
     global LATEST
     LATEST = max((a.get("updated") or a["date_obj"].isoformat()) for a in arts) if arts else TODAY.isoformat()
     page_home(arts, xs, terms)

@@ -586,3 +586,9 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .srcs a{font-weight:600}
 .path li{margin-top:.6em}
 .path li i{font-style:normal;font-size:.85em;color:var(--mute)}
+/* the reel at the top of a lesson (self-hosted web copy) and the optional YouTube video */
+.vid,.yt{margin:0 0 28px}
+.vid video{display:block;width:100%;max-width:360px;height:auto;aspect-ratio:9/16;margin:0 auto;border-radius:var(--r);background:#000;border:1px solid var(--line);box-shadow:var(--shadow)}
+.yt iframe{display:block;width:100%;aspect-ratio:16/9;height:auto;border:0;border-radius:var(--r);background:#000}
+.vid figcaption,.yt figcaption{margin-top:10px;text-align:center;font-size:.92rem;color:var(--mute)}
+.vid figcaption a{display:inline-flex;align-items:center;gap:6px}
