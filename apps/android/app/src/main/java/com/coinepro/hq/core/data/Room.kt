@@ -82,14 +82,14 @@ fun channelFa(channel: String): String = when (channel.lowercase()) {
 
 /** The channels of the desk, Instagram first, then as they come; today Instagram alone (also on an empty desk). */
 fun deskChannels(d: PublishDesk): List<String> {
-    val seen = (d.ready + d.queue + d.done).map { it.channel.ifBlank { "instagram" } }.distinct()
+    val seen = (d.ready + d.queue + d.done + d.held).map { it.channel.ifBlank { "instagram" } }.distinct()
     return (listOf("instagram") + seen).distinct()
 }
 
 /** The desk of one channel. */
 fun deskOf(d: PublishDesk, channel: String): PublishDesk {
     fun mine(k: DeskCard) = k.channel.ifBlank { "instagram" } == channel
-    return PublishDesk(d.ready.filter(::mine), d.queue.filter(::mine), d.done.filter(::mine))
+    return PublishDesk(d.ready.filter(::mine), d.queue.filter(::mine), d.done.filter(::mine), d.held.filter(::mine))
 }
 
 // ------------------------------------------------- §58.3 publishing by itself, in a line --

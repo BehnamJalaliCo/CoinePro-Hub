@@ -165,7 +165,7 @@ internal class V60Demo {
         else null
         val set = r.set?.let { s -> (1..s.first).map { n ->
             val hm = if (r.account == "dotcoin.me") DOTCOIN[n - 1] else ZARIB[(n - 1) % ZARIB.size]
-            mapOf("ref" to if (n == 3) r.ref else "${r.ref}-$n", "n" to n, "at" to t(r.d, hm), "state" to if (n <= s.second) "published" else "scheduled", "file_id" to "FS-${r.ref}-$n")
+            mapOf("ref" to if (n == 3) r.ref else "${r.ref}-$n", "n" to n, "at" to t(r.d, hm), "state" to if (n <= s.second) "published" else "scheduled", "file_id" to null)
         } }
         val pubAt = if (r.state == "published") t(r.d, r.hm) else null
         return jo(

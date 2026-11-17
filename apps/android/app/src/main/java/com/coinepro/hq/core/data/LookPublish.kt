@@ -98,9 +98,10 @@ fun deskSorted(d: PublishDesk): PublishDesk = PublishDesk(
     ready = d.ready.sortedByDescending { instant(it.at)?.toEpochMilli() ?: 0L },
     queue = d.queue.sortedBy { instant(deskAt(it))?.toEpochMilli() ?: Long.MAX_VALUE },
     done = d.done.sortedByDescending { instant(it.publish?.publishedAt ?: it.at)?.toEpochMilli() ?: 0L },
+    held = d.held.sortedBy { instant(deskAt(it))?.toEpochMilli() ?: Long.MAX_VALUE },
 )
 
-fun deskEmpty(d: PublishDesk): Boolean = d.ready.isEmpty() && d.queue.isEmpty() && d.done.isEmpty()
+fun deskEmpty(d: PublishDesk): Boolean = d.ready.isEmpty() && d.queue.isEmpty() && d.done.isEmpty() && d.held.isEmpty()
 
 /** The one card whose «تأیید و انتشار» is the page's full gold: the first ready one whose company's path is set. */
 fun deskLead(ready: List<DeskCard>): String? = ready.firstOrNull { it.routeReady }?.output

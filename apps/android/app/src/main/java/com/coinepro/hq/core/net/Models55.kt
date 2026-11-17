@@ -106,4 +106,6 @@ data class PublishDesk(
     val ready: List<DeskCard> = emptyList(),
     val queue: List<DeskCard> = emptyList(),
     val done: List<DeskCard> = emptyList(),
+    /** ⟨1.39⟩ §60.3 a publication IG-Hub holds for a closed page (it goes when the page opens). */
+    val held: List<DeskCard> = emptyList(),
 )

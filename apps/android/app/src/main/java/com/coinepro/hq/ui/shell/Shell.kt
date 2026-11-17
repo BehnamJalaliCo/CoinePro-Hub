@@ -483,6 +483,15 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     page("outputs") { OutputsScreen() }
                     page("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("publish-desk") { com.coinepro.hq.ui.look.PublishDeskScreen() }
+                    // ⟨1.39⟩ §60 the publish centre: today, the calendar, the archive, a page, the search, «منتظر شما», an item and a set.
+                    page("publish") { com.coinepro.hq.ui.publish.PublishTodayScreen() }
+                    page("publish/calendar") { com.coinepro.hq.ui.publish.PublishCalendarScreen() }
+                    page("publish/archive") { com.coinepro.hq.ui.publish.PublishArchiveScreen() }
+                    page("publish/page/{account}") { com.coinepro.hq.ui.publish.PublishPageScreen(it.arguments?.getString("account").orEmpty()) }
+                    page("publish/search") { com.coinepro.hq.ui.publish.PublishSearchScreen() }
+                    page("publish/waiting") { com.coinepro.hq.ui.publish.PublishWaitingScreen() }
+                    page("publication/{ref}") { com.coinepro.hq.ui.publish.PublicationScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("publication/{ref}/set") { com.coinepro.hq.ui.publish.StorySetScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
                     page("oversight") { OversightScreen() }
                     page("oversight/chat") { ChatScreen("N", agent = "overseer") }
@@ -520,11 +529,15 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     // ⟨1.13⟩ §31: the §30 lines' calendar is the «خط تولید» filter of the one campaign calendar.
                     page("lines-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen(kind0 = "line") }
                     page("campaign-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen() }
-                    page("automations") { com.coinepro.hq.ui.automation.AutomationsBoardScreen() }
+                    // ⟨1.39⟩ §61 the automations as data on a hub that serves them (else §59.10's board); §59.10's board stays for the other kinds
+                    page("automations") { com.coinepro.hq.ui.automation.FlowsBoardScreen() }
+                    page("automations/all") { com.coinepro.hq.ui.automation.AutomationsBoardScreen() }
+                    page("automations/new") { com.coinepro.hq.ui.automation.NewFlowScreen() }
+                    page("automations/week") { com.coinepro.hq.ui.automation.FlowWeekScreen() }
                     // ⟨1.37⟩ §59.7–§59.10 the automations from one sentence (§31.7) under the board; a flow, its replies, a run, the calendar
                     page("automations/sentence") { com.coinepro.hq.ui.v31.AutomationsScreen() }
                     page("automations/calendar") { com.coinepro.hq.ui.automation.AutomationsCalendarScreen() }
-                    page("automation/{ref}") { com.coinepro.hq.ui.automation.FlowScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("automation/{ref}") { com.coinepro.hq.ui.automation.AutomationScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("automation/{ref}/replies") { com.coinepro.hq.ui.automation.RepliesScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("automation/{ref}/map") { com.coinepro.hq.ui.automation.FlowMapScreen(it.arguments?.getString("ref").orEmpty()) }
                     page("flow-run/{ref}") { com.coinepro.hq.ui.automation.FlowRunScreen(it.arguments?.getString("ref").orEmpty()) }

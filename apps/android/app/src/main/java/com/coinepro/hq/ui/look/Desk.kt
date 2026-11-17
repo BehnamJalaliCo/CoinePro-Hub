@@ -310,6 +310,7 @@ fun PublishDeskScreen(company0: String? = null) {
     val c = Divan.colors
     val q = rememberPublishDesk(company0)
     val served = served(HubFeature.PUBLISH_DESK)
+    val centre = served(HubFeature.PUBLICATIONS)
     // ⟨1.36⟩ §58.5 a tab per channel the holding publishes to (today Instagram; YouTube and the rest come with their routes), each with
     // what is ready, in the queue and published.
     val all = remember(q.data) { q.data?.let(::deskSorted) }
@@ -326,8 +327,12 @@ fun PublishDeskScreen(company0: String? = null) {
     Page(onRefresh = { q.refresh() }, refreshing = q.state.refreshing) {
         item(key = "head") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PageHeader(DESK_FA, eyebrow = "هر خروجی آماده، یک جا")
-                OutputsTabs("publish-desk")
+                // ⟨1.39⟩ on a hub with §60 the desk is a tab of the publish centre
+                if (centre) com.coinepro.hq.ui.publish.CentreHead("publish-desk") else {
+                    PageHeader(DESK_FA, eyebrow = "هر خروجی آماده، یک جا")
+                    OutputsTabs("publish-desk")
+                }
+                if (centre) com.coinepro.hq.ui.publish.WaitingBanner()
                 if (served && all != null) ChannelTabs(channels, channel, all) { channel = it }
             }
         }
@@ -356,6 +361,11 @@ fun PublishDeskScreen(company0: String? = null) {
                 if (desk.queue.isNotEmpty()) {
                     item(key = "h-queue") { SectionHead("در صف", desk.queue.size) }
                     itemsIndexed(desk.queue, key = { _, k -> "q-${k.output}-${k.publish?.job ?: k.file.id}" }) { i, k -> QueueCard(k, i) { q.refresh() } }
+                }
+                // ⟨1.39⟩ §60.3 what IG-Hub holds for a closed page: it goes by itself when the page opens
+                if (desk.held.isNotEmpty()) {
+                    item(key = "h-held") { SectionHead("نگه‌داشته", desk.held.size) }
+                    itemsIndexed(desk.held, key = { _, k -> "h-${k.output}-${k.publish?.job ?: k.file.id}" }) { i, k -> QueueCard(k, i) { q.refresh() } }
                 }
                 if (desk.done.isNotEmpty()) {
                     item(key = "h-done") { SectionHead("منتشرشده", desk.done.size) }

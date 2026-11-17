@@ -81,6 +81,8 @@ fun OfficeScreen() {
     val sessionsOn = served(HubFeature.SESSIONS)
     val servicesOn = served(HubFeature.HUB_SERVICES)
     val playbooksOn = served(HubFeature.PLAYBOOKS)
+    val pubOn = served(HubFeature.PUBLICATIONS)
+    val flowsOn = served(HubFeature.FLOWS)
     // ⟨1.24⟩ §42 the holding live: the pulse, the companies' live cards and the token meter (a hub without `/live/summary` leaves them out).
     val liveOn = served(HubFeature.LIVE)
     val companies = rememberCompanies()
@@ -105,11 +107,14 @@ fun OfficeScreen() {
                 }
                 if (presence.data?.khalvat == true) Pill("خلوت؛ فقط فوری", Tone.LEARN, icon = DivanIcon.KHALVAT)
                 // ⟨1.36⟩ §58.5 the publish desk is its own page: the office keeps ONE line to it, at its head (nothing on a hub without it)
-                com.coinepro.hq.ui.look.DeskLine()
+                // ⟨1.39⟩ on a hub with §60 / §61 the two lines become the cards «انتشار امروز» and «اتوماسیون‌ها» (D6), right under it
+                if (!pubOn) com.coinepro.hq.ui.look.DeskLine()
                 // ⟨1.37⟩ §59.13 everything that runs by itself, and the owner's day, in one more quiet line (nothing on an older hub)
-                com.coinepro.hq.ui.automation.AutomationsLine()
+                if (!flowsOn) com.coinepro.hq.ui.automation.AutomationsLine()
             }
         }
+        if (pubOn) item(key = "pub-card") { com.coinepro.hq.ui.publish.PublishTodayCard() }
+        if (flowsOn) item(key = "auto-card") { com.coinepro.hq.ui.automation.AutomationsCard() }
         when {
             office == null && (q.error ?: home?.error) != null -> item(key = "error") { ErrorBlock(q.error ?: home?.error, { r.refresh() }) }
             office == null -> item(key = "skeleton") { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { repeat(3) { Skeleton(Modifier.fillMaxWidth().height(if (it == 1) 300.dp else 140.dp), radius = 16.dp) } } }

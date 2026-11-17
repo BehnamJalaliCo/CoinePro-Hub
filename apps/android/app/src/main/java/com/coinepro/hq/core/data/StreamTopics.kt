@@ -33,6 +33,8 @@ object StreamTopics {
         "money",
         // ⟨1.17⟩ §35.7: the sessions come on `orders` (`session.updated`); the links on `holding` (`links.updated`).
         "holding",
+        // ⟨1.39⟩ §60.4: the publications' rows (`publication.updated`).
+        "publish",
     )
 
     /**

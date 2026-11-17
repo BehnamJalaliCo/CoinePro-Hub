@@ -491,7 +491,9 @@ class HoldingStream(
             "rank." to arrayOf("seo"),
             "competitor." to arrayOf("seo"),
             "ad." to arrayOf("ads", "campaign-calendar"),
-            "automation." to arrayOf("automations"),
+            "automation." to arrayOf("automations", "flows"),
+            // ⟨1.39⟩ §60.4 (topic `publish`): a publication's row changed (scheduled, out, held, failed): the centre, the home's card.
+            "publication." to arrayOf("publish", "publications", "flows"),
             "campaign." to arrayOf("campaign-calendar"),
             "connection." to arrayOf("connections", "readiness", "home"),
             "rule." to arrayOf("rules", "oversight"),
