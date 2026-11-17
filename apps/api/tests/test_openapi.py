@@ -108,6 +108,8 @@ async def test_schemathesis_finds_no_server_errors(
         await su.execute(
             "UPDATE owner.settings SET self_work = true, flows_off = '{}' WHERE id = 1"
         )
+        # ⟨1.39⟩ §61 the fuzz may switch an automations.flows row on: the clock would start it
+        await su.execute("UPDATE automations.flows SET state = 'off', paused_until = NULL")
         await su.execute(
             """UPDATE substitutes.players SET login_state = 'signed_out', status = 'off',
                    web_state = 'signed_out', limited_until = NULL"""

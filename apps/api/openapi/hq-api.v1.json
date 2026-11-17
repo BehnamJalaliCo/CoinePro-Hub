@@ -18771,6 +18771,734 @@
         "title": "FlowBudget",
         "type": "object"
       },
+      "FlowDef": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "alerts_open": {
+            "default": 0,
+            "title": "Alerts Open",
+            "type": "integer"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/FlowDefBudget"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cycle": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cycle",
+            "type": "array"
+          },
+          "effort": {
+            "enum": [
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/FlowDefHealth"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "stories",
+              "short",
+              "video",
+              "article",
+              "tg_post"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "kit": {
+            "title": "Kit",
+            "type": "string"
+          },
+          "kit_fa": {
+            "title": "Kit Fa",
+            "type": "string"
+          },
+          "legacy_ref": {
+            "title": "Legacy Ref",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "model_fa": {
+            "title": "Model Fa",
+            "type": "string"
+          },
+          "month_cost_usd": {
+            "default": 0.0,
+            "title": "Month Cost Usd",
+            "type": "number"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowDefNext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pair"
+          },
+          "paused_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Until"
+          },
+          "recipe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/FlowDefSchedule"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "off",
+              "paused"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "story_word": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Word"
+          },
+          "story_word_mode": {
+            "enum": [
+              "fixed",
+              "fresh"
+            ],
+            "title": "Story Word Mode",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "today": {
+            "$ref": "#/components/schemas/FlowDefToday"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "key",
+          "company",
+          "company_fa",
+          "channel",
+          "account",
+          "title_fa",
+          "kit",
+          "kit_fa",
+          "kind",
+          "state",
+          "schedule",
+          "model",
+          "model_fa",
+          "effort",
+          "budget",
+          "story_word_mode",
+          "version",
+          "legacy_ref",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FlowDef",
+        "type": "object"
+      },
+      "FlowDefBudget": {
+        "properties": {
+          "envelope_left_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Envelope Left Usd"
+          },
+          "envelope_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Envelope Usd"
+          },
+          "month_estimate_usd": {
+            "title": "Month Estimate Usd",
+            "type": "number"
+          },
+          "over_envelope": {
+            "default": false,
+            "title": "Over Envelope",
+            "type": "boolean"
+          },
+          "usd_cap": {
+            "title": "Usd Cap",
+            "type": "number"
+          }
+        },
+        "required": [
+          "usd_cap",
+          "month_estimate_usd"
+        ],
+        "title": "FlowDefBudget",
+        "type": "object"
+      },
+      "FlowDefHealth": {
+        "properties": {
+          "note_fa": {
+            "default": "",
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "state": {
+            "default": "ok",
+            "enum": [
+              "ok",
+              "warn",
+              "down"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "title": "FlowDefHealth",
+        "type": "object"
+      },
+      "FlowDefNext": {
+        "properties": {
+          "build_at": {
+            "format": "date-time",
+            "title": "Build At",
+            "type": "string"
+          },
+          "kind_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind Fa"
+          },
+          "publish_at": {
+            "format": "date-time",
+            "title": "Publish At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "build_at",
+          "publish_at"
+        ],
+        "title": "FlowDefNext",
+        "type": "object"
+      },
+      "FlowDefPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "cycle": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "note_change_fa": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Change Fa"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowDefSchedulePatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "story_word": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Word"
+          },
+          "story_word_mode": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Word Mode"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          },
+          "usd_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd Cap"
+          }
+        },
+        "title": "FlowDefPatch",
+        "type": "object"
+      },
+      "FlowDefPauseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "title": "FlowDefPauseIn",
+        "type": "object"
+      },
+      "FlowDefRunNow": {
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/FlowRunRef"
+          }
+        },
+        "required": [
+          "run"
+        ],
+        "title": "FlowDefRunNow",
+        "type": "object"
+      },
+      "FlowDefRunNowIn": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "title": "FlowDefRunNowIn",
+        "type": "object"
+      },
+      "FlowDefSchedule": {
+        "properties": {
+          "best_week": {
+            "title": "Best Week",
+            "type": "boolean"
+          },
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "hours": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Hours",
+            "type": "array"
+          },
+          "same_day": {
+            "title": "Same Day",
+            "type": "boolean"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          },
+          "stories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stories",
+            "type": "array"
+          },
+          "trigger_at": {
+            "title": "Trigger At",
+            "type": "string"
+          },
+          "when_fa": {
+            "default": "",
+            "title": "When Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hours",
+          "best_week",
+          "days",
+          "stories",
+          "trigger_at",
+          "same_day",
+          "start"
+        ],
+        "title": "FlowDefSchedule",
+        "type": "object"
+      },
+      "FlowDefSchedulePatch": {
+        "additionalProperties": false,
+        "description": "Any part of the schedule; `best_week` follows the hours (a null hour is that week's best).",
+        "properties": {
+          "best_week": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Week"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "same_day": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Same Day"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "stories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stories"
+          },
+          "trigger_at": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger At"
+          }
+        },
+        "title": "FlowDefSchedulePatch",
+        "type": "object"
+      },
+      "FlowDefSkipIn": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "skip": {
+            "default": true,
+            "title": "Skip",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "day"
+        ],
+        "title": "FlowDefSkipIn",
+        "type": "object"
+      },
+      "FlowDefStateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "FlowDefStateIn",
+        "type": "object"
+      },
+      "FlowDefToday": {
+        "properties": {
+          "cost_usd": {
+            "default": 0.0,
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "published": {
+            "default": 0,
+            "title": "Published",
+            "type": "integer"
+          },
+          "runs": {
+            "default": 0,
+            "title": "Runs",
+            "type": "integer"
+          }
+        },
+        "title": "FlowDefToday",
+        "type": "object"
+      },
       "FlowGraph": {
         "properties": {
           "edges": {
@@ -18898,6 +19626,32 @@
         "title": "FlowGraphNode",
         "type": "object"
       },
+      "FlowList": {
+        "properties": {
+          "health": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__domain__flow_shapes__Health"
+            },
+            "title": "Health",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FlowDef"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "today": {
+            "$ref": "#/components/schemas/FlowDefToday"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "FlowList",
+        "type": "object"
+      },
       "FlowN8n": {
         "properties": {
           "last_tick_at": {
@@ -18949,6 +19703,54 @@
           "at"
         ],
         "title": "FlowOccurrence",
+        "type": "object"
+      },
+      "FlowOptions": {
+        "properties": {
+          "cycle_max": {
+            "default": 7,
+            "title": "Cycle Max",
+            "type": "integer"
+          },
+          "efforts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Efforts",
+            "type": "array"
+          },
+          "kits": {
+            "items": {
+              "$ref": "#/components/schemas/Kit"
+            },
+            "title": "Kits",
+            "type": "array"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelOption"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "note_max": {
+            "default": 2000,
+            "title": "Note Max",
+            "type": "integer"
+          },
+          "stories_max": {
+            "default": 15,
+            "title": "Stories Max",
+            "type": "integer"
+          },
+          "usd_cap": {
+            "$ref": "#/components/schemas/UsdRange"
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "title": "FlowOptions",
         "type": "object"
       },
       "FlowPatch": {
@@ -24478,6 +25280,65 @@
           "accuracy"
         ],
         "title": "KindStat",
+        "type": "object"
+      },
+      "Kit": {
+        "properties": {
+          "about_fa": {
+            "default": "",
+            "title": "About Fa",
+            "type": "string"
+          },
+          "avg_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Minutes"
+          },
+          "avg_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Usd"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "used_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Used On",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa"
+        ],
+        "title": "Kit",
         "type": "object"
       },
       "KitCard": {
@@ -32571,6 +33432,32 @@
           "effort"
         ],
         "title": "ModelChoice",
+        "type": "object"
+      },
+      "ModelOption": {
+        "properties": {
+          "efforts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Efforts",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name_fa",
+          "efforts"
+        ],
+        "title": "ModelOption",
         "type": "object"
       },
       "ModelPrice": {
@@ -40835,6 +41722,21 @@
             ],
             "title": "Detail"
           },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          },
           "fields": {
             "anyOf": [
               {
@@ -40875,6 +41777,18 @@
               }
             ],
             "title": "Request Id"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
           },
           "status": {
             "title": "Status",
@@ -57196,6 +58110,13 @@
             "title": "Made",
             "type": "integer"
           },
+          "orders": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Orders",
+            "type": "array"
+          },
           "runs": {
             "items": {
               "type": "string"
@@ -58611,6 +59532,22 @@
           "usd_pct"
         ],
         "title": "UsageVsPrev",
+        "type": "object"
+      },
+      "UsdRange": {
+        "properties": {
+          "max": {
+            "default": 500,
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "default": 1,
+            "title": "Min",
+            "type": "integer"
+          }
+        },
+        "title": "UsdRange",
         "type": "object"
       },
       "UseBrand": {
@@ -74863,6 +75800,1401 @@
           }
         },
         "summary": "Compile Automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows": {
+      "get": {
+        "description": "⟨1.39⟩ §61.3 every automation (companies → pages → each one; the off ones last), the road's\nhealth (§59.10) and today's runs, posts and cost.",
+        "operationId": "list_automation_flows",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "health": [
+                    {
+                      "key": "n8n",
+                      "note_fa": "x",
+                      "state": "ok"
+                    }
+                  ],
+                  "items": [
+                    {
+                      "account": "x",
+                      "alerts_open": 1,
+                      "budget": {
+                        "envelope_left_usd": 1.0,
+                        "envelope_usd": 1.0,
+                        "month_estimate_usd": 1.0,
+                        "over_envelope": false,
+                        "usd_cap": 1.0
+                      },
+                      "channel": "x",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "cycle": [
+                        "x"
+                      ],
+                      "effort": "high",
+                      "health": {
+                        "note_fa": "x",
+                        "state": "ok"
+                      },
+                      "key": "x",
+                      "kind": "reel",
+                      "kit": "x",
+                      "kit_fa": "x",
+                      "legacy_ref": "x",
+                      "model": "claude-sonnet-5-5",
+                      "model_fa": "x",
+                      "month_cost_usd": 1.0,
+                      "next": {
+                        "build_at": "2026-10-17T05:42:00Z",
+                        "kind_fa": "x",
+                        "publish_at": "2026-10-17T05:42:00Z"
+                      },
+                      "note_fa": "x",
+                      "pair": "x",
+                      "paused_until": "2026-10-17",
+                      "recipe": "x",
+                      "ref": "W-000789",
+                      "schedule": {
+                        "best_week": false,
+                        "days": [
+                          1
+                        ],
+                        "hours": [
+                          "x"
+                        ],
+                        "same_day": false,
+                        "start": "2026-10-17",
+                        "stories": [
+                          "x"
+                        ],
+                        "trigger_at": "x",
+                        "when_fa": "x"
+                      },
+                      "state": "on",
+                      "story_word": "x",
+                      "story_word_mode": "fixed",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "today": {
+                        "cost_usd": 1.0,
+                        "published": 1,
+                        "runs": 1
+                      },
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "version": 1
+                    }
+                  ],
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Automation Flows",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/options": {
+      "get": {
+        "description": "⟨1.39⟩ §61.3 what a save may pick: the models of the LLM router's allowed list that the\nworkshop runs (the apps never write a model's name), the efforts, the cap's range, the limits\nand the kits in use.",
+        "operationId": "automation_flow_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cycle_max": 1,
+                  "efforts": [
+                    "high"
+                  ],
+                  "kits": [
+                    {
+                      "about_fa": "x",
+                      "avg_minutes": 1.0,
+                      "avg_usd": 1.0,
+                      "key": "x",
+                      "kinds": [
+                        "one_off"
+                      ],
+                      "title_fa": "گزارش هفتگی رشد",
+                      "used_on": [
+                        "x"
+                      ]
+                    }
+                  ],
+                  "models": [
+                    {
+                      "efforts": [
+                        "high"
+                      ],
+                      "id": "x",
+                      "name_fa": "تریدیار"
+                    }
+                  ],
+                  "note_max": 1,
+                  "stories_max": 1,
+                  "usd_cap": {
+                    "max": 1,
+                    "min": 1
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Options",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}": {
+      "get": {
+        "description": "⟨1.39⟩ §61.1 one automation, with its next run, today's and the month's cost, its health.",
+        "operationId": "get_automation_flow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Automation Flow",
+        "tags": [
+          "automations"
+        ]
+      },
+      "patch": {
+        "description": "⟨1.39⟩ §61.3, §61.4 a save (`If-Match: <version>`): a new version with its changes in\nPersian; the next minute's clock reads it (nothing in n8n is edited). 409 `version_conflict`\nwhen the version moved; 422 `invalid_flow {errors: [{field, message_fa}]}`.",
+        "operationId": "patch_automation_flow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "cycle": [
+                  "x"
+                ],
+                "effort": "high",
+                "model": "claude-sonnet-5-5",
+                "note_change_fa": "x",
+                "note_fa": "x",
+                "schedule": {
+                  "best_week": false,
+                  "days": [
+                    1
+                  ],
+                  "hours": [
+                    "x"
+                  ],
+                  "same_day": false,
+                  "start": "x",
+                  "stories": [
+                    "x"
+                  ],
+                  "trigger_at": "x"
+                },
+                "story_word": "x",
+                "story_word_mode": "x",
+                "title_fa": "گزارش هفتگی رشد",
+                "usd_cap": 1.0
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowDefPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Patch Automation Flow",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}/pause": {
+      "post": {
+        "description": "⟨1.39⟩ §61.2 `paused`: the clock skips the days before `until` (no `until`: till `on`).",
+        "operationId": "automation_flow_pause",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "until": "2026-10-17"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowDefPauseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Pause",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}/run-now": {
+      "post": {
+        "description": "⟨1.39⟩ §61.3 the day's run now (default: the day the next post goes out), the owner's own\ntap: even a day paused or skipped, or a flow off (a pilot, run by hand, is off for the clock).\nOne run per flow and day: a day that has one answers 409 `already_ran` with it. The day's\norder is placed as the clock and n8n place it (the same key of that day), so whichever comes\nlater answers this one. Requires `Idempotency-Key`.",
+        "operationId": "automation_flow_run_now",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "day": "2026-10-17"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowDefRunNowIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "cost_usd": 1.0,
+                    "note_fa": "x",
+                    "ref": "W-000789",
+                    "results": {
+                      "clicks": 1,
+                      "comments": 1,
+                      "dms_sent": 1,
+                      "likes": 1,
+                      "permalink": "x",
+                      "reach": 1,
+                      "read_at": "2026-10-17T05:42:00Z",
+                      "saves": 1,
+                      "shares": 1,
+                      "story_permalink": "x",
+                      "views": 1
+                    },
+                    "state": "x",
+                    "topic_fa": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDefRunNow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Run Now",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}/skip": {
+      "post": {
+        "description": "⟨1.39⟩ §61.3 one day skipped (`skip: false` undoes it).",
+        "operationId": "automation_flow_skip",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "day": "2026-10-17",
+                "skip": false
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowDefSkipIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow Skip",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/flows/{ref}/state": {
+      "post": {
+        "description": "⟨1.39⟩ §61.2 the switch: `off` starts no day; `on` (a pause ends too).",
+        "operationId": "automation_flow_state",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "state": "on"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FlowDefStateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "alerts_open": 1,
+                  "budget": {
+                    "envelope_left_usd": 1.0,
+                    "envelope_usd": 1.0,
+                    "month_estimate_usd": 1.0,
+                    "over_envelope": false,
+                    "usd_cap": 1.0
+                  },
+                  "channel": "x",
+                  "company": "TY",
+                  "company_fa": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "cycle": [
+                    "x"
+                  ],
+                  "effort": "high",
+                  "health": {
+                    "note_fa": "x",
+                    "state": "ok"
+                  },
+                  "key": "x",
+                  "kind": "reel",
+                  "kit": "x",
+                  "kit_fa": "x",
+                  "legacy_ref": "x",
+                  "model": "claude-sonnet-5-5",
+                  "model_fa": "x",
+                  "month_cost_usd": 1.0,
+                  "next": {
+                    "build_at": "2026-10-17T05:42:00Z",
+                    "kind_fa": "x",
+                    "publish_at": "2026-10-17T05:42:00Z"
+                  },
+                  "note_fa": "x",
+                  "pair": "x",
+                  "paused_until": "2026-10-17",
+                  "recipe": "x",
+                  "ref": "W-000789",
+                  "schedule": {
+                    "best_week": false,
+                    "days": [
+                      1
+                    ],
+                    "hours": [
+                      "x"
+                    ],
+                    "same_day": false,
+                    "start": "2026-10-17",
+                    "stories": [
+                      "x"
+                    ],
+                    "trigger_at": "x",
+                    "when_fa": "x"
+                  },
+                  "state": "on",
+                  "story_word": "x",
+                  "story_word_mode": "fixed",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "today": {
+                    "cost_usd": 1.0,
+                    "published": 1,
+                    "runs": 1
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FlowDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Automation Flow State",
         "tags": [
           "automations"
         ]
@@ -167998,6 +170330,9 @@
                 "example": {
                   "idle": "x",
                   "made": 1,
+                  "orders": [
+                    "x"
+                  ],
                   "runs": [
                     "x"
                   ],
