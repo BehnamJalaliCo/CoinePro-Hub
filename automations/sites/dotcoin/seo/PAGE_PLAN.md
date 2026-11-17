@@ -165,63 +165,41 @@ Full rules: ARTICLE_BRIEF.md. In short:
 
 ### 3.5 Exchanges hub `/exchanges/`
 
-- **Primary:** صرافی خارجی ارز دیجیتال · **Secondary:** صرافی خارجی برای ایرانیان، صرافی خارجی
-  معتبر، کد رفرال چیست، صرافی ویکس، صرافی ال بانک، صرافی اوربیت
+- Owner's standing rule (2026-11-17): no page says anything about sanctions, legal status or country restrictions; the exchange pages carry the features, the signup steps and the code.
+- **Primary:** صرافی خارجی ارز دیجیتال · **Secondary:** صرافی خارجی، کد رفرال چیست، صرافی ویکس،
+  صرافی ال بانک، صرافی اوربیت
 - **title:** `صرافی خارجی ارز دیجیتال: ویکس، ال بانک، اوربیت | دات‌کوین` (57)
-- **description:** `راهنمای سه صرافی ویکس (WEEX)، ال بانک (LBank) و اوربیت (Ourbit): شرایط ایرانیان، ثبت‌نام قدم‌به‌قدم، کارمزدها و فرق هر کدام.` (124)
+- **description (as built):** `راهنمای سه صرافی ویکس (WEEX)، ال بانک (LBank) و اوربیت (Ourbit): امکانات هر کدام، رابط فارسی و ثبت‌نام قدم‌به‌قدم، به زبان ساده.`
 - **H1:** `صرافی‌های ویکس، ال بانک و اوربیت`
-- **Outline:**
-  - lead (what the page does: explains three exchanges the site uses; no "best" claims)
-  - H2 `مقایسه‌ی سه صرافی`: a real `<table>`, rows from official pages with a «بررسی‌شده در
-    <date>» note: سال شروع، اپلیکیشن، احراز هویت، کارمزد پایه‌ی اسپات (maker/taker)، شبکه‌های
-    واریز تتر، معاملات فیوچرز، P2P، رابط فارسی. Unknown = «اعلام نشده», never a guess.
-  - H2 per exchange (3 short sections) → the exchange's page; one CTA button each
-    (`/go/<exchange>/`, `rel="sponsored nofollow"`)
-  - H2 `پیش از ثبت‌نام چه بدانم؟` → links to `/learn/cex-vs-dex/`, `/learn/usdt-networks/`,
-    `/learn/wrong-network/`, `/learn/exchange-fees/`, `/learn/seed-phrase/` (only once they exist)
-  - H2 `پرسش‌های پرتکرار`: «کد رفرال چیست؟», «کدام صرافی برای شروع ساده‌تر است؟» (answered with
-    facts: interface, Persian UI, minimums; no ranking), «آیا این صرافی‌ها واریز ریالی دارند؟»
-    (facts from the official pages)
-- **JSON-LD:** WebPage + ItemList (3 ListItems → the exchange pages) + FAQPage + BreadcrumbList.
+- **Outline:** lead → H2 (visually hidden) «سه صرافی» + one card per exchange (logo, tagline, the
+  code with each exchange's own label, the signup button, «معرفی و راهنمای ثبت‌نام») → «کد دعوت
+  چطور کار می‌کند» (3 steps). No "best" claims, no ranking.
+- **JSON-LD:** CollectionPage + ItemList (3 ListItems → the exchange pages) + BreadcrumbList.
 
 ### 3.6 Exchange pages `/exchanges/weex/`, `/exchanges/lbank/`, `/exchanges/ourbit/`
 
 | | WEEX | LBank | Ourbit |
 |---|---|---|---|
 | Primary | صرافی weex | صرافی ال بانک | صرافی اوربیت |
-| Secondary | صرافی ویکس، weex برای ایرانیان، weex معتبر است، ثبت نام weex، weex دانلود، کارمزد weex | lbank، ال بانک برای ایرانیان، ال بانک مال کجاست، ال بانک دانلود، ال بانک واریز ریالی دارد، کارمزد lbank | ourbit، ourbit برای ایرانیان، صرافی اوربیت معتبر است، صرافی اوربیت ثبت نام، ourbit دانلود، کد رفرال اوربیت |
-| title | `صرافی ویکس (WEEX): ثبت‌نام، کارمزد و شرایط ایرانیان` (51) | `صرافی ال بانک (LBank): ثبت‌نام، کارمزد و شرایط ایرانیان` (55) | `صرافی اوربیت (Ourbit): ثبت‌نام، کارمزد و شرایط ایرانیان` (55) |
+| Secondary | صرافی ویکس، ثبت نام weex، weex دانلود، کد دعوت ویکس | lbank، ال بانک دانلود، کد دعوت ال بانک | ourbit، ourbit دانلود، کد رفرال اوربیت |
+| title (as built) | `صرافی ویکس (WEEX): معرفی و ثبت‌نام قدم‌به‌قدم \| دات‌کوین` | `صرافی ال بانک (LBank): معرفی و ثبت‌نام قدم‌به‌قدم \| دات‌کوین` | `صرافی اوربیت (Ourbit): معرفی و ثبت‌نام قدم‌به‌قدم \| دات‌کوین` |
 | H1 | `صرافی ویکس (WEEX) چیست و چطور ثبت‌نام کنیم؟` | `صرافی ال بانک (LBank) چیست و چطور ثبت‌نام کنیم؟` | `صرافی اوربیت (Ourbit) چیست و چطور ثبت‌نام کنیم؟` |
+| code label (the exchange's own form) | «کد دعوت» | «کد دعوت» | «کد رفرال» |
 
-- **description WEEX:** `صرافی ویکس (WEEX) چیست و برای ایرانیان چه شرایطی دارد؟ ثبت‌نام قدم‌به‌قدم، احراز هویت، کارمزدها، واریز و برداشت تتر و پرسش‌های پرتکرار.` (135)
-- **description LBank:** `صرافی ال بانک (LBank) مال کجاست و برای ایرانیان چه شرایطی دارد؟ ثبت‌نام قدم‌به‌قدم، احراز هویت، کارمزدها، واریز و برداشت و پرسش‌های پرتکرار.` (140)
-- **description Ourbit:** `صرافی اوربیت (Ourbit) چیست و معتبر است؟ شرایط ایرانیان، ثبت‌نام قدم‌به‌قدم، احراز هویت، کارمزدها، واریز و برداشت و پرسش‌های پرتکرار.` (132)
-- **Outline (same for the three; X = the exchange):**
-  - lead + «پاسخ کوتاه» box: what X is in 2 sentences + the CTA button
-  - H2 `X در یک نگاه`: a facts table (official site URL, start year, where registered, app
-    stores, KYC levels, spot fees, futures yes/no, P2P yes/no, Persian UI). Each fact from the
-    official site; «بررسی‌شده در <Jalali date>» under the table.
-  - H2 `آیا X برای ایرانیان در دسترس است؟`: what the official terms say about countries, a
-    short quote and a link to the terms page, the check date. Facts only, no advice on getting
-    around anything. (The top suggestion for every exchange is «… برای ایرانیان تحریم است»;
-    the SERP rewards a straight answer.)
-  - H2 `ثبت‌نام در X قدم‌به‌قدم`: an `<ol>` of steps with screenshots (alt text per
-    ARTICLE_BRIEF §5); the referral code shown as text too
-  - H2 `احراز هویت در X`
-  - H2 `کارمزدهای X`: from the official fee page → link `/learn/exchange-fees/`
-  - H2 `واریز و برداشت تتر در X`: networks offered → `/learn/usdt-networks/`, `/learn/wrong-network/`
-  - H2 `امنیت حساب`: 2FA, anti-phishing code → `/learn/crypto-phishing/`
-  - H2 `اپلیکیشن و ورود به X`: official store links only
-  - H2 `پرسش‌های پرتکرار`: «X مال کجاست؟», «آیا X معتبر است؟» (facts: years active, public
-    licences named on the official site; no verdict), «آیا X واریز ریالی دارد؟», «کد رفرال X
-    چیست؟», «حداقل واریز X چقدر است؟»
-- **Referral link:** every CTA → `/go/<exchange>/` (302 in `_redirects`, TECHNICAL.md §6), with
-  `rel="sponsored nofollow"`. Same link in all places, so a code change is one line.
-- **Links in:** `/exchanges/`, home, the exchange-pillar lessons. **Out:** `/exchanges/`, the
-  other two exchanges («مقایسه با …»), the lessons named above, `/glossary/#kyc` etc.
+- Name LBank «ال بانک» (with a space: every suggest completion is written so), not «ال‌بنک».
+- **Outline (same for the three; X = the exchange):** H1 + lead + the CTA (signup button, the code
+  chip, «سایت رسمی») → H2 «امکانات اصلی» → H2 «ثبت‌نام قدم‌به‌قدم» (an ordered list; the code
+  step names the field exactly as the form does) → the body sections (what X is, the app, the
+  code) → H2 «پرسش‌های پرتکرار» («آیا سایت X فارسی دارد؟», «برای احراز هویت در X چه چیزی لازم
+  است؟», «اپلیکیشن X را از کجا بگیرم؟», «<label> X را کجا وارد کنم؟») → «صرافی‌های دیگر».
+- **Referral link:** every CTA → `/go/<exchange>/` (302 in `_redirects`, from
+  `content/exchanges.json`, the one place for links and codes), `rel="sponsored nofollow noopener"`.
+- **Links in:** `/exchanges/`, home, the exchange-pillar lessons. **Out:** `/exchanges/`, the other
+  two exchanges, `/learn/usdt-networks/` and `/learn/wrong-network/` once they exist.
 - **JSON-LD:** WebPage + FAQPage + BreadcrumbList. **Not** Organization, Review, Rating,
   FinancialService or HowTo for the exchange.
-- **Freshness:** these pages carry `dateModified` and are re-checked monthly (ARTICLE_BRIEF §8).
+- **Freshness:** `dateModified` = the page's `updated` front matter, else the newest lesson's date
+  (never the build date); re-checked monthly (ARTICLE_BRIEF §8).
 
 ### 3.7 About `/about/`
 

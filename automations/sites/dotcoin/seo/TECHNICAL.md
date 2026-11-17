@@ -29,6 +29,44 @@ Pages behaviour quoted from developers.cloudflare.com/pages/configuration/{servi
 | `https://<project>.pages.dev/<path>` | 301 → `https://dotcoin.me/<path>` | Account → **Bulk Redirects**: source `<project>.pages.dev`, target `https://dotcoin.me`, subpath matching + preserve path suffix + preserve query string, **without** "include subdomains" (so preview builds still work). Belt and braces: the `X-Robots-Tag: noindex` rule in `_headers` (§6). |
 | `<hash>.<project>.pages.dev` previews | `X-Robots-Tag: noindex` | Pages does this itself. |
 
+### 2.1 Status 2026-11-17 and the owner's steps
+
+The hub's Cloudflare token has no Rulesets / Page Rules / Bulk Redirects permission, so the two
+301s are the owner's dashboard steps. Until then: `www` serves the site with a head script that
+moves the visitor to the apex and an apex canonical; `dotcoin.pages.dev` answers with
+`X-Robots-Tag: noindex`. Both keep the duplicates out of the index; the 301s are still better
+(they pass links and stop the double crawl).
+
+**www → dotcoin.me (owner, about 3 minutes):**
+۱. وارد https://dash.cloudflare.com شو و دامنه‌ی `dotcoin.me` را باز کن.
+۲. از منوی کنار: «Rules» ← «Overview» ← دکمه‌ی «Create rule» ← «Redirect Rule». (اگر الگوی آماده‌ی «Redirect from WWW to root» را دیدی، همان را بزن و فقط مقدارها را با قدم‌های ۴ و ۵ مقایسه کن.)
+۳. در «Rule name» بنویس: `www to apex`.
+۴. در «If incoming requests match…» گزینه‌ی «Custom filter expression» را بزن و بساز:
+   Field = `Hostname`، Operator = `equals`، Value = `www.dotcoin.me`.
+۵. در «Then…»: Type = `Dynamic`، Expression:
+   `concat("https://dotcoin.me", http.request.uri.path)`، Status code = `301`، و تیک
+   «Preserve query string» را بزن.
+۶. «Deploy» را بزن.
+۷. اگر در «DNS» ← «Records» رکورد `www` نارنجی (Proxied) نیست، روی ابر خاکستری‌اش بزن تا نارنجی
+   شود و «Save». (رکورد www باید Proxied باشد تا قانون اجرا شود.)
+
+**dotcoin.pages.dev → dotcoin.me (owner, optional, about 4 minutes):**
+۱. در https://dash.cloudflare.com از صفحه‌ی اصلی حساب (نه داخل دامنه): «Rules» ← «Bulk Redirects»
+   ← «Create Bulk Redirect List»، نام `pages-dev`، «Next».
+۲. «Manually add URL redirects»: Source URL = `dotcoin.pages.dev`، Target URL =
+   `https://dotcoin.me`، Status = `301`؛ در «Edit parameters» تیک «Preserve query string»،
+   «Subpath matching» و «Preserve path suffix» را بزن (تیک «Include subdomains» نه). «Continue» ←
+   «Save and Deploy».
+۳. «Create Bulk Redirect Rule»، نام `pages-dev`، همان فهرست `pages-dev` را انتخاب کن و «Save and
+   Deploy».
+
+**robots.txt (seen live 2026-11-17):** Cloudflare's managed robots.txt is on: it prepends its
+content signals (`search=yes, ai-train=no`) and blocks AI training crawlers and AI user agents
+(ChatGPT-User, Claude-User, Perplexity-User …); our own rules (`Disallow: /go/`, the Sitemap)
+follow. Googlebot and Bingbot are allowed. Whether AI assistants may read the site is the
+owner's switch (Security → Bots → «Manage AI crawlers» / «Instruct AI bot traffic with
+robots.txt»); nothing to fix for search.
+
 ## 3. The `<head>` of every page
 
 ```html

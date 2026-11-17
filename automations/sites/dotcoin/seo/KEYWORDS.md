@@ -45,8 +45,8 @@ What this means for dotcoin.me:
 - Several competitors put AggregateRating/Review on their own articles and exchange pages. That
   breaks Google's review-snippet rules. We never do it.
 - Many top pages are stale (2023–2024). Visible, honest update dates are an edge.
-- Exchange SERPs reward a straight answer to «… برای ایرانیان تحریم است؟»: khanesarmaye's WEEX page
-  ranks with the title «صرافی ویکس برای ایرانیان؛ شرایط و ریسک» and quotes the official terms.
+- Exchange SERPs are long reviews (khanesarmaye, iranbroker). Our exchange pages win on a clean
+  signup walkthrough, the features and the code. Owner's standing rule (2026-11-17): no page says anything about sanctions, legal status or country restrictions; the exchange pages carry the features, the signup steps and the code.
 
 ## Spelling and variant policy
 
@@ -124,11 +124,11 @@ Priority: **P1** build first / keep strongest; **P2** next; **P3** later or insi
 
 | # | Cluster | Main query | Variants and questions | Signal | Target | P |
 |---|---|---|---|---|---|---|
-| D1 | WEEX | صرافی weex | صرافی ویکس، weex برای ایرانیان، صرافی weex برای ایرانیان تحریم است، صرافی weex برای کدام کشور است، صرافی weex معتبر است، weex دانلود، weex ورود، کارمزد weex، صرافی weex بونوس | strong | `/exchanges/weex/` | P1 |
-| D2 | LBank | صرافی ال بانک | lbank، ال بانک برای ایرانیان، صرافی ال بانک برای ایرانیان تحریم است، ال بانک مال کجاست، ال بانک دانلود، ال بانک واریز ریالی دارد، کارمزد lbank، ال بانک ورود | strong | `/exchanges/lbank/` | P1 |
-| D3 | Ourbit | صرافی اوربیت | ourbit، صرافی ourbit برای ایرانیان، … تحریم است، صرافی اوربیت معتبر است، صرافی اوربیت کلاهبرداری، صرافی اوربیت ثبت نام، ourbit دانلود، کد رفرال اوربیت | strong, fewer strong competitors (newer exchange) | `/exchanges/ourbit/` | P1 |
-| D4 | foreign exchanges | صرافی خارجی برای ایرانیان | بهترین صرافی خارجی برای ایرانیان، صرافی خارجی معتبر، صرافی خارجی ارز دیجیتال، کد رفرال چیست | strong, very competitive | `/exchanges/` | P1 |
-| D5 | CEX vs DEX | صرافی غیرمتمرکز | صرافی متمرکز و غیرمتمرکز، صرافی غیرمتمرکز برای ایرانیان | medium–strong | `/learn/cex-vs-dex/` | P2 |
+| D1 | WEEX | صرافی weex | صرافی ویکس، ثبت نام weex، صرافی weex معتبر است، weex دانلود، weex ورود، کارمزد weex، صرافی weex بونوس | strong | `/exchanges/weex/` | P1 |
+| D2 | LBank | صرافی ال بانک | lbank، ال بانک صرافی، ال بانک چیست، ال بانک دانلود، ال بانک واریز ریالی دارد، کارمزد lbank، ال بانک ورود | strong | `/exchanges/lbank/` | P1 |
+| D3 | Ourbit | صرافی اوربیت | ourbit، صرافی ourbit، صرافی اوربیت معتبر است، صرافی اوربیت ثبت نام، ourbit دانلود، کد رفرال اوربیت | strong, fewer strong competitors (newer exchange) | `/exchanges/ourbit/` | P1 |
+| D4 | foreign exchanges | صرافی خارجی ارز دیجیتال | صرافی خارجی، صرافی خارجی معتبر، کد رفرال چیست | strong, very competitive | `/exchanges/` | P1 |
+| D5 | CEX vs DEX | صرافی غیرمتمرکز | صرافی متمرکز و غیرمتمرکز | medium–strong | `/learn/cex-vs-dex/` | P2 |
 | D6 | exchange fees | کارمزد صرافی ارز دیجیتال | کارمزد weex، کارمزد lbank | medium | `/learn/exchange-fees/` (general) + a fee section on each exchange page | P2 |
 
 ### E. Glossary
@@ -152,7 +152,7 @@ says in one plain line that dotcoin.me is an educational site, not a token.
 - Price, «امروز», «پیش بینی», «چرا بیت کوین ریخت»: no prices, no predictions (owner rule).
 - «بهترین ارز برای سرمایه گذاری», «ارز ارزان آینده دار» as picks: the myth article (idea 39)
   answers the reasoning, never names picks.
-- «بدون احراز هویت», «بدون تحریم», «با آی‌پی …», any bypass of an exchange's country rules or KYC.
+- Every «… برای ایرانیان», «تحریم», «بدون احراز هویت», «با آی‌پی …» modifier: Owner's standing rule (2026-11-17): no page says anything about sanctions, legal status or country restrictions; the exchange pages carry the features, the signup steps and the code.
 - Religious rulings («حرام است»), politics, named people's projects («بلاک چین بابک زنجانی»).
 - Navigational queries of other brands («نوبیتکس», «تبدیل», «کریپتو نگار»).
 
@@ -167,7 +167,7 @@ says in one plain line that dotcoin.me is an educational site, not a token.
 7. E1 اصطلاحات ارز دیجیتال → `/glossary/`
 8. C1 تتر trc20 / شبکه‌ها → `/learn/usdt-networks/`
 9. B5 بیت کوین چیست → `/learn/bitcoin/`
-10. D4 صرافی خارجی برای ایرانیان → `/exchanges/`
+10. D4 صرافی خارجی ارز دیجیتال → `/exchanges/`
 
 Raw suggest output of this research: kept out of the repo (it is only a snapshot); rerun the
 endpoint above when you refresh this file.

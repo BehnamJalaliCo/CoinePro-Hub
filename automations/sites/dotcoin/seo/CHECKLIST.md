@@ -21,7 +21,7 @@ Shorthands: `D=automations/sites/dotcoin/dist`, `U=https://dotcoin.me`.
 | ID | Request | Expected | Level |
 |---|---|---|---|
 | 2.1 | `H http://dotcoin.me/` | 301 → `https://dotcoin.me/` | M |
-| 2.2 | `H https://www.dotcoin.me/learn/?a=1` | 301 → `https://dotcoin.me/learn/?a=1` | M |
+| 2.2 | `H https://www.dotcoin.me/learn/?a=1` | 301 → `https://dotcoin.me/learn/?a=1` once the owner's Redirect Rule exists (TECHNICAL §2.1); until then 200 + the head-script redirect + the apex canonical | M |
 | 2.3 | `H http://www.dotcoin.me/` | one or two hops, ends at `https://dotcoin.me/` | M |
 | 2.4 | `H $U/learn/cold-wallet` (no slash) | 308/301 → `/learn/cold-wallet/` | M |
 | 2.5 | `H $U/learn/cold-wallet/index.html` | redirect → `/learn/cold-wallet/` | M |
@@ -54,7 +54,7 @@ Shorthands: `D=automations/sites/dotcoin/dist`, `U=https://dotcoin.me`.
 | 4.3 | **Forbidden anywhere:** Review, AggregateRating, Rating, HowTo, FinancialService, an Organization node for an exchange, SearchAction without a real search page | M |
 | 4.4 | FAQPage questions and answers equal the visible FAQ text (same count, same words) | M |
 | 4.5 | BreadcrumbList items equal the visible breadcrumb; the last item has no `item` URL or the page's own canonical | M |
-| 4.6 | Article: `headline` ≤ 110 chars, `image` ≥ 1200 px wide and the file exists, `datePublished`/`dateModified` ISO 8601 with `+03:30`, `author` → Person with `url`, `publisher` → Organization with `logo` | M |
+| 4.6 | Article: `headline` ≤ 110 chars, `image` ≥ 1200 px wide and the file exists, `datePublished`/`dateModified` ISO 8601 (a date, or a time with `+03:30`), `author` → Person with `url`, `publisher` → Organization with `logo` | M |
 | 4.7 | `@id`s are stable and shared (`/#org`, `/#website`, `/about/#behnam`); the same node never carries different values on two pages | M |
 | 4.8 | Google Rich Results Test passes (no errors) for `/`, one lesson, `/glossary/`, one exchange page; validator.schema.org shows no errors | S |
 
@@ -81,7 +81,7 @@ Shorthands: `D=automations/sites/dotcoin/dist`, `U=https://dotcoin.me`.
 | 6.4 | No price numbers, predictions or signals: regex over text for `\$\s?[0-9۰-۹]`, `[0-9۰-۹][0-9۰-۹٬,]* ?دلار`, «پیش‌بینی قیمت», «سیگنال» → each hit reviewed by hand (history tables like the halving rewards are fine) | M |
 | 6.5 | No disclaimer lines: «سلب مسئولیت», «توصیه‌ی مالی نیست», «مسئولیت … با خود» → none | M |
 | 6.6 | `/about/` contains only owner-confirmed facts; the "not a token" line is there | M |
-| 6.7 | Exchange pages: facts table with «بررسی‌شده در» date; the countries section quotes and links the official terms; no instructions to get around country rules or KYC | M |
+| 6.7 | Exchange pages: features, signup steps and the code with the exchange's own field label; nothing about sanctions, legal status or country restrictions (owner's rule) | M |
 | 6.8 | No duplicate or near-duplicate pages (two lessons owning the same primary query, PAGE_PLAN §5 pairs) | S |
 
 ## 7. Persian typography (TECHNICAL §7), over the text of every `dist/*.html`

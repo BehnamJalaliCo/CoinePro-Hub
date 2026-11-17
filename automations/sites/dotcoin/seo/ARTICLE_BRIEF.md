@@ -2,7 +2,7 @@
 
 The hub's daily automation follows this to turn the day's DotCoin reel into a lesson at
 `/learn/<slug>/`. It extends the builder's `content/FORMAT.md` (the front matter and Markdown
-body that `build.py` reads); fields marked **(new)** are added to FORMAT.md in phase 2.
+body that `build.py` reads); build.py reads `seo_title`, `answer`, `sources` and `updated` since phase 2.
 Keyword research: KEYWORDS.md. Page rules: PAGE_PLAN.md §3.3. Technical rules: TECHNICAL.md.
 
 ## 1. Inputs
@@ -34,22 +34,22 @@ allowed). It may add one dated line to an existing lesson's refresh queue (§8).
 ```
 ---
 title: <H1: the full question in written Persian, e.g. «کیف پول سرد چیست و چه فرقی با کیف پول گرم دارد؟»>
-seo_title: <the <title> without the suffix, ≤ 60 chars; build.py adds « | دات‌کوین» (11 chars) only when the total stays ≤ 60, so aim for ≤ 49>   (new)
+seo_title: <the <title> without the suffix, ≤ 60 chars; build.py adds « | دات‌کوین» (11 chars) only when the total stays ≤ 60, so aim for ≤ 49>
 slug: <§6>
 pillar: basics | security | exchange | market | defi | myths | terms
 idea: <ideas.json id>
 date: <YYYY-MM-DD publish day, Tehran time>
-updated: <YYYY-MM-DD; equals date until a real content change, §8>   (new)
-keyword: <the primary query, as people type it>   (new)
-keywords: <2-5 secondary queries, comma-separated; not printed, used by the checks>   (new)
+updated: <YYYY-MM-DD; equals date until a real content change, §8>
+keyword: <the primary query, as people type it; build.py ignores it>
+keywords: <2-5 secondary queries, comma-separated; for the automation's own checks, build.py ignores it>
 en: <ONE OR TWO GIANT ENGLISH WORDS>
 motif: chain | vault | halving | peg | generic
 description: <meta description, 120-155 chars, §4.3>
 lead: <1-2 sentences under the H1>
-answer: <the «پاسخ کوتاه» box, 40-60 words, §4.2>   (new)
+answer: <the «پاسخ کوتاه» box, 40-60 words, §4.2>
 reel: <Instagram reel URL>
-related: <2-3 lesson slugs, §5>   (new)
-sources: <1-3 primary-source URLs, comma-separated>   (new)
+sources:
+- <label> | <https URL of a primary source>   (1-3 lines)
 summary:
 - <3-5 one-line takeaways>
 steps:
@@ -84,7 +84,7 @@ steps:
    each answered in 40–80 words, self-contained (no «همان‌طور که گفتیم»).
 9. **«منابع»**: 1–3 primary sources (the protocol's own docs, the whitepaper, the issuer's page,
    the exchange's official page). Not competitors' blogs, not Wikipedia alone.
-10. **«درس بعدی» + «درس‌های مرتبط»** (template, from `related`).
+10. **«درس‌های مرتبط»** (template, same pillar first).
 
 ### 4.2 Length and depth
 
@@ -131,7 +131,7 @@ steps:
   «اینجا», «کلیک کنید», never the full title, never the same anchor for two different targets.
 - **Link format:** the canonical form only: `/learn/cold-wallet/` (with the slash), no
   `index.html`, no domain for internal links, no `?` parameters.
-- **`related`:** 2–3 slugs, same pillar first, then the next step of the beginner path.
+- **Related lessons:** build.py picks 3 (same pillar first); the beginner path lives in `content/site.json` → `path`.
 - **Back-links (the refresh job, §8):** after publishing, find the 2 most relevant older lessons
   that mention the new topic and link their first mention to the new lesson; add the term's
   «درس کامل» link in the glossary.
