@@ -466,6 +466,7 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
                 player=body.player if body.player in ("gpt", "gemini") else None,
                 work_id=mine,
                 reference_files=refs or None,
+                images=body.images,
             )
             if row["state"] == "failed":
                 call = await tx.one(

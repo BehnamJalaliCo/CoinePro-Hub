@@ -102,6 +102,13 @@ HELD = ("company_locked", "server_detached")
 CHECK_AFTER = timedelta(seconds=90)
 CHECK_EVERY = timedelta(minutes=3)
 CHECK_FOR = timedelta(hours=6)
+# ⟨2026-11-16⟩ the owner: «هر وقت پیجی بسته بود به محض باز شدن ... همه اونایی که موندند ارسال
+# بشوند»: one IG-Hub holds for a page Instagram closed for a while (its answer says `held`) is
+# asked about every 10 minutes for as long as it waits (up to the 8 days of FOLLOW_SQL), not for 6
+# hours only; IG-Hub sends it once the page loads
+CHECK_HELD = timedelta(minutes=10)
+HELD_PAGE_FA = "پیج فعلاً در دسترس نیست (اینستاگرام بسته‌اش کرده)؛ به محض باز شدن خودش منتشر میشود"
+
 CHECK_TIMEOUT_S = 120
 SOON = timedelta(minutes=2)  # a time this near is «now»
 FAR = timedelta(days=365)
@@ -223,6 +230,8 @@ def view(j: dict[str, Any]) -> SessionPublish:
         else:
             why = HZ.humanize(str(j.get("summary_fa") or "")) or "IG-Hub نپذیرفت"
             note = CANCEL_NOTE_FA.format(why=why)[:500]
+    if state in ("scheduled", "publishing") and note is None and result.get("held"):
+        note = HELD_PAGE_FA
     words = (meta.get("comment") or {}).get("keywords") or []
     return SessionPublish(
         job=str(j["id"]),
@@ -2082,7 +2091,11 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
 
     The 6 hours run from its time, or for one sent for now from its first answer
     (`meta.first_at`, carried by every question and cancel after it): never from the newest
-    question, which would move them on with every answer and ask without end."""
+    question, which would move them on with every answer and ask without end.
+
+    ⟨2026-11-16⟩ One IG-Hub holds for its closed page (`held` in its answer, then `meta.held`) is
+    asked about every 10 minutes for as long as it waits: IG-Hub sends it once the page loads,
+    and its answer then ends it as any other."""
     now = now or datetime.now(UTC)
     asked = 0
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -2095,14 +2108,19 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
             # a question that was never answered, or ⟨§51⟩ a cancel IG-Hub refused: asked again
             again = meta.get("check") or meta.pop("cancel", None)
             ext = str(again or result.get("external_id") or "")
+            if result.get("held"):
+                meta["held"] = True  # carried by every question after it
+            held = bool(meta.get("held"))
             when = _when(meta.get("scheduled_at"))
             since = j["finished_at"] or j["created_at"]
             # a chain from before `first_at` was carried starts its window here, once
             first = _when(meta.get("first_at")) or since
             meta["first_at"] = first.isoformat()
             due = max(when, since) if when is not None else since
-            due += CHECK_EVERY if again else CHECK_AFTER
-            if not ext.startswith(PENDING) or now < due or now > (when or first) + CHECK_FOR:
+            due += CHECK_HELD if held else CHECK_EVERY if again else CHECK_AFTER
+            if not ext.startswith(PENDING) or now < due:
+                continue
+            if not held and now > (when or first) + CHECK_FOR:
                 continue
             try:
                 async with tx.conn.begin_nested():

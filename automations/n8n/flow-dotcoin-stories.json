@@ -1,0 +1,129 @@
+{
+  "id": "hqFlowDotcoinStories1",
+  "name": "دات‌کوین: ۱۲ استوری آموزشی",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Tehran"
+  },
+  "meta": {
+    "note": "2026-11-17, the owner's order: @dotcoin.me's twelve educational story slides a day from one ChatGPT chat, made the same morning (domain/flows.py)"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "id": "e1a098c3-ab68-4a3e-8f45-ad3939b8a75f",
+      "name": "Every day 04:00 Tehran",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5fb72d4e-5e0f-4fe2-9441-135e0e324172",
+      "name": "Run now (test, or a missed day)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "0fa26e5d-c672-4256-a134-b67c0df3f9a9",
+      "name": "Today, signed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.HQ_SIGNING_SECRET || '';\nif (!secret) throw new Error('no signing secret');\n// today in Tehran: the day the post goes out (made the same day: the owner, 2026-11-14)\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());\nconst body = JSON.stringify({ day: parts });\nconst ts = Math.floor(Date.now() / 1000);\nconst mac = crypto.createHmac('sha256', secret).update(`${ts}.`).update(body).digest('hex');\n// the hub's Idempotency-Key is a UUID: one made from the flow and the day (the same on a retry)\nconst h = crypto.createHash('sha256').update(`flow:dotcoin_stories:${parts}`).digest('hex');\nconst key = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16], 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;\nreturn [{ json: { body, signature: `t=${ts},v1=${mac}`, key } }];"
+      }
+    },
+    {
+      "id": "ebee2c63-204a-4520-a24a-3ff7ccd9c7b6",
+      "name": "Start the day on the hub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/internal/v1/flows/dotcoin_stories/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-HQ-Signature",
+              "value": "={{ $json.signature }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Today, signed": {
+      "main": [
+        [
+          {
+            "node": "Start the day on the hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now (test, or a missed day)": {
+      "main": [
+        [
+          {
+            "node": "Today, signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every day 04:00 Tehran": {
+      "main": [
+        [
+          {
+            "node": "Today, signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

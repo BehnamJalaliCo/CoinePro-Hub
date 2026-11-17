@@ -52,7 +52,7 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
                 if st.do == "fill":
                     # ⟨2026-11-13⟩ AI Studio's voice library is searched by the job's voice
                     assert st.text in ("{prompt}", "{style}", "{voice}")
-    assert set(got["chatgpt-web"].tasks) == {"text", "image", "cover"}
+    assert set(got["chatgpt-web"].tasks) == {"text", "image", "cover", "slides"}
     assert set(got["gemini-web"].tasks) == {"text", "image", "video"}
     assert set(got["deepseek-web"].tasks) == {"text"}
     assert "temporary-chat=true" in got["chatgpt-web"].start_url

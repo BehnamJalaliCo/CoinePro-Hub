@@ -552,4 +552,184 @@ async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule
     assert [states[f"s{i}"] for i in range(1, 8)].count("waiting") == 5
     assert states["compose"] == states["pictures"] == states["dm"] == "done"
     assert states["schedule"] == "done" and run.json()["state"] == "waiting"
+    # its card on the board carries the same day's node colours (the strip under the card)
+    board = await client.get("/api/v1/automations/board?kind=n8n", headers=owner)
+    assert board.status_code == 200, board.text
+    card = next(i for i in board.json()["items"] if i["ref"] == f"N8:{fk}")
+    assert card["last"]["steps"] == [{"key": x["key"], "state": x["state"]}
+                                     for x in run.json()["steps"]]  # fmt: skip
     assert SPB.view  # (the module is the one the hub runs)
+
+
+IPOXXO_COMMENT = (
+    "keyword: لینک\nmatch: any\nreply: سلام 👋 اینم کانال رایگان آی‌پی‌اکسو\n"
+    "reply: پروکسی تلگرام و کانفیگ V2Ray رایگان\nbutton: ورود به کانال | https://t.me/ipoxxo\n"
+    "public: دایرکتت رو ببین 📩"
+)
+
+
+def test_ipoxxos_flows_are_ig_hubs_with_a_fixed_story_word() -> None:
+    """⟨2026-11-16⟩ The owner: @ipoxxo.vpn (the free proxy/VPN channel t.me/ipoxxo), «ثبت زیر
+    ig-hub»: two reels a day at hours of their own, made on Opus 5.5 the evening before, no story cut
+    (three picture stories a day instead, always answered on «لینک»); the first reel publishes
+    nothing (the owner sees it first)."""
+    one, two, st, pilot = (FL.FLOWS[k] for k in
+                           ("ipoxxo_reels", "ipoxxo_reels_2", "ipoxxo_stories", "ipoxxo_pilot"))  # fmt: skip
+    for f in (one, two, st, pilot):
+        assert f.company == "IG" and f.model == "claude-opus-5-5" and not f.story
+        assert f.kit.startswith("/home/studio/kits/ipoxxo-")
+    assert one.account == two.account == st.account == "ipoxxo.vpn" and pilot.account == ""
+    assert two.pair == "ipoxxo_reels" and not one.same_day and st.same_day
+    assert len(st.stories) == 3 and st.story_word == "لینک" and not pilot.n8n
+    assert {one.n8n, two.n8n, st.n8n} == {"hqFlowIpoxxoReels1", "hqFlowIpoxxoReels2",
+                                          "hqFlowIpoxxoStories1"}  # fmt: skip
+    # a week never puts the second reel on the first one's hour
+    assert all(a != b for a, b in zip(one.hours, two.hours, strict=True) if a and b)
+
+
+async def test_ipoxxos_first_reel_is_at_noon_every_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨2026-11-16⟩ The owner, approving the pilot: «اتوماسیونشو بذار برای ساعت ۱۲ ظهر هر روز»: the
+    first reel at 12:00 Tehran every day; the second never on it, also when the best hour is noon."""
+    from hq_api.domain import best_hour as BH
+
+    async def best(*_: Any, **__: Any) -> Any:
+        return SimpleNamespace(enough=True, hour="12:00")
+
+    monkeypatch.setattr(BH, "best", best)
+    one, two = FL.FLOWS["ipoxxo_reels"], FL.FLOWS["ipoxxo_reels_2"]
+    tz = ZoneInfo(FL.TEHRAN)
+    for offset in range(56):
+        day = one.start + timedelta(days=offset)
+        a, _ = await FL.slot_of(None, one, day, None)  # type: ignore[arg-type]
+        b, _ = await FL.slot_of(None, two, day, None)  # type: ignore[arg-type]
+        assert a.astimezone(tz).strftime("%H:%M") == "12:00", offset
+        assert b.astimezone(tz).strftime("%H:%M") != "12:00", offset
+        if FL.week_of(two, day) == 3:
+            assert b.astimezone(tz).strftime("%H:%M") == "23:00", offset
+
+
+def test_a_fixed_story_word_and_a_reel_without_its_story_in_the_brief() -> None:
+    at = datetime(2026, 11, 17, 9, 0, tzinfo=UTC)
+    st = FL.FLOWS["ipoxxo_stories"]
+    text = FL.brief_of(st, date(2026, 11, 17), at, ["الماس"])
+    assert "«لینک»" in text and "کلمه‌ی تازه نساز" in text and "الماس" not in text
+    assert "story_3.jpg" in text and "@ipoxxo.vpn" in text
+    # the fresh-word flows keep their list of taken words
+    from dataclasses import replace
+
+    fresh = replace(st, story_word="")
+    assert "«الماس»" in FL.brief_of(fresh, date(2026, 11, 17), at, ["الماس"])
+    reel = FL.brief_of(FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), at)
+    assert "story.mp4" not in reel and "استوری نه" in reel and "video.mp4" in reel
+    assert "story.mp4" in FL.brief_of(a_flow("PC"), START, at)
+
+
+def test_ipoxxos_map_shows_its_own_steps() -> None:
+    from hq_api.domain import flow_view as FV
+
+    reel = [s.key for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"])]
+    assert FV.recipe(FL.FLOWS["ipoxxo_reels"]) == "zaribsad"
+    assert {"inspire", "keyart", "cover", "render"} <= set(reel) and "story" not in reel
+    assert "story" in [s.key for s in FV.steps_of(FL.FLOWS["zaribsad_noon"])]
+    st = {s.key: s for s in FV.steps_of(FL.FLOWS["ipoxxo_stories"])}
+    assert "«لینک»" in st["word"].title_fa and "s3" in st and "s4" not in st
+    assert "کانال" in st["dm"].title_fa and "VIP" not in st["rule"].output_fa
+    ty = {s.key: s for s in FV.steps_of(FL.FLOWS["zaribsad_stories"])}
+    assert "VIP" in ty["data"].title_fa and ty["word"].title_fa == "کلمه‌ی امروز"
+    FV.graph_of(FL.FLOWS["ipoxxo_stories"])  # (the canvas builds)
+    FV.graph_of(FL.FLOWS["ipoxxo_reels_2"])
+
+
+def test_ipoxxos_dm_opens_the_telegram_channel_on_any_comment() -> None:
+    from hq_api.domain import session_publish as SPB
+
+    got = SPB.parse_comment(IPOXXO_COMMENT)
+    assert got is not None and got["match"] == "any" and got["keywords"][0] == "لینک"
+    assert [b["title"] for b in got["buttons"]] == ["ورود به کانال"]
+    body = SPB.rule_body("comment", got, "ipoxxo.vpn", [], "k")
+    assert body["buttons"][0]["url"].startswith("https://t.me/ipoxxo")
+
+
+async def test_dotcoins_pilot_is_a_ten_second_sample_on_fable_at_extra_high_effort() -> None:
+    """⟨2026-11-16⟩ The owner, for the fourth page DotCoin.me (the maker Fable 5.2 at extra-high
+    effort; first a 10-second sample and a sample cover): the pilot publishes nothing, runs on
+    Fable 5.2 at xhigh, and its order says its size."""
+    from hq_api.domain import direct as DR
+
+    pilot = FL.FLOWS["dotcoin_pilot"]
+    assert pilot.company == "IG" and pilot.account == "" and not pilot.n8n and not pilot.story
+    assert (pilot.model, pilot.effort) == ("claude-fable-5-2", "xhigh")
+    assert pilot.kit == "/home/studio/kits/dotcoin-reels"
+    text = FL.brief_of(pilot, date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC))
+    assert text.endswith(pilot.note_fa) and "۱۰ ثانیه" in text and "Arlo" in text
+    # the others keep their order as it was
+    assert "۱۰ ثانیه" not in FL.brief_of(
+        FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC)
+    )
+
+    class Tx:
+        def __init__(self, row: dict[str, Any] | None) -> None:
+            self.row = row
+
+        async def first(self, *_: Any, **__: Any) -> dict[str, Any] | None:
+            return self.row
+
+    w = {"id": None}
+    assert await DR.effort_of(Tx({"flow": True, "effort": "xhigh"}), w) == "xhigh"  # type: ignore[arg-type]
+    assert await DR.effort_of(Tx({"flow": True, "effort": None}), w) == DR.BUILD_EFFORT  # type: ignore[arg-type]
+    assert await DR.effort_of(Tx({"flow": True, "effort": "low"}), w) == DR.BUILD_EFFORT  # type: ignore[arg-type]
+    assert await DR.effort_of(Tx({"flow": False, "effort": None}), w) == DR.DIRECT_EFFORT  # type: ignore[arg-type]
+
+
+def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
+    """⟨2026-11-17⟩ The owner, after the pilot («هم کاور و هم ریلز عالی بود»; «ساعت دو ریلز عالیه»):
+    an educational reel at 13:00 and an informational one at 20:30 every day, each built the same
+    day on Fable 5.2 at extra-high effort; the day's educational stories are twelve slides from one
+    ChatGPT chat, with a fresh reply word a day. Each has its n8n workflow file, and the map shows
+    DotCoin's own steps at its own effort."""
+    import json
+    from pathlib import Path
+
+    from hq_api.domain import flow_view as FV
+
+    one, two = FL.FLOWS["dotcoin_reels"], FL.FLOWS["dotcoin_reels_2"]
+    st = FL.FLOWS["dotcoin_stories"]
+    for f in (one, two, st):
+        assert (f.company, f.account, f.model, f.effort) == (
+            "IG", "dotcoin.me", "claude-fable-5-2", "xhigh",
+        )  # fmt: skip
+        assert f.same_day and not f.story and f.recipe == "dotcoin"
+    assert set(one.hours) == {"13:00"} and set(two.hours) == {"20:30"}
+    assert (one.cycle, two.cycle, two.pair) == (("آموزشی",), ("اطلاع‌رسانی",), "dotcoin_reels")
+    assert len(st.stories) == 12 and not st.story_word and st.kit.endswith("/dotcoin-stories")
+    assert "13:00" not in st.stories and "20:30" not in st.stories  # (never on a reel's minute)
+    day = date(2026, 11, 18)
+    at = datetime(2026, 11, 18, 9, 30, tzinfo=UTC)
+    assert "نوع ریلز امروز: «آموزشی»" in FL.brief_of(one, day, at)
+    assert "نوع ریلز امروز: «اطلاع‌رسانی»" in FL.brief_of(two, day, at)
+    assert "story_12.jpg" in FL.brief_of(st, day, at, [])
+    # each n8n workflow calls its own flow at its own hour (Tehran); the repository's files (the
+    # api's test image has apps/api only: there, this part is checked by the repository's run)
+    here = Path(__file__).resolve()
+    root = next((d / "automations/n8n" for d in here.parents if (d / "automations/n8n").is_dir()),
+                None)  # fmt: skip
+    pairs = ((one, "flow-dotcoin-reels.json"), (two, "flow-dotcoin-reels-2.json"),
+             (st, "flow-dotcoin-stories.json"))  # fmt: skip
+    for f, name in pairs if root is not None else ():
+        wf = json.loads((root / name).read_text())
+        assert wf["id"] == f.n8n and wf["settings"]["timezone"] == "Asia/Tehran"
+        text = json.dumps(wf, ensure_ascii=False)
+        hh, mm = (int(x) for x in f.trigger_at.split(":"))
+        assert f'"{mm} {hh} * * *"' in text and f"/internal/v1/flows/{f.key}/run" in text
+        assert f"flow:{f.key}:" in text
+    # the map: DotCoin's own steps (Pinterest, Arlo, the owner's cover) at xhigh
+    steps = FV.steps_of(one)
+    keys = [s.key for s in steps]
+    assert {"inspire", "voice", "cover", "texts"} <= set(keys)
+    assert all(s.effort == "xhigh" for s in steps if s.model)
+    assert any("Arlo" in s.title_fa for s in steps)
+    slides = FV.steps_of(st)
+    assert any("۱۲ اسلاید" in s.title_fa for s in slides)
+    assert all(s.effort == "xhigh" for s in slides if s.model)
+    # the other flows keep their map (no own effort: max)
+    assert all(s.effort == "max" for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"]) if s.model)

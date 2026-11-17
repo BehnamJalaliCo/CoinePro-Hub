@@ -25,12 +25,16 @@ ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinter
 Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
 # prompt 22 (production lines): `tts` (speech in AI Studio: the audio file), `search`
 # (Pinterest, read only: the pins as JSON text) and `cover` (an image made from the files the
-# job carries) join the substitutes' three tasks.
-TASKS = ("text", "image", "video", "tts", "search", "cover")
-TaskName = Literal["text", "image", "video", "tts", "search", "cover"]
+# job carries) join the substitutes' three tasks. ⟨2026-11-17⟩ `slides`: several images made in
+# ONE chat (the owner: ChatGPT designs 10-15 story slides at once, each a picture of its own).
+TASKS = ("text", "image", "video", "tts", "search", "cover", "slides")
+TaskName = Literal["text", "image", "video", "tts", "search", "cover", "slides"]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
-# The longest a task may wait for its answer (image 3 min, video 10 min).
-TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300}
+# The longest a task may wait for its answer (image 3 min, video 10 min, a set of slides 25 min).
+TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300,
+              "slides": 1500}  # fmt: skip
+# the most pictures one `download_images` takes (a day's story slides)
+MAX_IMAGES = 15
 
 
 # What a `fill` may type: the job's prompt or its style note (never a literal from the recipe).
@@ -52,6 +56,7 @@ class RStep(BaseModel):
         "pause",  # ms (at most 5 s)
         "read",  # the last match of selector -> the answer's text
         "download_image",  # the last match's `attr` (src) -> the original file
+        "download_images",  # ⟨2026-11-17⟩ every made picture of the answer, in order (<= 15)
         "download",  # click selector -> the file the site sends
         # prompt 22
         "select",  # choose the option named by the job's `voice` in the control `selector`
@@ -66,7 +71,7 @@ class RStep(BaseModel):
     unless: str | None = Field(default=None, max_length=500)
     attr: str | None = Field(default=None, pattern=r"^[a-z-]{1,40}$")
     state: Literal["visible", "attached", "hidden", "detached"] | None = None
-    timeout_s: float | None = Field(default=None, gt=0, le=600)
+    timeout_s: float | None = Field(default=None, gt=0, le=1500)
     optional: bool = False
     ms: int | None = Field(default=None, ge=0, le=5000)
     # ⟨20.1⟩ `read` only: other selectors tried in turn when `selector` matches
@@ -97,7 +102,7 @@ class RStep(BaseModel):
 
 class Task(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    timeout_s: float = Field(gt=0, le=600)
+    timeout_s: float = Field(gt=0, le=1500)  # (and at most its TASK_CAP_S)
     steps: list[RStep] = Field(min_length=1, max_length=40)
 
 

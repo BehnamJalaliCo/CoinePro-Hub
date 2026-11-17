@@ -2738,7 +2738,10 @@ async def _apply_publish(tx: Tx, j: dict[str, Any], data: dict[str, Any], ok: bo
     await P.runner_published(
         tx, j, ok and bool(ext), ext, url, None if ok and ext else (error or "publish_error")
     )
-    return {"external_id": ext, "url": url}
+    got: dict[str, Any] = {"external_id": ext, "url": url}
+    if data.get("held") is True:  # ⟨2026-11-16⟩ IG-Hub holds it till its closed page loads
+        got["held"] = True
+    return got
 
 
 # ----------------------------------------------------------- oversight --

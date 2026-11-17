@@ -24,6 +24,7 @@ from hq_api.db import Tx
 from hq_api.domain import flow_shapes as FS
 from hq_api.domain import flows as FL
 from hq_api.domain import order_report as OR
+from hq_api.domain import session_publish as SPB
 from hq_api.errors import ApiError
 from hq_api.lines import store
 
@@ -74,7 +75,41 @@ def recipe(flow: FL.Flow) -> str:
     """⟨2026-11-15⟩ Which steps a flow has: «stories», a Zarib×100 reel, or the Pro-Chart reel."""
     if flow.stories:
         return "stories"
+    if flow.recipe:  # ⟨2026-11-16⟩ ipoxxo: Zarib×100's premium recipe on its own page
+        return "zaribsad" if flow.recipe == "ipoxxo" else flow.recipe  # (⟨11-17⟩ «dotcoin»)
     return "zaribsad" if "/zaribsad-" in flow.kit else "reel"
+
+
+# ⟨2026-11-16⟩ what a stories flow's own steps say, by its page (the default: Zarib×100's)
+STORY_TEXT: dict[str, dict[str, tuple[str, str]]] = {
+    "": {
+        "data": ("داده‌ی بازار و کارنامه‌ی VIP", "قیمت‌ها، ترس و طمع، آمار سیگنال‌ها از سایت تریدیار"),
+        "dm": ("جواب دایرکت با سه دکمه", "comment.txt: ورود رایگان VIP، ثبت‌نام LBank، راهنما"),
+        "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، دعوت VIP با سه دکمه میگیرد"),
+    },
+    # ⟨2026-11-17⟩ DotCoin.me: the day's lesson in twelve slides from ONE ChatGPT chat
+    "dotcoin": {
+        "data": ("درس روز از بانک ایده‌ها", "یک موضوع آموزشی تازه، در ۱۲ قدم"),
+        "pictures": (
+            "۱۲ اسلاید با ChatGPT در یک گفتگو",
+            "سه لایه‌ی رنگ: خردلی و مشکی برند، محتوای تمام‌رنگی، سبز و قرمز معنا",
+        ),
+        "compose": ("نشان پیج، شماره‌ی اسلاید و کلمه‌ی امروز روی هر اسلاید", ""),
+        "dm": ("جواب دایرکت با خلاصه‌ی درس", "comment.txt: خلاصه‌ی درس روز در چند خط"),
+        "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، خلاصه‌ی درس را میگیرد"),
+    },
+    "ipoxxo": {
+        "data": (
+            "ایده‌های روز از بانک ایده‌ها",
+            "سه ایده‌ی تبلیغی تازه برای جذب از اینستاگرام به کانال",
+        ),
+        "dm": ("جواب دایرکت با دکمه‌ی کانال", "comment.txt: لینک کانال تلگرام t.me/ipoxxo"),
+        "rule": (
+            "جواب دایرکت استوری‌ها",
+            "هر کس «لینک» را ریپلای کند، لینک کانال رایگان را در دایرکت میگیرد",
+        ),
+    },
+}
 
 
 # the lane (who does it) of each step: one row per lane on the app's canvas
@@ -114,18 +149,26 @@ def _tail(flow: FL.Flow) -> list[FS.FlowStep]:
     what = f"ریلز و استوری @{flow.account}" if flow.story else f"ریلز @{flow.account}"
     return [
         _step("package", "بسته‌ی کامل", "package", "code",
-              rules=("تا هر شش فایل نرسیده، چیزی منتشر نمیشود",)),
+              rules=(f"تا هر {'شش' if flow.story else 'پنج'} فایل نرسیده، چیزی منتشر نمیشود",)),
         _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub", out=what),
         _step("publish", "انتشار در ساعت خودش", "publish", "ighub"),
-        _step("replies", "کامنت هوشمند و جواب استوری", "publish", "ighub",
-              out="دایرکت با دکمه‌ی لینک، ده جواب عمومی"),
+        _step("replies", "کامنت هوشمند و جواب استوری" if flow.story else "کامنت هوشمند",
+              "publish", "ighub", out="دایرکت با دکمه‌ی لینک، ده جواب عمومی"),
         _step("report", "خبر به مدیر کل", "report", "code",
               out="«آماده شد» و «منتشر شد» با لینک"),
     ]  # fmt: skip
 
 
 def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
-    """What the flow does, in order (the kit's README for the workshop's part)."""
+    """What the flow does, in order (the kit's README for the workshop's part); ⟨2026-11-17⟩ a
+    flow's own effort on its model's steps (DotCoin.me: xhigh)."""
+    steps = _steps_of(flow)
+    if not flow.effort:
+        return steps
+    return [s.model_copy(update={"effort": flow.effort}) if s.model else s for s in steps]
+
+
+def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
     m = _model(flow)
     kind = recipe(flow)
     if kind == "stories":
@@ -135,30 +178,67 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
                   inp=f"ساعت {hm}".translate(FA_DIGITS), out=f"story_{i}.jpg")
             for i, hm in enumerate(flow.stories, 1)
         ]  # fmt: skip
+        own = STORY_TEXT.get(flow.recipe) or {}
+        txt = own or STORY_TEXT[""]
+        word = (
+            _step("word", f"کلمه‌ی ثابت «{flow.story_word}»", "workshop", "workshop", model=m,
+                  rules=("هر روز همین کلمه؛ جواب همیشه همان لینک است",))
+            if flow.story_word
+            else _step("word", "کلمه‌ی امروز", "workshop", "workshop", model=m,
+                       rules=("کلمه‌ی تازه؛ هیچ‌وقت کلمه‌ای که پیش از این گرفته شده",))
+        )  # fmt: skip
         return [
             *_head(flow),
-            _step("data", "داده‌ی بازار و کارنامه‌ی VIP", "workshop", "code",
-                  out="قیمت‌ها، ترس و طمع، آمار سیگنال‌ها از سایت تریدیار"),
-            _step("word", "کلمه‌ی امروز", "workshop", "workshop", model=m,
-                  rules=("کلمه‌ی تازه؛ هیچ‌وقت کلمه‌ای که پیش از این گرفته شده",)),
-            _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop", "gpt",
-                  out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
-            _step("compose", "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
+            _step("data", txt["data"][0], "workshop", "code", out=txt["data"][1]),
+            word,
+            _step("pictures", txt["pictures"][0], "workshop", "gpt", out=txt["pictures"][1],
+                  rules=(("بی انیمه، بی جمله‌ی هشدار",) if "pictures" not in own else ()))
+            if "pictures" in txt
+            else _step("pictures", f"{n} عکس واقعی با ChatGPT".translate(FA_DIGITS), "workshop",
+                       "gpt", out="عکس تازه‌ی همان روز، بی متن", rules=("بی انیمه، بی جمله‌ی هشدار",)),
+            _step("compose", txt["compose"][0] if "compose" in txt
+                  else "متن، نشان پیج و دعوت روی هر عکس", "workshop", "workshop", model=m,
                   out=f"story_1.jpg تا story_{n}.jpg".translate(FA_DIGITS)),
-            _step("dm", "جواب دایرکت با سه دکمه", "workshop", "workshop", model=m,
-                  out="comment.txt: ورود رایگان VIP، ثبت‌نام LBank، راهنما"),
+            _step("dm", txt["dm"][0], "workshop", "workshop", model=m, out=txt["dm"][1]),
             _step("package", "بسته‌ی روز", "package", "code",
                   rules=("تا همه‌ی عکس‌ها و جواب دایرکت نرسیده، چیزی منتشر نمیشود",)),
             _step("schedule", "زمان‌بندی روی IG-Hub", "publish", "ighub",
                   out=f"هر استوری در ساعت خودش روی @{flow.account}",
                   rules=("ساعتی که بیش از نیم ساعت گذشته باشد جا میماند",)),
             *posts,
-            _step("rule", "جواب دایرکت استوری‌ها", "publish", "ighub",
-                  out="هر کس کلمه‌ی امروز را بفرستد، دعوت VIP با سه دکمه میگیرد"),
+            _step("rule", txt["rule"][0], "publish", "ighub", out=txt["rule"][1]),
             _step("report", "خبر به مدیر کل", "report", "code", out="«آماده شد» با کلمه‌ی امروز"),
+        ]  # fmt: skip
+    if kind == "dotcoin":
+        # ⟨2026-11-17⟩ DotCoin.me: a look of its own from its own Pinterest search, every reel
+        topic = ("درس روز از بانک ایده‌ها (آموزشی)" if "آموزشی" in flow.cycle
+                 else "خبر مهم روز با داده‌ی همان لحظه (اطلاع‌رسانی)")  # fmt: skip
+        return [
+            *_head(flow),
+            _step("topic", topic, "workshop", "workshop", out="topic.txt", model=m),
+            _step("inspire", "جستجو و دانلود نمونه از پینترست", "workshop", "workshop", model=m,
+                  out="۴ تا ۸ نمونه‌ی همین ریلز و سبک آن در CONTRACT.md",
+                  rules=("هر ریلز سبک خودش؛ هیچ‌وقت سبک ریلز قبلی",)),
+            _step("script", "سناریو با ChatGPT", "workshop", "gpt", out="متن گوینده",
+                  rules=("فقط آموزشی و اطلاع‌رسانی؛ بی پیش‌بینی قیمت و سیگنال",)),
+            _step("voice", "صدای گوینده (Arlo)", "workshop", "aistudio", out="فایل صدا"),
+            _step("voice_check", "بازبینی صدا، نام‌ها و زمان هر کلمه", "workshop", "code"),
+            _step("keyart", "تصویرها با ChatGPT و Gemini", "workshop", "gpt",
+                  out="تصویرهای بی متن، به سبک نمونه‌ها"),
+            _step("direction", "کارگردانی: نماها، دوربین، ترنزیشن و صدا", "workshop", "workshop",
+                  model=m, rules=("سه لایه‌ی رنگ: برند خردلی و مشکی، محتوا آزاد، سبز و قرمز معنا",)),
+            _step("render", "موشن‌گرافی، یک بار رندر ۶۰ فریم", "workshop", "workshop",
+                  out="video.mp4", model=m, rules=("فونت IRANYekanX Pro، تمیز و شارپ",)),
+            _step("cover", "کاور کامل با ChatGPT از فولدر مدیر کل", "workshop", "gpt",
+                  out="cover.jpg", rules=("خود مدیر کل با کت‌وشلوار تازه؛ هر حرف فارسی چک میشود",)),
+            _step("texts", "کپشن، کلمه‌ی کامنت و خلاصه‌ی دایرکت", "workshop", "workshop",
+                  out="caption.txt، comment.txt", model=m),
+            *_tail(flow),
         ]  # fmt: skip
     if kind == "zaribsad":
         topic = ("ارز روز و داده‌های واقعی آن" if "coin" in flow.key
+                 else "ایده‌ی تبلیغی تازه برای کانال رایگان ipoxxo، از بانک ایده‌ها"
+                 if flow.recipe == "ipoxxo"
                  else "موضوع روز به نوع روز، با داده‌ی همان لحظه")  # fmt: skip
         return [
             *_head(flow),
@@ -175,7 +255,8 @@ def steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
                   model=m),
             _step("render", "موشن‌گرافی پرمیوم، یک بار رندر ۶۰ فریم", "workshop", "workshop",
                   out="video.mp4", model=m, rules=("تمیز و شارپ؛ بی ذره و تاری، بی ضربه‌ی صدا",)),
-            _step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)"),
+            *([_step("story", "برش استوری", "workshop", "code", out="story.mp4 (حداکثر ۵۹٫۸ ثانیه)")]
+              if flow.story else []),
             _step("cover", "کاور از پک کاور با ChatGPT", "workshop", "gpt", out="cover.jpg",
                   rules=("سه رنگ پیج، عنوان با فونت خودمان، یک المان از موضوع",)),
             _step("texts", "کپشن، کلمه‌ی کامنت و دایرکت", "workshop", "workshop",
@@ -296,8 +377,9 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     )
     jobs = await tx.all(
         """SELECT args ->> 'kind' AS kind, args -> 'meta' ->> 'rule_for' IS NOT NULL
-                  OR args ? 'rule_for' AS rule, state, finished_at, result,
-                  lower(args -> 'session' ->> 'file_name') AS file_name
+                  OR args ? 'rule_for' AS rule, state, error_code, finished_at, result,
+                  lower(args -> 'session' ->> 'file_name') AS file_name,
+                  args -> 'session' ->> 'file_id' AS file_id
            FROM infra.server_jobs
            WHERE kind = 'publish' AND (args -> 'session' ->> 'order' = :o
                                        OR args -> 'rule_for' ->> 'order' = :o)
@@ -319,10 +401,18 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     newest: dict[str, dict[str, Any]] = {}
     for f in files:
         newest[str(f["name"])] = dict(f)
-    scheduled = [j for j in jobs if not j["rule"] and j["state"] == "done"
-                 and str((OR._j(j["result"]) or {}).get("external_id") or "").startswith("pub:")]  # fmt: skip
-    out = [j for j in jobs if not j["rule"] and j["state"] == "done"
-           and not str((OR._j(j["result"]) or {}).get("external_id") or "pub:").startswith("pub:")]  # fmt: skip
+    # ⟨2026-11-15⟩ one post is one record: its newest job (§46: IG-Hub's answer to the hub's
+    # question about a scheduled post is a new job of the same file), and a cancelled one is gone
+    post: dict[tuple[str, str], dict[str, Any]] = {}
+    for j in jobs:
+        if not j["rule"]:
+            post[(str(j["kind"]), str(j["file_id"] or j["file_name"] or ""))] = j
+    live = [j for j in post.values() if not _ext(j).startswith(SPB.CANCELLED)
+            and str(j["error_code"] or "") != SPB.CANCEL_CODE]  # fmt: skip
+    jobs = [j for j in jobs if j["rule"] or any(j is x for x in live)]
+    scheduled = [j for j in live if j["state"] == "done" and _ext(j).startswith(SPB.PENDING)]
+    out = [j for j in live if j["state"] == "done" and _ext(j)
+           and not _ext(j).startswith(SPB.PENDING)]  # fmt: skip
     failed = [j for j in jobs if j["state"] == "failed"]
     rules = [j for j in jobs if j["rule"]]
     reel_url = next((str((OR._j(j["result"]) or {}).get("url") or "") or None
@@ -330,7 +420,12 @@ async def _facts(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
     return {"meta": meta, "turns": [dict(t) for t in turns], "files": newest, "jobs": jobs,
             "scheduled": scheduled, "out": out, "failed": failed, "rules": rules,
             "said": [dict(x) for x in said], "usd": usd, "tokens": int(tokens or 0),
-            "reel_url": reel_url}  # fmt: skip
+            "reel_url": reel_url, "dropped": bool(post) and not live}  # fmt: skip
+
+
+def _ext(j: dict[str, Any]) -> str:
+    """A publish job's answer from IG-Hub: `pub:<id>` (held for its hour), the post's id, or ""."""
+    return str((OR._j(j["result"]) or {}).get("external_id") or "")
 
 
 def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
@@ -350,6 +445,8 @@ def _state(d: dict[str, Any], f: dict[str, Any]) -> tuple[str, str]:
         return "done", "منتشر شد"
     if f["failed"] and not f["scheduled"]:
         return "failed", "انتشار روی IG-Hub نشد"
+    if f["dropped"]:
+        return "cancelled", "انتشارش لغو شد"
     if meta.get("sent") or f["scheduled"]:
         at = meta.get("publish_at")
         when = FL.at_fa(datetime.fromisoformat(str(at))) if at else ""
@@ -489,6 +586,7 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
         co = await _company(tx, flow)
         days = await _days(tx, flow, 1)
         last = await run_ref(tx, hub, days[0]) if days else None
+        day = await day_run(tx, hub, last.ref, with_files=False) if last else None
         _, usd = await _today_cost(tx, flow)
         trig = next_trigger(flow)
         tomorrow = trig.astimezone(_tz()).date() + timedelta(days=0 if flow.same_day else 1)
@@ -496,7 +594,10 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
             ref=ref_of(key), kind="n8n", title_fa=flow.title_fa, company=flow.company,
             company_fa=co["name_fa"] or None, when_fa=when_fa(flow, tomorrow),
             state="off" if key in off else "on", switchable=True,
-            last=FS.BoardLast(at=last.at, state=last.state, note_fa=last.note_fa) if last else None,
+            last=FS.BoardLast(
+                at=last.at, state=last.state, note_fa=last.note_fa,
+                steps=[FS.BoardStep(key=s.key, state=s.state) for s in day.steps] if day else None,
+            ) if last else None,
             next_at=None if key in off else trig, cost_today_usd=usd,
             opens=f"automation/{ref_of(key)}",
         ))  # fmt: skip
@@ -504,8 +605,9 @@ async def board_items(tx: Tx, hub: Any, company: str | None) -> list[FS.BoardIte
 
 
 # ------------------------------------------------------------ a day's page --
-async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
-    """`GET /line-runs/F-…` of a flow's day: each step's state, read by code. None: not a day."""
+async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> store.LineRunOut | None:
+    """`GET /line-runs/F-…` of a flow's day: each step's state, read by code. None: not a day.
+    `with_files=False` (the board's strip): the states only, no file read from the storage."""
     if not ORDER_REF.fullmatch(order):
         return None
     d = await _day_by_order(tx, order)
@@ -517,8 +619,12 @@ async def day_run(tx: Tx, hub: Any, order: str) -> store.LineRunOut | None:
     f = await _facts(tx, d)
     state, note = _state(d, f)
     co = await _company(tx, flow)
-    files = await store.step_files(
-        tx, [str(x["id"]) for x in f["files"].values()], getattr(hub, "storage", None)
+    files = (
+        await store.step_files(
+            tx, [str(x["id"]) for x in f["files"].values()], getattr(hub, "storage", None)
+        )
+        if with_files
+        else {}
     )
     turns = f["turns"]
     first = turns[0]["started_at"] if turns else None

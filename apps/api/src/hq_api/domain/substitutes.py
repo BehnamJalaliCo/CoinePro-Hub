@@ -173,6 +173,10 @@ WEB_PACE = timedelta(seconds=60)
 WEB_STALE_GRACE_S = 2400
 LOGIN_MINUTES = 10
 CALL_TIMEOUT_S = {"code_review": 900, "creative": 900, "long_read": 600}
+# ⟨2026-11-17⟩ a set of slides in one ChatGPT chat (the owner: 10-15 story slides at once): its
+# recipe waits up to 25 minutes for the pictures; the call a little longer (calls_timeout_s <= 1800)
+SLIDES_MAX = 15
+SLIDES_TIMEOUT_S = 1620
 TEXT_LIMIT = 200_000  # a question's characters
 # ⟨2026-11-11⟩ the stall of 2026-11-10: every call has a deadline, and its end (done, failed,
 # skipped) always reaches whoever asked. A call nobody took by its deadline ends `not_claimed`;
@@ -347,6 +351,9 @@ class CallIn(Model):
     placement: Placement | None = None
     overlay: Overlay | None = None
     duration_s: int | None = Field(default=None, ge=1, le=10)
+    # ⟨2026-11-17⟩ how many pictures ONE ChatGPT chat makes (a set of story slides, each a picture
+    # of its own; the owner: «۱۰ الی ۱۵ عکس رو یکجا … در اسلاید های مجزا»)
+    images: int = Field(default=1, ge=1, le=SLIDES_MAX)
 
     @model_validator(mode="after")
     def _shape(self) -> CallIn:
@@ -363,6 +370,8 @@ class CallIn(Model):
             raise ValueError("image and video only in the creative seat")
         if self.duration_s is not None and self.kind != "video":
             raise ValueError("duration_s is for a video")
+        if self.images > 1 and (self.kind != "image" or self.player not in (None, "gpt")):
+            raise ValueError("a set of pictures is a ChatGPT image")
         return self
 
 
@@ -812,6 +821,7 @@ async def seat_call(
     checkout: dict[str, Any] | None = None,
     file_ids: list[UUID] | None = None,
     now: datetime | None = None,
+    images: int = 1,
 ) -> dict[str, Any]:
     """One seat call: `queued` for its runner, or `skipped` with its reason
     (holding_locked, off, signed_out, expired, limited, per_day, too_long, no_files). The
@@ -863,10 +873,10 @@ async def seat_call(
     row = await tx.one(
         """INSERT INTO substitutes.calls (company_id, player, seat, via, task, model, state, state_reason,
                caller_kind, caller_code, purpose_kind, purpose_ref, input_md, input_sha256, checkout,
-               file_ids, timeout_s, day, month_key, finished_at)
+               file_ids, timeout_s, day, month_key, finished_at, images)
            VALUES (:co, :p, :seat, :via, :task, :model, :st, :reason, :ck, :cc, :pk, :pr, :inp, :sha,
                    CAST(:checkout AS jsonb), CAST(:files AS uuid[]), :timeout, :day, :mkey,
-                   CASE WHEN :st = 'skipped' THEN now() END)
+                   CASE WHEN :st = 'skipped' THEN now() END, :images)
            RETURNING *""",
         co=company_id,
         p=p_name,
@@ -884,9 +894,10 @@ async def seat_call(
         sha=_sha(masked),
         checkout=json.dumps(checkout) if checkout else None,
         files=[str(f) for f in file_ids or []],
-        timeout=CALL_TIMEOUT_S.get(seat, 300),
+        timeout=SLIDES_TIMEOUT_S if images > 1 else CALL_TIMEOUT_S.get(seat, 300),
         day=day,
         mkey=month_key(day),
+        images=images,
     )
     holding = await hub.companies.holding()
     await events.emit(
@@ -2112,7 +2123,14 @@ def template_prompt(brief: str, placement: str, kind: str, duration: int | None)
     return f"{what} for an ad ({placement}, aspect {aspect}): {scrub(brief)[:3000]}\n{NO_TEXT}"
 
 
-REFERENCE_MAX = 4  # ⟨2026-11-15⟩ a creative's reference pictures (a cover pack)
+# ⟨2026-11-15⟩ a creative's reference pictures (a cover pack); ⟨2026-11-17⟩ 10, as many as a
+# browser job carries: at 4, DotCoin.me's cover lost the owner's own two sample covers unseen
+REFERENCE_MAX = 10
+# ⟨2026-11-17⟩ what every set of slides asks ChatGPT, whatever its brief says
+SLIDES_NOTE = (
+    "Make exactly {n} separate images in this one answer, one per slide, in order (slide 1 first): "
+    "each its own full picture, never a grid, a collage or a contact sheet of several slides."
+)
 
 
 async def create_creative(
@@ -2131,6 +2149,7 @@ async def create_creative(
     work_id: UUID | None = None,
     source_creative: dict[str, Any] | None = None,
     reference_files: list[UUID] | None = None,
+    images: int = 1,
 ) -> dict[str, Any]:
     """⟨1.9⟩ `source_creative`: a picked image this video is made from
     (contract §27.2 animate): its file goes with the call. ⟨2026-11-15⟩ `reference_files`: an
@@ -2139,6 +2158,14 @@ async def create_creative(
     if kind == "video" and player == "gpt":
         raise ApiError(422, "validation_failed", fields={"player": "videos are Gemini's"})
     refs = list(reference_files or [])[:REFERENCE_MAX]
+    images = max(1, min(int(images or 1), SLIDES_MAX))
+    if images > 1:
+        # ⟨2026-11-17⟩ a set of slides is ChatGPT's (Gemini's page makes one picture a chat)
+        if kind != "image" or player not in (None, "gpt"):
+            raise ApiError(422, "validation_failed",
+                           fields={"images": "a set of pictures is a ChatGPT image"},
+                           message_fa="چند عکس در یک گفتگو فقط با ChatGPT ساخته می‌شود.")  # fmt: skip
+        player = "gpt"
     if refs:
         if kind != "image" or player not in (None, "gpt"):
             raise ApiError(422, "validation_failed",
@@ -2148,7 +2175,12 @@ async def create_creative(
     # a cover from a pack: its brief names the one title ChatGPT sets (the owner's order,
     # 2026-11-15); every other picture is made without text, the hub's or the session's own type
     # goes on it later
-    prompt = prompt_md if refs or NO_TEXT in prompt_md else f"{prompt_md.rstrip()}\n{NO_TEXT}"
+    # ⟨2026-11-17⟩ a set of slides is designed whole, its words by ChatGPT as the brief asks (the
+    # session checks every letter)
+    if images > 1:
+        prompt = f"{prompt_md.rstrip()}\n\n{SLIDES_NOTE.format(n=images)}"
+    else:
+        prompt = prompt_md if refs or NO_TEXT in prompt_md else f"{prompt_md.rstrip()}\n{NO_TEXT}"
     found = await holder(tx, "creative", player, kind)
     p_name = found[0]["player"] if found else (player or "gpt")
     model = found[1]["model"] if found else DEFAULT_PLAYERS[p_name]["models"][0]["id"]
@@ -2186,6 +2218,7 @@ async def create_creative(
         player=p_name,
         task=kind,
         file_ids=refs or _source_files(source_creative),
+        images=images,
     )
     state = "queued" if call["state"] == "queued" else "failed"
     row = await tx.one(
@@ -2809,6 +2842,16 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
     return {"ran": ran, "wiped": wiped, "expired": expired}
 
 
+def web_task(c: dict[str, Any], with_files: bool) -> str:
+    """The recipe task a web call runs as."""
+    if c["task"] == "image" and c["player"] == "gpt":
+        if int(c.get("images") or 1) > 1:
+            return "slides"
+        if with_files:
+            return "cover"
+    return str(c["task"])
+
+
 async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> int:
     """⟨2026-11-11⟩ One picked web job: egress (with the call's own files), then its answer.
     Anything that goes wrong here ends the call `failed` `worker_error` (its caller hears it); the
@@ -2828,10 +2871,9 @@ async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> in
             answer = await egress.web(
                 account=account,
                 # ⟨2026-11-15⟩ an image with pictures attached (a cover pack) is ChatGPT's `cover`
-                # task, the one whose recipe attaches files
-                task="cover"
-                if files and c["task"] == "image" and c["player"] == "gpt"
-                else c["task"],
+                # task, the one whose recipe attaches files; ⟨2026-11-17⟩ a set of pictures in one
+                # chat its `slides` task (with or without references)
+                task=web_task(c, bool(files)),
                 prompt=(c["input_md"] or "")[:WEB_PROMPT_LIMIT],
                 timeout_s=c["timeout_s"],
                 **extra,
@@ -2929,24 +2971,39 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
 
     ok = bool(answer.get("ok"))
     error = str(answer.get("error") or "")
-    file_bytes: bytes | None = None
-    stored: tuple[UUID, UUID | None] | None = None
-    if ok and isinstance(answer.get("file"), dict):
+    # ⟨2026-11-17⟩ a set of slides brings every picture (`files`, in order); else the one `file`
+    got = [f for f in answer.get("files") or [] if isinstance(f, dict)][:SLIDES_MAX]
+    if not got and isinstance(answer.get("file"), dict):
+        got = [answer["file"]]
+    made: list[tuple[bytes, str]] = []
+    stored: list[tuple[UUID, UUID | None]] = []
+    if ok:
         try:
-            file_bytes = base64.b64decode(str(answer["file"].get("b64") or ""), validate=True)
+            made = [
+                (base64.b64decode(str(f.get("b64") or ""), validate=True),
+                 str(f.get("name") or "result"))
+                for f in got
+            ]  # fmt: skip
         except ValueError:
             ok, error = False, "recipe_failed"
     creative = None
-    if ok and file_bytes is not None and c["purpose_kind"] == "creative":
+    if ok and made and c["purpose_kind"] == "creative":
         async with hub.db.tx(await hub.companies.ids()) as tx:
             creative = await tx.first(CREATIVE_SQL + " WHERE r.ref = :ref", ref=c["purpose_ref"])
         if creative is not None:
-            try:
-                stored = await creative_overlay.store_result(
-                    hub, creative, file_bytes, str(answer["file"].get("name") or "result")
-                )
-            except creative_overlay.Refused as exc:
-                ok, error = False, f"refused: {exc}"[:120]
+            refused = ""
+            for data, name in made:
+                try:
+                    stored.append(await creative_overlay.store_result(hub, creative, data, name))
+                except creative_overlay.Refused as exc:
+                    # one slide the hub refuses leaves the rest of the set (the session sees
+                    # the gap and asks for that one again); the only picture refused fails it
+                    refused = refused or f"refused: {exc}"[:120]
+                    log.warning(
+                        "a made picture was refused", extra={"call": str(c["id"]), "name": name}
+                    )
+            if not stored:
+                ok, error = False, refused or "recipe_failed"
     async with hub.db.tx(await hub.companies.ids()) as tx:
         # ⟨2026-11-11⟩ the call first (the order finish and the reaper lock in): an answer
         # that comes after the reaper ended the call changes nothing
@@ -2977,14 +3034,13 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
                 },
             )
             await finish(tx, hub, c["id"], body, via="web")
-            if stored is not None and creative is not None:
-                original, composed = stored
+            if stored and creative is not None:
                 await tx.exec(
-                    """UPDATE substitutes.creatives SET state = 'review', file_ids = ARRAY[CAST(:o AS uuid)],
+                    """UPDATE substitutes.creatives SET state = 'review', file_ids = CAST(:o AS uuid[]),
                            composed_file_id = :c, source = CAST(:s AS jsonb), updated_at = now()
                        WHERE id = :id""",
-                    o=str(original),
-                    c=composed,
+                    o=[str(original) for original, _ in stored],
+                    c=stored[0][1],
                     s=json.dumps(source({**c, "finished_at": datetime.now(UTC)})),
                     id=creative["id"],
                 )

@@ -318,7 +318,9 @@ def compose(
         lines += [
             "",
             f"**فایل‌های ورودی این نوبت در پوشه‌ی {HANDS.IN_DIR}/ هستند** (از ستاد رسیده‌اند):",
-            *[f"- {HANDS.IN_DIR}/{i['name']} ({i['mime']})" for i in inputs],
+            # ⟨2026-11-17⟩ with its file id: a picture a turn received (a Gemini illustration, a
+            # slide) can go with a ChatGPT image as a reference (substitute.call file_ids)
+            *[f"- {HANDS.IN_DIR}/{i['name']} ({i['mime']}{fid(i)})" for i in inputs],
         ]
     packed = json.dumps(state, ensure_ascii=False, default=str)
     lines += ["", "## وضع جلسه", packed[:BRIEF_JSON_CHARS]]
@@ -390,12 +392,14 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
     # creative's file names no order), so a reel's key art waited in the hub's store
     refs = [str(r) for r in rep.get("work_refs") or []]
     if refs:
+        # ⟨2026-11-17⟩ every picture of a set of slides, in its order (a turn takes INPUTS_MAX;
+        # the rest reach the next turn)
         art = await tx.all(
-            """SELECT c.file_ids[1] AS id FROM substitutes.creatives c
+            """SELECT f.id FROM substitutes.creatives c
                JOIN work.work w ON w.id = c.work_id
+               CROSS JOIN LATERAL unnest(c.file_ids) WITH ORDINALITY AS f(id, n)
                WHERE w.ref = ANY(:refs) AND c.state IN ('review', 'accepted')
-                 AND cardinality(c.file_ids) > 0
-               ORDER BY c.updated_at DESC LIMIT :l""",
+               ORDER BY c.updated_at DESC, f.n LIMIT :l""",
             refs=refs,
             l=HANDS.INPUTS_MAX * 4,
         )
@@ -412,6 +416,11 @@ async def _new_files(tx: Tx, rep: dict[str, Any], ws: dict[str, Any] | None) -> 
             args = OR._j(j["args"]) or {}
             sent.update(str(i.get("file_id")) for i in args.get("inputs") or [])
     return [i for i in ids if i not in sent][: HANDS.INPUTS_MAX]
+
+
+def fid(i: dict[str, Any]) -> str:
+    """«، file_id …» of an input that has one."""
+    return f"، file_id {i['file_id']}" if i.get("file_id") else ""
 
 
 def _plain(text: str) -> str:
@@ -589,11 +598,19 @@ async def _hand_over(
 # whole session: changing it mid-session would throw the prompt cache away.
 DIRECT_EFFORT = "xhigh"
 BUILD_EFFORT = "max"
+FLOW_EFFORTS = ("high", "xhigh", "max")
 
 
 async def effort_of(tx: Tx, w: dict[str, Any]) -> str:
-    flow = await tx.scalar("SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"])
-    return BUILD_EFFORT if flow else DIRECT_EFFORT
+    row = await tx.first(
+        "SELECT run_meta ? 'flow' AS flow, run_meta -> 'flow' ->> 'effort' AS effort"
+        " FROM work.work WHERE id = :w",
+        w=w["id"],
+    )
+    if row is None or not row["flow"]:
+        return DIRECT_EFFORT
+    # ⟨2026-11-16⟩ a flow may name its own (DotCoin.me: xhigh, the owner's word)
+    return str(row["effort"]) if row["effort"] in FLOW_EFFORTS else BUILD_EFFORT
 
 
 # ------------------------------------------------------- a lean session (2026-11-13) --

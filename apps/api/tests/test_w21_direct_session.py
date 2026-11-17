@@ -114,11 +114,11 @@ def test_the_brief_says_who_it_is_once_and_only_what_is_new_after() -> None:
     tools = ["order.ask", "speech.make", "topic.claim"]
     first = DR.compose(w, emp, brief, charter=Charter(), tools=tools,
                        reason="owner_reply:F-0014", first=True,
-                       inputs=[{"name": "logo.png", "mime": "image/png"}])  # fmt: skip
+                       inputs=[{"name": "logo.png", "mime": "image/png", "file_id": "f-1"}])  # fmt: skip
     assert "تو مدیر رسانه در پروچارت هستی" in first and "جلسه‌ی F-0014" in first
     assert "mcp__hq__" in first and "order_ask، speech_make، topic_claim" in first
     assert "skill_read" in first and "You direct the company's media." in first
-    assert "گوینده Charon است." in first and "in/logo.png (image/png)" in first
+    assert "گوینده Charon است." in first and "in/logo.png (image/png، file_id f-1)" in first
     assert "DIRECT: do it yourself." in first and "یک ریلز بساز" in first
     assert first.rstrip().endswith("- شعار آخرش باشد")  # his last word is the last thing it reads
     assert "مدیر کل همین حالا در جلسه حرف زد" in first

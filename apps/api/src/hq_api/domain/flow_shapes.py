@@ -418,10 +418,20 @@ class DaySummary(BaseModel):
 BoardKind = Literal["flow", "routine", "standing_publish", "line", "rule", "archive", "n8n"]
 
 
+class BoardStep(BaseModel):
+    """⟨2026-11-15⟩ one node of the last day, for the strip under a board card (§59.10)."""
+
+    key: str
+    state: str
+
+
 class BoardLast(BaseModel):
     at: datetime | None = None
     state: str = ""
     note_fa: str = ""
+    steps: list[BoardStep] | None = (
+        None  # ⟨2026-11-15⟩ an n8n flow's last day, its nodes in col order
+    )
 
 
 class BoardItem(BaseModel):

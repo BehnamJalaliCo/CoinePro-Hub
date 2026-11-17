@@ -111,7 +111,7 @@ class JobIn(BaseModel):
     account: Account
     recipe: dict[str, Any]
     prompt: str = Field(min_length=1, max_length=200_000)  # substitutes_web.PROMPT_CHARS
-    timeout_s: float = Field(gt=0, le=900)
+    timeout_s: float = Field(gt=0, le=1800)  # (⟨2026-11-17⟩ a set of slides: up to 25 min)
     proxy: Proxy
     max_file_bytes: int = Field(default=25 * 1024 * 1024, ge=1)
     # ⟨1.10⟩ §28.4 the hub's one retry: the page reloaded after the first goto
@@ -368,6 +368,7 @@ async def run_recipe(
     deadline = time.monotonic() + j.timeout_s
     text: str | None = None
     file: dict[str, Any] | None = None
+    files: list[dict[str, Any]] = []  # ⟨2026-11-17⟩ a set of slides (download_images)
     steps = j.recipe.get("steps") or []
     reloaded = False
     for i, st in enumerate(steps):
@@ -399,9 +400,14 @@ async def run_recipe(
             text = got
         elif isinstance(got, dict):
             file = got
+        elif isinstance(got, list) and got:
+            files, file = got, got[0]
     if text is None and file is None:
         return fail("recipe_failed", "the recipe read nothing", None)
-    return {"ok": True, "text_md": text, "file": file}
+    done: dict[str, Any] = {"ok": True, "text_md": text, "file": file}
+    if files:
+        done["files"] = files
+    return done
 
 
 SCREENSHOT_BYTES = 2 * 1024 * 1024
@@ -427,7 +433,7 @@ async def _recipe_step(
     ms: float,
     j: JobIn,
     hosts: frozenset[str],
-) -> str | dict[str, Any] | None:
+) -> str | dict[str, Any] | list[dict[str, Any]] | None:
     do = str(st.get("do"))
     sel = _selector(st, j)
     if do == "goto":
@@ -475,6 +481,8 @@ async def _recipe_step(
         return text
     elif do in ("download_image", "download_media"):
         return await _image(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
+    elif do == "download_images":
+        return await _images(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
     elif do == "download":
         async with page.expect_download(timeout=ms) as info:
             await page.locator(sel).first.click(timeout=ms)
@@ -501,6 +509,9 @@ async def _select(page: Page, sel: str, option: str | None, ms: float) -> None:
     await page.get_by_role("option", name=option, exact=False).first.click(timeout=ms)
 
 
+ATTACH_GAP_MS = 2500  # between two files put one by one: the site takes each in
+
+
 async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
     """The job's files into a file input (decoded here; none outside the job)."""
     if not j.files:
@@ -512,7 +523,20 @@ async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
             raise StepFailed("attach", "a file is over its cap")
         name = Path(str(f.get("name") or "file")).name[:120] or "file"
         payload.append({"name": name, "mimeType": _mime_of(name), "buffer": data})
-    await page.locator(sel).first.set_input_files(payload, timeout=ms)
+    if len(payload) == 1:
+        await page.locator(sel).first.set_input_files(payload, timeout=ms)
+        return
+    # ⟨2026-11-16⟩ several files (DotCoin.me's cover: the owner's six reference photos): the
+    # page's first file input takes ONE file (Playwright: "Non-multiple file input can only accept
+    # single file"), so a multiple input is used when there is one, else the files go one by one
+    # into the same input (the composer keeps each as its own attachment)
+    multi = page.locator(f"{sel}[multiple]")
+    if await multi.count():
+        await multi.first.set_input_files(payload, timeout=ms)
+        return
+    for one in payload:
+        await page.locator(sel).first.set_input_files([one], timeout=ms)
+        await page.wait_for_timeout(ATTACH_GAP_MS)
 
 
 def _mime_of(name: str) -> str:
@@ -560,29 +584,88 @@ async def _image(
     n = await loc.count()
     if n == 0:
         raise StepFailed("download_image", "no image")
-    src = await loc.nth(n - 1).get_attribute(attr, timeout=ms)
+    el = loc.nth(n - 1)
+    src = await el.get_attribute(attr, timeout=ms)
     if not src:
         raise StepFailed("download_image", "the image has no source")
+    data = await _fetch(page, ctx, el, src, ms, hosts, "download_image")
+    return _file(data[: j.max_file_bytes + 1], src.rsplit("/", 1)[-1][:60] or "image", j)
+
+
+# ⟨2026-11-17⟩ the made pictures of a chat, in order: each source once (the site shows a twin of
+# the same blob), never a picture of the asker's own message (the files a job attached)
+MADE_JS = """(els, attr) => {
+  const seen = new Set(), out = [];
+  els.forEach((e, i) => {
+    if (e.closest('[data-message-author-role="user"]')) return;
+    const src = e.getAttribute(attr) || '';
+    if (!src || seen.has(src)) return;
+    seen.add(src);
+    out.push(i);
+  });
+  return out;
+}"""
+MAX_IMAGES = 15  # (recipes.MAX_IMAGES)
+EXT = ((b"\x89PNG", "png"), (b"\xff\xd8\xff", "jpg"), (b"RIFF", "webp"))
+
+
+async def _images(
+    page: Page,
+    ctx: BrowserContext,
+    sel: str,
+    attr: str,
+    ms: float,
+    j: JobIn,
+    hosts: frozenset[str],
+) -> list[dict[str, Any]]:
+    """⟨2026-11-17⟩ Every picture the answer made, in the order shown (at most MAX_IMAGES), named
+    slide_01, slide_02 … (the owner: ChatGPT designs a day's story slides in one chat)."""
+    loc = page.locator(sel)
+    picked = list(await loc.evaluate_all(MADE_JS, attr))[:MAX_IMAGES]
+    if not picked:
+        raise StepFailed("download_images", "no image")
+    out = []
+    for k, i in enumerate(picked, 1):
+        el = loc.nth(int(i))
+        src = await el.get_attribute(attr, timeout=ms)
+        if not src:
+            raise StepFailed("download_images", "an image has no source")
+        data = await _fetch(page, ctx, el, src, ms, hosts, "download_images")
+        ext = next((e for magic, e in EXT if data.startswith(magic)), "png")
+        out.append(_file(data[: j.max_file_bytes + 1], f"slide_{k:02d}.{ext}", j))
+    return out
+
+
+async def _fetch(
+    page: Page,
+    ctx: BrowserContext,
+    el: Any,
+    src: str,
+    ms: float,
+    hosts: frozenset[str],
+    step: str,
+) -> bytes:
+    """One picture's bytes: its data URL, its blob (or, a revoked blob, the shown picture
+    itself), or its URL on the site's own hosts with the profile's own session."""
     if src.startswith("data:"):
         _, _, b64 = src.partition(",")
-        data = base64.b64decode(b64)
-    elif src.startswith("blob:"):
+        return base64.b64decode(b64)
+    if src.startswith("blob:"):
         try:
-            data = base64.b64decode(await page.evaluate(B64_JS, src))
+            return base64.b64decode(await page.evaluate(B64_JS, src))
         except Error:
             # the blob is revoked (Gemini): the shown picture itself, from its element
-            data = base64.b64decode(await loc.nth(n - 1).evaluate(PIXELS_JS, timeout=ms))
-    else:
-        url = src if "://" in src else urljoin(page.url, src)
-        host = (urlsplit(url).hostname or "").lower()
-        if not url.startswith("https://") or not covered(host, hosts):
-            raise StepFailed("download_image", "not one of the site's own hosts")
-        resp = await ctx.request.get(url, timeout=ms, max_redirects=0)
-        try:
-            data = await resp.body()
-        finally:
-            await resp.dispose()
-    return _file(data[: j.max_file_bytes + 1], src.rsplit("/", 1)[-1][:60] or "image", j)
+            return base64.b64decode(await el.evaluate(PIXELS_JS, timeout=ms))
+    url = src if "://" in src else urljoin(page.url, src)
+    host = (urlsplit(url).hostname or "").lower()
+    if not url.startswith("https://") or not covered(host, hosts):
+        raise StepFailed(step, "not one of the site's own hosts")
+    resp = await ctx.request.get(url, timeout=ms, max_redirects=0)
+    try:
+        body: bytes = await resp.body()
+        return body
+    finally:
+        await resp.dispose()
 
 
 def _file(data: bytes, name: str, j: JobIn) -> dict[str, Any]:

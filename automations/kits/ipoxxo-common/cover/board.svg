@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <!-- ipoxxo cover pack (owner, 2026-11-16): the reference board ChatGPT gets with every cover -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="38%" r="60%">
+      <stop offset="0" stop-color="#04F6FF" stop-opacity="0.20"/>
+      <stop offset="0.55" stop-color="#1498ED" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#000928" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1080" height="1920" fill="#000928"/>
+  <rect width="1080" height="1920" fill="url(#glow)"/>
+  <g font-family="IRANYekanXFaNum" direction="rtl" text-anchor="start">
+    <text x="1020" y="120" font-size="58" font-weight="700" fill="#F5FBFF">کاور پک آی‌پی‌اکسو</text>
+    <text x="1020" y="172" font-size="30" fill="#04F6FF">راهنمای سبک؛ فقط برای الگو، کپی نشود</text>
+
+    <text x="1020" y="280" font-size="40" font-weight="700" fill="#F5FBFF">رنگ‌ها: فقط همین سه رنگ</text>
+    <rect x="720" y="320" width="300" height="300" rx="36" fill="#000928" stroke="#04F6FF" stroke-width="4"/>
+    <rect x="390" y="320" width="300" height="300" rx="36" fill="#04F6FF"/>
+    <rect x="60" y="320" width="300" height="300" rx="36" fill="#F5FBFF"/>
+    <text x="1005" y="672" font-size="32" font-weight="700" fill="#F5FBFF">سرمه‌ای ـ پس‌زمینه</text>
+    <text x="675" y="672" font-size="32" font-weight="700" fill="#F5FBFF">فیروزه‌ای ـ نور و تأکید</text>
+    <text x="345" y="672" font-size="32" font-weight="700" fill="#F5FBFF">سفید ـ تیتر</text>
+    <text x="1005" y="716" font-size="30" fill="#04F6FF">٪۷۰</text>
+    <text x="675" y="716" font-size="30" fill="#04F6FF">٪۲۰</text>
+    <text x="345" y="716" font-size="30" fill="#04F6FF">٪۱۰</text>
+
+    <text x="1020" y="850" font-size="40" font-weight="700" fill="#F5FBFF">فونت تیتر: ایران‌یکان اکو، بولد</text>
+    <text x="1020" y="1030" font-size="150" font-weight="700" fill="#F5FBFF">اینترنت <tspan fill="#04F6FF">آزاد</tspan></text>
+    <text x="1020" y="1160" font-size="112" font-weight="700" fill="#F5FBFF">پروکسی <tspan fill="#04F6FF">رایگان</tspan></text>
+    <text x="1020" y="1250" font-size="40" font-weight="700" fill="#F5FBFF">ا ب پ ت ث ج چ ح خ د ذ ر ز ژ س ش ص</text>
+    <text x="1020" y="1300" font-size="40" font-weight="700" fill="#F5FBFF">ض ط ظ ع غ ف ق ک گ ل م ن و ه ی</text>
+    <text x="1020" y="1350" font-size="40" font-weight="700" fill="#F5FBFF">۰ ۱ ۲ ۳ ۴ ۵ ۶ ۷ ۸ ۹</text>
+
+    <text x="700" y="1430" font-size="40" font-weight="700" fill="#F5FBFF">چیدمان</text>
+    <text x="700" y="1490" font-size="31" fill="#F5FBFF">تیتر ۲ تا ۴ کلمه، حداکثر ۲ خط</text>
+    <text x="700" y="1540" font-size="31" fill="#F5FBFF">تیتر داخل مربع وسط، برای برش ۱:۱ و ۴:۵</text>
+    <text x="700" y="1590" font-size="31" fill="#F5FBFF">یک المان مرتبط با موضوع، با نور فیروزه‌ای</text>
+    <text x="700" y="1640" font-size="31" fill="#F5FBFF">یک کلمه‌ی کلیدی تیتر فیروزه‌ای</text>
+    <text x="700" y="1690" font-size="31" fill="#F5FBFF">هیچ نوشته، عدد، لوگو یا واترمارک دیگر</text>
+    <text x="700" y="1740" font-size="31" fill="#F5FBFF">سینمایی، تمیز، خوانا در اندازه‌ی کوچک</text>
+  </g>
+  <g font-family="IRANYekanX" font-size="30" font-weight="700" fill="#F5FBFF" text-anchor="middle" direction="ltr">
+    <text x="870" y="760">#000928</text>
+    <text x="540" y="760">#04F6FF</text>
+    <text x="210" y="760">#F5FBFF</text>
+  </g>
+  <!-- the 9:16 frame with its grid crops -->
+  <g transform="translate(760 1380)">
+    <rect x="0" y="0" width="260" height="462" rx="10" fill="#03123A" stroke="#F5FBFF" stroke-width="3"/>
+    <rect x="0" y="68" width="260" height="325" fill="none" stroke="#04F6FF" stroke-width="2" stroke-dasharray="8 6"/>
+    <rect x="0" y="101" width="260" height="260" fill="none" stroke="#F5FBFF" stroke-opacity="0.6" stroke-width="2" stroke-dasharray="4 6"/>
+    <rect x="22" y="118" width="216" height="96" rx="8" fill="#04F6FF" fill-opacity="0.26"/>
+    <circle cx="130" cy="290" r="62" fill="#1498ED" fill-opacity="0.22" stroke="#04F6FF" stroke-width="2"/>
+    <g font-family="IRANYekanXFaNum" text-anchor="middle">
+      <text x="130" y="178" font-size="34" font-weight="700" fill="#F5FBFF">تیتر</text>
+      <text x="130" y="300" font-size="24" fill="#F5FBFF">المان</text>
+      <text x="130" y="94" font-size="18" fill="#04F6FF">۴:۵</text>
+      <text x="130" y="384" font-size="18" fill="#F5FBFF">۱:۱</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,129 @@
+{
+  "id": "hqFlowIpoxxoStories1",
+  "name": "آی‌پی‌اکسو: ۳ استوری روزانه",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Tehran"
+  },
+  "meta": {
+    "note": "2026-11-16, the owner's order: @ipoxxo.vpn's three picture stories a day, made the same night (domain/flows.py)"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "id": "1e161a24-9ef7-4650-a2a9-ba88e9b6f34b",
+      "name": "Every day 02:30 Tehran",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "10fd2fce-ac56-45d8-a47a-194c9ce8465e",
+      "name": "Run now (test, or a missed day)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "4a39aa4a-03b8-4032-8948-743f002d8399",
+      "name": "Today, signed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.HQ_SIGNING_SECRET || '';\nif (!secret) throw new Error('no signing secret');\n// today in Tehran: the day the post goes out (made the same day: the owner, 2026-11-14)\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());\nconst body = JSON.stringify({ day: parts });\nconst ts = Math.floor(Date.now() / 1000);\nconst mac = crypto.createHmac('sha256', secret).update(`${ts}.`).update(body).digest('hex');\n// the hub's Idempotency-Key is a UUID: one made from the flow and the day (the same on a retry)\nconst h = crypto.createHash('sha256').update(`flow:ipoxxo_stories:${parts}`).digest('hex');\nconst key = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16], 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;\nreturn [{ json: { body, signature: `t=${ts},v1=${mac}`, key } }];"
+      }
+    },
+    {
+      "id": "56b3d63b-fe15-4dbb-abb4-ca0e24408ee9",
+      "name": "Start the day on the hub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/internal/v1/flows/ipoxxo_stories/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-HQ-Signature",
+              "value": "={{ $json.signature }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Today, signed": {
+      "main": [
+        [
+          {
+            "node": "Start the day on the hub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now (test, or a missed day)": {
+      "main": [
+        [
+          {
+            "node": "Today, signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every day 02:30 Tehran": {
+      "main": [
+        [
+          {
+            "node": "Today, signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

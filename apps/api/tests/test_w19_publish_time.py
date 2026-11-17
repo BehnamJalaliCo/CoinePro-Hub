@@ -396,3 +396,51 @@ async def test_a_post_set_far_ahead_is_followed_at_its_time_and_a_held_question_
     panel = (await client.get(f"/api/v1/deliverables/{output}/publish", headers=owner)).json()
     assert panel["publishes"][0]["state"] in ("scheduled", "publishing"), panel["publishes"]
     assert await asked(hub, su, output, after + timedelta(minutes=4)) == 2
+
+
+async def test_a_publication_held_for_a_closed_page_is_followed_till_it_goes_out(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-16⟩ The owner: «هر وقت پیجی بسته بود به محض باز شدن ... همه اونایی که موندند ارسال
+    بشوند»: IG-Hub holds a publication while Instagram keeps its page closed (`held`); the hub asks
+    about it every 10 minutes past the 6 hours, and the panel says why it waits."""
+    ig, pc = await new_company(), await new_company()
+    co = pc["code"]
+    made = await an_output(client, hub, owner, owner_session, su, co, ("reel.mp4", "cover.png"))
+    order, output, (reel, cover) = made["order"], made["output"], made["files"]
+    rn = await connected(client, hub, owner_session, ig, co)
+    body = {"output": output, "file_id": reel, "cover_file_id": cover, "caption": "سه سطح طلا"}
+    r = await tap(client, owner, order, body)
+    assert r.status_code == 202, r.text
+    job = await take(client, rn)
+    await answer(client, rn, job["id"], {"external_id": "pub:91", "url": None, "held": True})
+    panel = (await client.get(f"/api/v1/deliverables/{output}/publish", headers=owner)).json()
+    assert panel["publishes"][0]["note_fa"] == SPB.HELD_PAGE_FA, panel["publishes"]
+    t0 = datetime.now(UTC)
+    # not every 3 minutes: every 10
+    assert await asked(hub, su, output, t0 + timedelta(minutes=4)) == 0
+    assert await asked(hub, su, output, t0 + timedelta(minutes=11)) == 1
+    check = await take(client, rn)
+    assert check["args"]["meta"]["held"] is True
+    await answer(client, rn, check["id"], {"external_id": "pub:91", "url": None, "held": True})
+    # a day on (past the 6 hours), the page still closed: still asked about
+    await su.execute(
+        "UPDATE infra.server_jobs SET finished_at = $2 WHERE id = $1",
+        UUID(check["id"]),
+        t0 + timedelta(hours=24),
+    )
+    assert await asked(hub, su, output, t0 + timedelta(hours=24, minutes=11)) == 2
+    check = await take(client, rn)
+    # the page loads again and IG-Hub sends it: the answer ends it
+    await answer(
+        client, rn, check["id"], {"external_id": "M91", "url": "https://instagram.test/reel/M91"}
+    )
+    assert await asked(hub, su, output, t0 + timedelta(hours=25)) == 2
+    panel = (await client.get(f"/api/v1/deliverables/{output}/publish", headers=owner)).json()
+    assert panel["publishes"][0]["state"] == "published", panel["publishes"]

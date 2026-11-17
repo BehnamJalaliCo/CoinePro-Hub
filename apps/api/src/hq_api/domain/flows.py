@@ -78,7 +78,24 @@ class Flow:
     # ⟨2026-11-15⟩ n8n makes the day it is called on (the page's news cannot wait a day); else
     # the next day
     same_day: bool = False
+    # ⟨2026-11-16⟩ a stories flow whose replies are always answered on ONE word (the owner for
+    # ipoxxo: «لینک رو ریپلای کن»): every day's rule has it; IG-Hub answers with the oldest one,
+    # whose reply is the same channel link ("" = a fresh word every day)
+    story_word: str = ""
+    # ⟨2026-11-16⟩ the steps the automations map shows («zaribsad», «ipoxxo»; "" = by the kit)
+    recipe: str = ""
+    # ⟨2026-11-16⟩ the effort of its workshop turns ("" = the build's own, max); the owner for
+    # DotCoin.me: «سازنده ویدیو مدل فیبل ۵.۲ افورت اکسترا» (xhigh)
+    effort: str = ""
+    # ⟨2026-11-16⟩ a line of its own at the end of the order (a pilot's size, say)
+    note_fa: str = ""
 
+
+# ⟨2026-11-17⟩ DotCoin.me's twelve story slides a day, about one an hour (never on a reel's minute)
+DOTCOIN_STORY_HOURS = (
+    *("09:00", "10:15", "11:30", "12:30", "14:00", "15:00"),
+    *("16:00", "17:15", "18:30", "19:30", "21:30", "23:00"),
+)
 
 FLOWS = {
     "prochart_reels": Flow(
@@ -184,6 +201,177 @@ FLOWS = {
         usd_cap=Decimal("100"),
         model="claude-fable-5-2",
     ),
+    # ⟨2026-11-16⟩ the owner: the page @ipoxxo.vpn (on IG-Hub) for the free proxy and VPN channel
+    # t.me/ipoxxo, registered under IG-Hub (the owner: «ثبت زیر ig-hub»; its CEO holds the sessions,
+    # with the voice and the creative tools): two reels a day, each different, at hours of my
+    # choosing, each naming the channel and asking for a comment (every comment gets the link in a
+    # DM); three picture stories a day. «سبک ویدیو هم دقیقا عین ضریب صد»، «ساخت با اوپس ۵.۵». The
+    # first reel is shown to the owner before anything goes out (ipoxxo_pilot): the three daily
+    # flows stay switched off on the board until he says yes.
+    "ipoxxo_reels": Flow(
+        key="ipoxxo_reels",
+        company="IG",
+        account="ipoxxo.vpn",
+        title_fa="ریلز اول آی‌پی‌اکسو",
+        kit="/home/studio/kits/ipoxxo-reels",
+        start=date(2026, 11, 17),
+        # ⟨2026-11-16⟩ the owner, approving the pilot: «اتوماسیونشو بذار برای ساعت ۱۲ ظهر هر روز»:
+        # the first reel at 12:00 Tehran every day, no rotation, no best-hour week
+        hours=("12:00", "12:00", "12:00", "12:00"),
+        story=False,  # (the owner: three stories a day, the picture ones)
+        budget_tokens=10_000_000,
+        n8n="hqFlowIpoxxoReels1",
+        trigger_at="21:00",  # (the evening before: the workshop is free then)
+        usd_cap=Decimal("100"),
+        model="claude-opus-5-5",
+        recipe="ipoxxo",
+    ),
+    "ipoxxo_reels_2": Flow(
+        key="ipoxxo_reels_2",
+        company="IG",
+        account="ipoxxo.vpn",
+        title_fa="ریلز دوم آی‌پی‌اکسو",
+        kit="/home/studio/kits/ipoxxo-reels",
+        start=date(2026, 11, 17),
+        hours=("21:30", "19:30", "23:00", None),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowIpoxxoReels2",
+        trigger_at="23:30",
+        usd_cap=Decimal("100"),
+        model="claude-opus-5-5",
+        pair="ipoxxo_reels",
+        recipe="ipoxxo",
+    ),
+    "ipoxxo_stories": Flow(
+        key="ipoxxo_stories",
+        company="IG",
+        account="ipoxxo.vpn",
+        title_fa="استوری‌های روزانه‌ی آی‌پی‌اکسو",
+        kit="/home/studio/kits/ipoxxo-stories",
+        start=date(2026, 11, 17),
+        hours=("10:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowIpoxxoStories1",
+        trigger_at="02:30",
+        usd_cap=Decimal("40"),
+        model="claude-opus-5-5",
+        stories=("10:00", "16:30", "21:00"),
+        same_day=True,
+        story_word="لینک",
+        recipe="ipoxxo",
+    ),
+    # ⟨2026-11-16⟩ the owner: the fourth page, DotCoin.me (@dotcoin.me, «Dot Coin | بهنام جلالی»),
+    # designed anew, unlike the other three: two educational / informational reels a day at fixed
+    # hours, each with its own look from its own Pinterest search (the references downloaded and
+    # given to the maker), the maker Fable 5.2 at extra-high effort, the narrator Arlo (Cruz's
+    # settings), IRANYekanX Pro, mustard #F3C242 and black, the page's round photo as its mark, and
+    # a cover from the owner's cover system (the owner himself, a new suit and accessories every
+    # time). First a 10-second sample and its cover for the owner's eyes (nothing is published).
+    "dotcoin_pilot": Flow(
+        key="dotcoin_pilot",
+        company="IG",
+        account="",
+        title_fa="نمونه‌ی ۱۰ ثانیه‌ای دات‌کوین برای مدیر کل (منتشر نمی‌شود)",
+        kit="/home/studio/kits/dotcoin-reels",
+        start=date(2026, 11, 16),
+        hours=("12:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        usd_cap=Decimal("100"),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        note_fa=(
+            "این نوبت فقط نمونه‌ی ۱۰ ثانیه‌ای برای دیدن مدیر کل است و منتشر نمیشود: ویدیو ۹ تا ۱۱ ثانیه، "
+            "با همه‌ی قدم‌های کیت در همان اندازه (جستجو و دانلود نمونه‌های پینترست، صدای Arlo، کاور طبق "
+            "سیستم کاور مدیر کل). comment.txt لازم نیست."
+        ),
+    ),
+    # ⟨2026-11-17⟩ the owner, after the pilot («هم کاور و هم ریلز عالی بود»): the daily DotCoin.me
+    # package, phase one. Two reels a day at fixed hours, «ساعت دو ریلز عالیه»: 13:00 educational,
+    # 20:30 informational, each built the same day (the news cannot wait; the educational one has
+    # the night for its Pinterest search, the owner: «باید توی n8n تایم داده بشه بهش»). Every comment
+    # with the reel's word gets the lesson's summary in a DM («کامنت ها جواب دایرکت بگیرند»; the
+    # site's link joins it later). Colour in three layers (kit 5f960440).
+    "dotcoin_reels": Flow(
+        key="dotcoin_reels",
+        company="IG",
+        account="dotcoin.me",
+        title_fa="ریلز آموزشی دات‌کوین",
+        kit="/home/studio/kits/dotcoin-reels",
+        start=date(2026, 11, 17),
+        hours=("13:00", "13:00", "13:00", "13:00"),
+        story=False,  # (the page's stories are their own flow)
+        budget_tokens=10_000_000,
+        n8n="hqFlowDotcoinReels1",
+        trigger_at="00:30",
+        same_day=True,
+        usd_cap=Decimal("100"),
+        cycle=("آموزشی",),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        recipe="dotcoin",
+    ),
+    "dotcoin_reels_2": Flow(
+        key="dotcoin_reels_2",
+        company="IG",
+        account="dotcoin.me",
+        title_fa="ریلز اطلاع‌رسانی دات‌کوین",
+        kit="/home/studio/kits/dotcoin-reels",
+        start=date(2026, 11, 17),
+        hours=("20:30", "20:30", "20:30", "20:30"),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowDotcoinReels2",
+        trigger_at="15:00",  # (the day's news as late as the build allows)
+        same_day=True,
+        usd_cap=Decimal("100"),
+        cycle=("اطلاع‌رسانی",),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        pair="dotcoin_reels",
+        recipe="dotcoin",
+    ),
+    # ⟨2026-11-17⟩ the owner: «ریلز عکس نداریم اصلا، منظورم تعدادی عکس برای استوری که هم آموزشی باشه و در
+    # آینده هر وقت گفتم تبلیغاتی باشه» (12-15 a day), and «چت جی پی تی میتونه ۱۰ الی ۱۵ عکس رو یکجا
+    # طراحی بکنه و تحویل بده در اسلاید های مجزا»: the day's lesson in twelve slides from ONE ChatGPT
+    # chat (substitute.call images), one an hour or so through the day; a fresh reply word a day,
+    # answered with the lesson's summary
+    "dotcoin_stories": Flow(
+        key="dotcoin_stories",
+        company="IG",
+        account="dotcoin.me",
+        title_fa="استوری‌های آموزشی دات‌کوین",
+        kit="/home/studio/kits/dotcoin-stories",
+        start=date(2026, 11, 17),
+        hours=("09:00",),
+        story=False,
+        budget_tokens=10_000_000,
+        n8n="hqFlowDotcoinStories1",
+        trigger_at="04:00",
+        usd_cap=Decimal("60"),
+        model="claude-fable-5-2",
+        effort="xhigh",
+        stories=DOTCOIN_STORY_HOURS,
+        same_day=True,
+        recipe="dotcoin",
+    ),
+    # the first reel, for the owner's eyes only: no account (nothing is published), no n8n
+    "ipoxxo_pilot": Flow(
+        key="ipoxxo_pilot",
+        company="IG",
+        account="",
+        title_fa="ریلز نمونه‌ی آی‌پی‌اکسو برای مدیر کل (منتشر نمی‌شود)",
+        kit="/home/studio/kits/ipoxxo-reels",
+        start=date(2026, 11, 16),
+        hours=("21:30",),
+        story=False,
+        budget_tokens=10_000_000,
+        usd_cap=Decimal("100"),
+        model="claude-opus-5-5",
+        recipe="ipoxxo",
+    ),
 }
 
 
@@ -250,9 +438,11 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
         theirs, _ = await slot_of(tx, sibling, day, company_id)
         their_hm = theirs.astimezone(tz).strftime("%H:%M")
         if _minutes(their_hm) == _minutes(str(hm)):
-            # (both on the best hour) the tried hour farthest from the first one's
+            # (both on the best hour) the tried hour farthest from the first one's, of both flows'
+            # hours (⟨2026-11-16⟩ ipoxxo's first reel has one fixed hour)
             hm = max(
-                (h for h in sibling.hours if h), key=lambda h: abs(_minutes(h) - _minutes(their_hm))
+                (h for h in (*sibling.hours, *flow.hours) if h),
+                key=lambda h: abs(_minutes(h) - _minutes(their_hm)),
             )
             why = "ساعت دور از ریلز اول روز"
     hh, mm = (int(x) for x in str(hm).split(":"))
@@ -292,6 +482,13 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
     n = len(flow.stories)
     hours = "، ".join(f"{i}) {hm}" for i, hm in enumerate(flow.stories, 1)).translate(FA_DIGITS)
     taken = "، ".join(f"«{w}»" for w in used) if used else "هنوز هیچ"
+    word = (
+        f"کلمه‌ی ریپلای این پیج ثابت است و هر روز همین است: «{flow.story_word}». همان را در "
+        "comment.txt (keyword) و روی هر استوری بگذار؛ کلمه‌ی تازه نساز."
+        if flow.story_word
+        else f"کلمه‌هایی که پیش از این برای جواب استوری‌های این پیج گرفته شده و دیگر کار نمیکند: "
+        f"{taken}. کلمه‌ی امروز باید تازه باشد."
+    )
     return (
         f"{flow.title_fa}، {fa_day(day)}: {n} استوری عکس، هر کدام در ساعت خودش (تهران): {hours}.\n\n"
         "این فرمان را اتوماسیون روزانه (n8n) داده است، به دستور مدیر کل. کار خودکار است: از کسی "
@@ -302,9 +499,7 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
         "comment.txt (کلمه‌ی امروز، جواب دایرکت و دکمه‌ها) و topic.txt. وقتی همه در out/ بود، ستاد "
         "هر استوری را برای ساعت خودش روی "
         f"@{flow.account} زمان‌بندی میکند، جواب دایرکت استوری را با کلمه‌ی امروز روشن میکند، به "
-        "مدیر کل خبر میدهد و این جلسه را میبندد.\n"
-        f"کلمه‌هایی که پیش از این برای جواب استوری‌های این پیج گرفته شده و دیگر کار نمیکند: {taken}. "
-        "کلمه‌ی امروز باید تازه باشد."
+        "مدیر کل خبر میدهد و این جلسه را میبندد.\n" + word
     )
 
 
@@ -320,10 +515,19 @@ def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None)
         f"چیزی نپرس، order.ask نزن و منتظر تأیید نمان.\n"
         f"روند، قاعده‌ها و همه‌ی ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
         f"قدم‌به‌قدم انجام بده؛ چیز دیگری از کیت را جز به نیاز نخوان و هیچ فایلی از کیت را عوض نکن.\n"
-        f"تحویل: فقط این‌ها در out/: video.mp4 (ریلز)، story.mp4 (همان ویدیو، حداکثر ۵۹٫۸ ثانیه)، "
-        f"cover.jpg، caption.txt، comment.txt و topic.txt. وقتی همه در out/ بود، ستاد خودش ریلز و "
-        f"استوری را برای {at_fa(at)} روی @{flow.account} زمان‌بندی میکند، کامنت هوشمند و جواب "
-        f"استوری را روشن میکند، به مدیر کل خبر میدهد و این جلسه را میبندد."
+        + (
+            f"تحویل: فقط این‌ها در out/: video.mp4 (ریلز)، story.mp4 (همان ویدیو، حداکثر ۵۹٫۸ ثانیه)، "
+            f"cover.jpg، caption.txt، comment.txt و topic.txt. وقتی همه در out/ بود، ستاد خودش ریلز و "
+            f"استوری را برای {at_fa(at)} روی @{flow.account} زمان‌بندی میکند، کامنت هوشمند و جواب "
+            f"استوری را روشن میکند، به مدیر کل خبر میدهد و این جلسه را میبندد."
+            if flow.story
+            # ⟨2026-11-16⟩ a page whose stories are their own flow: the reel goes out alone
+            else f"تحویل: فقط این‌ها در out/: video.mp4 (ریلز)، cover.jpg، caption.txt، comment.txt و "
+            f"topic.txt (استوری نه). وقتی همه در out/ بود، ستاد خودش ریلز را برای {at_fa(at)} روی "
+            f"@{flow.account} زمان‌بندی میکند، کامنت هوشمند را روشن میکند، به مدیر کل خبر میدهد و "
+            f"این جلسه را میبندد."
+        )
+        + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
     )
 
 
@@ -366,7 +570,7 @@ async def start(
             return {"order": str(m.get("order") or ""), "work": str(made["ref"]),
                     "publish_at": str(m.get("publish_at") or ""), "why_fa": "پیش از این ساخته شده"}  # fmt: skip
         at, why = await slot_of(tx, flow, the_day, co["id"])
-        used = await story_words(tx, flow.account) if flow.stories else []
+        used = await story_words(tx, flow.account) if flow.stories and not flow.story_word else []
     body = OrderIn(
         text=brief_of(flow, the_day, at, used),
         company=flow.company,
@@ -386,7 +590,8 @@ async def start(
     model = model_on(flow, the_day)
     meta = {"key": flow.key, "day": the_day.isoformat(), "publish_at": at.isoformat(),
             "account": flow.account, "story": flow.story, "order": ref,
-            **({"model": model} if model else {})}  # fmt: skip
+            **({"model": model} if model else {}),
+            **({"effort": flow.effort} if flow.effort else {})}  # fmt: skip
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         if work_ref:
             await tx.exec(

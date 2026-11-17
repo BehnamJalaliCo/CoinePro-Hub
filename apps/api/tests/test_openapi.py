@@ -103,6 +103,11 @@ async def test_schemathesis_finds_no_server_errors(
             assert code == 0, out[-6000:]
     finally:
         hub.workshop = None
+        # ⟨2026-11-15⟩ the fuzz taps the owner's switches too (PUT /control/self-work {"on": false}):
+        # left off, every later test's agent run nobody asked for is refused (`owner_only`)
+        await su.execute(
+            "UPDATE owner.settings SET self_work = true, flows_off = '{}' WHERE id = 1"
+        )
         await su.execute(
             """UPDATE substitutes.players SET login_state = 'signed_out', status = 'off',
                    web_state = 'signed_out', limited_until = NULL"""

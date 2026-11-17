@@ -87,8 +87,10 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0064"] == "0063"  # 1.35: the session's team (side talks and their read marks)
     assert rev["0065"] == "0064"  # F-0018 P5: a part that goes on after its cap wakes nobody
     assert rev["0066"] == "0065"  # 1.37: the library of working groups and the automations
-    assert heads == {"0066"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0066"
+    assert rev["0067"] == "0066"  # 38: the owner's switches (self_work, the n8n flows)
+    assert rev["0068"] == "0067"  # 2026-11-17: a set of slides in one ChatGPT chat
+    assert heads == {"0068"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0068"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

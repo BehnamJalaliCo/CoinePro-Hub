@@ -699,3 +699,98 @@ async def test_a_cover_pack_goes_with_a_chatgpt_image(
         plain = await made(await client.post("/internal/v1/substitutes/call", headers=holder,
                                              json={**call, "file_ids": []}))  # fmt: skip
         assert plain["task"] == "image" and S.NO_TEXT in plain["prompt_md"]
+
+
+# ================ ⟨2026-11-17⟩ a set of slides in ONE ChatGPT chat, every picture kept ==
+async def test_a_set_of_slides_is_one_chatgpt_chat_and_keeps_every_picture(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """The owner (2026-11-17): ChatGPT designs ten to fifteen story slides at once, each a picture
+    of its own. An image call with `images: 12` is ONE ChatGPT chat (the worker runs its
+    `slides` task, with the longer timeout), its brief asks for twelve separate pictures and keeps
+    its words; every picture that comes back is kept on the creative in order. Gemini cannot take
+    a set (422). ⟨2026-11-17⟩ and a cover pack of eight references goes whole (it stopped at 4)."""
+    from hq_api.domain import substitutes as S
+
+    from .test_p12a_substitutes import FakeEgress, bench, per_day
+    from .test_p12a_substitutes import png as png_b64
+
+    co = await new_company()
+
+    async def an_image(n: int) -> str:
+        tmp = hub.storage.scratch()
+        tmp.write_bytes(b"\x89PNG\r\n\x1a\n-ref" + bytes([n]))
+        key, sha, size = await hub.storage.commit(tmp)
+        return str(await su.fetchval(
+            """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+                   created_by_kind, created_by_code, kind)
+               VALUES ($1, $2, 'image/png', $3, $4, $5, 'service', 'kit', 'image')
+               RETURNING id""",
+            co["id"], f"ref_{n}", size, sha, key,
+        ))  # fmt: skip
+
+    out = await post_order(client, owner, f"برای {co['code']} استوری‌های امروز {words()}")
+    [route] = out["routes"]
+    holder = await run_on(su, route["to"], route["work_ref"])
+    call = {"seat": "creative", "kind": "image", "placement": "instagram_story", "images": 12,
+            "input_md": "Twelve 9:16 story slides of one lesson, the titles in Persian"}  # fmt: skip
+    async with bench(su, hub, web=("gpt", "gemini")):
+        await per_day(su, "gpt", "creative", 10)
+        await per_day(su, "gemini", "creative", 10)
+        r = await client.post("/internal/v1/substitutes/call", headers=holder, json=call)
+        assert r.status_code == 200, r.text
+        cr = r.json()["creative"]
+        c = dict(await su.fetchrow(
+            """SELECT k.*, c.prompt_md FROM substitutes.creatives c
+               JOIN substitutes.calls k ON k.id = c.call_id WHERE c.ref = $1""", cr,
+        ))  # fmt: skip
+        assert (c["task"], c["images"], c["player"], c["timeout_s"]) == (
+            "image", 12, "gpt", S.SLIDES_TIMEOUT_S,
+        )  # fmt: skip
+        assert "exactly 12 separate images" in c["prompt_md"] and S.NO_TEXT not in c["prompt_md"]
+        assert S.web_task(c, False) == "slides"
+        # the worker runs ChatGPT's `slides` task; every picture comes back, each kept in order
+        pics = [
+            {"name": f"slide_{i:02d}.png", "mime": "image/png", "b64": png_b64(941, 1660 + i)}
+            for i in range(1, 13)
+        ]  # fmt: skip (each its own bytes)
+        fake = FakeEgress({"ok": True, "file": pics[0], "files": pics})
+        # (as the web jobs pass claims it: running)
+        c = dict(await su.fetchrow(
+            """UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = $1
+               RETURNING *""", c["id"],
+        ))  # fmt: skip
+        assert await S._web_job(hub, fake, c, "chatgpt-web") == 1
+        [sent] = fake.calls
+        assert sent["task"] == "slides" and sent["timeout_s"] == S.SLIDES_TIMEOUT_S
+        row = await su.fetchrow(
+            "SELECT state, file_ids, composed_file_id FROM substitutes.creatives WHERE ref = $1", cr
+        )
+        assert row["state"] == "review" and len(row["file_ids"]) == 12
+        names = [await su.fetchval("SELECT name FROM files.files WHERE id = $1", f)
+                 for f in row["file_ids"]]  # fmt: skip
+        # (each named for its creative, then its place in the set: CR-…-slide_01 …)
+        assert [n.split(".")[0].rsplit("-", 1)[-1] for n in names] == [
+            f"slide_{i:02d}" for i in range(1, 13)
+        ]
+        # Gemini makes one picture a chat: a set is ChatGPT's
+        r = await client.post("/internal/v1/substitutes/call", headers=holder,
+                              json={**call, "player": "gemini"})  # fmt: skip
+        assert r.status_code == 422, r.text
+        # ⟨2026-11-17⟩ DotCoin.me's cover pack: all eight references go with the cover
+        refs = [await an_image(n) for n in range(8)]
+        r = await client.post("/internal/v1/substitutes/call", headers=holder, json={
+            "seat": "creative", "kind": "image", "placement": "other", "file_ids": refs,
+            "input_md": "A 9:16 reel cover from the attached photos and samples"})  # fmt: skip
+        assert r.status_code == 200, r.text
+        sent_ids = await su.fetchval(
+            """SELECT k.file_ids FROM substitutes.creatives c
+               JOIN substitutes.calls k ON k.id = c.call_id WHERE c.ref = $1""",
+            r.json()["creative"],
+        )
+        assert [str(f) for f in sent_ids] == refs
