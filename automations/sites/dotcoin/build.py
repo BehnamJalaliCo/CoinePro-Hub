@@ -774,7 +774,11 @@ def page_article(a, arts):
   <div class="cards cards-3">{rel_html}</div>
 </div></section>
 {follow_block(a['slug'])}"""
-    meta = {"title": a["title"], "seo_title": a.get("seo_title") or f"{a['title']}{SITE['title_suffix']}",
+    # seo/ARTICLE_BRIEF.md §3: the suffix joins the seo_title only while the whole stays <= 60 chars
+    seo = a.get("seo_title") or a["title"]
+    if not seo.endswith(SITE["title_suffix"].strip()) and len(seo + SITE["title_suffix"]) <= 60:
+        seo += SITE["title_suffix"]
+    meta = {"title": a["title"], "seo_title": seo,
             "description": a["description"], "og_title": a.get("og_title") or a["title"],
             "og_description": a.get("og_description") or a["description"], "lastmod": a.get("updated") or a["date_obj"].isoformat()}
     img = f"{URL}/og/learn-{a['slug']}.jpg"
