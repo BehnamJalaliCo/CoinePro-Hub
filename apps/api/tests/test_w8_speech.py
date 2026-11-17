@@ -17,6 +17,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import dataclasses
+import math
+import struct
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -459,7 +461,14 @@ async def test_a_long_text_is_read_in_parts_and_joined(monkeypatch: pytest.Monke
     assert SM.api_parts("سلام") == ["سلام"]
 
     asked: list[str] = []
-    second = await AU.pcm_to_opus(b"\x00\x01" * AU.PCM_RATE)  # one second
+    # one second of a voice-like tone (⟨2026-11-17⟩ each part is cleaned at its seams, so a part
+    # must sound like speech: a constant was cut to its onset)
+    rate = AU.PCM_RATE
+    tone = [3000 * math.sin(2 * math.pi * 200 * i / rate) for i in range(rate)]
+    ramp = [min(1.0, i / 720, (rate - i) / 720) for i in range(rate)]
+    second = await AU.pcm_to_opus(
+        b"".join(struct.pack("<h", int(t * r)) for t, r in zip(tone, ramp, strict=True))
+    )
 
     async def part(hub: Any, job: dict[str, Any], text: str, name: str) -> Any:
         asked.append(text)

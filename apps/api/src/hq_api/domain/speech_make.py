@@ -260,9 +260,13 @@ def api_text(text: str, style: str) -> str:
 
 # ⟨2026-11-13⟩ Gemini's speech refuses a long text in one request (F-0020: 844 characters were
 # `upstream_error` on every try, 517 went through in 40 s): a longer text is read in parts, cut
-# between its lines (then its sentences, then its words), and the parts are joined with a breath
+# between its lines (then its sentences, then its words), and the parts are joined with a breath.
+# ⟨2026-11-17⟩ The owner heard «تق» or a choke at the end of some paragraphs in every reel: each
+# part's head click and tail noise burst were joined as they came (burst, digital silence, click).
+# Every part, and a voice of one part too, is now cleaned first (voice/seams.py); the pause is a
+# paragraph's, from one speech end to the next onset.
 API_PART_CHARS = 480
-PART_PAUSE_S = 0.25
+PART_PAUSE_S = 0.35
 SENTENCE_END = re.compile(r"(?<=[.!?؟؛…])\s+")
 
 
@@ -297,8 +301,9 @@ def api_parts(text: str, limit: int = API_PART_CHARS) -> list[str]:
     return parts
 
 
-async def _pcm_of(data: bytes) -> bytes:
-    """Any audio file as the API's own PCM (16-bit mono, 24 kHz), by ffmpeg."""
+async def _pcm_of(data: bytes, fmt: str = "s16le") -> bytes:
+    """Any audio file as mono samples at the API's rate (24 kHz) by ffmpeg: 16-bit PCM, or 32-bit
+    float (`f32le`, nothing clipped: Gemini's decoded Opus goes past full scale)."""
     import tempfile
     from pathlib import Path
 
@@ -309,8 +314,9 @@ async def _pcm_of(data: bytes) -> bytes:
         src, out = Path(tmp) / "in.audio", Path(tmp) / "out.pcm"
         await asyncio.to_thread(src.write_bytes, data)
         code, _, _ = await ME.run_tool(
-            "ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", str(src),
-            "-f", "s16le", "-ar", str(AU.PCM_RATE), "-ac", "1", str(out),
+            "ffmpeg", "-hide_banner", "-nostdin", "-y", "-threads", ME.FF_THREADS,
+            *ME.ff_input(src),
+            "-f", fmt, "-ar", str(AU.PCM_RATE), "-ac", "1", str(out),
             limit_s=AU.ENCODE_LIMIT_S,
         )  # fmt: skip
         if code != 0 or not out.is_file():
@@ -319,21 +325,36 @@ async def _pcm_of(data: bytes) -> bytes:
 
 
 async def join_audio(clips: list[bytes]) -> tuple[bytes, str]:
-    """The parts as one Ogg/Opus voice, a short breath between them."""
+    """The parts (or one clip) as one Ogg/Opus voice: each cleaned of its head click and tail
+    burst, levels matched, a paragraph's pause between them (voice/seams.py)."""
     from hq_api.voice import audio as AU
+    from hq_api.voice import seams
 
-    pause = b"\x00\x00" * int(AU.PCM_RATE * PART_PAUSE_S)
-    pcms = [await _pcm_of(c) for c in clips]
-    return await AU.pcm_to_opus(pause.join(pcms)), AU.OGG
+    raws = [await _pcm_of(c, "f32le") for c in clips]
+    pcm, info = await asyncio.to_thread(seams.f32_to_s16, raws, AU.PCM_RATE, PART_PAUSE_S)
+    log.info("speech seams cleaned", extra=info)
+    return await AU.pcm_to_opus(pcm), AU.OGG
+
+
+async def cleaned(data: bytes, mime: str, *, job: str = "") -> tuple[bytes, str]:
+    """One voice cleaned at its seams (no head click, no tail burst) as Ogg/Opus; as it came when
+    it cannot be read. Never raises."""
+    try:
+        return await join_audio([data])
+    except Exception as exc:  # noqa: BLE001 - the voice as it came, rather than none
+        log.warning("speech not cleaned", extra={"job": job, "error": type(exc).__name__})
+        return data, mime
 
 
 async def api_speak(hub: Any, job: dict[str, Any]) -> tuple[bytes, str] | None:
     """The voice from Gemini's API: (audio, mime), or None when that engine has no key, is off or
-    fails (the web page is tried then). A long text is read in parts and joined. Never raises."""
+    fails (the web page is tried then). A long text is read in parts and joined; every part, and a
+    single one too, is cleaned at its seams. Never raises."""
     name = f"speech-{str(job['job'])[:8]}"
     parts = api_parts(str(job["text"]))
     if len(parts) <= 1:
-        return await _api_text(hub, job, str(job["text"]), name)
+        got = await _api_text(hub, job, str(job["text"]), name)
+        return None if got is None else await cleaned(*got, job=str(job["job"]))
     clips: list[bytes] = []
     for i, part in enumerate(parts, 1):
         got = await _api_text(hub, job, part, f"{name}-{i}")

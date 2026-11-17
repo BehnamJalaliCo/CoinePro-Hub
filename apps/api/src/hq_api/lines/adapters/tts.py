@@ -119,7 +119,10 @@ async def speak(
     data, _name, mime = C.decode_b64(got.get("file"))
     if not mime.startswith("audio/"):
         raise StepFailed("چیزی که از ای‌آی استودیو آمد صدا نبود.", code="not_audio", retry=True)
-    return data, mime
+    # ⟨2026-11-17⟩ the page's voice is Gemini's too: its head click and tail burst go (as Ogg/Opus)
+    from hq_api.domain import speech_make as SM
+
+    return await SM.cleaned(data, mime, job="aistudio")
 
 
 # Tests put a fake here: (hub, job) -> (audio, mime) | None; production asks speech_make.api_speak.
