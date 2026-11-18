@@ -454,7 +454,9 @@ def org_ld() -> dict:
 # <code>/<pre> without dir="ltr", so no page (the hub's daily articles included) ships the bug again.
 _TOK = re.compile(r"(?<![A-Za-z0-9])(?:\([$@#]?[A-Za-z0-9][^()\n\u0600-\u06FF]*\)"
                   r"|[$@#]?[A-Za-z0-9](?:[A-Za-z0-9]|[-+./:@#%&=~?_'’,]+(?=[A-Za-z0-9]))*(?:%|\+\+?)?)")
-_GAP = re.compile(r"[ \u00a0]+|[ \u00a0]*[-–—&/+,][ \u00a0]*")
+# (⟨2026-11-18⟩ a colon joins too: «Cointelegraph: SOL comes out…» is one Latin phrase, never two
+# runs that an RTL line puts in the reverse order)
+_GAP = re.compile(r"[ \u00a0]+|[ \u00a0]*[-–—&/+,:][ \u00a0]*")
 _HAS_LAT = re.compile(r"[A-Za-z]")
 _TAG = re.compile(r"<!--.*?-->|<(/?)([a-zA-Z][\w-]*)([^>]*)>", re.S)
 _DIR_LTR = re.compile(r"""\bdir\s*=\s*["']?(?:ltr|auto)\b""", re.I)
@@ -976,7 +978,9 @@ def page_article(a, arts):
     for line in a.get("sources") or []:
         label, _, href = line.rpartition("|")
         if href.strip().startswith("https://"):
-            src_items.append(f'<li><a href="{esc(href.strip())}" target="_blank" rel="noopener">{inline(label.strip())}</a></li>')
+            # a label with no Persian in it (an English headline) is one LTR line of its own
+            ltr = "" if re.search(r"[\u0600-\u06FF]", label) else ' dir="ltr"'
+            src_items.append(f'<li><a href="{esc(href.strip())}" target="_blank" rel="noopener"{ltr}>{inline(label.strip())}</a></li>')
     sources = (f'<section class="prose srcs" aria-labelledby="src-t"><h2 id="src-t">منابع</h2><ul>{"".join(src_items)}</ul></section>'
                if src_items else "")
     reel = a.get("reel") or ""

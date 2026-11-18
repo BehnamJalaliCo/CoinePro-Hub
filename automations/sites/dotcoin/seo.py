@@ -394,8 +394,10 @@ def refresh_vip_stats() -> bool:
 
 
 # ------------------------------------------------------------------ the input pack (as the studio user)
-def as_studio(cmd: list[str], *, stdin=None, timeout: int = 300) -> subprocess.CompletedProcess:
-    return run(["sudo", "-n", "-u", "studio", *cmd], stdin=stdin, timeout=timeout)
+def as_studio(cmd: list[str], *, data: bytes | None = None, timeout: int = 300) -> subprocess.CompletedProcess:
+    """A command as the studio user (the workshop's files); `data` goes to its stdin."""
+    return subprocess.run(["sudo", "-n", "-u", "studio", *cmd], input=data, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, timeout=timeout)
 
 
 def git_out(*args: str) -> str:
@@ -461,10 +463,9 @@ def prepare(flow: dict, day: date, state: dict, *, force: bool = False) -> str:
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w") as tf:
             tf.add(t, arcname=key)
-        buf.seek(0)
         as_studio(["mkdir", "-p", str(INPUTS)])
         as_studio(["rm", "-rf", str(INPUTS / key)])
-        r = as_studio(["tar", "-C", str(INPUTS), "-xf", "-"], stdin=buf)
+        r = as_studio(["tar", "-C", str(INPUTS), "-xf", "-"], data=buf.getvalue())
         if r.returncode:
             raise RuntimeError(f"the pack was not written: {tail(r.stderr, 1)}")
         as_studio(["ln", "-sfn", key, str(INPUTS / "latest")])
@@ -576,13 +577,13 @@ def build_check() -> tuple[bool, str, Path | None]:
 def review(dist_parent: Path, urls: list[str], ref: str) -> tuple[int, str]:
     """tools/review.py as the studio user (the studio's Chromium): (findings, where the shots are)."""
     out = DATA / "reviews" / ref
-    stmp = Path("/home/studio/tmp-seo-review") / ref
+    stmp = Path("/home/studio/tmp-seo-gate") / ref  # (its own folder: never another review's)
     as_studio(["rm", "-rf", str(stmp)])
     as_studio(["mkdir", "-p", str(stmp)])
     tarb = run(["tar", "-C", str(dist_parent), "--exclude=dist/media", "-cf", "-", "dist"], timeout=300).stdout
-    as_studio(["tar", "-C", str(stmp), "-xf", "-"], stdin=io.BytesIO(tarb))
+    as_studio(["tar", "-C", str(stmp), "-xf", "-"], data=tarb)
     tools = run(["tar", "-C", str(SITE), "-cf", "-", "tools/review.py", "tools/render.py"], timeout=60).stdout
-    as_studio(["tar", "-C", str(stmp), "-xf", "-"], stdin=io.BytesIO(tools))
+    as_studio(["tar", "-C", str(stmp), "-xf", "-"], data=tools)
     r = as_studio(["env", f"PLAYWRIGHT_BROWSERS_PATH={PW_PATH}", STUDIO_PY, "-I", str(stmp / "tools" / "review.py"),
                    "check", str(stmp / "dist"), str(stmp / "out"), *urls], timeout=1800)
     out.mkdir(parents=True, exist_ok=True)
