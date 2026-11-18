@@ -14,7 +14,7 @@
 #   thumbnail    its custom thumbnail (the channel must be phone-verified)
 # Driven by automations/sites/bjtech/youtube_long.py (a host timer), never by an agent.
 key: youtube-bj
-version: "2026-11-18.1"
+version: "2026-11-18.2"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -52,10 +52,17 @@ expired:
     - "a[href*='ServiceLogin']"
 tasks:
   channel:
-    timeout_s: 90
+    # ⟨2026-11-18.2⟩ read only: first the account's channel switcher (youtube.com/channel_switcher: every
+    # channel this Google account may act as, brand accounts too; kept as notes.channels), then the active
+    # channel's name in Studio (the answer; a page that is not Studio answers its own text)
+    timeout_s: 110
     steps:
+      - {do: goto, url: "https://www.youtube.com/channel_switcher"}
+      - {do: wait, selector: "ytd-channel-switcher-page-renderer, ytd-browse, ytd-app", state: attached, timeout_s: 40, optional: true}
+      - {do: pause, ms: 5000}
+      - {do: read, selector: "ytd-channel-switcher-page-renderer", alt: ["ytd-browse", "ytd-page-manager", "body"], note: channels, optional: true, timeout_s: 15}
       - {do: goto, url: "{start_url}"}
-      - {do: wait, selector: "ytcp-navigation-drawer, #entity-name", state: attached, timeout_s: 60}
+      - {do: wait, selector: "ytcp-navigation-drawer, #entity-name, ytd-app", state: attached, timeout_s: 45, optional: true}
       - {do: pause, ms: 3000}
       - {do: read, selector: "ytcp-navigation-drawer #entity-name", alt: ["ytcp-navigation-drawer", "body"]}
   titles:
