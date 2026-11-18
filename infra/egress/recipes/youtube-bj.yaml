@@ -2,7 +2,8 @@
 # @behnamjalali-tech of the page @behnamjalali.tech (tech & AI), on ITS OWN Google account
 # (behnamjalali.tech@gmail.com), never signed into `youtube-web` (DotCoin.me's account). A clone of
 # youtube-web.yaml 2026-11-17.19 (the same Studio steps, the same sign-in hosts); only the key, the
-# version and the channel's own Shorts page differ. `make youtube-bj-login` is the owner's sign-in.
+# version and the channel's own Shorts page differ. ⟨2026-11-18.3⟩ The channel's Google account shows Studio in Persian:
+# every task page is opened with ?hl=en, so the steps' English button texts match (Studio's own interface language). `make youtube-bj-login` is the owner's sign-in.
 #   channel      read only: Studio opened, the active channel's name read
 #   titles       read only: the channel's public Shorts (a duplicate check before an upload)
 #   upload       a Short (the job's one file); `public` makes an uploaded video Public
@@ -14,7 +15,7 @@
 #   thumbnail    its custom thumbnail (the channel must be phone-verified)
 # Driven by automations/sites/bjtech/youtube_long.py (a host timer), never by an agent.
 key: youtube-bj
-version: "2026-11-18.2"
+version: "2026-11-18.3"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -77,7 +78,7 @@ tasks:
     timeout_s: 600
     steps:
       # the upload dialog of the active channel (Studio's own route)
-      - {do: goto, url: "https://www.youtube.com/upload"}
+      - {do: goto, url: "https://www.youtube.com/upload?hl=en"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
       - {do: attach, selector: "input[type=file]", timeout_s: 60}
       # the details step: title (the job's prompt) and description, both rich text boxes
@@ -109,7 +110,7 @@ tasks:
     # Public, the menu's Done, the page's Save
     timeout_s: 150
     steps:
-      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit?hl=en"}
       - {do: wait, selector: "ytcp-video-metadata-visibility, #visibility-select", state: attached, timeout_s: 60}
       - {do: pause, ms: 2000}
       - {do: click, selector: "ytcp-video-metadata-visibility #select-button, ytcp-video-metadata-visibility", timeout_s: 20}
@@ -126,7 +127,7 @@ tasks:
     # may be out (youtube_long.py: state `check`, never tried again by itself).
     timeout_s: 1500
     steps:
-      - {do: goto, url: "https://www.youtube.com/upload"}
+      - {do: goto, url: "https://www.youtube.com/upload?hl=en"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
       - {do: attach, selector: "input[type=file]", file: 0, timeout_s: 120}
       # the details step: title (the job's prompt) and description, both rich text boxes
@@ -179,7 +180,7 @@ tasks:
     # read only: Studio's Settings -> Channel -> Feature eligibility (youtube.com/features opens it)
     timeout_s: 120
     steps:
-      - {do: goto, url: "https://www.youtube.com/features"}
+      - {do: goto, url: "https://www.youtube.com/features?hl=en"}
       - {do: wait, selector: "ytcp-settings-dialog, ytcp-feature-eligibility, ytcp-navigation-drawer", state: attached, timeout_s: 60, optional: true}
       - {do: pause, ms: 5000}
       - {do: read, selector: "ytcp-settings-dialog tp-yt-paper-dialog, ytcp-settings-dialog", alt: ["tp-yt-paper-dialog", "ytcp-navigation-drawer", "body"]}
@@ -188,7 +189,7 @@ tasks:
     # the page's body: a page that is not the list fails the job (never a silent "no duplicate")
     timeout_s: 120
     steps:
-      - {do: goto, url: "https://www.youtube.com/my_videos"}
+      - {do: goto, url: "https://www.youtube.com/my_videos?hl=en"}
       - {do: wait, selector: "ytcp-video-section-content, ytcp-video-list", state: attached, timeout_s: 60}
       - {do: pause, ms: 4000}
       - {do: read, selector: "ytcp-video-section-content, ytcp-video-list"}
@@ -197,7 +198,7 @@ tasks:
     # language (Persian: subtitles are added in it), then Save; the answer is the tags box as saved
     timeout_s: 240
     steps:
-      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit?hl=en"}
       - {do: wait, selector: "#title-textarea #textbox", timeout_s: 60}
       - {do: pause, ms: 2500}
       - {do: click, selector: "ytcp-video-metadata-editor #toggle-button, #toggle-button", optional: true, timeout_s: 10}
@@ -221,7 +222,7 @@ tasks:
     # the dialog's file input (never the native chooser), then Publish; the answer is the row.
     timeout_s: 300
     steps:
-      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations"}
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations?hl=en"}
       - {do: wait, selector: "ytgn-video-translation-row", state: attached, timeout_s: 60}
       - {do: pause, ms: 3000}
       # no subtitles yet: the row's «Add»
@@ -253,7 +254,7 @@ tasks:
     # area as saved
     timeout_s: 180
     steps:
-      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit"}
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit?hl=en"}
       - {do: wait, selector: "#title-textarea #textbox", timeout_s: 60}
       - {do: pause, ms: 2500}
       - {do: attach, selector: "ytcp-thumbnails-compact-editor-uploader input[type=file], input#file-loader", file: 0, timeout_s: 20}
