@@ -68,7 +68,10 @@ job = json.loads(sys.stdin.readline())
 url = os.environ.get("SUPPORT_EGRESS_URL", "http://egress:8090").rstrip("/") + "/v1/substitutes/web"
 try:
     r = httpx.post(url, json=job, timeout=job["timeout_s"] + 60)
-    sys.stdout.write(r.text)
+    if r.status_code >= 400:  # (egress refused the job itself, e.g. 422 on a field: said as it is)
+        sys.stdout.write(json.dumps({"ok": False, "error": "http_%d" % r.status_code, "detail": r.text[:600]}))
+    else:
+        sys.stdout.write(r.text)
 except httpx.HTTPError as e:
     sys.stdout.write(json.dumps({"ok": False, "error": "off", "detail": type(e).__name__}))
 """
@@ -135,12 +138,15 @@ def call(job: dict) -> dict:
             r = run(["docker", "exec", "-i", WORKER, "python", "-c", CLIENT], stdin=stdin, timeout=int(job["timeout_s"]) + 120)
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "off", "detail": "no answer from egress in time"}
+    raw = r.stdout.decode("utf-8", "replace")
     try:
-        out = json.loads(r.stdout.decode() or "{}")
+        out = json.loads(raw or "{}")
     except ValueError:
-        out = {}
-    if not isinstance(out, dict) or "ok" not in out:
+        out = None
+    if not raw.strip():
         return {"ok": False, "error": "off", "detail": f"no answer from egress ({tail(r.stderr, 1)})"}
+    if not isinstance(out, dict) or "ok" not in out:  # an answer that is not a job's: egress's own refusal, plainly
+        return {"ok": False, "error": "refused", "detail": f"egress answered: {raw.strip()[:500]}"}
     shot = out.pop("screenshot", None)
     if isinstance(shot, dict) and shot.get("b64"):  # for the SRE who fixes the recipe; never printed
         SHOTS.mkdir(parents=True, exist_ok=True)
