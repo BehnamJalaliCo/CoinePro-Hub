@@ -31,3 +31,8 @@ dotcoin-longform (2026-11-17): DotCoin's long YouTube videos, three a week (8–
 look in a Swiss grid × isometric engine), each with its thumbnail (the owner's cover system, 16:9), YouTube
 text with chapters, sidecar subtitles and a new lesson on dotcoin.me; rendered chapter by chapter over
 several workshop turns; uploaded once each by the hub (automations/sites/dotcoin/youtube_long.py).
+dotcoin-seo (2026-11-18): DotCoin.me's daily SEO day (flow dotcoin_seo, kind `article`): Search Console read by the
+hub before the build (automations/sites/dotcoin/seo.py, recipe youtube-web gsc_*), the session's analysis, ONE new
+long page for a keyword cluster and the day's improvements, measured as experiments (the site's seo/auto/), packed by
+the site's own rules (tools/seo_pack.py) and published, reviewed and indexed by the hub. Its Lighthouse lives outside
+git in /home/studio/kits/seo-node (npm: lighthouse 12.6.1 with puppeteer-core; run through a pipe).
