@@ -27,7 +27,7 @@ import pytest
 
 pytest.importorskip("playwright.async_api")
 
-from hq_egress.browser_web import JobIn, Proxy, RunIn, Webd
+from hq_egress.browser_web import JobIn, Proxy, ProxyRelay, RunIn, Webd, run_recipe
 from hq_egress.guard import Guard
 from hq_egress.proxy import Buckets
 from hq_egress.proxy import Proxy as EgressProxy
@@ -125,6 +125,18 @@ c.toBlob((b) => {
 </script></body></html>"""
 
 
+# ⟨2026-11-18⟩ YouTube's upload as the browser sees it: the chosen file sent by fetch() (an
+# image from another host too: a quiet job's proxy must still refuse it).
+UPLOAD = b"""<html><body><input type='file' id='f'><button id='go'>Upload</button><p id='done'></p>
+<img id='leak' src='https://other.test:PORT/img/1.png'>
+<script>
+document.getElementById('go').onclick = async () => {
+  const r = await fetch('/up', {method: 'POST', body: document.getElementById('f').files[0]});
+  document.getElementById('done').textContent = 'sent ' + await r.text();
+};
+</script></body></html>"""
+
+
 class Site:
     def __init__(self) -> None:
         self.port = 0
@@ -174,6 +186,10 @@ class Site:
             extra = 'Content-Disposition: attachment; filename="report-28d.zip"\r\n'
         elif path == "/api/answer":
             ctype, body = "text/plain; charset=utf-8", b"answer to: " + body_in[:40]
+        elif path == "/upload":
+            body = UPLOAD.replace(b"PORT", str(self.port).encode())
+        elif path == "/up":
+            ctype, body = "text/plain; charset=utf-8", str(len(body_in)).encode()
         elif path == "/img/1.png":
             ctype, body = "image/png", PNG
         elif path == "/whoami":
@@ -609,3 +625,133 @@ async def test_chatgpts_real_text_task_reads_the_answer_on_a_persian_page(world:
     assert got["ok"] is True, got
     assert got["text_md"].strip().startswith("answer to: a calm sea"), got
     assert "شما گفتید" not in got["text_md"] and "ChatGPT" not in got["text_md"]
+
+
+# ⟨2026-11-18⟩ a big upload runs without request interception: the proxy's credential stays in a
+# loopback relay (never in Chrome, so Playwright never turns Chrome's Fetch domain on) and the egress
+# proxy alone keeps the job to its own hosts. With interception an upload's body is copied into
+# Chrome's browser process (YouTube's 710 MB long video killed it at browser-web's memory cap).
+async def test_the_relay_adds_the_jobs_credential_to_connect_only() -> None:
+    heads: list[bytes] = []
+
+    async def upstream(r: asyncio.StreamReader, w: asyncio.StreamWriter) -> None:
+        heads.append(await r.readuntil(b"\r\n\r\n"))
+        w.write(b"HTTP/1.1 200 Connection established\r\n\r\n")
+        while data := await r.read(1024):
+            w.write(data[::-1])
+            await w.drain()
+        w.close()
+
+    up = await asyncio.start_server(upstream, "127.0.0.1", 0)
+    relay = ProxyRelay(Proxy(server=f"http://127.0.0.1:{up.sockets[0].getsockname()[1]}",
+                             username="job-key", password="s3cret"))  # fmt: skip
+    url = await relay.start()
+    host, port = url.removeprefix("http://").split(":")
+    try:
+        r, w = await asyncio.open_connection(host, int(port))
+        w.write(
+            b"CONNECT chat.test:443 HTTP/1.1\r\nHost: chat.test:443\r\nProxy-Authorization: Basic x\r\n\r\n"
+        )
+        assert (await r.readuntil(b"\r\n\r\n")).startswith(b"HTTP/1.1 200")
+        w.write(b"ping")
+        assert await r.readexactly(4) == b"gnip"
+        w.close()
+        head = heads[0].decode()
+        assert (
+            head.startswith("CONNECT chat.test:443 HTTP/1.1\r\n") and "Host: chat.test:443" in head
+        )
+        auths = [ln for ln in head.split("\r\n") if ln.lower().startswith("proxy-authorization:")]
+        assert auths == ["Proxy-Authorization: Basic am9iLWtleTpzM2NyZXQ="]  # job-key:s3cret, once
+        r, w = await asyncio.open_connection(host, int(port))
+        w.write(b"GET http://chat.test/ HTTP/1.1\r\nHost: chat.test\r\n\r\n")
+        assert (await r.readuntil(b"\r\n\r\n")).startswith(b"HTTP/1.1 405")
+        assert len(heads) == 1  # never reached the egress proxy
+    finally:
+        await relay.stop()
+        up.close()
+    with pytest.raises(OSError):
+        await asyncio.open_connection(host, int(port))
+    with pytest.raises(ValueError):
+        ProxyRelay(Proxy(server="http://egress:3132"))  # no credential: nothing to relay
+
+
+def _chrome_anon_mib() -> int:
+    """Chrome's browser process (no --type=): its anonymous memory now, in MiB."""
+    top = 0
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            cmd = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            if b"chrom" not in cmd[0] or any(a.startswith(b"--type=") for a in cmd):
+                continue
+            for ln in Path(f"/proc/{pid}/status").read_text().splitlines():
+                if ln.startswith("RssAnon:"):
+                    top = max(top, int(ln.split()[1]) // 1024)
+        except OSError:
+            continue
+    return top
+
+
+def _upload_job(site: Site, buckets: Buckets, server: str, data: bytes, intercept: bool) -> JobIn:
+    import base64
+
+    j = _job(site, buckets, server, "/upload", task="upload_long", steps=[
+        {"do": "goto", "url": "{start_url}"},
+        {"do": "attach", "selector": "#f", "file": 0, "timeout_s": 20},
+        {"do": "click", "selector": "#go"},
+        {"do": "wait", "selector": "#done:has-text('sent')", "timeout_s": 25 if not intercept else 10},
+        {"do": "read", "selector": "#done"},
+    ])  # fmt: skip
+    j.recipe["intercept"] = intercept
+    j.files = [{"name": "video.mp4", "b64": base64.b64encode(data).decode()}]
+    j.max_file_bytes = len(data) + 1
+    return j
+
+
+async def test_a_quiet_upload_is_never_copied_into_the_browser(
+    world: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    site, d, buckets, server, profiles = world
+    monkeypatch.setattr("hq_egress.browser_web.SPOOL", profiles / ".spool")  # (a file over 16 MB)
+    data = os.urandom(32 * 1024 * 1024)
+    seen: list[Proxy] = []
+    real = d.open
+
+    async def spy(account: str, proxy: Proxy, **kw: Any) -> Any:
+        seen.append(proxy)
+        return await real(account, proxy, **kw)
+
+    d.open = spy  # type: ignore[method-assign]
+    peaks: dict[bool, int] = {}
+    results: dict[bool, dict[str, Any]] = {}
+    for intercept in (True, False):
+        peak = 0
+        job = asyncio.create_task(d.job(_upload_job(site, buckets, server, data, intercept)))
+        while not job.done():
+            peak = max(peak, _chrome_anon_mib())
+            await asyncio.sleep(0.05)
+        peaks[intercept], results[intercept] = peak, job.result()
+    # intercepted (the job as before), the body piles up in Chrome's browser process and the upload
+    # stalls (10 s are not enough for 32 MB); quiet, it goes out at once and Chrome stays small
+    got = results[False]
+    assert got["ok"] is True and got["text_md"].strip() == f"sent {len(data)}", (peaks, got)
+    assert peaks[False] < 100 and peaks[True] > 2 * peaks[False] + 100, peaks
+    # the quiet browser held no credential (so no Fetch domain): the relay on loopback had it
+    assert seen[0].username and seen[1].username is None
+    assert seen[1].server.startswith("http://127.0.0.1:") and seen[1].server != server
+    # the egress proxy alone still refuses a host outside the job's own (the page's other.test image)
+    assert not [s for s in site.seen if s["host"] == "other.test"]
+
+
+async def test_a_dead_page_says_so_instead_of_a_bare_error(world: Any) -> None:
+    site, d, buckets, server, _ = world
+    j = _job(site, buckets, server, "/chat")
+    ctx = await d.open("chatgpt-web", j.proxy, hold_s=30)
+    try:
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        await page.close()
+        got = await run_recipe(page, ctx, j, frozenset({"chat.test"}))
+    finally:
+        await d.close(ctx, "chatgpt-web")
+    assert (got["ok"], got["error"], got["step"]) == (False, "recipe_failed", "0:goto"), got
+    assert "the page crashed or the browser was closed" in got["detail"], got
+    assert "Error: " in got["detail"] and "screenshot" not in got

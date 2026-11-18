@@ -375,15 +375,27 @@ class Webd:
         hosts = frozenset(str(h).lower() for h in j.recipe.get("hosts") or [])
         if not hosts:
             return fail("recipe_failed", "a recipe without hosts")
-        ctx = await self.open(j.account, j.proxy, hold_s=j.timeout_s)
+        # ⟨2026-11-18⟩ a task that sends a big file runs without request interception (ProxyRelay)
+        quiet = j.recipe.get("intercept") is False and bool(j.proxy.username)
+        relay = ProxyRelay(j.proxy) if quiet else None
         try:
-            await ctx.route("**/*", _only(hosts))
+            proxy = Proxy(server=await relay.start()) if relay is not None else j.proxy
+            ctx = await self.open(j.account, proxy, hold_s=j.timeout_s)
+        except BaseException:
+            if relay is not None:
+                await relay.stop()
+            raise
+        try:
+            if relay is None:
+                await ctx.route("**/*", _only(hosts))
             traffic = Traffic()
             traffic.watch(ctx)
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             return await run_recipe(page, ctx, j, hosts, traffic)
         finally:
             await self.close(ctx, j.account)
+            if relay is not None:
+                await relay.stop()
             shutil.rmtree(spool_dir(j.account), ignore_errors=True)
 
     async def close(self, ctx: BrowserContext, account: str) -> None:
@@ -439,6 +451,117 @@ class Webd:
                 await asyncio.wait_for(closed, timeout=seconds)
         finally:
             await self.close(ctx, account)
+
+
+NOT_CONNECT = b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+
+
+class ProxyRelay:
+    """⟨2026-11-18⟩ The egress proxy's credential outside the browser, for one job.
+
+    With a proxy password Playwright answers the proxy's 407 through Chrome's Fetch domain, so
+    every request of the job is intercepted, and an intercepted request's body is copied into
+    Chrome's browser process for the protocol: measured in this image, a 100 MB `fetch` upload
+    took that process to 898 MiB (13 MiB without interception); YouTube's 710 MB long video
+    killed it at browser-web's 1068 MiB cap (2026-11-18, «step 5:fill», no screenshot: the page
+    was gone). A task with `intercept: false` (recipes.Task) runs behind this relay instead: on
+    loopback, for the job's life only, it takes Chrome's CONNECT (no password in the browser,
+    nothing intercepted) and passes it to the egress proxy with the job's credential added. The
+    egress proxy still lets the job reach only the recipe's own hosts, with its byte budget. Only
+    CONNECT is relayed (a plain http request is refused here); bytes are piped, never read."""
+
+    HEAD_MAX = 64 * 1024  # (the request head's cap, and each stream's buffer)
+    HEAD_S = 30.0
+    CHUNK = 64 * 1024
+
+    def __init__(self, proxy: Proxy) -> None:
+        u = urlsplit(proxy.server)
+        if u.scheme != "http" or not u.hostname or not proxy.username:
+            raise ValueError("the relay needs an http proxy and its credential")
+        self.upstream = (u.hostname, u.port or 80)
+        token = base64.b64encode(f"{proxy.username}:{proxy.password or ''}".encode()).decode()
+        self._auth = f"Proxy-Authorization: Basic {token}\r\n".encode()
+        self._server: asyncio.Server | None = None
+        self._conns: set[asyncio.Task[Any]] = set()
+
+    async def start(self) -> str:
+        self._server = await asyncio.start_server(self._client, "127.0.0.1", 0, limit=self.HEAD_MAX)
+        return f"http://127.0.0.1:{self._server.sockets[0].getsockname()[1]}"
+
+    async def stop(self) -> None:
+        if self._server is not None:
+            self._server.close()
+            self._server = None
+        for t in list(self._conns):
+            t.cancel()
+        if self._conns:
+            await asyncio.wait(list(self._conns), timeout=5)
+
+    async def _client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        task = asyncio.current_task()
+        if task is not None:
+            self._conns.add(task)
+        up: asyncio.StreamWriter | None = None
+        try:
+            try:
+                head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), self.HEAD_S)
+            except (asyncio.IncompleteReadError, asyncio.LimitOverrunError, TimeoutError, OSError):
+                return
+            first, _, rest = head[:-4].partition(b"\r\n")
+            parts = first.split(b" ")
+            if len(parts) != 3 or parts[0] != b"CONNECT" or not parts[2].startswith(b"HTTP/1."):
+                writer.write(NOT_CONNECT)
+                with contextlib.suppress(OSError):
+                    await writer.drain()
+                return
+            lines = [
+                ln + b"\r\n"
+                for ln in rest.split(b"\r\n")
+                if ln and not ln.lower().startswith(b"proxy-authorization:")
+            ]
+            out = first + b"\r\n" + b"".join(lines) + self._auth + b"\r\n"
+            opening = asyncio.open_connection(*self.upstream, limit=self.HEAD_MAX)
+            up_r, up_w = await asyncio.wait_for(opening, self.HEAD_S)
+            up = up_w
+            up_w.write(out)
+            await up_w.drain()
+            await _splice(reader, writer, up_r, up_w)
+        except (OSError, TimeoutError):
+            return
+        finally:
+            for w in (writer, up):
+                if w is not None:
+                    w.close()
+            if task is not None:
+                self._conns.discard(task)
+
+
+async def _pipe(r: asyncio.StreamReader, w: asyncio.StreamWriter, chunk: int) -> None:
+    while data := await r.read(chunk):
+        w.write(data)
+        await w.drain()
+    with contextlib.suppress(OSError, RuntimeError):
+        if w.can_write_eof():
+            w.write_eof()
+
+
+async def _splice(
+    a_r: asyncio.StreamReader,
+    a_w: asyncio.StreamWriter,
+    b_r: asyncio.StreamReader,
+    b_w: asyncio.StreamWriter,
+) -> None:
+    """Both directions until both have ended; one that fails ends the other."""
+    ts = [
+        asyncio.create_task(_pipe(a_r, b_w, ProxyRelay.CHUNK)),
+        asyncio.create_task(_pipe(b_r, a_w, ProxyRelay.CHUNK)),
+    ]
+    try:
+        await asyncio.wait(ts, return_when=asyncio.FIRST_EXCEPTION)
+    finally:
+        for t in ts:
+            t.cancel()
+        await asyncio.gather(*ts, return_exceptions=True)
 
 
 class Traffic:
@@ -571,6 +694,8 @@ async def run_recipe(
     steps = j.recipe.get("steps") or []
     reloaded = False
     traffic = traffic or Traffic()
+    crashed: list[bool] = []
+    page.on("crash", lambda _p: crashed.append(True))
 
     def said(out: dict[str, Any]) -> dict[str, Any]:
         if notes:
@@ -599,7 +724,10 @@ async def run_recipe(
             if st.get("optional"):
                 skipped.append(tag)
                 continue
-            why = exc.detail if isinstance(exc, StepFailed) else type(exc).__name__
+            why = exc.detail if isinstance(exc, StepFailed) else _why(exc)
+            if crashed or page.is_closed():
+                # ⟨2026-11-18⟩ a dead page has no screenshot: the failure says so plainly
+                why = f"the page crashed or the browser was closed (out of memory?): {why}"
             out = said(fail("recipe_failed", f"step {tag} failed: {why}", tag))
             shot = await screenshot(page)
             if shot is not None:
@@ -621,6 +749,13 @@ async def run_recipe(
     if files:
         done["files"] = files
     return said(done)
+
+
+def _why(exc: BaseException) -> str:
+    """⟨2026-11-18⟩ A Playwright failure by its type and its first line («Error» alone told nothing:
+    «Locator.fill: Target crashed»); never its call log."""
+    first = (str(exc).strip().splitlines() or [""])[0].strip()[:160]
+    return f"{type(exc).__name__}: {first}" if first else type(exc).__name__
 
 
 SCREENSHOT_BYTES = 2 * 1024 * 1024

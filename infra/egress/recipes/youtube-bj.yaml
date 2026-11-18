@@ -15,7 +15,7 @@
 #   thumbnail    its custom thumbnail (the channel must be phone-verified)
 # Driven by automations/sites/bjtech/youtube_long.py (a host timer), never by an agent.
 key: youtube-bj
-version: "2026-11-18.3"
+version: "2026-11-18.4"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -126,6 +126,11 @@ tasks:
     # step 2 leaves nothing on YouTube; after it, a Private draft; from the Done click on, the video
     # may be out (youtube_long.py: state `check`, never tried again by itself).
     timeout_s: 1500
+    # 2026-11-18.4: no request interception for this task (browser_web.ProxyRelay): an intercepted
+    # upload body is copied into Chrome's browser process, and the 710 MB video killed it at
+    # browser-web's memory cap (attempts 3 and 4, «step 5:fill», no screenshot). The egress
+    # proxy still keeps the job to the hosts above.
+    intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/upload?hl=en"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}

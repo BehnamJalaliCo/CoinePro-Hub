@@ -143,6 +143,20 @@ def test_a_job_gets_only_its_tasks_steps() -> None:
     }  # fmt: skip
 
 
+def test_only_a_big_upload_runs_without_interception() -> None:
+    """⟨2026-11-18⟩ youtube-bj's long video: no request interception (browser_web.ProxyRelay);
+    every other task keeps it, and a capture step (which needs it) refuses `intercept: false`."""
+    yt = RC.load(recipes_dir())["youtube-bj"]
+    assert yt.for_job("upload_long")["intercept"] is False
+    assert all(yt.for_job(t)["intercept"] for t in yt.tasks if t != "upload_long")
+    r = RC.Recipe.model_validate(_recipe())
+    assert r.for_job("text")["intercept"] is True
+    bad = {"timeout_s": 60, "intercept": False, "steps": [
+        {"do": "capture", "selector": "#dl", "url": "https://chat.test/export/"}]}  # fmt: skip
+    with pytest.raises(ValueError, match="capture step needs interception"):
+        RC.Task.model_validate(bad)
+
+
 # ------------------------------------------------------- the web endpoint --
 class FakeWeb:
     """The profile browser (browser-web), as egress sees it."""

@@ -237,6 +237,16 @@ class Task(BaseModel):
     model_config = ConfigDict(extra="forbid")
     timeout_s: float = Field(gt=0, le=1500)  # (and at most its TASK_CAP_S)
     steps: list[RStep] = Field(min_length=1, max_length=50)
+    # ⟨2026-11-18⟩ false: the job runs without the browser's request interception (a big file's
+    # upload: an intercepted body is copied into the browser; browser_web.ProxyRelay); the egress
+    # proxy alone keeps it to the recipe's own hosts. A capture step needs interception.
+    intercept: bool = True
+
+    @model_validator(mode="after")
+    def _quiet(self) -> Task:
+        if not self.intercept and any(st.do == "capture" for st in self.steps):
+            raise ValueError("a capture step needs interception (intercept: false has none)")
+        return self
 
 
 class Expired(BaseModel):
@@ -306,6 +316,7 @@ class Recipe(BaseModel):
             "task": task,
             "timeout_s": self.tasks[task].timeout_s,  # type: ignore[index]
             "steps": [s.model_dump(exclude_none=True) for s in self.tasks[task].steps],  # type: ignore[index]
+            "intercept": self.tasks[task].intercept,  # type: ignore[index]
         }
 
 
