@@ -957,6 +957,7 @@ async def inventory(tx: Tx, host_text: str) -> dict[str, Any]:
     rows.append(_row("sign_ins", "aistudio-web", str(await _safe(tx, _aistudio) or "unknown")))
     rows.append(_row("sign_ins", "pinterest-web", "unknown", "the hub keeps no state of it"))
     rows.append(_row("sign_ins", "youtube-web", "unknown", "DotCoin.me Shorts (host timer)"))
+    rows.append(_row("sign_ins", "youtube-bj", "unknown", "@behnamjalali-tech videos (host timer)"))
     voice = await _safe(tx, _voice) or {}
     key = {"yes": "connected", "no": "not_connected"}.get(voice.get("google_key", ""), "unknown")
     rows.append(_row("voice", "google key (kv/hq/voice/google)", key))

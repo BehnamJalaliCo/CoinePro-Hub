@@ -22,6 +22,7 @@ LOGIN_PAGES = {  # browser_web.LOGIN_PAGES (that module needs Playwright)
     "chatgpt-web": "https://chatgpt.com/",
     "gemini-web": "https://gemini.google.com/app",
     "deepseek-web": "https://chat.deepseek.com/",
+    "youtube-bj": "https://studio.youtube.com/",
 }
 ACCOUNTS = tuple(LOGIN_PAGES)
 BASH = shutil.which("bash") or "/bin/bash"

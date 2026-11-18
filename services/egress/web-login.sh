@@ -10,7 +10,7 @@
 # Playwright, no CDP, no --remote-debugging-*, no --enable-automation - so
 # navigator.webdriver is false and Google lets the owner sign in. The same
 # sandbox (Chromium's own, under the container's seccomp) as before.
-# Usage (only through `make <x>-web-login`): web-login.sh chatgpt-web|gemini-web|deepseek-web|aistudio-web|pinterest-web|youtube-web
+# Usage (only through `make <x>-web-login`): web-login.sh chatgpt-web|gemini-web|deepseek-web|aistudio-web|pinterest-web|youtube-web|youtube-bj
 # `web-login.sh --flags <account>` prints the command line (the bench and tests).
 set -euo pipefail
 print_only=false
@@ -23,7 +23,8 @@ case "$account" in
   aistudio-web) url="https://aistudio.google.com/" ;;
   pinterest-web) url="https://www.pinterest.com/" ;;
   youtube-web) url="https://studio.youtube.com/" ;;
-  *) echo "usage: $0 chatgpt-web|gemini-web|deepseek-web|aistudio-web|pinterest-web|youtube-web" >&2; exit 2 ;;
+  youtube-bj) url="https://studio.youtube.com/" ;;
+  *) echo "usage: $0 chatgpt-web|gemini-web|deepseek-web|aistudio-web|pinterest-web|youtube-web|youtube-bj" >&2; exit 2 ;;
 esac
 chrome=""
 for c in /ms-playwright/chromium-*/chrome-linux*/chrome; do
