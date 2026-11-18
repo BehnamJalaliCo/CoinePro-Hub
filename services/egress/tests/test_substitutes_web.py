@@ -369,7 +369,11 @@ def test_the_search_console_tasks_read_and_only_type_the_jobs_url() -> None:
         assert {s.text for s in steps if s.do == "fill"} <= {"{prompt}"}
         assert steps[-1].do == "read"
         assert all("search.google.com" in str(s.url) for s in steps if s.do == "goto")
-    assert any("Request indexing" in str(s.selector) for s in yt.tasks["gsc_request"].steps if s.do == "click")
+    assert any(
+        "Request indexing" in str(s.selector)
+        for s in yt.tasks["gsc_request"].steps
+        if s.do == "click"
+    )
     assert not any("Request indexing" in str(s.selector) for s in yt.tasks["gsc_inspect"].steps)
 
 

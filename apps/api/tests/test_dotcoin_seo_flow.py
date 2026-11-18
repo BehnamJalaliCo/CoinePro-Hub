@@ -85,14 +85,10 @@ def test_the_seo_brief_asks_for_one_package_never_a_reel() -> None:
 def test_the_seo_map_has_the_hosts_steps() -> None:
     steps = [s.key for s in FV.steps_of(seo_flow())]
     assert steps[:2] == ["n8n", "order"]
-    assert {"gsc", "topic", "write", "fixes", "direction", "package", "site", "index"} <= set(
-        steps
-    )
+    assert {"gsc", "topic", "write", "fixes", "direction", "package", "site", "index"} <= set(steps)
     g = FV.graph_of(seo_flow())
     lanes = {n.key: n.lane for n in g.nodes}
-    assert (
-        lanes["gsc"] == lanes["site"] == lanes["index"] == "hub" and lanes["write"] == "workshop"
-    )
+    assert lanes["gsc"] == lanes["site"] == lanes["index"] == "hub" and lanes["write"] == "workshop"
     assert FD.kind_of_flow(seo_flow()) == "article"
 
 
