@@ -965,3 +965,48 @@ async def test_a_picture_the_session_asked_for_reaches_its_next_turn(
     nxt = await take(client, rn)
     names = {i["file_id"]: i["name"] for i in nxt["args"].get("inputs") or []}
     assert names.get(str(fid), "").endswith(".png"), names
+
+
+async def test_a_flow_runs_voice_is_always_its_pages_own_narrator(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-18⟩ zaribsad's 19:00 reel went out with «Kore» (a woman's voice): its session
+    switched voices when a word was misread. A page's voice is set on its company's instagram
+    connection (config.voices); a flow run's speech.make for that page always gets it."""
+    import json as _json
+
+    from hq_api.domain import narrator as NR
+    from hq_api.principal import Principal
+
+    co = (await new_company())["code"]
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    cid = o["emp"]["company_id"]
+    page = f"p{o['work_id'].hex[:8]}"
+    await su.execute(
+        """UPDATE work.work SET run_meta = coalesce(run_meta, '{}'::jsonb)
+               || jsonb_build_object('flow', jsonb_build_object('account', $2::text))
+           WHERE id = $1""",
+        o["work_id"], page,
+    )  # fmt: skip
+    who = Principal(kind="agent", code=o["holder"], role="agent", company=co, company_id=cid,
+                    employee_id=o["emp"]["id"], run_id=str(run["id"]))  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await NR.page_voice(tx, who) is None  # (no voice set for the page yet)
+    await su.execute(
+        """INSERT INTO growth.connections (company_id, kind, label_fa, state, config)
+           VALUES ($1, 'instagram', 'اینستاگرام', 'connected', $2::jsonb)
+           ON CONFLICT (company_id, kind) DO UPDATE SET config = EXCLUDED.config""",
+        cid, _json.dumps({"accounts": [page], "voices": {page: "Cruz"}}),
+    )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await NR.page_voice(tx, who) == "Cruz"
+        # another page of the same company, or no flow run at all: nothing is forced
+        other = Principal(kind="agent", code=o["holder"], role="agent", company=co,
+                          company_id=cid, employee_id=o["emp"]["id"], run_id=None)  # fmt: skip
+        assert await NR.page_voice(tx, other) is None

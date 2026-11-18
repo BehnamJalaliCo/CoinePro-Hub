@@ -98,11 +98,14 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
 
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         _, fixed = await NR.for_work(tx, who)
+        page = await NR.page_voice(tx, who)
         # ⟨2026-11-13⟩ the session the voice is made for: its next turn finds the file in `in/`
         order_id = await F.order_of_run(tx, who.run_id)
     voice, style = body.voice, body.style.strip()
     if fixed is not None:
         voice, style = str(fixed["voice"]), str(fixed["style_fa"] or "")
+    if page is not None and tts.known_voice(page):
+        voice = page  # ⟨2026-11-18⟩ the page's own narrator, never another (NR.page_voice)
     if not tts.known_voice(voice):
         names = "، ".join(v[0] for v in tts.DOCUMENTED[:6])
         raise ApiError(
@@ -128,7 +131,7 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
         "text": body.text_fa.strip(),
         "voice": voice,
         "style": style,
-        "narrator": fixed is not None,
+        "narrator": fixed is not None or page is not None,
         **({"order_id": str(order_id)} if order_id else {}),
     }
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:

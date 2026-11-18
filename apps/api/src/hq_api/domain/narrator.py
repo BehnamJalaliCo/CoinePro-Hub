@@ -137,6 +137,30 @@ async def for_work(tx: Tx, who: Principal) -> tuple[UUID | None, dict[str, Any] 
     return company_id, await of(tx, company_id)
 
 
+# ⟨2026-11-18⟩ the page's own narrator. One company may hold several pages with different voices
+# (IG: ipoxxo.vpn Cruz, dotcoin.me and behnamjalali.tech Arlo), so a company narrator cannot say it.
+# zaribsad's 11-18 19:00 reel went out with «Kore», a woman's voice, because its session switched
+# voices when «ویکس» was misread. The voice is the page's, set on its company's instagram
+# connection (`config.voices`: {account: voice}); a flow run's speech.make always gets it.
+PAGE_ACCOUNT_SQL = """SELECT w.run_meta -> 'flow' ->> 'account' FROM agents.runs r
+    JOIN work.work w ON w.id = r.work_id
+    WHERE r.id = CAST(:r AS uuid) AND r.employee_id = :e"""
+PAGE_VOICE_SQL = """SELECT gc.config -> 'voices' ->> :a FROM growth.connections gc
+    WHERE gc.kind = 'instagram' AND gc.config -> 'accounts' ? :a
+      AND jsonb_typeof(gc.config -> 'voices') = 'object' LIMIT 1"""
+
+
+async def page_voice(tx: Tx, who: Principal) -> str | None:
+    """The voice of the page a flow run's content is for, when that page has one set."""
+    if not who.run_id or who.employee_id is None:
+        return None
+    account = await tx.scalar(PAGE_ACCOUNT_SQL, r=who.run_id, e=who.employee_id)
+    if not account:
+        return None
+    voice = await tx.scalar(PAGE_VOICE_SQL, a=str(account))
+    return str(voice).strip() or None if voice else None
+
+
 # ------------------------------------------------------------- §59.4 a sample --
 class SampleFile(BaseModel):
     id: str
