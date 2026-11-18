@@ -918,3 +918,44 @@ async def test_the_hub_makes_a_long_video_flow_whose_day_is_youtubes(
         assert FL.NEVER_SILENT_FA in brief
     finally:
         await all_off(su, key)
+
+
+async def test_a_days_order_lists_the_pages_topics_so_none_is_made_twice(
+    hub: Hub, su: Any, new_company: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨2026-11-18⟩ the owner: «نباید محتوای تکراری ارسال بشه». DotCoin's 11-18 reel repeated
+    11-17's blockchain reel (made by hand, never marked in the kit's bank): the order now carries
+    the page's topics of the same kind, out or queued (a cancelled one does not count)."""
+    co = await new_company()
+    key = fk()
+    page = f"p39.{key}"
+    await seed(su, monkeypatch, a_flow(co["code"], key))
+    pub = """INSERT INTO media.publications (company_id, account, kind, state, title_fa, topic_fa,
+                 chain, scheduled_at)
+             VALUES ($1, $2, $3, $4, $5, $6, ARRAY[gen_random_uuid()], now() - $7::interval)"""
+    try:
+        rows = [("reel", "published", "بلاک‌چین مثل دفتر دنگ سفر", "بلاک‌چین مثل دفتر دنگ سفر", timedelta(days=2)),
+                ("reel", "scheduled", "سولانا از بتا خارج شد", "", timedelta(hours=1)),
+                ("reel", "cancelled", "موضوع لغوشده", "موضوع لغوشده", timedelta(hours=3)),
+                ("story", "published", "استوری بیت‌کوین", "استوری بیت‌کوین", timedelta(days=1))]  # fmt: skip
+        for kind, state, title, topic, ago in rows:
+            await su.execute(pub, co["id"], page, kind, state, title, topic or None, ago)
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            flow = await FL.flow_by_key(tx, key)
+            assert flow is not None
+            done = await FL.published_topics(tx, flow)
+        assert done == ["سولانا از بتا خارج شد", "بلاک‌چین مثل دفتر دنگ سفر"]  # newest first
+        at = datetime.combine(tomorrow(), datetime.min.time(), TZ)
+        text = FL.brief_of(flow, tomorrow(), at, [], done)
+        assert "تکرار ممنوع" in text and "«بلاک‌چین مثل دفتر دنگ سفر»" in text
+        assert "موضوع لغوشده" not in text and "استوری بیت‌کوین" not in text
+        assert "تکرار ممنوع" not in FL.brief_of(flow, tomorrow(), at, [], [])
+        # a stories flow sees its own stories only
+        from dataclasses import replace as dc_replace
+
+        stories = dc_replace(flow, stories=("10:00", "16:00"))
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await FL.published_topics(tx, stories) == ["استوری بیت‌کوین"]
+        assert "«استوری بیت‌کوین»" in FL.stories_brief(stories, tomorrow(), [], ["استوری بیت‌کوین"])
+    finally:
+        await all_off(su, key)

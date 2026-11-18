@@ -610,7 +610,47 @@ def kind_of(flow: Flow, day: date) -> str:
     return flow.cycle[(day - flow.start).days % len(flow.cycle)]
 
 
-def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
+# ⟨2026-11-18⟩ the owner: «نباید محتوای تکراری ارسال بشه». DotCoin's 11-18 reel («بلاک‌چین با یک
+# مثال ساده») was 11-17's («بلاک‌چین مثل دفتر دنگ سفر») again: that one was made by hand, so the
+# kit's bank never marked it. Every day's order now carries what the page already has.
+DONE_KINDS = {"reel": ("reel",), "video": ("video",), "stories": ("story",)}
+DONE_MAX_CHARS = 4500  # (the order's text is at most 10 000 characters)
+DONE_SQL = """SELECT coalesce(nullif(topic_fa, ''), title_fa) AS t, max(at) AS at
+    FROM media.publications WHERE account = :a AND kind = ANY(:k)
+      AND state IN ('scheduled', 'publishing', 'published', 'held')
+    GROUP BY 1 ORDER BY max(at) DESC LIMIT 300"""
+NO_REPEAT_FA = (
+    "قاعده‌ی مالک، تکرار ممنوع: موضوع‌هایی که این پیج تا امروز منتشر کرده یا در صف دارد (تازه‌ترین "
+    "اول): {done}.\nموضوع امروز باید با همه‌ی این‌ها فرق کند. همان موضوع با عنوان، مثال، زاویه یا "
+    "سبک دیگر هم تکرار است. فقط خبر واقعاً تازه درباره‌ی همان چیز تکرار نیست. اگر موضوع بانک کیت "
+    "در این فهرست بود، آن را در بانک «استفاده‌شده» علامت بزن و موضوع بعدی را بردار."
+)
+
+
+async def published_topics(tx: Tx, flow: Flow) -> list[str]:
+    """The page's topics already out or queued, of this flow's kind of output (newest first)."""
+    kinds = DONE_KINDS["stories"] if flow.stories else DONE_KINDS.get(flow.kind, ("reel",))
+    rows = await tx.all(DONE_SQL, a=flow.account, k=list(kinds))
+    out: list[str] = []
+    size = 0
+    for r in rows:
+        t = " ".join(str(r["t"] or "").split())[:90]
+        if not t or t in out:
+            continue
+        size += len(t) + 4
+        if size > DONE_MAX_CHARS:
+            break
+        out.append(t)
+    return out
+
+
+def no_repeat(done: list[str] | None) -> str:
+    if not done:
+        return ""
+    return "\n" + NO_REPEAT_FA.format(done="، ".join(f"«{t}»" for t in done))
+
+
+def stories_brief(flow: Flow, day: date, used: list[str], done: list[str] | None = None) -> str:
     """⟨2026-11-15⟩ A stories flow's order: the day's pictures, their hours, the words taken."""
     n = len(flow.stories)
     hours = "، ".join(f"{i}) {hm}" for i, hm in enumerate(flow.stories, 1)).translate(FA_DIGITS)
@@ -632,7 +672,7 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
         "comment.txt (کلمه‌ی امروز، جواب دایرکت و دکمه‌ها) و topic.txt. وقتی همه در out/ بود، ستاد "
         "هر استوری را برای ساعت خودش روی "
         f"@{flow.account} زمان‌بندی میکند، جواب دایرکت استوری را با کلمه‌ی امروز روشن میکند، به "
-        "مدیر کل خبر میدهد و این جلسه را میبندد.\n" + word
+        "مدیر کل خبر میدهد و این جلسه را میبندد.\n" + word + no_repeat(done)
     )
 
 
@@ -667,12 +707,16 @@ def video_brief(flow: Flow, day: date, at: datetime) -> str:
     )
 
 
-def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None) -> str:
-    """The order's text: what the day's session makes, from the kit, and when it goes out."""
+def brief_of(
+    flow: Flow, day: date, at: datetime, used: list[str] | None = None,
+    done: list[str] | None = None,
+) -> str:  # fmt: skip
+    """The order's text: what the day's session makes, from the kit, and when it goes out.
+    `done`: the page's topics already out or queued (⟨2026-11-18⟩ never a second time)."""
     if flow.stories:
-        return stories_brief(flow, day, used or [])
+        return stories_brief(flow, day, used or [], done)
     if flow.kind == "video":
-        return video_brief(flow, day, at)
+        return video_brief(flow, day, at) + no_repeat(done)
     kind = kind_of(flow, day)
     return (
         f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار {at_fa(at)} به وقت تهران)\n\n"
@@ -694,6 +738,7 @@ def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None)
             f"این جلسه را میبندد."
         )
         + f"\n{NEVER_SILENT_FA}"
+        + no_repeat(done)
         + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
     )
 
@@ -783,8 +828,9 @@ async def start(
             # ⟨2026-11-17⟩ its work wiped, its package scheduled: never a second one
             return {"order": "", "work": None, "publish_at": "", "why_fa": MADE_PUBLISHED_FA}
         used = await story_words(tx, flow.account) if flow.stories and not flow.story_word else []
+        done = await published_topics(tx, flow) if flow.account else []
     body = OrderIn(
-        text=brief_of(flow, the_day, at, used),
+        text=brief_of(flow, the_day, at, used, done),
         company=flow.company,
         route=D.Route(
             companies=[flow.company],
