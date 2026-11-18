@@ -212,3 +212,72 @@ async def test_the_hub_makes_an_seo_flow_and_its_day_goes_to_the_site_not_to_ig_
 def test_create_by_hub_takes_the_article_kind() -> None:
     assert "article" in FD.KINDS and "article" in FL.OFF_IG_KINDS and "video" in FL.OFF_IG_KINDS
     assert Decimal("100") <= FD.USD_MAX
+
+
+async def test_a_long_video_over_the_file_limit_left_in_out_still_makes_its_day(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-18⟩ W-000636: a 10-minute 1080p60 video (710 MB) is over the hub's file limit, so
+    the runner leaves it in out/ (`files_skipped`) and only the texts arrive. The day is queued for
+    YouTube all the same (the host uploader reads out/ itself), and the session closes."""
+    ig, co = await new_company(), await new_company()
+    await connected(client, hub, owner_session, ig, co["code"])
+    key = f"lv{uuid.uuid4().hex[:8]}"
+    day = tomorrow()
+    sch = {"hours": ["20:00"], "trigger_at": "01:30", "same_day": True, "days": list(range(7)),
+           "start": day.isoformat(), "stories": [], "best_week": False}  # fmt: skip
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await FD.create_by_hub(
+                tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/bjtech-longform",
+                title_fa="ویدیوی بلند آزمایشی", kind="video", schedule=sch, model=OPUS,
+                effort="xhigh", usd_cap=150, budget_tokens=10_000_000,
+            )  # fmt: skip
+        r = await client.post(
+            f"/api/v1/flows/{key}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+        )
+        assert r.status_code == 201, r.text
+        order, work_ref = r.json()["order"], r.json()["work"]
+        w = await su.fetchrow("SELECT id FROM work.work WHERE ref = $1", work_ref)
+        ws = await workshop(client, hub, owner_session, su)
+        holder = await su.fetchval(
+            "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id"
+            " WHERE w.ref = $1",
+            work_ref,
+        )
+        await refuse_queued(su, str(w["id"]))
+        r = await run_ask(client, holder, {"work": work_ref, "brief": "ویدیوی بلند امروز"})
+        assert r.status_code == 201, r.text
+        job = await take(client, ws)
+        files = []
+        for name, data in (("topic.txt", "حرکت ۳۷".encode()), ("caption.txt", "توضیحات".encode())):
+            r = await send_file(client, ws, job["id"], name, "text/plain", data)
+            assert r.status_code == 201, r.text
+            files.append(r.json()["id"])
+        await refuse_queued(su, str(w["id"]))
+        r = await client.post(
+            f"/api/v1/runners/jobs/{job['id']}/result",
+            json={"exit_code": 0, "summary_fa": "تمام شد.",
+                  "data": {"session_id": "cs-lv-1", "result_fa": "آماده.", "files": files,
+                           "files_skipped": [{"name": "video.mp4", "why": "بزرگ‌تر از سقف"}]}},
+            headers=ws["h"],
+        )  # fmt: skip
+        assert r.status_code == 200, r.text
+        raw = await su.fetchval("SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", w["id"])
+        meta = raw if isinstance(raw, dict) else json.loads(raw)
+        assert meta.get("youtube") == "queued" and meta.get("sent")
+        assert await su.fetchval(
+            "SELECT closed_at IS NOT NULL FROM owner.order_reports WHERE ref = $1", order
+        )
+        # an output with no turn behind it is never taken for one
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert not await FL._video_left_in_out(tx, {"produced_with": {}})
+            assert not await FL._video_left_in_out(tx, {"produced_with": {"job": "x"}})
+    finally:
+        await su.execute("UPDATE automations.flows SET state = 'off' WHERE key = $1", key)

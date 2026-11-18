@@ -1253,6 +1253,20 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
     files = [f for f, _ in newest.values()]
     reel, story = _split(files)
     caption = next((newest[n] for n in SPB.CAPTION_NAMES if n in newest), None)
+    if (
+        reel is None
+        and caption is not None
+        and (
+            (flow is not None and flow.kind == "video")
+            or (w.get("flow") or {}).get("kind") == "video"
+        )
+        and await _video_left_in_out(tx, caption[1])
+    ):
+        # ⟨2026-11-18⟩ W-000636: a 10-minute 1080p60 video (710 MB) is over the hub's file limit, so
+        # the runner leaves it in out/ (files_skipped); the host uploader reads out/ itself
+        topic = newest.get("topic.txt")
+        return {"d": caption[1], "reel": None, "story": None, "cover": None,
+                "caption_d": caption[1], "comment_d": None, "topic_d": topic[1] if topic else None}  # fmt: skip
     if reel is None or caption is None:
         return None
     covers = [f for f, _ in newest.values()
@@ -1269,6 +1283,22 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
         "comment_d": comment[1] if comment else None,
         "topic_d": topic[1] if topic else None,
     }
+
+
+VIDEO_LEFT_SQL = """SELECT 1 FROM infra.server_jobs j,
+        jsonb_array_elements(coalesce(j.result -> 'files_skipped', '[]'::jsonb)) s
+    WHERE j.id = CAST(:j AS uuid) AND j.state = 'done' AND s ->> 'name' = 'video.mp4' LIMIT 1"""
+
+
+async def _video_left_in_out(tx: Tx, d: dict[str, Any]) -> bool:
+    """Whether the turn that delivered this output finished with its `video.mp4` left in out/ (over
+    the file limit): a long video's package is complete without the video among the outputs."""
+    job = (OR._j(d.get("produced_with")) or {}).get("job")
+    try:
+        UUID(str(job))
+    except ValueError:  # (none, or not a job's id: not such a turn)
+        return False
+    return bool(await tx.scalar(VIDEO_LEFT_SQL, j=str(job)))
 
 
 PICTURE_EXT = (".jpg", ".jpeg", ".png", ".webp")
