@@ -26,6 +26,9 @@ covers) and `refs/old_post_covers.jpg` (its posts), and the new ones beside them
   Square image." card.py crushes its near-black and feathers its edges, so it melts into the navy.
   **A published cover NEVER uses a glyph:** card.py refuses a cover without `element`. A failed or wrong picture:
   ask again, or the other player; the cover waits for its hero. No person, no face.
+- **Each hero fits its own topic** (the coordinator, 2026-11-18): never the same picture twice, never a generic
+  tile for every day: the repo's own idea, the model's vendor, the trick's app, the story's object. Every number
+  on a cover (e.g. «۲۰٪ ارزون‌تر») comes from the vendor's own page, checked today.
 - **No** LUMEN spectrum, no mustard, no frame, no handle text on the cover.
 
 ## The reel cover (1080×1920, `out/cover.jpg`)
