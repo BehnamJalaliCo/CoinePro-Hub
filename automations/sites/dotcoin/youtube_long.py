@@ -803,7 +803,7 @@ def due_pass(only_finish: str | None = None) -> int:
                                            dry_run=False, retry=False))
             state = Y.load_state()  # (upload() saved it)
             runs = state.setdefault("long_runs", {})
-            run = runs[ref]
+            run = runs.setdefault(ref, run)  # (upload() saved its own copy of the state, without this run)
             up = state["uploads"].get(key_of(slug)) or {}
             if rc != 0 or not up.get("url"):
                 run.update(status="check" if up.get("status") == "check" else "blocked", slug=slug,
