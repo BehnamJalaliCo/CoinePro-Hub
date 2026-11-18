@@ -172,3 +172,53 @@ async def start_event(
             f"{_clean(event.get('title'), 120)}), publish {at.isoformat()}; work {work_ref}"[:500],
         )  # fmt: skip
     return {"order": ref, "work": work_ref, "publish_at": at.isoformat(), "why_fa": "", "new": True}
+
+
+SKIP_NAMES = ("skip.txt",)
+SKIPPED_FA = "خبر فوری رد شد: {why}"
+
+
+async def close_skipped(tx: Any, hub: Any, w: dict[str, Any]) -> str | None:
+    """An event run whose session found the news not real, not new or not big (the kit's step 0):
+    `out/skip.txt` and nothing to publish. The run is closed and marked, never published; None when
+    the run has no skip.txt."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import session_publish as SPB
+
+    meta = dict(w.get("flow") or {})
+    if not meta.get("event"):
+        return None
+    rows = await tx.all(
+        SPB.OUTPUT_SQL + " WHERE d.work_id = :w AND d.company_id = :co"
+        " ORDER BY d.created_at DESC LIMIT 30",
+        w=w["id"],
+        co=w["company_id"],
+    )
+    for r in rows:
+        d = dict(r)
+        names = {str(f["name"] or "").strip().lower() for f in await SPB._files(tx, d)}
+        if not names & set(SKIP_NAMES):
+            continue
+        why = _clean(await SPB._text_of(tx, hub, d, SKIP_NAMES), 300) or "—"
+        meta["sent"] = datetime.now(UTC).isoformat()
+        meta["skipped"] = why
+        await tx.exec(
+            """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))
+               WHERE id = :w""",
+            w=w["id"],
+            m=json.dumps(meta, ensure_ascii=False),
+        )
+        order = str(meta.get("order") or "") or None
+        await audit.record(
+            tx, FL.FLOW, company_id=w["company_id"], action="flow.skip", action_class="A2",
+            target_kind="order" if order else "work", target_ref=order or str(w["ref"]),
+            summary=f"{meta.get('key')} event {meta['event'].get('id')}: not published ({why})"[:500],
+        )  # fmt: skip
+        if order:
+            from hq_api.domain import sessions as SE
+
+            rep = await OR.ensure(tx, order)
+            if rep is not None and rep.get("closed_at") is None:
+                await SE.close(tx, order, "ok", SKIPPED_FA.format(why=why)[:300], hub=hub)
+        return "skipped"
+    return None

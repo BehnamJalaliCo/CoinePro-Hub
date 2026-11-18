@@ -1327,6 +1327,12 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
     await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k=f"flow:{w['ref']}")
     pkg = await package(tx, w)
     if pkg is None:
+        if meta.get(
+            "event"
+        ):  # ⟨2026-11-18⟩ a breaking-news run its session skipped (not real or new)
+            from hq_api.domain import flow_events as EV
+
+            return await EV.close_skipped(tx, hub, w) or "open"
         return "open"
     if meta.get("kind") == "video":
         return await _queue_video(tx, hub, w, meta, pkg)

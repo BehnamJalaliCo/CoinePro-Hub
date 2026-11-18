@@ -190,3 +190,86 @@ def test_the_pages_flows_have_their_own_map() -> None:
     first = FV.steps_of(news)[0]
     assert first.title_fa == "دیده‌بان خبرهای فوری" and "هر روز" not in first.input_fa
     assert FV.steps_of(flash)[0].title_fa == "دیده‌بان خبرهای فوری"
+
+
+FLASH_COMMENT = (
+    "keyword: آسترا\nreply: این هم اطلاعیه‌ی رسمی\nreply: https://openai.com/index/introducing-gpt-6-2-astra-sol\n"
+    "button: کانال تلگرام | https://t.me/behnamjalali_tech"
+)
+
+
+async def test_a_flash_story_goes_out_at_once_and_a_skipped_news_item_closes_unpublished(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The watcher's flash run: its one story is published the moment the package is in (no hour to
+    wait for); a run whose session wrote only out/skip.txt (not real, not new) is closed, unpublished."""
+    from .test_p17_runners import take
+    from .test_w14_workshop import refuse_queued, run_ask, send_file, workshop
+    from .test_w19_publish_time import connected
+    from .test_w26_flows import a_pic
+
+    ig, co = await new_company(), await new_company()
+    await connected(client, hub, owner_session, ig, co["code"])
+    key = fk()
+    await seed(su, monkeypatch, a_flow(co["code"], key, account="pro.chart", recipe="breaking",
+                                       stories=("12:00",), hours=("12:00",), trigger_at="09:00"))  # fmt: skip
+    ws = await workshop(client, hub, owner_session, su)
+    publish_sql = ("SELECT args FROM infra.server_jobs WHERE kind = 'publish'"
+                   " AND args -> 'session' ->> 'order' = $1")  # fmt: skip
+
+    async def deliver(event_id: str, sent: list[tuple[str, str, bytes]]) -> tuple[str, str]:
+        got = await EV.start_event(hub, key, {"id": event_id, "vendor": "OpenAI", "title": "GPT-6.2 Astra",
+                                              "url": "https://openai.com/index/introducing-gpt-6-2-astra-sol"})  # fmt: skip
+        order, work_ref = got["order"], got["work"]
+        wid = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", work_ref)
+        holder = await su.fetchval(
+            "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id WHERE w.ref = $1",
+            work_ref,
+        )
+        await refuse_queued(su, str(wid))
+        r = await run_ask(client, holder, {"work": work_ref, "brief": "خبر فوری"})
+        assert r.status_code == 201, r.text
+        job = await take(client, ws)
+        files = []
+        for name, ctype, data in sent:
+            r = await send_file(client, ws, job["id"], name, ctype, data)
+            assert r.status_code == 201, r.text
+            files.append(r.json()["id"])
+        await refuse_queued(su, str(wid))
+        r = await client.post(
+            f"/api/v1/runners/jobs/{job['id']}/result",
+            json={"exit_code": 0, "summary_fa": "تمام.",
+                  "data": {"session_id": f"cs-{event_id}", "result_fa": "تمام.", "files": files}},
+            headers=ws["h"],
+        )  # fmt: skip
+        assert r.status_code == 200, r.text
+        return order, work_ref
+
+    try:
+        order, _ = await deliver("openai:gpt-6.2-astra", [
+            ("story_1.png", "image/png", a_pic(1)), ("comment.txt", "text/plain", FLASH_COMMENT.encode()),
+            ("topic.txt", "text/plain", "خبر فوری: OpenAI GPT-6.2 Astra".encode())])  # fmt: skip
+        jobs = [j["args"] if isinstance(j["args"], dict) else __import__("json").loads(j["args"])
+                for j in await su.fetch(publish_sql, order)]  # fmt: skip
+        assert len(jobs) == 1 and jobs[0]["kind"] == "story"
+        assert not jobs[0]["meta"].get("scheduled_at")  # out at once
+        # a news item the session found not real: closed, nothing published
+        order2, work2 = await deliver(
+            "x:not-real", [("skip.txt", "text/plain", "فقط یک مقاله بود".encode())]
+        )
+        assert await su.fetch(publish_sql, order2) == []
+        meta = await su.fetchval("SELECT run_meta -> 'flow' FROM work.work WHERE ref = $1", work2)
+        meta = meta if isinstance(meta, dict) else __import__("json").loads(meta)
+        assert meta["skipped"] == "فقط یک مقاله بود" and meta.get("sent")
+        assert await su.fetchval(
+            "SELECT closed_at IS NOT NULL FROM owner.order_reports WHERE ref = $1", order2)  # fmt: skip
+        assert await su.fetchval(
+            "SELECT count(*) FROM audit.entries WHERE action = 'flow.skip' AND target_ref = $1", order2) == 1  # fmt: skip
+    finally:
+        await all_off(su, key)
