@@ -296,7 +296,8 @@ def test_the_youtube_recipe_reads_or_uploads_one_public_short() -> None:
     yt = RC.load(recipes_dir())["youtube-web"]
     assert set(yt.tasks) == {
         "channel", "titles", "upload", "public", "upload_long", "features", "videos", "details",
-        "subtitles", "thumbnail",
+        "subtitles", "thumbnail", "gsc_28d", "gsc_7d", "gsc_pages", "gsc_sitemap", "gsc_inspect",
+        "gsc_request",
     }  # fmt: skip
     for name in ("channel", "titles"):
         assert {s.do for s in yt.tasks[name].steps} <= {"goto", "wait", "pause", "read", "click"}
@@ -351,6 +352,70 @@ async def test_an_upload_carries_its_description_and_its_own_file_cap(
         {"name": "short.mp4", "b64": big}]})).json()  # fmt: skip
     assert (r["ok"], r["error"], r["step"]) == (False, "unsupported", "attach")
     assert len(fake.sent) == n
+
+
+def test_the_search_console_tasks_read_and_only_type_the_jobs_url() -> None:
+    """⟨2026-11-18⟩ dotcoin.me's Search Console in the same profile: the two reports are captured
+    (never a download), the reads only read, and the only typing is the job's prompt (the URL to
+    inspect, or the sitemap's path); every page is on search.google.com, now one of the hosts."""
+    yt = RC.load(recipes_dir())["youtube-web"]
+    assert "search.google.com" in yt.hosts
+    for name in ("gsc_28d", "gsc_7d"):
+        steps = yt.tasks[name].steps
+        assert steps[-1].do == "capture" and "/search-console/export/" in str(steps[-1].url)
+        assert not any(s.do in ("download", "fill") for s in steps) and name in RC.ZIP_TASKS
+    for name in ("gsc_pages", "gsc_sitemap", "gsc_inspect", "gsc_request"):
+        steps = yt.tasks[name].steps
+        assert {s.text for s in steps if s.do == "fill"} <= {"{prompt}"}
+        assert steps[-1].do == "read"
+        assert all("search.google.com" in str(s.url) for s in steps if s.do == "goto")
+    assert any("Request indexing" in str(s.selector) for s in yt.tasks["gsc_request"].steps if s.do == "click")
+    assert not any("Request indexing" in str(s.selector) for s in yt.tasks["gsc_inspect"].steps)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"do": "capture", "selector": "#x"},
+        {"do": "capture", "selector": "#x", "url": "http://chat.test/export/"},
+        {"do": "capture", "url": "https://chat.test/export/"},
+    ],
+)
+def test_a_capture_names_an_https_url_and_a_selector(bad: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        RC.Recipe.model_validate(_recipe(tasks={"text": {"timeout_s": 60, "steps": [bad]}}))
+    with pytest.raises(ValidationError):  # (on another host than the recipe's own)
+        RC.Recipe.model_validate(_recipe(tasks={"text": {"timeout_s": 60, "steps": [
+            {"do": "capture", "selector": "#x", "url": "https://other.test/export/"}]}}))  # fmt: skip
+
+
+def test_a_report_export_is_a_small_zip_of_csv_files_only() -> None:
+    import io
+    import zipfile
+
+    from hq_egress.substitutes_web import _job_answer, csv_zip
+
+    def z(**members: bytes) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as f:
+            for k, v in members.items():
+                f.writestr(k, v)
+        return buf.getvalue()
+
+    good = z(**{"Queries.csv": b"Top queries,Clicks\n", "Search appearance.csv": b"a,b\n"})
+    assert csv_zip(good)
+    assert not csv_zip(z(**{"../x.csv": b"1"})) and not csv_zip(z(**{"run.sh": b"1"}))
+    assert not csv_zip(z(**{"big.csv": b"0" * (21 * 1024 * 1024)})) and not csv_zip(PNG)
+    ans = {"ok": True, "text_md": None,
+           "file": {"name": "export.zip", "b64": base64.b64encode(good).decode()}}  # fmt: skip
+    r = json.loads(bytes(_job_answer(ans, "v", 10_000_000, task="gsc_28d").body))
+    assert r["ok"] is True and r["file"]["mime"] == "application/zip"
+    # a zip is never an answer of another task, and a picture never a report's
+    r = json.loads(bytes(_job_answer(ans, "v", 10_000_000, task="image").body))
+    assert r["ok"] is False
+    png = {**ans, "file": {"name": "x.png", "b64": base64.b64encode(PNG).decode()}}
+    r = json.loads(bytes(_job_answer(png, "v", 10_000_000, task="gsc_7d").body))
+    assert r["ok"] is False and "CSV export" in r["detail"]
 
 
 def test_the_youtube_recipe_uploads_a_long_video_from_the_spool() -> None:

@@ -105,8 +105,14 @@ class Flow:
     channel: str = "instagram"
     version: int = 0
     # ⟨2026-11-17⟩ what a day makes: `reel` (and its stories), `stories`, or `video` (DotCoin's long
-    # YouTube video: the hub's host uploader publishes it at the hour, never IG-Hub)
+    # YouTube video: the hub's host uploader publishes it at the hour, never IG-Hub). ⟨2026-11-18⟩
+    # `article`: a site's SEO day (dotcoin.me: a new long page and the day's fixes as one package;
+    # the hub's host publisher checks it and puts it on the site at the hour, never IG-Hub)
     kind: str = "reel"
+
+
+# ⟨2026-11-18⟩ the kinds whose day never goes to IG-Hub (the hub's own host publisher takes it)
+OFF_IG_KINDS = ("video", "article")
 
 
 # ⟨2026-11-17⟩ DotCoin.me's twelve story slides a day, about one an hour (never on a reel's minute)
@@ -488,6 +494,7 @@ PAUSED_WHY_FA = "این اتوماسیون تا {until} متوقف است"
 PAUSED_NO_END_FA = "این اتوماسیون متوقف است؛ با کلیدش در بخش اتوماسیون‌ها روشن میشود"
 SKIPPED_WHY_FA = "مدیر کل این روز را رد کرده است"
 NOT_ITS_DAY_FA = "این روز از روزهای این اتوماسیون نیست"
+NOT_STARTED_FA = "این اتوماسیون از {start} شروع میشود"
 
 
 async def off_keys(tx: Tx) -> set[str]:
@@ -503,7 +510,11 @@ async def is_off(tx: Tx, flow: Flow) -> bool:
 
 def held_why(flow: Flow, day: date) -> str | None:
     """⟨1.39⟩ §61.2 why the clock (and n8n's call) makes nothing for this day: paused before its
-    `paused_until`, the owner's skip, a day not among its `days`."""
+    `paused_until`, the owner's skip, a day not among its `days`. ⟨2026-11-18⟩ A day before its
+    `start` too: the clock looks at yesterday and today (or today and tomorrow), and a flow made to
+    start tomorrow was started the same day (ipoxxo_reels_3, W-000625)."""
+    if day < flow.start:
+        return NOT_STARTED_FA.format(start=fa_day(flow.start))
     if flow.state == "paused":
         if flow.paused_until is None:
             return PAUSED_NO_END_FA
@@ -667,12 +678,56 @@ def video_brief(flow: Flow, day: date, at: datetime) -> str:
     )
 
 
+# ⟨2026-11-18⟩ what an SEO day's package is: the session's out/ (the runner sends .zip, .md and .txt)
+ARTICLE_PACKAGE = "package.zip"
+ARTICLE_SUMMARY = "summary.fa.txt"
+ARTICLE_WEEK = "week.fa.txt"
+SATURDAY = 5  # date.weekday(): the owner's week starts on Saturday (Tehran)
+
+
+def article_brief(flow: Flow, day: date, at: datetime) -> str:
+    """⟨2026-11-18⟩ A site's SEO day (dotcoin.me, the owner: «اتوماسیون سئو … فوق متخصص … هر روز بیشتر
+    دیده شدن و به صفحه اول گوگل اومدن»): the day's data read by the hub before the turn, one new long
+    page for a keyword cluster and the day's fixes to live pages, as ONE package; the hub's host
+    publisher (automations/sites/dotcoin/seo.py --due) checks it, puts it on the site at the hour
+    and asks Google (Search Console) and IndexNow to index what changed. White-hat only."""
+    week = (
+        f"امروز شنبه است: {ARTICLE_WEEK} را هم بنویس، ۳ تا ۵ خط کوتاه فارسی برای خلاصه‌ی هفتگی مدیر کل "
+        "(دیده‌شدن هفته در گوگل با عدد، صفحه‌های تازه، بهترین حرکت جایگاه، کلیک‌های VIP اگر خوانده شد).\n"
+        if day.weekday() == SATURDAY
+        else ""
+    )
+    return (
+        f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار روی سایت {at_fa(at)} به وقت تهران)\n\n"
+        "این فرمان را اتوماسیون هاب داده است، به دستور مدیر کل. کار خودکار است: از کسی چیزی نپرس، "
+        "order.ask نزن و منتظر تأیید نمان.\n"
+        f"روند، قاعده‌ها و همه‌ی ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
+        "قدم‌به‌قدم انجام بده؛ کار چند نوبت طول میکشد و NOTES.md در هر نوبت جای کار را نگه میدارد. "
+        "هیچ فایلی از کیت را عوض نکن.\n"
+        f"روز این فرمان: {day.isoformat()}. داده‌ی امروز (Search Console، وضعیت ایندکس، نقشه‌ی سایت، "
+        "کارنامه‌ی روزهای پیش) را ستاد پیش از این نوبت در پوشه‌ی ورودی همین روز گذاشته است (کیت جایش را میگوید).\n"
+        "تحویل امروز: یک صفحه‌ی تازه‌ی بلند و پژوهش‌شده برای یک خوشه‌ی کلیدواژه، به‌علاوه‌ی بهینه‌سازی‌های "
+        "امروز روی صفحه‌های موجود، همه در یک بسته. فقط این‌ها در out/: report.md، "
+        f"{ARTICLE_SUMMARY} (یک خط فارسی: کار امروز)، topic.txt (خط اول عنوان صفحه‌ی تازه) و "
+        f"{ARTICLE_PACKAGE} (ساخته‌ی ابزار pack کیت) آخر از همه.\n"
+        + week
+        + "وقتی بسته رسید، ستاد این جلسه را میبندد و در ساعتش، بعد از بررسی خودش (ساخت کامل سایت، قفل "
+        "راست‌به‌چپ، سرریز در عرض موبایل)، آن را روی dotcoin.me منتشر میکند، نقشه‌ی سایت را تازه میکند و "
+        "برای صفحه‌های تازه و تغییرکرده درخواست ایندکس میفرستد (Search Console و IndexNow).\n"
+        "فقط سئوی سفید: بی صفحه‌ی کم‌مایه یا بازنویسی ماشینی، بی خرید و تبادل لینک، بی پنهان‌کاری؛ هر عدد "
+        "و هر ادعا از منبع اصلی، و هیچ متن حقوقی یا سلب مسئولیت."
+        + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
+    )
+
+
 def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None) -> str:
     """The order's text: what the day's session makes, from the kit, and when it goes out."""
     if flow.stories:
         return stories_brief(flow, day, used or [])
     if flow.kind == "video":
         return video_brief(flow, day, at)
+    if flow.kind == "article":
+        return article_brief(flow, day, at)
     kind = kind_of(flow, day)
     return (
         f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار {at_fa(at)} به وقت تهران)\n\n"
@@ -804,7 +859,7 @@ async def start(
     model = model_on(flow, the_day)
     meta = {"key": flow.key, "day": the_day.isoformat(), "publish_at": at.isoformat(),
             "account": flow.account, "story": flow.story, "order": ref,
-            **({"kind": flow.kind} if flow.kind == "video" else {}),
+            **({"kind": flow.kind} if flow.kind in OFF_IG_KINDS else {}),
             **({"model": model} if model else {}),
             **({"effort": flow.effort} if flow.effort else {})}  # fmt: skip
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
@@ -835,6 +890,9 @@ PUBLISHED_SQL = """SELECT ref FROM media.publications
         OR (account = :a AND kind = :kind AND at >= :lo AND at < :hi
             AND coalesce(source ->> 'flow_key', '') IN ('', :k)))
     ORDER BY at LIMIT 1"""
+OWN_PUBLISHED_SQL = """SELECT ref FROM media.publications
+    WHERE state NOT IN ('failed', 'cancelled') AND source ->> 'flow_key' = :k AND source ->> 'day' = :d
+    ORDER BY at LIMIT 1"""
 PUBLISHED_BEFORE, PUBLISHED_AFTER = timedelta(hours=1), timedelta(hours=3)
 MADE_PUBLISHED_FA = "بسته‌ی این روز پیش از این زمان‌بندی یا منتشر شده است"
 
@@ -848,6 +906,10 @@ async def published_day(tx: Tx, flow: Flow, day: date, at: datetime | None = Non
     claims. The publication's ref, or None. ONE rule for the clock, n8n's call and the alerts."""
     if not flow.account:
         return None
+    if flow.kind in OFF_IG_KINDS:
+        # ⟨2026-11-18⟩ a long video or a site's day is never a post of the page: only its own row
+        got = await tx.scalar(OWN_PUBLISHED_SQL, k=flow.key, d=day.isoformat())
+        return str(got) if got else None
     if at is None:
         co = await tx.scalar("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
         at, _ = await slot_of(tx, flow, day, co)
@@ -884,6 +946,8 @@ async def n8n_guard(tx: Tx, key: str, day: date | None, now: datetime | None = N
     the_day = day or datetime.now(ZoneInfo(TEHRAN)).date() + timedelta(days=1)
     held = held_why(flow, the_day)
     if held is not None:
+        if held.startswith(NOT_STARTED_FA.split("{", 1)[0]):
+            return "not_started"
         return {SKIPPED_WHY_FA: "skipped", NOT_ITS_DAY_FA: "not_its_day"}.get(held, "paused")
     if (now or datetime.now(UTC)) < trigger_of(flow, the_day) - N8N_GRACE:
         return "before_trigger"
@@ -1102,6 +1166,10 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
     flow = await flow_by_key(tx, str((w.get("flow") or {}).get("key") or ""))
     if flow is not None and flow.stories:
         return _stories_package(flow, newest)
+    if (w.get("flow") or {}).get("kind") == "article" or (
+        flow is not None and flow.kind == "article"
+    ):
+        return _article_package(newest)
     files = [f for f, _ in newest.values()]
     reel, story = _split(files)
     caption = next((newest[n] for n in SPB.CAPTION_NAMES if n in newest), None)
@@ -1151,6 +1219,26 @@ def _stories_package(
     }
 
 
+def _article_package(
+    newest: dict[str, tuple[dict[str, Any], dict[str, Any]]],
+) -> dict[str, Any] | None:
+    """⟨2026-11-18⟩ A site's SEO day: `package.zip` (the changed files and their manifest, made by
+    the kit's pack tool) and `summary.fa.txt`, each with the output it came in; `week.fa.txt` and
+    `topic.txt` when there. None until both are in (the zip is written last)."""
+    pkg = newest.get(ARTICLE_PACKAGE)
+    summary = newest.get(ARTICLE_SUMMARY)
+    if pkg is None or summary is None or str(pkg[0]["mime"]) != "application/zip":
+        return None
+    week, topic = newest.get(ARTICLE_WEEK), newest.get("topic.txt")
+    return {
+        "d": pkg[1],
+        "zip": pkg[0],
+        "summary_d": summary[1],
+        "week_d": week[1] if week else None,
+        "topic_d": topic[1] if topic else None,
+    }
+
+
 def _split(files: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """The reel (a video not named story…) and its story cut (story…), else the reel itself."""
     videos = [f for f in files if str(f["mime"]).startswith("video/")]
@@ -1184,6 +1272,8 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
         return "open"
     if meta.get("kind") == "video":
         return await _queue_video(tx, hub, w, meta, pkg)
+    if meta.get("kind") == "article" or "zip" in pkg:
+        return await _queue_article(tx, hub, w, meta, pkg)
     route = await SPB._route(tx, w["company_id"])
     account = str(meta.get("account") or "")
     if not route["ready"] or account not in route["accounts"]:
@@ -1320,6 +1410,77 @@ async def _queue_video(
         if rep is not None and rep.get("closed_at") is None:
             await SE.close(tx, order, "ok", "اتوماسیون: ویدیوی بلند برای یوتیوب آماده شد", hub=hub)
     return "queued"
+
+
+WEEK_LINES_MAX, WEEK_LINE_CHARS = 6, 300
+
+
+async def _queue_article(
+    tx: Tx, hub: Any, w: dict[str, Any], meta: dict[str, Any], pkg: dict[str, Any]
+) -> str:
+    """⟨2026-11-18⟩ A site's SEO day whose package is in: nothing goes to IG-Hub. The run is marked
+    sent with `site: queued`, the day's line (and, on a Saturday, the week's lines for the owner's
+    weekly summary) kept on it; the hub's host publisher (seo.py --due, a timer) reads the session's
+    out/, checks it and puts it on the site at `publish_at`, once. No notification: the owner hears
+    of the SEO only in the weekly summary (his standing rule: a real crisis, or the week)."""
+    summary = (await SPB._text_of(tx, hub, pkg["summary_d"], (ARTICLE_SUMMARY,)) or "").strip()
+    week_d = pkg.get("week_d")
+    week = (await SPB._text_of(tx, hub, week_d, (ARTICLE_WEEK,)) or "") if week_d else ""
+    topic_d = pkg.get("topic_d")
+    topic = (await SPB._text_of(tx, hub, topic_d, ("topic.txt",)) or "").strip() if topic_d else ""
+    order = str(meta.get("order") or "") or None
+    d = pkg["d"]
+    meta["sent"] = datetime.now(UTC).isoformat()
+    meta["site"] = "queued"
+    meta["summary_fa"] = " ".join(summary.split())[:WEEK_LINE_CHARS]
+    if topic:
+        meta["topic_fa"] = topic.splitlines()[0][:WEEK_LINE_CHARS]
+    lines = [" ".join(x.split()).lstrip("-•* ").strip() for x in week.splitlines()]
+    if any(lines):
+        meta["week_fa"] = [x[:WEEK_LINE_CHARS] for x in lines if x][:WEEK_LINES_MAX]
+    await tx.exec(
+        """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))
+           WHERE id = :w""",
+        w=w["id"],
+        m=_json(meta),
+    )
+    at = datetime.fromisoformat(str(meta["publish_at"]))
+    await audit.record(
+        tx, FLOW, company_id=w["company_id"], action="flow.publish", action_class="A3",
+        target_kind="order" if order else "deliverable", target_ref=order or str(d["ref"]),
+        summary=f"{meta.get('key')} {meta.get('day')}: the SEO package of {w['ref']} queued for the "
+        f"site at {at.isoformat()} (seo.py --due)"[:500],
+    )  # fmt: skip
+    if order:
+        from hq_api.domain import sessions as SE
+
+        rep = await OR.ensure(tx, order)
+        if rep is not None and rep.get("closed_at") is None:
+            await SE.close(tx, order, "ok", "اتوماسیون: بسته‌ی سئوی روز برای سایت آماده شد", hub=hub)
+    return "queued"
+
+
+SEO_WEEK_SQL = """SELECT w.run_meta -> 'flow' AS flow, f.title_fa FROM work.work w
+    JOIN automations.flows f ON f.key = w.run_meta -> 'flow' ->> 'key'
+    WHERE w.parent_id IS NULL AND w.run_meta -> 'flow' ->> 'kind' = 'article'
+      AND w.run_meta -> 'flow' ? 'week_fa' AND w.created_at >= :since
+    ORDER BY w.created_at DESC"""
+
+
+async def seo_week_lines(tx: Tx, now: datetime) -> list[str]:
+    """⟨2026-11-18⟩ The owner's weekly summary (the Saturday morning report): each SEO flow's newest
+    week lines of the last eight days, under its title. Rule-based: the session wrote them."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for r in await tx.all(SEO_WEEK_SQL, since=now - timedelta(days=8)):
+        m = OR._j(r["flow"]) or {}
+        key = str(m.get("key") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(f"**{r['title_fa']}**")
+        out += [f"- {x}" for x in (m.get("week_fa") or [])[:WEEK_LINES_MAX]]
+    return out
 
 
 LATE = timedelta(minutes=30)

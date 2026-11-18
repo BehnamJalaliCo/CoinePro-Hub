@@ -712,6 +712,8 @@ async def _recipe_step(
         return await _images(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
     elif do == "more_images":
         await _more_images(page, sel, str(st.get("composer")), str(st.get("busy")), ms, j)
+    elif do == "capture":
+        return await _capture(page, ctx, sel, str(st.get("url") or ""), ms, j, hosts)
     elif do == "download":
         async with page.expect_download(timeout=ms) as info:
             await page.locator(sel).first.click(timeout=ms)
@@ -982,6 +984,50 @@ async def _fetch(
         return body
     finally:
         await resp.dispose()
+
+
+DISPOSITION_NAME = re.compile(r"filename\*?=(?:UTF-8'')?\"?([^\";]{1,120})", re.I)
+
+
+async def _capture(
+    page: Page, ctx: BrowserContext, sel: str, prefix: str, ms: float, j: JobIn,
+    hosts: frozenset[str],
+) -> dict[str, Any]:  # fmt: skip
+    """⟨2026-11-18⟩ A file a site sends as a download (Search Console's CSV export): click `sel`;
+    the first request whose URL starts with `prefix` (on the recipe's own hosts) is made by the
+    profile browser itself (its own session, through the job's proxy) and its body kept as the
+    job's file, while the page is answered with an empty 204, so no download ever starts
+    (Chromium's download path ends the profile browser with SIGTRAP here: seen 2026-11-18)."""
+    host = (urlsplit(prefix).hostname or "").lower()
+    if not prefix.startswith("https://") or not covered(host, hosts):
+        raise StepFailed("capture", "not one of the site's own hosts")
+    got: asyncio.Future[tuple[int, bytes, str]] = asyncio.get_running_loop().create_future()
+
+    def match(url: str) -> bool:
+        return url.startswith(prefix)
+
+    async def grab(route: Route) -> None:
+        if not got.done():
+            try:
+                resp = await route.fetch(timeout=ms, max_redirects=0)
+                body = await resp.body()
+                got.set_result((resp.status, body, resp.headers.get("content-disposition") or ""))
+            except Error as exc:
+                got.set_exception(StepFailed("capture", type(exc).__name__))
+        await route.fulfill(status=204, body=b"")
+
+    await ctx.route(match, grab)
+    try:
+        await page.locator(sel).first.click(timeout=ms)
+        status, body, disposition = await asyncio.wait_for(got, timeout=ms / 1000)
+    except TimeoutError:
+        raise StepFailed("capture", "the site sent nothing") from None
+    finally:
+        await ctx.unroute(match, grab)
+    if status != 200 or not body:
+        raise StepFailed("capture", f"the site answered {status}")
+    m = DISPOSITION_NAME.search(disposition)
+    return _file(body[: j.max_file_bytes + 1], (m.group(1) if m else "export").strip(), j)
 
 
 def _file(data: bytes, name: str, j: JobIn) -> dict[str, Any]:

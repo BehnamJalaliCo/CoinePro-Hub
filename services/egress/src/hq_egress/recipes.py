@@ -47,6 +47,11 @@ Account = Literal[
 # language on its Studio page (the job's `video_id`, `tags`); `subtitles` uploads its subtitle
 # file (the job's one spooled file, an .srt) in its language; `thumbnail` sets its custom
 # thumbnail (the job's one spooled picture; the channel must be phone-verified).
+# ⟨2026-11-18⟩ Search Console in the same Google account's profile (dotcoin.me's SEO automation):
+# `gsc_28d` / `gsc_7d` the Performance report's own export (a ZIP of CSV files), `gsc_pages` the
+# Page indexing report's text, `gsc_sitemap` the sitemap submitted again and the Sitemaps table
+# read, `gsc_inspect` one URL's inspection (the prompt), `gsc_request` the same, then «Request
+# indexing».
 TASKS = (
     "text",
     "image",
@@ -65,6 +70,12 @@ TASKS = (
     "details",
     "subtitles",
     "thumbnail",
+    "gsc_28d",
+    "gsc_7d",
+    "gsc_pages",
+    "gsc_sitemap",
+    "gsc_inspect",
+    "gsc_request",
 )
 TaskName = Literal[
     "text",
@@ -84,16 +95,26 @@ TaskName = Literal[
     "details",
     "subtitles",
     "thumbnail",
+    "gsc_28d",
+    "gsc_7d",
+    "gsc_pages",
+    "gsc_sitemap",
+    "gsc_inspect",
+    "gsc_request",
 ]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 # The longest a task may wait for its answer (image 3 min, video 10 min, a set of slides 25 min).
 TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300,
               "slides": 1500, "channel": 120, "titles": 120, "upload": 600,
               "public": 180, "upload_long": 1500, "features": 120, "videos": 120,
-              "details": 240, "subtitles": 300, "thumbnail": 180}  # fmt: skip
+              "details": 240, "subtitles": 300, "thumbnail": 180, "gsc_28d": 150, "gsc_7d": 150,
+              "gsc_pages": 120, "gsc_sitemap": 120, "gsc_inspect": 150,
+              "gsc_request": 240}  # fmt: skip
 # ⟨2026-11-17⟩ the largest file a task's job carries, where it is over egress's web_file_bytes
 # (a Short's video: about 6 Mbit/s for up to two minutes; a long video: up to 20 minutes, spooled)
 TASK_FILE_BYTES = {"upload": 96 * 1024 * 1024, "upload_long": 1024 * 1024 * 1024}
+# ⟨2026-11-18⟩ the tasks whose answer is a ZIP (Search Console's own CSV export), never a picture
+ZIP_TASKS = frozenset({"gsc_28d", "gsc_7d"})
 # the most pictures one `download_images` takes (a day's story slides)
 MAX_IMAGES = 15
 
@@ -126,6 +147,10 @@ class RStep(BaseModel):
         # ask in the same chat for the next one (typed into `composer`, done when `busy` is gone)
         "more_images",
         "download",  # click selector -> the file the site sends
+        # ⟨2026-11-18⟩ click selector -> the body of the first request to `url` (a prefix on the
+        # site's own hosts), fetched by the profile browser and kept as the file; the page gets an
+        # empty answer, so no download starts (Search Console's CSV export)
+        "capture",
         # prompt 22
         "select",  # choose the option named by the job's `voice` in the control `selector`
         "attach",  # put the job's files into the file input `selector`
@@ -169,8 +194,10 @@ class RStep(BaseModel):
         needs_selector = self.do not in ("goto", "pause", "wait_sent")
         if needs_selector and not self.selector:
             raise ValueError(f"{self.do} needs a selector")
-        if self.do in ("goto", "wait_sent") and not self.url:
+        if self.do in ("goto", "wait_sent", "capture") and not self.url:
             raise ValueError(f"{self.do} needs a url")
+        if self.do == "capture" and not str(self.url).startswith("https://"):
+            raise ValueError("capture names an https url")
         if self.do == "wait_sent" and not str(self.url).startswith("https://"):
             raise ValueError("wait_sent names an https url")
         if self.file is not None and self.do != "attach":
@@ -247,11 +274,11 @@ class Recipe(BaseModel):
             if t.timeout_s > TASK_CAP_S[name]:
                 raise ValueError(f"{name} waits at most {TASK_CAP_S[name]} s")
             for st in t.steps:
-                if st.do != "wait_sent":
+                if st.do not in ("wait_sent", "capture"):
                     continue
                 host = re.sub(r"^https://([^/:?#]+).*$", r"\1", str(st.url)).lower()
                 if not any(host == h or host.endswith("." + h) for h in self.hosts):
-                    raise ValueError("wait_sent names one of the site's own hosts")
+                    raise ValueError(f"{st.do} names one of the site's own hosts")
         return self
 
     def own_hosts(self) -> frozenset[str]:

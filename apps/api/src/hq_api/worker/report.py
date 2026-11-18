@@ -85,6 +85,8 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
         # Saturdays (prompt 10 §8.3): the week's support figures of a company
         # without a support lead, figures only.
         "support_week": await FB.morning_lines(tx, today) if today.weekday() == 5 else [],
+        # ⟨2026-11-18⟩ the owner's weekly summary: each SEO automation's week, in its own lines
+        "seo_week": await _seo_week(tx, now) if today.weekday() == 5 else [],
         # Prompt 12 §9.1.7: one line per substitute player (the month's use).
         "substitutes": await _substitute_lines(tx),
         # ⟨1.5⟩ prompt 12 §8, §11: rule-only lines (the waste of yesterday, the
@@ -101,6 +103,12 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
             else []
         ),
     }
+
+
+async def _seo_week(tx: Tx, now: datetime) -> list[str]:
+    from hq_api.domain import flows as FL
+
+    return await FL.seo_week_lines(tx, now)
 
 
 async def _review_line(tx: Tx, now: datetime) -> str | None:
@@ -182,6 +190,8 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
         lines += ["", "## مصرف توکن هفته‌ی گذشته به حوزه", *SPEND.lines(data["spend_week"])]
     if data.get("support_week"):
         lines += ["", "## پشتیبانی هفته (شرکت‌های بی‌سرپرست پشتیبانی)", *data["support_week"]]
+    if data.get("seo_week"):
+        lines += ["", "## سئوی سایت‌ها در هفته‌ی گذشته", *data["seo_week"]]
     if data.get("substitutes"):
         lines += ["", "## بازیکن‌های ذخیره", *data["substitutes"]]
     engaged = [c["code"] for c in data["companies"] if c["kill_switch"] == "engaged"]

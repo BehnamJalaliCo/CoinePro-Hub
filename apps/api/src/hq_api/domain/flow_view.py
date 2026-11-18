@@ -133,6 +133,8 @@ LANE = {
     "schedule": "ighub", "publish": "ighub", "replies": "ighub", "rule": "ighub",
     "script": "chatgpt", "keyart": "chatgpt", "cover_gpt": "chatgpt", "pictures": "chatgpt",
     "voice": "voice",
+    # ⟨2026-11-18⟩ a site's SEO day: what the hub's host does before and after the session
+    "gsc": "hub", "site": "hub", "index": "hub",
 }  # fmt: skip
 
 
@@ -223,6 +225,31 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             *posts,
             _step("rule", txt["rule"][0], "publish", "ighub", out=txt["rule"][1]),
             _step("report", "خبر به مدیر کل", "report", "code", out="«آماده شد» با کلمه‌ی امروز"),
+        ]  # fmt: skip
+    if kind == "dotcoin_seo":
+        # ⟨2026-11-18⟩ DotCoin.me's SEO day: the hub reads Search Console before the session, the
+        # session decides and writes, the hub's host checks, publishes and asks for indexing
+        return [
+            *_head(flow),
+            _step("gsc", "داده‌ی روز از Search Console", "workshop", "code",
+                  inp="ستاد پیش از ساخت میخواند",
+                  out="کوئری‌ها و صفحه‌ها با نمایش، کلیک، CTR و جایگاه؛ ایندکس؛ نقشه‌ی سایت"),
+            _step("topic", "تحلیل و تصمیم روز", "workshop", "workshop", model=m, out="topic.txt",
+                  rules=("کلیدواژه‌های نزدیک صفحه‌ی اول (جایگاه ۵ تا ۲۰) و CTR کم اول",)),
+            _step("write", "پژوهش و نوشتن یک صفحه‌ی تازه‌ی بلند", "workshop", "workshop", model=m,
+                  out="یک خوشه‌ی کلیدواژه، با منبع اصلی و پرسش‌های واقعی",
+                  rules=("فقط سئوی سفید: بی صفحه‌ی کم‌مایه، بی خرید لینک",)),
+            _step("fixes", "بهینه‌سازی صفحه‌های موجود", "workshop", "workshop", model=m,
+                  out="عنوان و توضیح، لینک داخلی، اسکیما، alt، تازه‌سازی محتوا"),
+            _step("direction", "ساخت سایت و بازبینی", "workshop", "code",
+                  out="قفل راست‌به‌چپ، بی سرریز، عکس موبایل روشن و تیره، Lighthouse"),
+            _step("package", "بسته‌ی روز", "package", "code", out=FL.ARTICLE_PACKAGE,
+                  rules=("تا بسته نرسیده، چیزی روی سایت نمیرود",)),
+            _step("site", "انتشار روی dotcoin.me در ساعتش", "publish", "code",
+                  rules=("ستاد دوباره میسازد و بررسی میکند؛ هر خطا یعنی منتشر نمیشود",)),
+            _step("index", "درخواست ایندکس", "publish", "code", out="Search Console و IndexNow"),
+            _step("report", "کارنامه و خلاصه‌ی هفتگی", "report", "code",
+                  out="هر تغییر و اثرش ثبت میشود؛ شنبه‌ها چند خط برای مدیر کل"),
         ]  # fmt: skip
     if kind == "dotcoin":
         # ⟨2026-11-17⟩ DotCoin.me: a look of its own from its own Pinterest search, every reel
@@ -337,7 +364,8 @@ def graph_of(flow: FL.Flow) -> FS.FlowGraph:
 
 
 WORKSHOP = ("topic", "script", "voice", "voice_check", "direction", "render", "story", "cover",
-            "texts", "inspire", "keyart", "data", "word", "pictures", "compose", "dm")  # fmt: skip
+            "texts", "inspire", "keyart", "data", "word", "pictures", "compose", "dm",
+            "write", "fixes")  # fmt: skip
 FILE_OF = {"topic": ("topic.txt",), "render": ("video.mp4",), "story": ("story.mp4",),
            "cover": ("cover.jpg", "cover.png"), "texts": ("caption.txt", "comment.txt"),
            "dm": ("comment.txt",)}  # fmt: skip
@@ -655,8 +683,10 @@ async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> stor
     n_stories = len(flow.stories)
     pics = [next((f["files"][f"story_{i}{e}"] for e in FL.PICTURE_EXT
                   if f"story_{i}{e}" in f["files"]), None) for i in range(1, n_stories + 1)]  # fmt: skip
-    have_video = ("video.mp4" in f["files"]) if not n_stories else all(pics)
-    final_at = (f["files"]["video.mp4"]["created_at"] if not n_stories
+    # ⟨2026-11-18⟩ a site's SEO day ends on its package, not on a video
+    final = FL.ARTICLE_PACKAGE if getattr(flow, "kind", "") == "article" else "video.mp4"
+    have_video = (final in f["files"]) if not n_stories else all(pics)
+    final_at = (f["files"][final]["created_at"] if not n_stories
                 else max(x["created_at"] for x in pics if x)) if have_video else None  # fmt: skip
     stopped = state in ("failed", "cancelled") and not f["scheduled"]
     sent_at = f["meta"].get("sent")
@@ -690,8 +720,14 @@ async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> stor
         end: datetime | None = None
         outs: list[store.StepFile] = []
         err: str | None = None
-        if s.key in ("n8n", "order"):
+        if s.key in ("n8n", "order", "gsc"):
             st, start, end = "done", d["created_at"], d["created_at"]
+        elif s.key in ("site", "index") or (s.key == "report" and flow.kind == "article"):
+            # ⟨2026-11-18⟩ the hub's host takes the package at its hour (seo.py --due)
+            if sent:
+                st = "waiting"
+            elif stopped:
+                st = "skipped"
         elif s.key in WORKSHOP:
             st, end, outs = made(s.key)
             start = first if st != "pending" else None

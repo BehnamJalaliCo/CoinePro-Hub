@@ -45,7 +45,7 @@ class FlowRunOut(BaseModel):
 class FlowNotStarted(BaseModel):
     """⟨1.39⟩ §61.2 n8n's per-flow call that makes nothing (202): `before_trigger` (the row's build
     hour has not come: the owner moved it later in the app), `off`, `paused`, `skipped`,
-    `not_its_day`."""
+    `not_its_day`, `not_started` (⟨2026-11-18⟩ a day before the flow's start)."""
 
     started: bool = False
     reason: str

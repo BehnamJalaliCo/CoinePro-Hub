@@ -104,6 +104,11 @@ box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) {
 document.querySelector('[data-testid=send-button]').onclick = send;
 </script></body></html>""".encode()
 LOGIN = b"<html><body><button data-testid='login-button'>Log in</button></body></html>"
+# ⟨2026-11-18⟩ Search Console's export: a menu item whose click navigates to a file the site sends
+# as an attachment (Chromium's download path ends the profile browser there; `capture` takes it)
+EXPORT = b"""<html><body><div role='menuitem' aria-label='Download CSV' id='csv'
+onclick="location.href='/export/san?x=1'">Download CSV</div></body></html>"""
+ZIP = b"PK\x03\x04" + b"csv-export" * 8
 BROKEN = b"<html><body><p>a redesigned page without the prompt box</p></body></html>"
 # ⟨2026-11-15⟩ Gemini: the generated picture is a blob: URL the page revokes once it is drawn
 REVOKED = b"""<html><body><div id='out'></div><script>
@@ -162,6 +167,11 @@ class Site:
             body = BROKEN
         elif path == "/revoked":
             body = REVOKED
+        elif path == "/report":
+            body = EXPORT
+        elif path.startswith("/export/"):
+            ctype, body = "application/zip", ZIP
+            extra = 'Content-Disposition: attachment; filename="report-28d.zip"\r\n'
         elif path == "/api/answer":
             ctype, body = "text/plain; charset=utf-8", b"answer to: " + body_in[:40]
         elif path == "/img/1.png":
@@ -269,6 +279,30 @@ async def test_a_recipe_downloads_the_original_image(world: Any) -> None:
     assert COOKIE not in json.dumps(got)  # never a cookie in a result
     # The tracker on another host never left (the route and the bucket both refuse it).
     assert not [s for s in site.seen if s["host"] == "other.test"]
+
+
+async def test_a_capture_takes_the_sites_file_without_a_download(world: Any) -> None:
+    """⟨2026-11-18⟩ `capture`: the click's request to the named prefix is fetched by the profile
+    browser (its own session, through the job's proxy), the body becomes the job's file under the
+    site's own name, and the page gets an empty answer (no download starts); a prefix on another
+    host is refused before anything is clicked."""
+    import base64
+
+    site, d, buckets, server, _ = world
+    prefix = f"https://chat.test:{site.port}/export/"
+    steps = [
+        {"do": "goto", "url": "{start_url}"},
+        {"do": "wait", "selector": "#csv", "timeout_s": 10},
+        {"do": "capture", "selector": "[role=menuitem][aria-label='Download CSV']", "url": prefix,
+         "timeout_s": 15},
+    ]  # fmt: skip
+    got = await d.job(_job(site, buckets, server, "/report", steps=steps))
+    assert got["ok"] is True, got
+    assert base64.b64decode(got["file"]["b64"]) == ZIP and got["file"]["name"] == "report-28d.zip"
+    assert sum(1 for s in site.seen if s["path"].startswith("/export/")) == 1
+    steps[-1] = {**steps[-1], "url": f"https://other.test:{site.port}/export/"}
+    got = await d.job(_job(site, buckets, server, "/report", steps=steps))
+    assert got["ok"] is False and "own hosts" in got["detail"]
 
 
 async def test_a_revoked_blob_image_is_taken_from_its_pixels(world: Any) -> None:

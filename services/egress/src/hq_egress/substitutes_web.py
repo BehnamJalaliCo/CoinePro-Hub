@@ -25,9 +25,11 @@ runs in the same profile browser, on the same hosts only (profile_browse).
 from __future__ import annotations
 
 import base64
+import io
 import logging
 import re
 import time
+import zipfile
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
@@ -40,7 +42,7 @@ from hq_common.redact import scrub
 from hq_egress.guard import Blocked
 from hq_egress.hosts import covered
 from hq_egress.net import Entry, track
-from hq_egress.recipes import MAX_IMAGES, NOTE, TASK_FILE_BYTES, Account, TaskName
+from hq_egress.recipes import MAX_IMAGES, NOTE, TASK_FILE_BYTES, ZIP_TASKS, Account, TaskName
 from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")
@@ -246,10 +248,32 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             got = None
         finally:
             _log_entries(a.account, state.buckets.drain(key), time.monotonic() - start)
-    return _job_answer(got, version, s.web_file_bytes)
+    return _job_answer(got, version, s.web_file_bytes, task=a.task)
 
 
-def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
+# ⟨2026-11-18⟩ a report's export (ZIP_TASKS): only .csv members, each a plain name, all of them
+# together at most this many bytes unpacked (never a bomb, never a path)
+ZIP_MEMBERS, ZIP_UNPACKED = 20, 20 * 1024 * 1024
+CSV_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,79}\.csv$")
+
+
+def csv_zip(data: bytes) -> bool:
+    """A Search Console export: a ZIP of a few small .csv files and nothing else."""
+    if not data.startswith(b"PK\x03\x04"):
+        return False
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            infos = z.infolist()
+            if not infos or len(infos) > ZIP_MEMBERS:
+                return False
+            if sum(i.file_size for i in infos) > ZIP_UNPACKED:
+                return False
+            return all(not i.is_dir() and CSV_NAME.fullmatch(i.filename) for i in infos)
+    except (zipfile.BadZipFile, ValueError, OSError):
+        return False
+
+
+def _job_answer(got: Any, version: str, max_bytes: int, *, task: str = "") -> JSONResponse:
     if not isinstance(got, dict):
         return failed("off", "the profile browser is not running", version=version)
     if got.get("ok") is not True:
@@ -276,7 +300,12 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
             return failed("recipe_failed", "the file was not readable", version=version)
         if not data or len(data) > max_bytes:
             return failed("recipe_failed", "no file, or one over its cap", version=version)
-        mime = sniff(data)
+        if task in ZIP_TASKS:  # ⟨2026-11-18⟩ a report's export, and only that
+            if not csv_zip(data):
+                return failed("recipe_failed", "the download is not a CSV export", version=version)
+            mime: str | None = "application/zip"
+        else:
+            mime = sniff(data)
         if mime is None:
             return failed(
                 "recipe_failed",

@@ -413,7 +413,7 @@ async def options(tx: Tx) -> FlowOptions:
             continue
         k = kit_key(flow)
         kit = kits.setdefault(k, Kit(key=k, title_fa=f"کیت {k}"))
-        kind = "stories" if flow.stories else "reel"
+        kind = kind_of_flow(flow)
         if kind not in kit.kinds:
             kit.kinds.append(kind)
         if flow.account and flow.account not in kit.used_on:
@@ -423,10 +423,14 @@ async def options(tx: Tx) -> FlowOptions:
 
 
 def kind_of_flow(flow: FL.Flow) -> Kind:
-    """What a day of it makes: its stories, DotCoin's long video (row kind `video`), else a reel."""
+    """What a day of it makes: its stories, DotCoin's long video (row kind `video`), ⟨2026-11-18⟩ a
+    site's SEO day (row kind `article`), else a reel."""
     if flow.stories:
         return "stories"
-    return "video" if getattr(flow, "kind", "") == "video" else "reel"
+    kind = getattr(flow, "kind", "")
+    if kind == "video":
+        return "video"
+    return "article" if kind == "article" else "reel"
 
 
 def kit_key(flow: FL.Flow) -> str:
@@ -648,7 +652,8 @@ async def errors_of(tx: Tx, flow: FL.Flow, body: dict[str, Any]) -> list[dict[st
             if other.key == flow.key or other.account != flow.account or not other.ref:
                 continue
             # ⟨2026-11-17⟩ a long video goes to YouTube, never into the page's Instagram grid
-            if "video" in (getattr(flow, "kind", ""), getattr(other, "kind", "")):
+            # (⟨2026-11-18⟩ nor a site's SEO day)
+            if {getattr(flow, "kind", ""), getattr(other, "kind", "")} & set(FL.OFF_IG_KINDS):
                 continue
             if stories_flow and not other.stories:
                 hit = next((h for h in stories if h in other.hours), None)
@@ -1161,7 +1166,7 @@ async def kits(tx: Tx) -> list[Kit]:
 
 
 HUB = Principal(kind="service", code="hub", role="service")
-KINDS = ("reel", "stories", "video")
+KINDS = ("reel", "stories", "video", "article")
 
 
 async def create_by_hub(
@@ -1170,7 +1175,8 @@ async def create_by_hub(
     note_fa: str = "", recipe: str = "", channel: str = "instagram", skips: tuple[date, ...] = (),
 ) -> FlowDef:  # fmt: skip
     """⟨2026-11-17⟩ A new automation made by the hub itself (a kit no flow uses yet, e.g. DotCoin's
-    long YouTube videos, kind `video`): the same checks as a save (§61.4), version 1 and its audit
+    long YouTube videos, kind `video`; ⟨2026-11-18⟩ its SEO days, kind `article`, channel `web`): the
+    same checks as a save (§61.4), version 1 and its audit
     row, `on`; the hub's clock runs it. Not a route: the owner's own «بساز و روشن کن» is `create`.
     A key that exists is refused (a second call changes nothing). `skips`: days its clock leaves out
     (a first day the hub must not make yet)."""
@@ -1417,6 +1423,9 @@ async def week(tx: Tx, from_: date | None) -> FlowWeek:
         planned = 0
         if day >= today:
             for f in flows:
+                # (⟨2026-11-18⟩ a long video or a site's SEO day is no post of the page's)
+                if getattr(f, "kind", "") in FL.OFF_IG_KINDS:
+                    continue
                 if f.state == "on" and FL.held_why(f, day) is None:
                     planned += len(f.stories) or 1
         by_day.append(WeekDay(day=day, published=sum(1 for p in pubs if p["day"] == day),

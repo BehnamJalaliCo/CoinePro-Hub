@@ -27,10 +27,22 @@
 #   subtitles  the job's one spooled .srt (with timing) as the video's Persian subtitles, published
 #   ⟨2026-11-17.19⟩ thumbnail  an uploaded video's custom thumbnail (the job's one spooled picture),
 #            then Save (the channel is phone-verified since 2026-11-17)
-# Driven by automations/sites/dotcoin/youtube.py and youtube_long.py (host timers), never by an
-# agent.
+#   ⟨2026-11-18.1⟩ Search Console of dotcoin.me (the same Google account owns the domain property
+#   sc-domain:dotcoin.me; the owner's SEO automation, flow dotcoin_seo):
+#   gsc_28d, gsc_7d  read only: the Performance report (Search, web, all four metrics) of the last 28
+#            / 7 days as Search Console's own export (Download CSV: a ZIP of Chart, Queries, Pages,
+#            Countries, Devices, Search appearance and Filters .csv), taken with `capture` (the
+#            request the menu makes, fetched by the profile browser; no download is started)
+#   gsc_pages  read only: the Page indexing report (indexed / not indexed and why), as its text
+#   gsc_sitemap  sitemap.xml submitted again (the job's prompt: the sitemap's path) and the
+#            Sitemaps table read (last read, status, discovered pages)
+#   gsc_inspect  read only: URL inspection of the job's prompt (one dotcoin.me URL), its verdict
+#   gsc_request  the same, then «Request indexing» (Google's own daily cap; the answer is the
+#            dialog: requested, quota or an error)
+# Driven by automations/sites/dotcoin/youtube.py, youtube_long.py and seo.py (host timers), never
+# by an agent.
 key: youtube-web
-version: "2026-11-17.19"
+version: "2026-11-18.1"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -49,6 +61,8 @@ hosts:
   - www.google.com
   - apis.google.com
   - play.google.com
+  # 2026-11-18: Search Console (dotcoin.me's SEO automation reads its reports and asks for indexing)
+  - search.google.com
 login_hosts:
   - gds.google.com
   - consent.google.com
@@ -59,8 +73,6 @@ login_hosts:
   - policies.google.com
   - accounts.google.co.uk
   - accounts.google.de
-  # 2026-11-17: the same Google account (dotcoin.me) holds dotcoin.me's Search Console (domain property + sitemap)
-  - search.google.com
 expired:
   url_contains: ["accounts.google.com", "ServiceLogin"]
   hosts: [accounts.google.com]
@@ -271,3 +283,79 @@ tasks:
       - {do: click, selector: "ytcp-button#save:visible, #save:visible", timeout_s: 20}
       - {do: pause, ms: 5000}
       - {do: read, selector: "ytcp-thumbnails-compact-editor", alt: ["ytcp-thumbnail-uploader", "ytcp-video-metadata-editor"]}
+  # ---- Search Console (dotcoin.me), 2026-11-18.1: the page's own controls by their labels -------
+  gsc_28d:
+    timeout_s: 150
+    steps:
+      - {do: goto, url: "https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain%3Adotcoin.me&num_of_days=28&metrics=CLICKS%2CIMPRESSIONS%2CCTR%2CPOSITION"}
+      - {do: wait, selector: "div[role=button][aria-label='EXPORT']", timeout_s: 60}
+      - {do: pause, ms: 4000}
+      - {do: click, selector: "div[role=button][aria-label='EXPORT']:visible", timeout_s: 20}
+      - {do: wait, selector: "[role=menuitem][aria-label='Download CSV']:visible", timeout_s: 20}
+      - {do: pause, ms: 1000}
+      # the export as the page fetches it, never a download (Chromium's download path crashes here)
+      - {do: capture, selector: "[role=menuitem][aria-label='Download CSV']:visible", url: "https://search.google.com/search-console/export/", timeout_s: 60}
+  gsc_7d:
+    timeout_s: 150
+    steps:
+      - {do: goto, url: "https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain%3Adotcoin.me&num_of_days=7&metrics=CLICKS%2CIMPRESSIONS%2CCTR%2CPOSITION"}
+      - {do: wait, selector: "div[role=button][aria-label='EXPORT']", timeout_s: 60}
+      - {do: pause, ms: 4000}
+      - {do: click, selector: "div[role=button][aria-label='EXPORT']:visible", timeout_s: 20}
+      - {do: wait, selector: "[role=menuitem][aria-label='Download CSV']:visible", timeout_s: 20}
+      - {do: pause, ms: 1000}
+      # the export as the page fetches it, never a download (Chromium's download path crashes here)
+      - {do: capture, selector: "[role=menuitem][aria-label='Download CSV']:visible", url: "https://search.google.com/search-console/export/", timeout_s: 60}
+  gsc_pages:
+    timeout_s: 120
+    steps:
+      - {do: goto, url: "https://search.google.com/search-console/index?resource_id=sc-domain%3Adotcoin.me"}
+      - {do: wait, selector: "text=Page indexing", timeout_s: 60}
+      - {do: pause, ms: 5000}
+      - {do: read, selector: "c-wiz[jsrenderer]:visible:has-text('Page indexing')", alt: ["body"]}
+  gsc_sitemap:
+    # the prompt is the sitemap's path on the property (sitemap.xml): submitted again, then the table
+    timeout_s: 120
+    steps:
+      - {do: goto, url: "https://search.google.com/search-console/sitemaps?resource_id=sc-domain%3Adotcoin.me"}
+      - {do: wait, selector: "input[aria-label='Enter sitemap URL']", timeout_s: 60}
+      - {do: pause, ms: 3000}
+      - {do: click, selector: "input[aria-label='Enter sitemap URL']", timeout_s: 15}
+      - {do: fill, selector: "input[aria-label='Enter sitemap URL']", text: "{prompt}", timeout_s: 15}
+      - {do: click, selector: "div[role=button]:has-text('SUBMIT')", timeout_s: 15}
+      - {do: pause, ms: 5000}
+      - {do: click, selector: "[role=dialog] [role=button]:has-text('Got it'), [role=dialog] button:has-text('Got it')", optional: true, timeout_s: 8}
+      - {do: pause, ms: 2000}
+      - {do: read, selector: "c-wiz[jsrenderer]:visible:has-text('Submitted sitemaps')", alt: ["body"]}
+  gsc_inspect:
+    # the prompt is one URL of the property; the answer is the inspection's verdict and details
+    timeout_s: 150
+    steps:
+      - {do: goto, url: "https://search.google.com/search-console?resource_id=sc-domain%3Adotcoin.me"}
+      - {do: wait, selector: "input[aria-label^='Inspect any URL']", timeout_s: 60}
+      - {do: pause, ms: 3000}
+      - {do: click, selector: "input[aria-label^='Inspect any URL']", timeout_s: 15}
+      - {do: fill, selector: "input[aria-label^='Inspect any URL']", text: "{prompt}", timeout_s: 15}
+      - {do: press, selector: "input[aria-label^='Inspect any URL']", key: "Enter", timeout_s: 15}
+      - {do: wait, selector: "text=/URL is (not )?on Google|URL is unknown to Google|URL not in property/ >> visible=true", timeout_s: 90}
+      - {do: pause, ms: 3000}
+      - {do: read, selector: "c-wiz[jsrenderer]:visible:has-text('URL Inspection')", alt: ["body"]}
+  gsc_request:
+    # gsc_inspect, then «Request indexing»: Google's live test, then its dialog (requested, the
+    # day's quota, or an error), kept in notes.request; the answer is the verdict
+    timeout_s: 240
+    steps:
+      - {do: goto, url: "https://search.google.com/search-console?resource_id=sc-domain%3Adotcoin.me"}
+      - {do: wait, selector: "input[aria-label^='Inspect any URL']", timeout_s: 60}
+      - {do: pause, ms: 3000}
+      - {do: click, selector: "input[aria-label^='Inspect any URL']", timeout_s: 15}
+      - {do: fill, selector: "input[aria-label^='Inspect any URL']", text: "{prompt}", timeout_s: 15}
+      - {do: press, selector: "input[aria-label^='Inspect any URL']", key: "Enter", timeout_s: 15}
+      - {do: wait, selector: "div[role=button][aria-label^='Request indexing']:visible", timeout_s: 90}
+      - {do: pause, ms: 2000}
+      - {do: read, selector: "c-wiz[jsrenderer]:visible:has-text('URL Inspection')", alt: ["body"], note: verdict, optional: true, timeout_s: 15}
+      - {do: click, selector: "div[role=button][aria-label^='Request indexing']:visible", timeout_s: 15}
+      # (the page keeps hidden copies of its dialogs: only a visible one counts)
+      - {do: wait, selector: "text=/Indexing requested|priority crawl queue|Quota exceeded|Something went wrong|problem submitting/i >> visible=true", timeout_s: 180}
+      - {do: pause, ms: 1500}
+      - {do: read, selector: "text=/Indexing requested|priority crawl queue|Quota exceeded|Something went wrong|problem submitting/i >> visible=true"}
