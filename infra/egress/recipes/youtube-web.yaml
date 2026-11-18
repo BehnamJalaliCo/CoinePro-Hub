@@ -42,7 +42,7 @@
 # Driven by automations/sites/dotcoin/youtube.py, youtube_long.py and seo.py (host timers), never
 # by an agent.
 key: youtube-web
-version: "2026-11-18.1"
+version: "2026-11-18.2"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -146,6 +146,11 @@ tasks:
     # step 2 leaves nothing on YouTube; after it, a Private draft; from the Done click on, the video
     # may be out (youtube_long.py: state `check`, never tried again by itself).
     timeout_s: 1500
+    # 2026-11-18.2: no request interception for this task (browser_web.ProxyRelay): an intercepted
+    # upload body is copied into Chrome's browser process (~9x the file); DotCoin's 186 MB long
+    # video was killed at browser-web's memory cap (15:05Z, TargetClosedError at step 3). The egress
+    # proxy still keeps the job to the hosts above. (Shorts' `upload` keeps interception.)
+    intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/upload"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}

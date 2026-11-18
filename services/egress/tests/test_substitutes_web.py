@@ -144,11 +144,17 @@ def test_a_job_gets_only_its_tasks_steps() -> None:
 
 
 def test_only_a_big_upload_runs_without_interception() -> None:
-    """⟨2026-11-18⟩ youtube-bj's long video: no request interception (browser_web.ProxyRelay);
-    every other task keeps it, and a capture step (which needs it) refuses `intercept: false`."""
-    yt = RC.load(recipes_dir())["youtube-bj"]
-    assert yt.for_job("upload_long")["intercept"] is False
-    assert all(yt.for_job(t)["intercept"] for t in yt.tasks if t != "upload_long")
+    """⟨2026-11-18⟩ a long video (youtube-bj's and DotCoin's youtube-web): no request interception
+    (browser_web.ProxyRelay); every other task keeps it (Shorts' `upload` too), and a capture step
+    (which needs it) refuses `intercept: false`."""
+    got = RC.load(recipes_dir())
+    for account in ("youtube-bj", "youtube-web"):
+        yt = got[account]
+        assert yt.for_job("upload_long")["intercept"] is False, account
+        assert all(yt.for_job(t)["intercept"] for t in yt.tasks if t != "upload_long"), account
+    assert got["youtube-web"].for_job("upload")["intercept"] is True
+    others = [r for k, r in got.items() if k not in ("youtube-bj", "youtube-web")]
+    assert all(r.for_job(t)["intercept"] for r in others for t in r.tasks)
     r = RC.Recipe.model_validate(_recipe())
     assert r.for_job("text")["intercept"] is True
     bad = {"timeout_s": 60, "intercept": False, "steps": [
