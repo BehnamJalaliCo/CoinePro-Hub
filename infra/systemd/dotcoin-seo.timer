@@ -1,0 +1,11 @@
+[Unit]
+Description=DotCoin.me: the SEO automation's host pass every 10 minutes (idle: one database read)
+
+[Timer]
+OnBootSec=11min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Unit=dotcoin-seo.service
+
+[Install]
+WantedBy=timers.target

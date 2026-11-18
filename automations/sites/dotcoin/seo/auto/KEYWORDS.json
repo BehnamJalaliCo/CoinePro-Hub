@@ -1,0 +1,2 @@
+{"_note": "query -> {page, cluster, suggest, gsc: {impressions, clicks, ctr, position, window}, updated}. Filled by the daily session from Search Console and Google suggest; never a guessed volume.",
+ "queries": {}}

@@ -20,6 +20,13 @@ tools/render.py              headless Chromium: OG cards (dist/og/*.jpg) and rev
 build.py                     content -> dist/
 deploy.sh                    assets (if missing) -> build -> OG cards -> wrangler pages deploy
 sync.py                      the hub's article.md files -> content/auto -> commit, push, deploy
+seo.py                       the daily SEO automation's host side (seo/auto/README.md, kit dotcoin-seo)
+content/vip.json             TradeYar's VIP: its links (TradeYar's tracker), codes, conditions
+content/vip_stats.json       TradeYar's public record for /vip/ (seo.py --vip-stats; never by hand)
+content/pages/vip.md         /vip/'s text: SEO fields, what it gives, the three steps, the FAQ
+tools/review.py              the phone review: 390 px light and dark (+ 1440, 920): overflow, shots
+tools/seo_pack.py            the SEO day's package: make (the session) and check (the hub's gate)
+tools/test_seo.py            the package rules and the 3-way apply
 ```
 
 `private/`, `dist/` and `.venv/` are git-ignored: the fonts and the owner's logo (and every file
@@ -91,3 +98,26 @@ Exchange pages: `title` (→ `<title>`), `h1`, `description`, `lead` in content/
 dotcoin.me and www.dotcoin.me are custom domains of the Pages project (proxied CNAMEs to
 dotcoin.pages.dev). www → apex is a Cloudflare Redirect Rule when the token may write zone
 rulesets; until then the page head sends www visitors to the apex (canonical points there too).
+
+## TradeYar's VIP (owner, 2026-11-18: «تبلیغات کانال سیگنال vip»)
+
+`/vip/` explains the free VIP (an account opened with TradeYar's link on Ourbit or LBank, at least
+50 USDT in it, the UID sent to @TradeYarSignalBot; to stay, the balance never under 30 USDT), with
+TradeYar's own numbers (content/vip_stats.json, its public API only: closed trades and days, win
+rate, profit factor, symbols, with the source and the date) and its FAQ. Every lesson carries ONE
+VIP block after its sources (never between paragraphs, never a pop-up); the menu ends with a
+«سیگنال VIP» pill (header, drawer, footer). Every outgoing link is TradeYar's tracker
+(`trade-future.ir/go/vip|ourbit|lbank?src=dotcoin&goal=…&pl=<placement>`) behind the site's own
+`/go/vip-<placement>/` (302, robots-disallowed, `rel="sponsored nofollow"`), so TradeYar counts each
+placement; seo.py also reads the clicks from Cloudflare once the token has Analytics Read.
+
+## The daily SEO automation (flow dotcoin_seo, from 2026-11-19)
+
+The hub's workshop makes one SEO day a day (kit `automations/kits/dotcoin-seo`); `seo.py`
+(dotcoin-seo.timer, every 10 minutes, user Hub) reads Search Console in the youtube-web profile
+before the build (recipe tasks gsc_*), hands the session its input pack
+(/home/studio/seo-inputs/dotcoin/<day>/), and at the publish hour applies the day's package
+(tools/seo_pack.py's rules, a 3-way merge per file, the full build and its bidi lint, tools/review.py
+at 390 px light and dark), commits, runs the site sync (deploy), then IndexNow and «Request indexing».
+Its memory is `seo/auto/` (topic map, log, experiments, keyword bank). IndexNow's key is
+`content/site.json` `indexnow` (public by design: served at `/<key>.txt`).
