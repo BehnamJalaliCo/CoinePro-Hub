@@ -17,7 +17,7 @@ SUDO     := $(if $(HQ_NO_SUDO),:,sudo)
 	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret newsletter-secret \
 	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login \
-	aistudio-web-login pinterest-web-login youtube-web-login
+	aistudio-web-login pinterest-web-login youtube-web-login youtube-bj-login
 .PHONY: mcp-build mcp-test mcp-index catalogue-rerender publications-backfill
 
 help: ## Show the available commands
@@ -368,6 +368,9 @@ pinterest-web-login: ## OWNER: sign in to Pinterest (pattern search, read only) 
 
 youtube-web-login: ## OWNER (fallback): sign in to YouTube Studio (DotCoin.me's Shorts uploads) in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
 	@infra/substitutes/web-login.sh youtube-web
+
+youtube-bj-login: ## OWNER: sign in to YouTube Studio of @behnamjalali-tech (its own Google account) in the hub's browser profile youtube-bj (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh youtube-bj
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh

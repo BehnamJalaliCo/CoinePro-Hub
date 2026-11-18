@@ -61,6 +61,7 @@ ACCOUNTS = (
     "aistudio-web",
     "pinterest-web",
     "youtube-web",
+    "youtube-bj",
 )
 SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
 # 2026-10-29 (the owner): jobs in a real window on the image's Xvfb, as the
@@ -120,9 +121,17 @@ LOGIN_PAGES = {
     "pinterest-web": "https://www.pinterest.com/",
     # ⟨2026-11-17⟩ YouTube Studio (the owner's Google account: DotCoin.me's Shorts)
     "youtube-web": "https://studio.youtube.com/",
+    # ⟨2026-11-18⟩ @behnamjalali-tech's Studio (its own Google account, never youtube-web's)
+    "youtube-bj": "https://studio.youtube.com/",
 }
 Account = Literal[
-    "chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web", "youtube-web"
+    "chatgpt-web",
+    "gemini-web",
+    "deepseek-web",
+    "aistudio-web",
+    "pinterest-web",
+    "youtube-web",
+    "youtube-bj",
 ]
 B64_JS = """async (u) => {
   const r = await fetch(u);

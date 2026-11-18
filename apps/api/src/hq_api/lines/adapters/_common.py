@@ -41,6 +41,7 @@ ACCOUNT_FA = {
     "aistudio-web": "گوگل ای‌آی استودیو",
     "pinterest-web": "پینترست",
     "youtube-web": "یوتیوب استودیو",
+    "youtube-bj": "یوتیوب استودیو (بهنام جلالی تک)",
 }
 SKIP_FA = {
     "off": "این جایگاه خاموش است.",

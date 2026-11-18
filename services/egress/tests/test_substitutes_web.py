@@ -42,8 +42,12 @@ def recipes_dir() -> Path:
 def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
     got = RC.load(recipes_dir())
     assert sorted(got) == [
-        "aistudio-web", "chatgpt-web", "deepseek-web", "gemini-web", "pinterest-web", "youtube-web",
+        "aistudio-web", "chatgpt-web", "deepseek-web", "gemini-web", "pinterest-web", "youtube-bj",
+        "youtube-web",
     ]  # fmt: skip
+    # ⟨2026-11-18⟩ @behnamjalali-tech's Studio is youtube-web's steps on its own account and profile
+    assert set(got["youtube-bj"].tasks) == set(got["youtube-web"].tasks)
+    assert got["youtube-bj"].login_hosts == got["youtube-web"].login_hosts
     for key, r in got.items():
         assert r.key == key and r.site in r.hosts
         for task in r.tasks.values():

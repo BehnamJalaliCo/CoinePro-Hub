@@ -28,9 +28,17 @@ ACCOUNTS = (
     "aistudio-web",
     "pinterest-web",
     "youtube-web",
+    # ⟨2026-11-18⟩ @behnamjalali-tech's YouTube Studio: its own Google account and profile
+    "youtube-bj",
 )
 Account = Literal[
-    "chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web", "youtube-web"
+    "chatgpt-web",
+    "gemini-web",
+    "deepseek-web",
+    "aistudio-web",
+    "pinterest-web",
+    "youtube-web",
+    "youtube-bj",
 ]
 # prompt 22 (production lines): `tts` (speech in AI Studio: the audio file), `search`
 # (Pinterest, read only: the pins as JSON text) and `cover` (an image made from the files the
