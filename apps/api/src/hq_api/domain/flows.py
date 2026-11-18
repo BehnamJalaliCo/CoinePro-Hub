@@ -707,10 +707,32 @@ NEVER_SILENT_FA = (
 )
 
 
+# ⟨2026-11-18⟩ a page's long video without a site (@behnamjalali.tech): YouTube only, 8-15 minutes
+LONG_NO_SITE_FA = (
+    "تحویل: فقط این‌ها در out/: video.mp4 (۱۹۲۰×۱۰۸۰، ۸ تا ۱۵ دقیقه)، thumbnail.jpg، meta.json، "
+    "subtitles.fa.srt، chapters.txt، caption.txt (همان توضیحات یوتیوب) و topic.txt؛ video.mp4 آخر از همه. "
+    "وقتی همه در out/ بود، ستاد ویدیو را در ساعتش روی کانال یوتیوب همین پیج منتشر میکند (اگر صدا از "
+    "بررسی‌اش رد شود)، به مدیر کل خبر میدهد و این جلسه را میبندد.\n"
+)
+
+
 def video_brief(flow: Flow, day: date, at: datetime) -> str:
     """⟨2026-11-17⟩ A long-video day (DotCoin's YouTube): made over several workshop turns from the
     kit; the hub's host uploader (automations/sites/dotcoin/youtube_long.py --due) publishes it on
-    YouTube at the hour, once, after its own checks, and puts the article on the site."""
+    YouTube at the hour, once, after its own checks, and puts the article on the site. ⟨2026-11-18⟩
+    Another page's (no site): the video alone (LONG_NO_SITE_FA)."""
+    if flow.account != "dotcoin.me":
+        return (
+            f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار روی یوتیوب {at_fa(at)} به وقت تهران)\n\n"
+            "این فرمان را اتوماسیون هاب داده است، به دستور مدیر کل. کار خودکار است: از کسی چیزی نپرس، "
+            "order.ask نزن و منتظر تأیید نمان.\n"
+            f"روند، قاعده‌ها و همه‌ی ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و "
+            "قدم‌به‌قدم انجام بده؛ ساخت چند نوبت طول میکشد و NOTES.md در هر نوبت جای کار را نگه میدارد. "
+            "هیچ فایلی از کیت را عوض نکن.\n"
+            + LONG_NO_SITE_FA
+            + NEVER_SILENT_FA
+            + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
+        )
     return (
         f"{flow.title_fa}، {fa_day(day)} (انتشار خودکار روی یوتیوب {at_fa(at)} به وقت تهران)\n\n"
         "این فرمان را اتوماسیون هاب داده است، به دستور مدیر کل. کار خودکار است: از کسی چیزی نپرس، "
@@ -1419,6 +1441,10 @@ VIDEO_READY_BODY_FA = (
     "ویدیوی بلند امروز ساخته شد و {at} به وقت تهران روی یوتیوب دات‌کوین منتشر میشود، همراه مقاله‌اش "
     "روی dotcoin.me. موضوع: {topic}"
 )
+VIDEO_READY_OTHER_FA = (
+    "ویدیوی بلند امروز ساخته شد و {at} به وقت تهران روی یوتیوب @{account} منتشر میشود. "
+    "موضوع: {topic}"
+)
 
 
 async def _queue_video(
@@ -1455,7 +1481,11 @@ async def _queue_video(
         company_code=str(w["company"]),
         level="report",
         title_fa=READY_TITLE_FA.format(title=title)[:300],
-        body_fa=VIDEO_READY_BODY_FA.format(at=at_fa(at), topic=(topic[0] if topic else "—"))[:1000],
+        body_fa=(
+            VIDEO_READY_BODY_FA if meta.get("account") == "dotcoin.me" else VIDEO_READY_OTHER_FA
+        ).format(
+            at=at_fa(at), topic=(topic[0] if topic else "—"), account=meta.get("account") or ""
+        )[:1000],
         link_kind="order" if order else "deliverable",
         link_ref=order or str(d["ref"]),
         source_kind="system",

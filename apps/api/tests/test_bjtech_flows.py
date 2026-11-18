@@ -275,3 +275,23 @@ async def test_a_flash_story_goes_out_at_once_and_a_skipped_news_item_closes_unp
             "SELECT count(*) FROM audit.entries WHERE action = 'flow.skip' AND target_ref = $1", order2) == 1  # fmt: skip
     finally:
         await all_off(su, key)
+
+
+def test_a_long_video_of_a_page_without_a_site_never_names_dotcoins_channel() -> None:
+    """The long-video order was DotCoin's text («یوتیوب دات‌کوین», «article.md», «dotcoin.me»); another page's
+    asks for the video alone, 8-15 minutes, on its own channel."""
+    from datetime import date as d
+
+    flow = a_flow(
+        "XX",
+        "bj_long",
+        account="behnamjalali.tech",
+        kind="video",
+        kit="/home/studio/kits/bjtech-longform",
+    )
+    at = datetime(2026, 11, 19, 16, 30, tzinfo=UTC)
+    text = FL.brief_of(flow, d(2026, 11, 19), at)
+    assert "دات‌کوین" not in text and "dotcoin.me" not in text and "article.md" not in text
+    assert "۸ تا ۱۵ دقیقه" in text and "subtitles.fa.srt" in text and FL.NEVER_SILENT_FA in text
+    dot = a_flow("XX", "dc_long", account="dotcoin.me", kind="video")
+    assert "یوتیوب دات‌کوین" in FL.brief_of(dot, d(2026, 11, 19), at)
