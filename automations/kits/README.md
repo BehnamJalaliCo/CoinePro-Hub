@@ -36,3 +36,14 @@ hub before the build (automations/sites/dotcoin/seo.py, recipe youtube-web gsc_*
 long page for a keyword cluster and the day's improvements, measured as experiments (the site's seo/auto/), packed by
 the site's own rules (tools/seo_pack.py) and published, reviewed and indexed by the hub. Its Lighthouse lives outside
 git in /home/studio/kits/seo-node (npm: lighthouse 12.6.1 with puppeteer-core; run through a pipe).
+
+bjtech-reels, bjtech-stories, bjtech-breaking, bjtech-longform (+ bjtech-common): the owner's last page
+@behnamjalali.tech («Behnam Jalali | AI & Tech», company IG, IG-Hub account 3) and its YouTube channel
+@behnamjalali-tech (owner, 2026-11-18: «فوق‌العاده متفاوت … پریمیوم‌ترین حالت ممکن»). Its own language, LUMEN
+(bjtech-common/DIRECTION.md): an AI-native interface on ink, glass panels, live code, real benchmark bars, the
+spectral edge, Estedad + Geist (fonts-bj, OFL), its own sound (bjtech-reels/motion/sound.py) and its own engine
+(bjtech-reels/motion/stage.html, 9:16 and 16:9). Two reels a day (13:30 the day's kind: repo / model / tool /
+trick / behind the scenes; 22:00 the day's hot news + what it means), twelve story cards a day set in code
+(bjtech-common/tools/card.py), the breaking news (a host watcher on the vendors' own sources starts a flash story
+and a full reel the moment a new model lands), and a daily 8–15 minute YouTube video. Narrator Arlo. Banks:
+bjtech-reels/topics.md (406), bjtech-longform/topics.md (142), researched 2026-11-18 with sources.

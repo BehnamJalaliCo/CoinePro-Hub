@@ -1,0 +1,783 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#05060A}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script>
+/* @behnamjalali.tech — the LUMEN stage (KIT/motion/stage.html; owner 2026-11-18: «پریمیوم‌ترین حالت ممکن که
+   کاربر واقعا تفاوت رو حس بکنه»). The page's own motion language: an AI-native interface on ink — glass panels,
+   live terminals and code, benchmark bars, counters, and the spectral light (the iridescent edge glow, the
+   streamed captions, the key words). motion/reel.py fills the slots and appends the day's motion/scenes.js.
+   Every frame is a pure function of time: frame(t) draws it and returns a JPEG data URL. DATA.size: 'reel'
+   (1080×1920, Instagram) or 'wide' (1920×1080, the YouTube long video) — every API below works on both.
+
+   THE DAY'S SCENES (motion/scenes.js) USE THIS API — parameters and shots, never a new engine:
+   CONFIG({...})                    the video's settings (keys below)
+   SHOT(at, (s, t) => {...}, {tr, d, caps, bg, name})
+                                    a shot from `at` (s) to the next; s = time inside it (a little negative while
+                                    its transition brings it in), t = the video's time. tr: the transition INTO it:
+                                    'scan' (a light bar wipes), 'zoom' (push through), 'slide' (panels slide with
+                                    motion blur), 'iris' (a spectral ring opens), 'dissolve' (a dithered dissolve),
+                                    'cut'; default = the look's family; d: its length (0.42 s). caps:false hides
+                                    the captions (a headline says it all). bg: 'grid' | 'aurora' | 'void' | 'dots'.
+   BEAT(t, 'what')                  an interrupt inside a shot (a counter lands, a punch-in, a new panel): the QC
+                                    measures the longest stretch with no shot change and no BEAT (≤ 3.5 s).
+   Words:  LN(i) line i {s, e, words:[{w,s,e}]}; WD(i, j) word j (-1 last); WF(i, 'frag') the first word of line
+           i holding frag; END the video's end.
+   Time:   pr(t,a,b) 0..1 · E.o3 E.o5 E.io E.back E.expo E.in2 E.spring · win(t,a,b,fi,fo) · osc(t,f,a)
+           · ease(s, at, d, e) = e(pr(s, at, at+d)).
+   Camera: CAM(s, {z, x, y, r, drift, punch:[t…]}) sets the shot's camera (always a micro drift; `punch`
+           times add a 4% punch-in that settles). Use it first in a shot.
+   Type (Persian is Estedad, Latin is Geist, code is Geist Mono; Persian digits on screen):
+           T(str, x, y, px, {w:300..900, f:'fa'|'en'|'mono', col, al:'center'|'right'|'left', alpha, spec, glow,
+             track, maxW}) one line; spec:true fills it with the spectral gradient.
+           HEAD(s, at, str, x, y, px, {keys:[words], w, stagger, al, lineH, maxW}) a kinetic headline (words rise
+             out of a mask, key words in the spectrum; wraps by itself).
+           BIG(s, at, str, x, y, px, {f, spec, track}) a giant number or name that lands with a blur-to-sharp.
+           fa(n, dec) Persian digits («٫» decimals, «٬» groups) · count(s, at, d, from, to) an eased number.
+   Panels: PANEL(x, y, w, h, {r, title, dot, alpha, accent, glass, tilt, lift}) a glass card (returns its inner
+             box {x,y,w,h}); TERM(box, lines, s, at, {cps, prompt, col}) a terminal typing; CODE(box, src, s, at,
+             {cps, from, scroll}) code with colours; BARS(box, rows, s, at, {hi, unit, max, title}) benchmark bars
+             rows = [{name, v, note}] (Latin names, the hi row in the spectrum); STAT(x, y, label, value, s, at,
+             {unit, sub, al}) a big counter; CHIP(str, x, y, {col, f, px, al, alpha, fill}); CHECK(x, y, s, at, ok);
+             IMG(name, x, y, w, h, {r, fit:'cover'|'contain', alpha, tilt, ring, zoom}) a still in a framed card
+             (name = assets/use/<name>.jpg|png); ORB(x, y, r, s, {col}) a glowing node; LINK(x1, y1, x2, y2, s, at,
+             {col}) a link with flowing light; NET(nodes, links, s, at) a network of agents; STREAM(box, s, {col})
+             a token stream; DIVIDER(x, y, w, s, at); ARROW(x1, y1, x2, y2, s, at, col).
+   Light:  EDGE(a) the spectral edge glow around the frame (the hook, the payoff, the end); SWEEP(s, at) a light
+           sweep across the frame; FLASH(s, at) a soft white flash.
+   Colours: INK #05060A · TEXT #F2F4F8 · MUTED #8B91A5 · SPEC (the spectral stops) · PILLAR (the video's accent:
+           repo mint · model violet · news red · tool cyan · trick amber · behind pink) · ACC = PILLAR's colour.
+
+   CONFIG keys: pillar ('repo'|'model'|'news'|'tool'|'trick'|'behind'|'explain'), look {tr: 0..4, bg: 0..3,
+   mood: 0..3} (DIRECTION §6, the look of the day), kicker (the small label over the brand mark, e.g. «مدل
+   هوش مصنوعی»), caps {i: {text, keys}} (the on-screen words of line i: digits as digits, names in Latin; keys
+   in the spectrum), noCaps [i…], capY (the captions' baseline; reel 1470, wide H-150), gap {at, close, q, a}
+   (the open-question chip: shown from `at`, flips to the answer at `close`), cta {at, word, line} (the comment
+   word card from `at`), end {at} (the end card: the page's mark, the handle, Telegram; the last 2.6 s by
+   default), edge [[from, to], …] (when the spectral edge glows; default: the first 1.2 s and the end card),
+   tail (s after the last word, default 2.6), progress (true: the thin spectral progress line on top).
+   The stage draws on top of the shots: the grade and grain, the brand mark, the captions, the gap chip, the
+   comment card, the end card and the edge glow. */
+const D = /*DATA*/;
+const IMG_SRC = /*IMAGES*/;
+const FONTS = /*FONTS*/;
+const LOGO_SRC = /*LOGO*/;
+const WIDE = D.size === 'wide';
+const W = WIDE ? 1920 : 1080, H = WIDE ? 1080 : 1920;
+const U = WIDE ? 1080 / 1920 : 1;              // the reel's px in a wide frame (type scale)
+const MAIN = document.getElementById('c'); MAIN.width = W; MAIN.height = H;
+const MX = MAIN.getContext('2d');
+let X = MX;
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const OFF = [mk(W, H), mk(W, H)].map(c => c.getContext('2d'));
+const GLOWC = mk(W / 4 | 0, H / 4 | 0), GX = GLOWC.getContext('2d');
+const INK = '#05060A', INK2 = '#0B0D15', TEXT = '#F2F4F8', MUTED = '#8B91A5', LINE = 'rgba(255,255,255,0.13)';
+const SPEC = ['#7B61FF', '#3D8BFF', '#22D3EE', '#3CFFB5', '#FFD166', '#FF5FA2'];
+const PILLARS = {repo: '#3CFFB5', model: '#9B87FF', news: '#FF4D5E', tool: '#22D3EE', trick: '#FFD166',
+                 behind: '#FF5FA2', explain: '#3D8BFF'};
+const PILLAR_FA = {repo: 'ریپوی روز', model: 'معرفی مدل', news: 'خبر داغ', tool: 'ابزار روز', trick: 'ترفند روز',
+                   behind: 'پشت صحنه', explain: 'ساده بگم'};
+const TR_FAMILY = ['scan', 'zoom', 'slide', 'iris', 'dissolve'];
+const CFG = {pillar: 'model', look: {tr: 0, bg: 0, mood: 0}, kicker: '', caps: {}, noCaps: [], capY: WIDE ? H - 150 : 1440,
+             gap: null, cta: null, end: null, edge: null, tail: 2.6, progress: true, handle: 'behnamjalali.tech',
+             telegram: 't.me/behnamjalali_tech'};
+let ACC = PILLARS.model;
+const SH = [], BEATS = [];
+const IM = {};
+let LOGO = null, END = 0, NOW = 0;
+
+/* ---------------------------------------------------------------- the scenes' API -- */
+function CONFIG(o) { Object.assign(CFG, o); if (o.look) CFG.look = Object.assign({tr: 0, bg: 0, mood: 0}, o.look); ACC = PILLARS[CFG.pillar] || PILLARS.model; }
+function SHOT(at, fn, o = {}) { SH.push({at, fn, tr: o.tr, d: o.d, caps: o.caps !== false, bg: o.bg, name: o.name || ''}); SH.sort((a, b) => a.at - b.at); }
+function BEAT(t, what = '') { BEATS.push({t, what}); }
+function LN(i) { return D.lines[i]; }
+function WD(i, j) { const w = D.lines[i].words; return w[j < 0 ? w.length + j : j]; }
+function WF(i, frag) { const w = D.lines[i].words.find(x => x.w.includes(frag)); if (!w) throw new Error(`WF(${i}, ${frag}): no such word`); return w; }
+
+const cl = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const mix = (a, b, p) => a + (b - a) * p;
+const pr = (t, a, b) => cl((t - a) / Math.max(1e-6, b - a));
+const E = {
+  o3: p => 1 - Math.pow(1 - p, 3), o5: p => 1 - Math.pow(1 - p, 5), in2: p => p * p,
+  io: p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2,
+  back: p => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); },
+  expo: p => p >= 1 ? 1 : 1 - Math.pow(2, -10 * p),
+  spring: p => p >= 1 ? 1 : 1 - Math.exp(-6 * p) * Math.cos(p * 10.5),
+};
+const ease = (s, at, d, e = E.o3) => e(pr(s, at, at + d));
+const win = (t, a, b, fi = .25, fo = .25) => Math.min(pr(t, a, a + fi), 1 - pr(t, b - fo, b));
+const osc = (t, f, a) => Math.sin(t * f * Math.PI * 2) * a;
+function rng(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
+const FA_D = '۰۱۲۳۴۵۶۷۸۹';
+function fa(n, dec = 0, group = true) {
+  if (typeof n === 'string') return n.replace(/[0-9]/g, d => FA_D[+d]);
+  let s = Number(n).toFixed(dec);
+  let [a, b] = s.split('.');
+  if (group) a = a.replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
+  s = b ? a + '٫' + b : a;
+  return s.replace(/[0-9]/g, d => FA_D[+d]);
+}
+const count = (s, at, d, from, to) => mix(from, to, E.o5(pr(s, at, at + d)));
+const LATIN = /[A-Za-z0-9$%@./:_\-+#×]/;
+const isLatin = w => /^[\x20-\x7E×→←–—≈± ]+$/.test(w) && /[A-Za-z0-9$%]/.test(w);
+
+/* ------------------------------------------------------------------- type -- */
+const FAM = {fa: 'EST', en: 'GEI', mono: 'GMO'};
+function font(px, w = 700, f = 'fa') { return `${w} ${Math.round(px)}px ${FAM[f] || f}`; }
+function specFill(x0, y0, x1, y1, t = NOW, alpha = 1) {
+  const g = X.createLinearGradient(x0, y0, x1, y1);
+  const sh = (t * .12) % 1;
+  for (let k = 0; k <= 6; k++) {
+    const p = (k / 6 + sh) % 1;
+    g.addColorStop(p, SPEC[k % SPEC.length]);
+  }
+  g.addColorStop(0, SPEC[Math.floor(sh * 6) % 6]); g.addColorStop(1, SPEC[(Math.floor(sh * 6) + 5) % 6]);
+  return g;
+}
+function T(str, x, y, px, o = {}) {
+  const f = o.f || (isLatin(String(str)) ? 'en' : 'fa');
+  X.save();
+  X.globalAlpha *= (o.alpha === undefined ? 1 : o.alpha);
+  X.font = font(px, o.w || (f === 'fa' ? 800 : 700), f);
+  X.direction = f === 'fa' ? 'rtl' : 'ltr';
+  X.textAlign = o.al || 'center';
+  X.textBaseline = 'alphabetic';
+  if (o.track) X.letterSpacing = `${o.track}px`;
+  let s = String(str);
+  if (o.maxW) { const m = X.measureText(s).width; if (m > o.maxW) X.font = font(px * o.maxW / m, o.w || (f === 'fa' ? 800 : 700), f); }
+  const m = X.measureText(s);
+  const w = m.width;
+  const x0 = X.textAlign === 'center' ? x - w / 2 : (X.textAlign === 'right' ? x - w : x);
+  if (o.glow) { X.shadowColor = o.glowCol || o.col || ACC; X.shadowBlur = o.glow; }
+  if (o.shadow) { X.shadowColor = 'rgba(0,0,0,.55)'; X.shadowBlur = o.shadow; X.shadowOffsetY = o.shadow / 4; }
+  if (!o.glow && !o.shadow) { X.shadowColor = 'transparent'; X.shadowBlur = 0; X.shadowOffsetY = 0; }
+  X.fillStyle = o.spec ? specFill(x0, y - px, x0 + w, y, NOW) : (o.col || TEXT);
+  X.fillText(s, x, y);
+  X.restore();
+  return w;
+}
+function measure(str, px, w = 800, f = 'fa') { X.save(); X.font = font(px, w, f); X.direction = f === 'fa' ? 'rtl' : 'ltr'; const m = X.measureText(str).width; X.restore(); return m; }
+// RTL tokens: a run of Latin words stays one token (its own order), so «GPT-6 Astra» never flips
+function tokens(str) {
+  const raw = String(str).split(/\s+/).filter(Boolean), out = [];
+  for (const w of raw) {
+    const lat = isLatin(w);
+    if (lat && out.length && out[out.length - 1].lat) out[out.length - 1].w += ' ' + w;
+    else out.push({w, lat});
+  }
+  return out;
+}
+function layoutRTL(toks, px, maxW, wFa = 800, wEn = 700) {
+  const gap = px * .3, rows = [[]];
+  let used = 0;
+  for (const tk of toks) {
+    tk.mw = measure(tk.w, px, tk.lat ? wEn : wFa, tk.lat ? 'en' : 'fa');
+    if (used && used + gap + tk.mw > maxW) { rows.push([]); used = 0; }
+    rows[rows.length - 1].push(tk); used += (used ? gap : 0) + tk.mw;
+    tk.row = rows.length - 1;
+  }
+  for (const r of rows) {
+    const tw = r.reduce((a, k) => a + k.mw, 0) + gap * (r.length - 1);
+    let xr = tw / 2;  // relative to the centre, right to left
+    for (const k of r) { k.xr = xr; k.xc = xr - k.mw / 2; xr -= k.mw + gap; }
+    r.w = tw;
+  }
+  return rows;
+}
+function HEAD(s, at, str, x, y, px, o = {}) {
+  const toks = tokens(str), keys = o.keys || [], stagger = o.stagger === undefined ? .07 : o.stagger;
+  const rows = layoutRTL(toks, px, o.maxW || (W - 160), o.w || 900, 800), lh = px * (o.lineH || 1.18);
+  const al = o.al || 'center';
+  toks.forEach((k, i) => {
+    const p = E.o5(pr(s, at + i * stagger, at + i * stagger + .55));
+    if (p <= 0) return;
+    const rw = rows[k.row].w;
+    const cx = al === 'right' ? x - rw / 2 : al === 'left' ? x + rw / 2 : x;
+    const yy = y + k.row * lh;
+    X.save();
+    X.beginPath(); X.rect(0, yy - px * 1.05, W, px * 1.42); X.clip();
+    const dy = (1 - p) * px * .9;
+    const isKey = keys.some(q => k.w.includes(q));
+    T(k.w, cx + k.xc, yy + dy, px, {f: k.lat ? 'en' : 'fa', w: k.lat ? 800 : (o.w || 900), spec: isKey, col: o.col || TEXT,
+                                     alpha: Math.min(1, p * 1.4), al: 'center'});
+    X.restore();
+  });
+  return rows.length * lh;
+}
+function BIG(s, at, str, x, y, px, o = {}) {
+  const p = E.o5(pr(s, at, at + .6));
+  if (p <= 0) return;
+  if (o.bloom !== false) {  // a soft light behind the hero
+    const g = X.createRadialGradient(x, y - px * .35, 0, x, y - px * .35, px * 2.2);
+    g.addColorStop(0, ACC + '30'); g.addColorStop(1, ACC + '00');
+    X.save(); X.globalAlpha *= p; X.fillStyle = g; X.fillRect(x - px * 2.2, y - px * 2.6, px * 4.4, px * 4.4); X.restore();
+  }
+  X.save();
+  X.globalAlpha *= p;
+  const z = mix(1.18, 1, p);
+  X.translate(x, y); X.scale(z, z);
+  if (p < 1) X.filter = `blur(${(1 - p) * 14}px)`;
+  T(str, 0, 0, px, {f: o.f || (isLatin(str) ? 'en' : 'fa'), w: o.w || 900, spec: o.spec !== false, track: o.track || 0, col: o.col, al: o.al || 'center'});
+  X.restore();
+}
+
+/* ----------------------------------------------------------------- panels -- */
+function rr(x, y, w, h, r) { X.beginPath(); X.roundRect(x, y, w, h, r); }
+function PANEL(x, y, w, h, o = {}) {
+  const r = o.r === undefined ? 34 * (WIDE ? .8 : 1) : o.r, a = o.alpha === undefined ? 1 : o.alpha;
+  X.save();
+  X.globalAlpha *= a;
+  if (o.lift !== false) { X.shadowColor = 'rgba(0,0,0,.55)'; X.shadowBlur = 60; X.shadowOffsetY = 24; }
+  rr(x, y, w, h, r);
+  const g = X.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, o.fill || 'rgba(22,25,38,0.92)'); g.addColorStop(1, o.fill2 || 'rgba(11,13,21,0.94)');
+  X.fillStyle = g; X.fill();
+  X.shadowColor = 'transparent'; X.shadowBlur = 0; X.shadowOffsetY = 0;
+  // the hairline and the top light
+  X.lineWidth = 1.6; X.strokeStyle = o.accent ? o.accent + '66' : LINE; X.stroke();
+  const hl = X.createLinearGradient(x, y, x + w, y);
+  hl.addColorStop(0, 'rgba(255,255,255,0)'); hl.addColorStop(.5, 'rgba(255,255,255,.28)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  X.beginPath(); X.moveTo(x + r, y + .8); X.lineTo(x + w - r, y + .8); X.strokeStyle = hl; X.lineWidth = 1.4; X.stroke();
+  let top = y;
+  if (o.title !== undefined) {
+    const hh = 64 * (WIDE ? .85 : 1);
+    X.beginPath(); X.moveTo(x, y + hh); X.lineTo(x + w, y + hh); X.strokeStyle = 'rgba(255,255,255,.07)'; X.lineWidth = 1.2; X.stroke();
+    const dot = o.dot || ACC;
+    X.beginPath(); X.arc(x + 34, y + hh / 2, 7, 0, 7); X.fillStyle = dot; X.shadowColor = dot; X.shadowBlur = 14; X.fill();
+    X.shadowBlur = 0; X.shadowColor = 'transparent';
+    T(o.title, x + 56, y + hh / 2 + 9, 25 * (WIDE ? .85 : 1), {f: 'mono', w: 500, col: MUTED, al: 'left'});
+    if (o.right) T(o.right, x + w - 30, y + hh / 2 + 9, 24 * (WIDE ? .85 : 1), {f: isLatin(o.right) ? 'mono' : 'fa', w: 600, col: MUTED, al: 'right'});
+    top = y + hh;
+  }
+  X.restore();
+  return {x: x + 30, y: top + 24, w: w - 60, h: h - (top - y) - 48, x0: x, y0: y, w0: w, h0: h};
+}
+const TOKC = {kw: '#C792EA', str: '#3CFFB5', num: '#FFD166', fn: '#7AB8FF', com: '#5B6078', op: '#89DDFF', txt: '#E6E9F2'};
+function codeLine(str, x, y, px, upto = Infinity) {
+  // a tiny highlighter: keywords, strings, numbers, calls, comments
+  const re = /(\/\/.*$|#.*$)|("[^"]*"|'[^']*'|`[^`]*`)|\b(const|let|var|function|return|import|from|def|class|await|async|for|in|if|else|new|true|false|null|pip|npm|npx|git|clone|install|run|uv|curl)\b|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][\w]*)(?=\()|([{}()\[\];,.=+\-*\/<>:|&!]+)/g;
+  let last = 0, xx = x, shown = 0, m;
+  X.font = font(px, 500, 'mono'); X.direction = 'ltr'; X.textAlign = 'left';
+  const put = (txt, col) => {
+    if (shown >= upto) return;
+    const part = txt.slice(0, Math.max(0, upto - shown)); shown += txt.length;
+    X.fillStyle = col; X.fillText(part, xx, y); xx += X.measureText(part).width;
+  };
+  while ((m = re.exec(str))) {
+    if (m.index > last) put(str.slice(last, m.index), TOKC.txt);
+    const col = m[1] ? TOKC.com : m[2] ? TOKC.str : m[3] ? TOKC.kw : m[4] ? TOKC.num : m[5] ? TOKC.fn : TOKC.op;
+    put(m[0], col); last = m.index + m[0].length;
+  }
+  if (last < str.length) put(str.slice(last), TOKC.txt);
+  return xx;
+}
+function caret(x, y, px, s, on = true) {
+  if (!on) return;
+  const a = .55 + .45 * Math.cos(s * Math.PI * 2 * 1.6);
+  X.save(); X.globalAlpha *= a; X.fillStyle = ACC; X.shadowColor = ACC; X.shadowBlur = 12;
+  X.fillRect(x + 4, y - px * .82, px * .5, px * .98); X.restore();
+}
+function TERM(box, lines, s, at, o = {}) {
+  const cps = o.cps || 38, px = o.px || 30 * (WIDE ? .85 : 1), lh = px * 1.55;
+  let tt = at, y = box.y + px;
+  X.save(); X.beginPath(); X.rect(box.x - 10, box.y - 6, box.w + 20, box.h + 12); X.clip();
+  lines.forEach((ln, i) => {
+    const cmd = typeof ln === 'string' ? {c: ln} : ln;
+    const isOut = !!cmd.out;
+    const n = (cmd.c || cmd.out || '').length;
+    const dur = isOut ? .12 : n / cps;
+    const vis = isOut ? (s >= tt ? n : 0) : Math.floor(cl((s - tt) / Math.max(.01, dur)) * n);
+    if (s >= tt - .02) {
+      let x = box.x;
+      if (!isOut) { X.font = font(px, 600, 'mono'); X.direction = 'ltr'; X.textAlign = 'left'; X.fillStyle = ACC; X.fillText(o.prompt || '$', x, y); x += px * 1.1; }
+      const end = isOut ? (X.font = font(px, 400, 'mono'), X.fillStyle = cmd.col || MUTED, X.direction = 'ltr', X.textAlign = 'left', X.fillText(cmd.out, x, y), x + X.measureText(cmd.out).width)
+                        : codeLine(cmd.c, x, y, px, vis);
+      const typing = !isOut && vis < n;
+      const lastLine = i === lines.length - 1 || s < tt + dur + (cmd.wait || .25);
+      if (!isOut && (typing || (lastLine && i === lines.length - 1))) caret(end, y, px, s);
+      y += lh;
+    }
+    tt += dur + (cmd.wait === undefined ? (isOut ? .08 : .3) : cmd.wait);
+  });
+  X.restore();
+  return tt;
+}
+function CODE(box, src, s, at, o = {}) {
+  const px = o.px || 28 * (WIDE ? .85 : 1), lh = px * 1.6, cps = o.cps || 60;
+  const lines = src.split('\n');
+  let total = 0;
+  const starts = lines.map(l => { const a = total; total += l.length + 1; return a; });
+  const typed = o.static ? Infinity : Math.floor(Math.max(0, s - at) * cps) + (o.from || 0);
+  const scroll = o.scroll ? Math.max(0, (lines.length * lh) - box.h) * cl((s - at) / o.scroll) : 0;
+  X.save(); X.beginPath(); X.rect(box.x - 8, box.y - 4, box.w + 16, box.h + 8); X.clip();
+  lines.forEach((l, i) => {
+    const y = box.y + px + i * lh - scroll;
+    if (y < box.y - lh || y > box.y + box.h + lh) return;
+    const vis = typed - starts[i];
+    X.font = font(px * .8, 400, 'mono'); X.direction = 'ltr'; X.textAlign = 'right'; X.fillStyle = '#3A3F52';
+    X.fillText(String(i + 1), box.x + px * 1.4, y);
+    if (vis <= 0) return;
+    const end = codeLine(l, box.x + px * 2.1, y, px, vis);
+    if (vis < l.length + 1 && vis > 0) caret(end, y, px, s);
+  });
+  X.restore();
+}
+function BARS(box, rows, s, at, o = {}) {
+  const max = o.max || Math.max(...rows.map(r => r.v)) * 1.08;
+  const n = rows.length, rowH = Math.min(box.h / n, 150 * (WIDE ? .8 : 1));
+  const px = 32 * (WIDE ? .85 : 1);
+  rows.forEach((r, i) => {
+    const t0 = at + i * .12, p = E.o5(pr(s, t0, t0 + .9));
+    const y = box.y + i * rowH;
+    const isHi = o.hi === i || r.hi;
+    X.save(); X.globalAlpha *= Math.min(1, pr(s, t0 - .05, t0 + .25));
+    T(r.name, box.x, y + px, px * .92, {f: 'en', w: isHi ? 700 : 500, col: isHi ? TEXT : '#B7BDCD', al: 'left'});
+    const bw = box.w * (r.v / max) * p, by = y + px * 1.45, bh = rowH * .32;
+    rr(box.x, by, box.w, bh, bh / 2); X.fillStyle = 'rgba(255,255,255,.05)'; X.fill();
+    if (bw > 2) {
+      rr(box.x, by, bw, bh, bh / 2);
+      if (isHi) { X.fillStyle = specFill(box.x, by, box.x + box.w, by, NOW); X.shadowColor = ACC; X.shadowBlur = 24; }
+      else X.fillStyle = r.col || 'rgba(160,168,190,.55)';
+      X.fill(); X.shadowBlur = 0;
+    }
+    const val = (o.dec === undefined ? 1 : o.dec);
+    T(fa(r.v * p, val) + (o.unit || '٪'), box.x + box.w, y + px, px, {f: 'fa', w: 800, col: isHi ? TEXT : '#B7BDCD', al: 'right'});
+    if (r.note) T(r.note, box.x + box.w - measure(fa(r.v, val) + (o.unit || '٪'), px, 800) - 22, y + px, px * .62, {f: 'fa', w: 500, col: MUTED, al: 'right'});
+    X.restore();
+  });
+}
+function STAT(x, y, label, value, s, at, o = {}) {
+  const p = E.o5(pr(s, at, at + .7));
+  if (p <= 0) return;
+  const px = o.px || 150 * (WIDE ? .8 : 1);
+  X.save(); X.globalAlpha *= Math.min(1, p * 1.5);
+  BIG(s, at, value, x, y, px, {f: o.f || (isLatin(value) ? 'en' : 'fa'), spec: o.spec !== false, w: 900});
+  if (label) T(label, x, y + px * .5, px * .26, {f: 'fa', w: 600, col: MUTED, al: o.al || 'center'});
+  X.restore();
+}
+function CHIP(str, x, y, o = {}) {
+  const px = o.px || 30 * (WIDE ? .85 : 1), f = o.f || (isLatin(str) ? 'en' : 'fa');
+  const w = measure(str, px, 700, f) + px * 1.4, h = px * 1.75;
+  const al = o.al || 'center';
+  const x0 = al === 'center' ? x - w / 2 : al === 'right' ? x - w : x;
+  X.save(); X.globalAlpha *= (o.alpha === undefined ? 1 : o.alpha);
+  rr(x0, y - h / 2, w, h, h / 2);
+  X.fillStyle = o.fill || 'rgba(255,255,255,.06)'; X.fill();
+  X.lineWidth = 1.6; X.strokeStyle = (o.col || ACC) + 'AA'; X.stroke();
+  T(str, x0 + w / 2, y + px * .36, px, {f, w: 700, col: o.tc || o.col || TEXT, al: 'center'});
+  X.restore();
+  return w;
+}
+function CHECK(x, y, s, at, ok = true, size = 44) {
+  const p = E.o3(pr(s, at, at + .35));
+  if (p <= 0) return;
+  X.save(); X.lineCap = 'round'; X.lineJoin = 'round'; X.lineWidth = size * .14;
+  const col = ok ? '#3CFFB5' : '#FF6B7A';
+  X.beginPath(); X.arc(x, y, size * .62, 0, 7); X.fillStyle = col + '22'; X.fill(); X.strokeStyle = col + '88'; X.lineWidth = 2; X.stroke();
+  X.lineWidth = size * .13; X.strokeStyle = col; X.beginPath();
+  if (ok) { const a = [x - size * .26, y], b = [x - size * .06, y + size * .2], c = [x + size * .28, y - size * .22];
+    const q = p * 2; X.moveTo(...a); if (q < 1) X.lineTo(mix(a[0], b[0], q), mix(a[1], b[1], q)); else { X.lineTo(...b); X.lineTo(mix(b[0], c[0], q - 1), mix(b[1], c[1], q - 1)); } }
+  else { const k = size * .22; X.moveTo(x - k, y - k); X.lineTo(x - k + 2 * k * p, y - k + 2 * k * p); }
+  X.stroke(); X.restore();
+}
+function IMG(name, x, y, w, h, o = {}) {
+  const im = IM[name];
+  if (!im) { PANEL(x, y, w, h, {title: name}); return; }
+  const r = o.r === undefined ? 30 : o.r, a = o.alpha === undefined ? 1 : o.alpha;
+  X.save(); X.globalAlpha *= a;
+  X.shadowColor = 'rgba(0,0,0,.6)'; X.shadowBlur = 50; X.shadowOffsetY = 20;
+  rr(x, y, w, h, r); X.fillStyle = INK2; X.fill(); X.shadowBlur = 0; X.shadowOffsetY = 0;
+  X.save(); rr(x, y, w, h, r); X.clip();
+  const z = o.zoom || 1;
+  const k = (o.fit === 'contain' ? Math.min : Math.max)(w / im.width, h / im.height) * z;
+  const iw = im.width * k, ih = im.height * k;
+  X.drawImage(im, x + (w - iw) / 2 + (o.dx || 0), y + (h - ih) / 2 + (o.dy || 0), iw, ih);
+  X.restore();
+  rr(x, y, w, h, r); X.lineWidth = o.ring ? 3 : 1.6;
+  X.strokeStyle = o.ring ? specFill(x, y, x + w, y + h, NOW) : LINE; X.stroke();
+  X.restore();
+}
+function ORB(x, y, r, s, o = {}) {
+  const col = o.col || ACC, pulse = 1 + osc(s + (o.ph || 0), .8, .06);
+  X.save();
+  const g = X.createRadialGradient(x, y, 0, x, y, r * 3 * pulse);
+  g.addColorStop(0, col + 'AA'); g.addColorStop(.35, col + '33'); g.addColorStop(1, col + '00');
+  X.fillStyle = g; X.beginPath(); X.arc(x, y, r * 3 * pulse, 0, 7); X.fill();
+  X.beginPath(); X.arc(x, y, r, 0, 7); X.fillStyle = INK2; X.fill(); X.lineWidth = 3; X.strokeStyle = col; X.stroke();
+  if (o.label) T(o.label, x, y + r + 46, 28 * (WIDE ? .85 : 1), {f: isLatin(o.label) ? 'en' : 'fa', w: 700, col: TEXT});
+  if (o.icon) T(o.icon, x, y + r * .36, r * .9, {f: isLatin(o.icon) ? 'en' : 'fa', w: 800, col});
+  X.restore();
+}
+function LINK(x1, y1, x2, y2, s, at, o = {}) {
+  const p = E.o3(pr(s, at, at + .5));
+  if (p <= 0) return;
+  const col = o.col || ACC;
+  X.save(); X.lineWidth = o.lw || 3; X.strokeStyle = col + '55';
+  X.beginPath(); X.moveTo(x1, y1); X.lineTo(mix(x1, x2, p), mix(y1, y2, p)); X.stroke();
+  if (p >= 1) for (let k = 0; k < 3; k++) {
+    const q = ((s - at) * .7 + k / 3) % 1;
+    const px = mix(x1, x2, q), py = mix(y1, y2, q);
+    const g = X.createRadialGradient(px, py, 0, px, py, 18);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(.3, col); g.addColorStop(1, col + '00');
+    X.fillStyle = g; X.beginPath(); X.arc(px, py, 18, 0, 7); X.fill();
+  }
+  X.restore();
+}
+function NET(nodes, links, s, at) {
+  links.forEach(([a, b], i) => LINK(nodes[a].x, nodes[a].y, nodes[b].x, nodes[b].y, s, at + .2 + i * .08, {col: nodes[b].col || ACC}));
+  nodes.forEach((n, i) => { const p = E.back(pr(s, at + i * .1, at + i * .1 + .5)); if (p > 0) { X.save(); X.globalAlpha *= cl(p); X.translate(n.x, n.y); X.scale(p, p); ORB(0, 0, n.r || 40, s, {col: n.col, label: n.label, icon: n.icon, ph: i}); X.restore(); } });
+}
+function STREAM(box, s, o = {}) {
+  const r = rng(o.seed || 7), cols = Math.floor(box.w / 34), px = 26;
+  X.save(); X.beginPath(); X.rect(box.x, box.y, box.w, box.h); X.clip();
+  X.font = font(px, 500, 'mono'); X.direction = 'ltr'; X.textAlign = 'center';
+  const glyphs = 'abcdefghijklmnopqrstuvwxyz0123456789{}<>=+*/#$%';
+  for (let c = 0; c < cols; c++) {
+    const sp = 120 + r() * 260, off = r() * box.h, len = 6 + Math.floor(r() * 10);
+    const yHead = (off + s * sp) % (box.h + len * px) - len * px;
+    for (let k = 0; k < len; k++) {
+      const y = box.y + yHead + k * px;
+      if (y < box.y - px || y > box.y + box.h + px) continue;
+      const head = k === len - 1;
+      X.fillStyle = head ? '#FFFFFF' : (o.col || ACC);
+      X.globalAlpha = head ? .9 : .08 + .4 * (k / len);
+      X.fillText(glyphs[Math.floor((r() * 97 + s * 11 + k) % glyphs.length)], box.x + c * 34 + 17, y);
+    }
+  }
+  X.restore();
+}
+function DIVIDER(x, y, w, s, at) { const p = E.o5(pr(s, at, at + .7)); if (p <= 0) return; X.save(); X.fillStyle = specFill(x, y, x + w, y, NOW); X.globalAlpha *= .9; X.fillRect(x + w * (1 - p) / 2, y, w * p, 3); X.restore(); }
+function ARROW(x1, y1, x2, y2, s, at, col = ACC) {
+  const p = E.o3(pr(s, at, at + .45)); if (p <= 0) return;
+  const xe = mix(x1, x2, p), ye = mix(y1, y2, p), an = Math.atan2(y2 - y1, x2 - x1);
+  X.save(); X.strokeStyle = col; X.lineWidth = 5; X.lineCap = 'round';
+  X.beginPath(); X.moveTo(x1, y1); X.lineTo(xe, ye); X.stroke();
+  X.beginPath(); X.moveTo(xe, ye); X.lineTo(xe - 22 * Math.cos(an - .5), ye - 22 * Math.sin(an - .5));
+  X.moveTo(xe, ye); X.lineTo(xe - 22 * Math.cos(an + .5), ye - 22 * Math.sin(an + .5)); X.stroke(); X.restore();
+}
+
+/* -------------------------------------------------------------- the camera -- */
+let CAMZ = {z: 1, x: 0, y: 0, r: 0};
+function CAM(s, o = {}) {
+  const dr = o.drift === undefined ? 1 : o.drift;
+  let z = (o.z || 1) + .018 * dr * E.io(cl(s / 6)), x = (o.x || 0) + osc(s, .07, 6 * dr), y = (o.y || 0) + osc(s + 1.7, .055, 5 * dr);
+  for (const pt of (o.punch || [])) { const q = s - pt; if (q > -.05 && q < .9) z += .045 * (q < .08 ? cl(q / .08) : Math.exp(-(q - .08) * 5.5)); }
+  CAMZ = {z, x, y, r: o.r || 0};
+  X.translate(W / 2 + x, H / 2 + y); X.rotate(CAMZ.r); X.scale(z, z); X.translate(-W / 2, -H / 2);
+}
+
+/* ------------------------------------------------------------------- light -- */
+function bgDraw(t, kind) {
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  X.fillStyle = INK; X.fillRect(0, 0, W, H);
+  const k = kind === undefined ? ['grid', 'aurora', 'dots', 'grid'][CFG.look.bg % 4] : kind;
+  if (k !== 'void') {
+    // the aurora: three slow light pools in the pillar's and the spectrum's colours
+    const pools = [[.2, .18, ACC, .22], [.85, .55, SPEC[(CFG.look.bg + 1) % 6], .14], [.4, .92, SPEC[(CFG.look.bg + 3) % 6], .12]];
+    for (const [px, py, col, a] of pools) {
+      const cx = W * px + osc(t + px * 9, .03, W * .06), cy = H * py + osc(t + py * 7, .025, H * .04);
+      const r = Math.max(W, H) * .55;
+      const g = X.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, col + Math.round(a * (kind === 'aurora' ? 1.6 : 1) * 255).toString(16).padStart(2, '0')); g.addColorStop(1, col + '00');
+      X.fillStyle = g; X.fillRect(0, 0, W, H);
+    }
+  }
+  if (k === 'grid') {
+    // a perspective floor of hairlines, moving slowly towards us
+    const hy = H * .6, vx = W / 2;
+    const ray = X.createLinearGradient(0, hy, 0, H); ray.addColorStop(0, 'rgba(255,255,255,0)'); ray.addColorStop(1, 'rgba(255,255,255,.07)');
+    X.strokeStyle = ray; X.lineWidth = 1.2;
+    for (let i = -14; i <= 14; i++) { X.beginPath(); X.moveTo(vx + i * 30, hy); X.lineTo(vx + i * W * .22, H); X.stroke(); }
+    for (let j = 0; j < 16; j++) { const q = ((j + (t * .35) % 1) / 16); const y = hy + Math.pow(q, 2.2) * (H - hy); X.strokeStyle = `rgba(255,255,255,${(.065 * q * q).toFixed(4)})`; X.beginPath(); X.moveTo(0, y); X.lineTo(W, y); X.stroke(); }
+  } else if (k === 'dots') {
+    X.fillStyle = 'rgba(255,255,255,.07)';
+    const st = 54, off = (t * 8) % st;
+    for (let y = -st; y < H + st; y += st) for (let x = 0; x < W + st; x += st) X.fillRect(x - off * .3, y + off, 2.2, 2.2);
+  }
+  X.restore();
+}
+const GRAIN = [];
+function grainInit() {
+  for (let k = 0; k < 4; k++) {
+    const c = mk(W / 2 | 0, H / 2 | 0), g = c.getContext('2d'), id = g.createImageData(c.width, c.height), r = rng(91 + k);
+    for (let i = 0; i < id.data.length; i += 4) { const v = r() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+    g.putImageData(id, 0, 0); GRAIN.push(c);
+  }
+}
+function grade(t) {
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  const v = X.createRadialGradient(W / 2, H * .45, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .78);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)');
+  X.fillStyle = v; X.fillRect(0, 0, W, H);
+  X.globalAlpha = .045; X.globalCompositeOperation = 'overlay';
+  X.drawImage(GRAIN[Math.floor(t * 30) % 4], 0, 0, W, H);
+  X.restore();
+}
+function EDGE(a, t = NOW) {
+  if (a <= .01) return;
+  // the spectral edge: a rotating conic light along the frame, a sharp line and a soft halo
+  GX.setTransform(1, 0, 0, 1, 0, 0); GX.clearRect(0, 0, GLOWC.width, GLOWC.height);
+  const cw = GLOWC.width, ch = GLOWC.height;
+  const cg = GX.createConicGradient(t * 1.4, cw / 2, ch / 2);
+  SPEC.forEach((c, i) => cg.addColorStop(i / SPEC.length, c)); cg.addColorStop(1, SPEC[0]);
+  GX.lineWidth = 10; GX.strokeStyle = cg; GX.filter = 'blur(9px)';
+  GX.beginPath(); GX.roundRect(4, 4, cw - 8, ch - 8, 22); GX.stroke(); GX.filter = 'none';
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  X.globalAlpha = a; X.globalCompositeOperation = 'screen';
+  X.drawImage(GLOWC, 0, 0, W, H);
+  const g = X.createConicGradient(t * 1.4, W / 2, H / 2);
+  SPEC.forEach((c, i) => g.addColorStop(i / SPEC.length, c)); g.addColorStop(1, SPEC[0]);
+  X.lineWidth = 5; X.strokeStyle = g; X.beginPath(); X.roundRect(3, 3, W - 6, H - 6, 46); X.stroke();
+  X.restore();
+}
+function SWEEP(s, at, dur = .8) {
+  const p = pr(s, at, at + dur); if (p <= 0 || p >= 1) return;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalCompositeOperation = 'screen';
+  const x = mix(-W * .4, W * 1.4, E.io(p));
+  const g = X.createLinearGradient(x - 220, 0, x + 220, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.5, 'rgba(255,255,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  X.fillStyle = g; X.transform(1, 0, -.35, 1, 0, 0); X.fillRect(x - 400, 0, 800 + H * .35, H); X.restore();
+}
+function FLASH(s, at, a = .55) { const p = pr(s, at, at + .35); if (p <= 0 || p >= 1) return; X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a * (1 - p) * (p < .1 ? p * 10 : 1); X.fillStyle = '#fff'; X.globalCompositeOperation = 'screen'; X.fillRect(0, 0, W, H); X.restore(); }
+
+/* ----------------------------------------------------------- the overlays -- */
+function capsOf(i) {
+  const l = D.lines[i], c = CFG.caps[i];
+  const toks = tokens(c ? c.text : l.text || l.words.map(w => w.w).join(' '));
+  const n = l.words.length, m = toks.length;
+  toks.forEach((tk, k) => { const w = l.words[Math.min(n - 1, Math.floor(k * n / m))]; tk.s = w.s; tk.key = !!(c && (c.keys || []).some(q => tk.w.includes(q))); });
+  return toks;
+}
+const CAPC = {};
+function captions(t) {
+  const sh = shotAt(t); if (sh && !sh.caps) return;
+  let i = -1;
+  for (let k = 0; k < D.lines.length; k++) if (t >= D.lines[k].s - .05) i = k;
+  if (i < 0 || CFG.noCaps.includes(i)) return;
+  const l = D.lines[i], next = D.lines[i + 1];
+  const out = next ? next.s - .05 : l.e + 1.2;
+  if (t > out) return;
+  if (CFG.end && t >= CFG.end.at) return;
+  const px = WIDE ? 50 : 62, maxW = WIDE ? 1500 : 860, cx = WIDE ? W / 2 : W / 2 - 24;  // (the reel: clear of the right rail)
+  if (!CAPC[i]) { const toks = capsOf(i); CAPC[i] = {toks, rows: layoutRTL(toks, px, maxW, 800, 700)}; }
+  const {toks, rows} = CAPC[i];
+  const lh = px * 1.32;
+  // the page (two rows) that holds the newest spoken word; an earlier page leaves as the next one starts
+  let newestRow = 0;
+  toks.forEach(k => { if (t >= k.s - .04) newestRow = k.row; });
+  const page = Math.floor(newestRow / 2), pageRows = rows.slice(page * 2, page * 2 + 2);
+  const y0 = CFG.capY - (pageRows.length - 1) * lh;
+  const pageIn = toks.find(k => k.row === page * 2);
+  const fadeOut = (1 - pr(t, out - .14, out)) * (page > 0 && pageIn ? pr(t, pageIn.s - .06, pageIn.s + .1) : 1);
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = fadeOut;
+  // a soft ink band under the words keeps them readable over anything
+  const bandH = pageRows.length * lh + 70, g = X.createLinearGradient(0, y0 - px - 40, 0, y0 - px - 40 + bandH);
+  g.addColorStop(0, 'rgba(5,6,10,0)'); g.addColorStop(.3, 'rgba(5,6,10,.55)'); g.addColorStop(.7, 'rgba(5,6,10,.55)'); g.addColorStop(1, 'rgba(5,6,10,0)');
+  X.fillStyle = g; X.fillRect(0, y0 - px - 40, W, bandH);
+  let lastX = null, lastY = 0, newest = -1;
+  toks.forEach((tk, k) => {
+    if (tk.row < page * 2 || tk.row > page * 2 + 1) return;
+    const p = E.o3(pr(t, tk.s - .04, tk.s + .16));
+    if (p <= 0) return;
+    newest = k;
+    const y = y0 + (tk.row - page * 2) * lh;
+    X.save();
+    X.globalAlpha *= p;
+    if (p < 1) X.filter = `blur(${(1 - p) * 6}px)`;
+    const cur = k === toks.length - 1 || t < toks[k + 1].s;
+    T(tk.w, cx + tk.xc, y + (1 - p) * 10, px, {f: tk.lat ? 'en' : 'fa', w: tk.lat ? 700 : 800, spec: tk.key,
+                                                   col: cur ? '#FFFFFF' : 'rgba(242,244,248,.80)', shadow: 18});
+    X.restore();
+    lastX = cx + tk.xr - tk.mw; lastY = y;
+  });
+  // the stream's caret, after the newest word (left of it: Persian runs right to left)
+  if (newest >= 0 && t < l.e + .5) {
+    const a = .6 + .4 * Math.cos(t * Math.PI * 2 * 1.8);
+    X.globalAlpha = fadeOut * a; X.fillStyle = specFill(lastX - 30, lastY - px, lastX, lastY, t);
+    X.fillRect(lastX - px * .62, lastY - px * .78, px * .36, px * .92);
+  }
+  X.restore();
+}
+function brand(t) {
+  const a = pr(t, .9, 1.4) * (1 - pr(t, (CFG.end ? CFG.end.at : END) - .4, CFG.end ? CFG.end.at : END));
+  if (a <= 0) return;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a;
+  const y = WIDE ? 70 : 150, px = WIDE ? 24 : 27;
+  const label = CFG.handle;
+  const w = measure(label, px, 600, 'mono') + 76, x = WIDE ? 70 : (W - w) / 2;
+  rr(x, y - 30, w, 60, 30); X.fillStyle = 'rgba(12,14,22,.66)'; X.fill(); X.lineWidth = 1.4; X.strokeStyle = LINE; X.stroke();
+  const pulse = .6 + .4 * Math.cos(t * 3.2);
+  X.beginPath(); X.arc(x + 30, y, 8, 0, 7); X.fillStyle = specFill(x + 20, y - 8, x + 40, y + 8, t); X.shadowColor = ACC; X.shadowBlur = 14 * pulse; X.fill(); X.shadowBlur = 0;
+  T(label, x + 52, y + 9, px, {f: 'mono', w: 600, col: '#C9CEDA', al: 'left'});
+  const kick = CFG.kicker || PILLAR_FA[CFG.pillar] || '';
+  if (kick) CHIP(kick, WIDE ? x + w + 24 : W / 2, WIDE ? y : y + 64, {px: WIDE ? 22 : 24, col: ACC, al: WIDE ? 'left' : 'center', alpha: .95});
+  X.restore();
+}
+function progressLine(t) {
+  if (!CFG.progress) return;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  const p = cl(t / END), y = WIDE ? 0 : 0;
+  X.fillStyle = 'rgba(255,255,255,.06)'; X.fillRect(0, y, W, 6);
+  X.fillStyle = specFill(0, 0, W, 0, t); X.fillRect(W - W * p, y, W * p, 6);  // right to left, as Persian reads
+  X.restore();
+}
+function gapChip(t) {
+  const g = CFG.gap; if (!g) return;
+  const endAt = CFG.cta ? CFG.cta.at : (CFG.end ? CFG.end.at : END);
+  const a = pr(t, g.at, g.at + .4) * (1 - pr(t, endAt - .3, endAt));
+  if (a <= 0) return;
+  const flipped = t >= g.close, fp = E.back(pr(t, g.close, g.close + .5));
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a;
+  const y = WIDE ? 150 : 312, x = W / 2;
+  X.translate(x, y); X.scale(1, flipped ? Math.max(.05, fp) : 1); X.translate(-x, -y);
+  CHIP(flipped ? g.a : g.q, x, y, {px: WIDE ? 26 : 30, col: flipped ? '#3CFFB5' : ACC, fill: flipped ? 'rgba(60,255,181,.10)' : 'rgba(255,255,255,.06)'});
+  X.restore();
+}
+function ctaCard(t) {
+  const c = CFG.cta; if (!c) return;
+  const endAt = CFG.end ? CFG.end.at : END;
+  const a = E.o5(pr(t, c.at, c.at + .5)) * (1 - pr(t, endAt - .25, endAt));
+  if (a <= 0) return;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a;
+  const w = WIDE ? 760 : 940, h = WIDE ? 230 : 360, x = (W - w) / 2, y = WIDE ? H * .5 - h / 2 : 860 - h / 2;
+  X.translate(0, (1 - a) * 40);
+  PANEL(x, y, w, h, {title: 'comment', dot: ACC, accent: ACC, right: 'DM ↩'});
+  const px = WIDE ? 34 : 50;
+  T(c.line || 'این کلمه رو کامنت کن، برات دایرکت می‌فرستم', W / 2, y + (WIDE ? 120 : 140), px * .7, {f: 'fa', w: 600, col: '#C9CEDA', maxW: w - 80});
+  const word = c.word || 'مدل', ww = measure(word, px * 1.6, 900) + 80;
+  rr(W / 2 - ww / 2, y + (WIDE ? 140 : 180), ww, px * 2.1, px * 1.05); X.fillStyle = 'rgba(255,255,255,.07)'; X.fill();
+  X.lineWidth = 2.5; X.strokeStyle = specFill(W / 2 - ww / 2, 0, W / 2 + ww / 2, 0, t); X.stroke();
+  const typed = Math.floor(cl((t - c.at - .3) / .5) * [...word].length);
+  T([...word].slice(0, typed).join(''), W / 2, y + (WIDE ? 140 : 180) + px * 1.45, px * 1.25, {f: 'fa', w: 900, spec: true});
+  X.restore();
+}
+function endCard(t) {
+  const e = CFG.end; if (!e) return;
+  const a = E.o5(pr(t, e.at, e.at + .6));
+  if (a <= 0) return;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  X.globalAlpha = a * .92; X.fillStyle = INK; X.fillRect(0, 0, W, H);
+  X.globalAlpha = a;
+  const cy = WIDE ? H * .4 : H * .4, r = WIDE ? 120 : 170;
+  const ring = X.createConicGradient(t * 1.2, W / 2, cy); SPEC.forEach((c, i) => ring.addColorStop(i / 6, c)); ring.addColorStop(1, SPEC[0]);
+  X.beginPath(); X.arc(W / 2, cy, r + 14, 0, 7); X.lineWidth = 7; X.strokeStyle = ring; X.shadowColor = ACC; X.shadowBlur = 40; X.stroke(); X.shadowBlur = 0;
+  if (LOGO) { X.save(); X.beginPath(); X.arc(W / 2, cy, r, 0, 7); X.clip(); X.drawImage(LOGO, W / 2 - r, cy - r, 2 * r, 2 * r); X.restore(); }
+  else { X.beginPath(); X.arc(W / 2, cy, r, 0, 7); X.fillStyle = INK2; X.fill(); T('BJ', W / 2, cy + r * .3, r * .8, {f: 'en', w: 900, spec: true}); }
+  T('Behnam Jalali', W / 2, cy + r + (WIDE ? 90 : 120), WIDE ? 58 : 76, {f: 'en', w: 800, col: TEXT});
+  T('@' + CFG.handle, W / 2, cy + r + (WIDE ? 145 : 190), WIDE ? 32 : 40, {f: 'mono', w: 500, col: MUTED});
+  const tg = CFG.telegram;
+  if (tg) {
+    const y = cy + r + (WIDE ? 230 : 300);
+    CHIP('تلگرام: ' + '⁦' + tg + '⁩', W / 2, y, {px: WIDE ? 28 : 34, col: '#3D8BFF', f: 'fa'});
+  }
+  X.restore();
+}
+
+/* ------------------------------------------------------------- transitions -- */
+function shotAt(t) { let s = null; for (const sh of SH) if (t >= sh.at) s = sh; return s; }
+function drawShot(ctx, sh, t) {
+  X = ctx;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  bgDraw(t, sh.bg);
+  X.save();
+  sh.fn(t - sh.at, t);
+  X.restore();
+  X.restore();
+  X = MX;
+}
+function blend(kind, p, A, B) {
+  // A = the outgoing shot, B = the incoming one, p 0..1
+  const q = E.io(p);
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  if (kind === 'zoom') {
+    X.globalAlpha = 1; const za = 1 + q * .35; X.translate(W / 2, H / 2); X.scale(za, za); X.translate(-W / 2, -H / 2);
+    X.filter = `blur(${q * 18}px)`; X.drawImage(A.canvas, 0, 0); X.setTransform(1, 0, 0, 1, 0, 0); X.filter = 'none';
+    const zb = .82 + .18 * E.o3(p); X.globalAlpha = E.o3(p); X.translate(W / 2, H / 2); X.scale(zb, zb); X.translate(-W / 2, -H / 2);
+    X.filter = `blur(${(1 - p) * 14}px)`; X.drawImage(B.canvas, 0, 0); X.filter = 'none';
+  } else if (kind === 'slide') {
+    const dx = W * q; X.filter = `blur(${Math.sin(p * Math.PI) * 10}px)`;
+    X.drawImage(A.canvas, -dx * .35, 0); X.globalAlpha = 1; X.drawImage(B.canvas, W - dx, 0); X.filter = 'none';
+    X.fillStyle = specFill(W - dx - 4, 0, W - dx + 4, H, NOW); X.globalAlpha = Math.sin(p * Math.PI); X.fillRect(W - dx - 3, 0, 6, H);
+  } else if (kind === 'iris') {
+    X.drawImage(A.canvas, 0, 0);
+    const r = Math.hypot(W, H) * .55 * E.io(p);
+    X.save(); X.beginPath(); X.arc(W / 2, H * .45, r, 0, 7); X.clip(); X.drawImage(B.canvas, 0, 0); X.restore();
+    const g = X.createConicGradient(NOW, W / 2, H * .45); SPEC.forEach((c, i) => g.addColorStop(i / 6, c)); g.addColorStop(1, SPEC[0]);
+    X.lineWidth = 10; X.strokeStyle = g; X.globalAlpha = Math.sin(p * Math.PI); X.shadowColor = '#fff'; X.shadowBlur = 30;
+    X.beginPath(); X.arc(W / 2, H * .45, r, 0, 7); X.stroke();
+  } else if (kind === 'dissolve') {
+    X.drawImage(A.canvas, 0, 0); X.globalAlpha = q; X.drawImage(B.canvas, 0, 0);
+  } else if (kind === 'scan') {
+    // a light bar sweeps top to bottom; the next shot is behind it
+    const y = mix(-120, H + 120, q);
+    X.drawImage(A.canvas, 0, 0);
+    X.save(); X.beginPath(); X.rect(0, 0, W, y); X.clip(); X.drawImage(B.canvas, 0, 0); X.restore();
+    const g = X.createLinearGradient(0, y - 90, 0, y + 30); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.85, 'rgba(255,255,255,.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    X.globalCompositeOperation = 'screen'; X.fillStyle = g; X.fillRect(0, y - 90, W, 120);
+    X.fillStyle = specFill(0, y, W, y, NOW); X.globalAlpha = .9; X.fillRect(0, y - 2, W, 4);
+  } else {
+    X.drawImage(B.canvas, 0, 0);
+  }
+  X.restore();
+}
+
+/* --------------------------------------------------------------- the frame -- */
+function edgeAlpha(t) {
+  const spans = CFG.edge || [[0, 1.2], [CFG.end ? CFG.end.at : END - 2.6, END]];
+  let a = 0;
+  for (const [a0, a1] of spans) a = Math.max(a, win(t, a0, a1, .15, .45));
+  return a;
+}
+function frame(t) {
+  NOW = t;
+  X = MX; X.setTransform(1, 0, 0, 1, 0, 0);
+  const i = SH.findIndex((s, k) => t >= s.at && (k === SH.length - 1 || t < SH[k + 1].at));
+  if (i < 0) { bgDraw(t); }
+  else {
+    const sh = SH[i], d = sh.d || .42, kind = sh.tr || TR_FAMILY[CFG.look.tr % TR_FAMILY.length];
+    const into = t - sh.at;
+    if (i > 0 && kind !== 'cut' && into < d) {
+      drawShot(OFF[0], SH[i - 1], t);
+      drawShot(OFF[1], sh, t);
+      X = MX; X.setTransform(1, 0, 0, 1, 0, 0); X.clearRect(0, 0, W, H);
+      blend(kind, into / d, OFF[0], OFF[1]);
+    } else {
+      drawShot(MX, sh, t);
+    }
+  }
+  X = MX; X.setTransform(1, 0, 0, 1, 0, 0);
+  grade(t);
+  brand(t); gapChip(t); captions(t); ctaCard(t); endCard(t); progressLine(t);
+  EDGE(edgeAlpha(t), t);
+  return MAIN.toDataURL('image/jpeg', .94);
+}
+function timeline() {
+  const shots = SH.map((s, k) => ({at: s.at, name: s.name, tr: k === 0 ? 'cut' : (s.tr || TR_FAMILY[CFG.look.tr % TR_FAMILY.length])}));
+  const marks = [...SH.map(s => s.at), ...BEATS.map(b => b.t), END].sort((a, b) => a - b);
+  let longest = 0, where = 0;
+  for (let k = 1; k < marks.length; k++) if (marks[k] - marks[k - 1] > longest) { longest = marks[k] - marks[k - 1]; where = marks[k - 1]; }
+  return {end: END, size: D.size || 'reel', shots, beats: BEATS, longest, longest_at: where, mood: CFG.look.mood,
+          gap: CFG.gap, cta: CFG.cta, endcard: CFG.end, pillar: CFG.pillar,
+          lines: D.lines.map(l => ({n: l.n, s: l.s, e: l.e}))};
+}
+
+/* ----------------------------------------------------------------- loading -- */
+async function boot() {
+  const faces = [];
+  for (const [key, b64] of Object.entries(FONTS)) {
+    const [fam, wgt] = key.split(':');
+    faces.push(new FontFace(fam, `url(data:font/ttf;base64,${b64})`, {weight: wgt}));
+  }
+  for (const f of faces) { await f.load(); document.fonts.add(f); }
+  await document.fonts.ready;
+  const load = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  for (const [k, v] of Object.entries(IMG_SRC)) IM[k] = await load(v);
+  if (LOGO_SRC) LOGO = await load(LOGO_SRC);
+  grainInit();
+  END = (D.dur || (D.lines.length ? D.lines[D.lines.length - 1].e : 10)) + CFG.tail;
+  if (CFG.endAt) END = CFG.endAt;
+  if (!CFG.end) CFG.end = {at: END - CFG.tail};
+  window.END = END;
+  window.READY = true;
+}
+/*SCENES*/
+boot().catch(e => { window.BOOT_ERROR = String(e); console.error(e); });
+</script></body></html>

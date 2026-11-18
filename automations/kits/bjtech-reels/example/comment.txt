@@ -1,0 +1,17 @@
+keyword: مدل, مدلها, مدل‌ها
+reply: سلام! این هم مقایسه‌ی رسمی Claude Fable 5.2 با بقیه‌ی مدل‌ها، از صفحه‌ی خود Anthropic:
+reply: https://www.anthropic.com/claude/fable
+reply: قیمت‌ها و مشخصات فنی همه‌ی مدل‌های Claude:
+reply: https://platform.claude.com/docs/en/about-claude/pricing
+reply: خبرهای روزانه‌ی هوش مصنوعی رو توی کانال تلگرامم می‌ذارم 👇
+button: کانال تلگرام | https://t.me/behnamjalali_tech
+public: فرستادم، دایرکتت رو ببین 📩
+public: لینک مقایسه توی دایرکته
+public: رفت برات! بعدش بگو کدوم مدل رو بیشتر استفاده می‌کنی
+public: دایرکت رو چک کن، مقایسه‌ی کامل اونجاست
+public: فرستادم؛ نمودارها رو حتماً ببین
+public: توی دایرکتته 🙌
+public: لینک رسمی رو برات فرستادم
+public: ارسال شد! قیمت‌ها هم توشه
+public: دایرکتت رو باز کن، همه‌چیز اونجاست
+public: فرستادم؛ سؤالی بود همین‌جا بپرس

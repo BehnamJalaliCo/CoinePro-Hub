@@ -1,0 +1,16 @@
+[Unit]
+Description=@behnamjalali.tech: the breaking-news watcher, one pass (official AI vendor sources through the hub's egress; a real new release starts the flows bjtech_flash and bjtech_breaking once)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+WorkingDirectory=/home/Hub/sites
+ExecStart=/usr/bin/python3 -I /home/Hub/CoinePro-Hub/automations/sites/bjtech/breaking.py --pass
+TimeoutStartSec=600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
