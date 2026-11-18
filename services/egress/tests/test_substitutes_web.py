@@ -46,8 +46,14 @@ def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
         "youtube-web",
     ]  # fmt: skip
     # ⟨2026-11-18⟩ @behnamjalali-tech's Studio is youtube-web's steps on its own account and profile
-    assert set(got["youtube-bj"].tasks) == set(got["youtube-web"].tasks)
-    assert got["youtube-bj"].login_hosts == got["youtube-web"].login_hosts
+    # (⟨2026-11-18⟩ youtube-web also holds dotcoin.me's Search Console: its gsc_* tasks, and
+    # search.google.com moved from its sign-in hosts to its own hosts)
+    yt_tasks = {t for t in got["youtube-web"].tasks if not t.startswith("gsc_")}
+    assert set(got["youtube-bj"].tasks) == yt_tasks
+    assert set(got["youtube-bj"].login_hosts) - {"search.google.com"} == set(
+        got["youtube-web"].login_hosts
+    )
+    assert "search.google.com" in got["youtube-web"].hosts
     for key, r in got.items():
         assert r.key == key and r.site in r.hosts
         for task in r.tasks.values():
