@@ -2,11 +2,12 @@
 """The ipoxxo topic bank (KIT/topics.md): take the next free topic, mark it, never repeat one.
 
 usage (python3 -I KIT/tools/topic.py …; stdlib only):
-  next --slot noon|evening        the first `free` row of the slot's lane (the other lane when it is used up)
-  mark <#> --slot noon|evening --publish "۲۸ آبان"
+  next --slot noon|afternoon|evening
+                                  the first `free` row of the slot's lane (another lane's when it is used up)
+  mark <#> --slot noon|afternoon|evening --publish "۲۸ آبان"
                                   the topic is taken for that publish day: the day and month exactly as the order
                                   writes them (Jalali; the nearest such date to today) -> used:<YYYY-MM-DD>:<slot>
-  mark <#> <status>               set a row's status: used:<YYYY-MM-DD>:<noon|evening> · taken · free · sample:<date>
+  mark <#> <status>               set a row's status: used:<YYYY-MM-DD>:<slot> · taken · free · sample:<date>
   day today|<YYYY-MM-DD>|"۲۸ آبان"  the topics marked for that publish day (the stories' teaser: `day today`)
   check                           the table is sound (columns, numbers, statuses); exit 1 otherwise
   merge <old topics.md>           (sync.sh) this file with every non-free status of the old copy, to stdout
@@ -25,9 +26,9 @@ from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROW = re.compile(r"^\|\s*(\d+)\s*\|")
-STATUS = re.compile(r"^(free|taken|used:\d{4}-\d{2}-\d{2}:(noon|evening)|sample:\d{4}-\d{2}-\d{2})$")
-LANES = ("noon", "evening")
-COLS = ("#", "status", "lane", "topic", "hook", "payoff", "source")
+STATUS = re.compile(r"^(free|taken|used:\d{4}-\d{2}-\d{2}:(noon|afternoon|evening)|sample:\d{4}-\d{2}-\d{2})$")
+LANES = ("noon", "afternoon", "evening")
+COLS = ("#", "status", "lane", "topic", "hook", "payoff", "ending", "source")
 
 
 MONTHS_FA = ("فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند")
@@ -116,8 +117,8 @@ def check(text):
             errs.append(f"#{r['n']}: bad status «{c[1]}»")
         if c[2] not in LANES:
             errs.append(f"#{r['n']}: bad lane «{c[2]}»")
-        if not c[3] or not c[6].startswith("http"):
-            errs.append(f"#{r['n']}: a topic and a source are required")
+        if not c[3] or not c[6] or not c[7].startswith("http"):
+            errs.append(f"#{r['n']}: a topic, its ending and a source are required")
     return errs
 
 
@@ -155,14 +156,14 @@ def main():
         errs = check(text)
         rs = rows(text)
         free = {ln: sum(1 for r in rs if r["cells"][1] == "free" and r["cells"][2] == ln) for ln in LANES}
-        print(f"{len(rs)} topics; free: {free['noon']} noon, {free['evening']} evening")
+        print(f"{len(rs)} topics; free: " + ", ".join(f"{free[ln]} {ln}" for ln in LANES))
         for e in errs:
             print("ERROR", e)
         sys.exit(1 if errs else 0)
     if cmd == "next":
         slot = args[args.index("--slot") + 1] if "--slot" in args else "noon"
         if slot not in LANES:
-            sys.exit("--slot noon|evening")
+            sys.exit("--slot noon|afternoon|evening")
         rs = [r for r in rows(text) if r["cells"][1] == "free"]
         pick = next((r for r in rs if r["cells"][2] == slot), None) or (rs[0] if rs else None)
         if pick is None:
@@ -174,12 +175,12 @@ def main():
         if "--publish" in args:
             slot = args[args.index("--slot") + 1] if "--slot" in args else ""
             if slot not in LANES:
-                sys.exit("--slot noon|evening")
+                sys.exit("--slot noon|afternoon|evening")
             st = f"used:{day_of(args[args.index('--publish') + 1]).isoformat()}:{slot}"
         else:
             st = args[2]
         if not STATUS.match(st):
-            sys.exit(f"bad status «{st}» (used:<YYYY-MM-DD>:<noon|evening> · taken · free · sample:<date>)")
+            sys.exit(f"bad status «{st}» (used:<YYYY-MM-DD>:<slot> · taken · free · sample:<date>)")
         lines = text.splitlines()
         for r in rows(text):
             if r["n"] == n:
