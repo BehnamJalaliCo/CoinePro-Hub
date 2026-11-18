@@ -73,6 +73,12 @@ The bar is `KIT/example/` of bjtech-reels (Claude Fable 5.2, 62 s): read its NOT
   screenshot; a real screenshot only of a public page, never with a person's data.
 - No person's face except the owner's (his profile photo on the end card). People as silhouettes or hands only.
 
+## 5.1 Covers and thumbnails are NOT LUMEN (the owner, 2026-11-18)
+The reel covers and the YouTube thumbnails keep the page's own established cover family exactly (its posts before
+the automation): cover/COVER_SYSTEM.md — the owner's navy background with blue light lines, a heavy white
+IRANYekanX title with an electric-blue key word, one neon element on black. The videos are LUMEN; the covers are
+the page's old family.
+
 ## 6. The look of the day (variety without chaos)
 N = the day of the year (+3 for the evening reel, +5 for a breaking reel). `CONFIG.look`:
 - `tr` = N % 5: 0 scan · 1 zoom · 2 slide · 3 iris · 4 scan with zoom on the payoff;

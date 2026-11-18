@@ -8,7 +8,8 @@ The page @behnamjalali.tech («Behnam Jalali | AI & Tech», IG-Hub account 3, co
   @behnamjalali-tech): every caption, DM, end card and description reads it. Never hard-code a link elsewhere.
 - `brand/profile.jpg`, `brand/profile_round.png` — the owner's profile photo (the end card's mark).
 - `brand/README.md` — colours, fonts, the handle.
-- `cover/COVER_SYSTEM.md` — the reel cover and the YouTube thumbnail (set in code by `tools/card.py`).
+- `cover/COVER_SYSTEM.md`, `cover/background.jpg`, `cover/refs/` — the reel cover and the YouTube thumbnail: EXACTLY
+  the page's own established family (the owner's navy background, 2026-11-18), set in code by `tools/card.py`.
 - `tools/card.py` — every still of the page in code (cover, story card, breaking flash card, thumbnail), so every
   Persian letter is exact; an AI picture is only ever the picture inside a card.
 

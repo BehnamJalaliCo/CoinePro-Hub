@@ -82,7 +82,8 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
    a tool's own hero; then 1–3 AI stills for what code cannot draw (`substitute.call` seat creative, kind image,
    placement other, the same brief once with player **gpt** and once with player **gemini**, DIRECTION §5: "no
    text, no letters, no numbers, no logos"). Send them all at once and end the turn; read every picture next turn,
-   keep the better of each pair, ask again for a wrong one (≤ 2 more).
+   keep the better of each pair, ask again for a wrong one (≤ 2 more). **In the same batch, the cover's element**
+   (COMMON/cover/COVER_SYSTEM.md: one glowing neon-blue 3D icon of the topic on PURE BLACK, both players).
 7. **Contract:** `direction/CONTRACT.md` — the idea and why it holds to the last second, the look, the question
    and where it is paid, the shot list on the word times (a new shot or BEAT every 2–3.5 s), the pictures per shot,
    the transitions, the mood.
@@ -101,8 +102,11 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
     out/video.mp4` → `--sheet --step 2` (qc/contact_sheet.jpg: read it whole) → the file's own audio:
     `ffmpeg -v error -i out/video.mp4 -vn -ac 1 build/final_audio.wav` → audio_qc 0/0/0. Done: `rm -rf build/seg
     build/test`.
-12. **Cover** (COMMON/cover/COVER_SYSTEM.md): `PY -I COMMON/tools/card.py direction/cover.json out/cover.jpg`
-    (type cover, the hook's words, the Latin name, the hero) → read it at full size. Never a video frame.
+12. **Cover — EXACTLY the page's own established covers** (the owner, 2026-11-18; COMMON/cover/COVER_SYSTEM.md
+    and its refs/: the owner's navy background, the heavy white title with its blue key word, the neon element on
+    black): `PY -I COMMON/tools/card.py direction/cover.json out/cover.jpg` → read it at full size, beside
+    COMMON/cover/refs/old_reel_covers.jpg. Never a video frame, never the LUMEN look (that is the video's). A cover
+    you made before 2026-11-18 14:20Z in another style: make it again this way.
 13. **Texts** (links ONLY from COMMON/brand/config.json). `out/caption.txt`:
     ```
     <the hook as a bold line or a question that stops the scroll>

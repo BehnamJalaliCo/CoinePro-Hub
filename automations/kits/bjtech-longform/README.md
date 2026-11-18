@@ -48,7 +48,8 @@ Chromium). PY = PCKIT/venv-render/bin/python; export PLAYWRIGHT_BROWSERS_PATH=PC
 
 ## Turn 2 — pictures and scenes
 7. **Pictures** (shared: `assets/use/`): the official images of every product shown; 4–8 AI stills for what code
-   cannot draw (both players, DIRECTION §5, 16:9, no letters). Send all at once, end the turn, read them next turn.
+   cannot draw (both players, DIRECTION §5, 16:9, no letters); the thumbnail's neon element on pure black
+   (COMMON/cover/COVER_SYSTEM.md). Send all at once, end the turn, read them next turn.
 8. **Scenes, one `motion/scenes.js` per chapter** on the stage (REELS/motion/stage.html; `motion/WIDE` makes it
    1920×1080 and its captions off: the words go to YouTube as subtitles). `CONFIG`: pillar, kicker, look, `chapter:
    {n, of, title}`, `endCard: false` on every chapter but the last, `tail: .4`, `cta` only in the last. First shot
@@ -71,7 +72,9 @@ Chromium). PY = PCKIT/venv-render/bin/python; export PLAYWRIGHT_BROWSERS_PATH=PC
     out/video.mp4 -vf fps=1/8,scale=320:-2,tile=8x10 -frames:v 1 qc/every8s.jpg` (read it whole).
 
 ## Turn 4 — thumbnail, text, delivery
-12. **Thumbnail** (COMMON/cover/COVER_SYSTEM.md): two `thumb` specs (two heroes or two wordings) →
+12. **Thumbnail — the page's own cover family, wide** (COMMON/cover/COVER_SYSTEM.md: the owner's navy background,
+    the heavy white title with its blue key word, the neon element on black): two `thumb` specs (two elements or
+    two wordings) →
     `PY -I COMMON/tools/card.py --many direction/thumbs.json build/thumbs` → keep the one that reads at 160 px →
     `out/thumbnail.jpg` (1280×720, ≤ 2 MB).
 13. `python3 -I KIT/tools/long.py meta` → out/meta.json, caption.txt (the description: chapters, Telegram,

@@ -30,6 +30,8 @@ import sys
 
 COMMON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FD = os.environ.get("BJ_FONTS", "/home/studio/kits/fonts-bj")
+FP = os.environ.get("BJ_FONTS_PRO", "/home/studio/kits/fonts-pro")  # the owner's licensed IRANYekanX (the page's covers)
+BG = os.path.join(COMMON, "cover", "background.jpg")  # the owner's cover background (2026-11-18)
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
 PILLARS = {"repo": "#3CFFB5", "model": "#9B87FF", "news": "#FF4D5E", "tool": "#22D3EE", "trick": "#FFD166",
            "behind": "#FF5FA2", "explain": "#3D8BFF"}
@@ -94,6 +96,25 @@ CSS = r"""
 @font-face{font-family:GEI;src:url(file://@@FD@@/Geist-Bold.ttf);font-weight:700}
 @font-face{font-family:GEI;src:url(file://@@FD@@/Geist-Black.ttf);font-weight:900}
 @font-face{font-family:GMO;src:url(file://@@FD@@/GeistMono-Medium.ttf);font-weight:500}
+@font-face{font-family:YKX;src:url(file://@@FP@@/IRANYekanXFaNum-ExtraBlack.ttf);font-weight:900}
+@font-face{font-family:YKX;src:url(file://@@FP@@/IRANYekanXFaNum-Bold.ttf);font-weight:700}
+.nv{font-family:YKX,EST,sans-serif}
+.nv .en{font-family:GEI,YKX,sans-serif}
+.nvbg{position:absolute;inset:0;background-size:cover;background-position:center}
+.nvtitle{font-family:YKX,EST,sans-serif;font-weight:900;color:#fff;line-height:1.24;letter-spacing:-.5px;
+  text-shadow:0 0 28px rgba(70,140,255,.35),0 6px 22px rgba(0,0,0,.55)}
+.nvtitle .key,.nvkey{background:linear-gradient(180deg,#5CB8FF 0%,#2A86FF 55%,#1A5CFF 100%);-webkit-background-clip:text;
+  background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 18px rgba(40,120,255,.55))}
+.nvsub{font-family:YKX,EST,sans-serif;font-weight:700;color:#C9D6EA;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.nvlatin{font-family:GEI,sans-serif;font-weight:900;direction:ltr;letter-spacing:-1px;
+  background:linear-gradient(180deg,#FFFFFF 0%,#BFDDFF 45%,#3B8DFF 100%);-webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 22px rgba(50,130,255,.5))}
+.nvchip{display:inline-flex;align-items:center;gap:12px;padding:12px 28px;border-radius:999px;border:2px solid #2E7BFF;
+  background:rgba(18,50,140,.45);box-shadow:0 0 22px rgba(46,123,255,.45),inset 0 0 12px rgba(46,123,255,.25);
+  font-family:YKX,EST,sans-serif;font-weight:700;color:#fff;font-size:38px;line-height:1}
+.nvel{position:absolute;mix-blend-mode:screen;object-fit:contain;filter:drop-shadow(0 0 30px rgba(40,120,255,.55))}
+.nvglyph{position:absolute;display:grid;place-items:center;font-family:GEI,sans-serif;font-weight:900;color:transparent;
+  -webkit-text-stroke:5px #56B4FF;filter:drop-shadow(0 0 16px #2A86FF) drop-shadow(0 0 40px rgba(42,134,255,.7));direction:ltr}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:@@W@@;height:@@H@@;background:#05060A;overflow:hidden}
 body{font-family:EST,GEI,sans-serif;color:#F2F4F8;direction:rtl;position:relative}
@@ -129,18 +150,96 @@ body{font-family:EST,GEI,sans-serif;color:#F2F4F8;direction:rtl;position:relativ
 """
 
 
+def nv_title(spec, keys):
+    """The title as lines: «|» breaks a line where the designer wants it; key words in the blue gradient."""
+    lines = [x.strip() for x in str(spec.get("title") or "").split("|") if x.strip()]
+    out = []
+    for ln in lines:
+        h = rich(ln)
+        for k in keys or ():
+            kk = html.escape(str(k).translate(FA))
+            if kk and kk in h:
+                h = h.replace(kk, f'<span class="key">{kk}</span>', 1)
+        out.append(f"<div>{h}</div>")
+    return "".join(out)
+
+
+def navy(spec, w, h):
+    """⟨2026-11-18⟩ The owner: «دقیقا عین کاور های قبلی ریلز هاش»: the page's own established cover family (its 24
+    posts before the automation): the owner's navy background with its blue light lines and dot grids, a heavy
+    Persian title in white with its key words in electric blue, a small grey line under it, sometimes a blue pill
+    on top, and ONE glowing neon element (a 3D icon or illustration on black, blended so its black disappears)."""
+    keys = spec.get("keys") or []
+    bg = img_url(spec.get("background") or BG)
+    el = img_url(spec["element"]) if spec.get("element") else ""
+    glyph = html.escape(str(spec.get("element_text") or ""))
+    layout = spec.get("layout") or "top"
+    thumb = spec.get("type") == "thumb"
+    parts = [f'<div class="nvbg" style="background-image:url({bg})"></div>']
+    if thumb:
+        parts.append('<div style="position:absolute;inset:0;background:linear-gradient(270deg,rgba(2,6,20,.72) 0%,rgba(2,6,20,.35) 55%,rgba(2,6,20,0) 100%)"></div>')
+        if el:
+            parts.append(f'<img class="nvel" src="{el}" style="left:40px;top:70px;width:560px;height:580px">')
+        elif glyph:
+            parts.append(f'<div class="nvglyph" style="left:60px;top:150px;width:520px;height:420px;font-size:250px">{glyph}</div>')
+        y = 120
+        box = [f'<div class="nvchip" style="font-size:26px">{rich(spec["chip"])}</div>'] if spec.get("chip") else []
+        box.append(f'<div class="nvtitle" style="font-size:{spec.get("px", 100)}px;margin-top:22px">{nv_title(spec, keys)}</div>')
+        if spec.get("latin"):
+            box.append(f'<div class="nvlatin" style="font-size:{spec.get("latin_px", 58)}px;margin-top:14px;text-align:right">{html.escape(spec["latin"])}</div>')
+        if spec.get("sub"):
+            box.append(f'<div class="nvsub" style="font-size:30px;margin-top:16px">{rich(spec["sub"])}</div>')
+        parts.append(f'<div style="position:absolute;right:64px;top:{y}px;width:{640 if (el or glyph) else 1150}px;text-align:right">{"".join(box)}</div>')
+    elif layout == "split":
+        # the text block on the left half, the element on the right (as «سریع‌تر کد بزن!» and «چجوری هنوز کد می‌زنه؟»)
+        top = spec.get("top", 640)
+        if el:
+            parts.append(f'<img class="nvel" src="{el}" style="left:540px;top:{top - 160}px;width:520px;height:820px">')
+        elif glyph:
+            parts.append(f'<div class="nvglyph" style="left:580px;top:{top - 60}px;width:460px;height:560px;font-size:220px">{glyph}</div>')
+        box = [f'<div class="nvsub" style="font-size:34px;margin-bottom:10px">{rich(spec["chip"])}</div>'] if spec.get("chip") else []
+        box.append(f'<div class="nvtitle" style="font-size:{spec.get("px", 120)}px">{nv_title(spec, keys)}</div>')
+        if spec.get("sub"):
+            box.append(f'<div class="nvsub" style="font-size:32px;margin-top:20px">{rich(spec["sub"])}</div>')
+        parts.append(f'<div style="position:absolute;left:56px;top:{top}px;width:520px;text-align:right">{"".join(box)}</div>')
+    else:
+        # the title on top, centred; the element under it (the most common cover of the page)
+        y = spec.get("top", 300)
+        box = [f'<div style="margin-bottom:22px"><span class="nvchip">{rich(spec["chip"])}</span></div>'] if spec.get("chip") else []
+        if spec.get("latin") and spec.get("latin_first"):
+            box.append(f'<div class="nvlatin" style="font-size:{spec.get("latin_px", 104)}px;margin-bottom:6px">{html.escape(spec["latin"])}</div>')
+        box.append(f'<div class="nvtitle" style="font-size:{spec.get("px", 112)}px">{nv_title(spec, keys)}</div>')
+        if spec.get("latin") and not spec.get("latin_first"):
+            box.append(f'<div class="nvlatin" style="font-size:{spec.get("latin_px", 96)}px;margin-top:8px">{html.escape(spec["latin"])}</div>')
+        if spec.get("sub"):
+            box.append(f'<div class="nvsub" style="font-size:34px;margin-top:18px">{rich(spec["sub"])}</div>')
+            box.append('<div style="margin:16px auto 0;width:150px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#2E7BFF,transparent);box-shadow:0 0 12px #2E7BFF"></div>')
+        parts.append(f'<div style="position:absolute;left:70px;right:70px;top:{y}px;text-align:center">{"".join(box)}</div>')
+        ey = spec.get("element_top", 900)
+        if el:
+            parts.append(f'<img class="nvel" src="{el}" style="left:90px;top:{ey}px;width:900px;height:{spec.get("element_h", 640)}px">')
+        elif glyph:
+            parts.append(f'<div class="nvglyph" style="left:140px;top:{ey}px;width:800px;height:600px;font-size:340px">{glyph}</div>')
+    return parts
+
+
 def page(spec, w, h):
     cfg = config()
     pillar = spec.get("pillar") or "explain"
     acc = spec.get("accent") or PILLARS.get(pillar, "#3D8BFF")
     kind = spec.get("type", "story")
-    css = (CSS.replace("@@FD@@", FD).replace("@@W@@", f"{w}px").replace("@@H@@", f"{h}px").replace("@@ACC@@", acc))
+    css = (CSS.replace("@@FD@@", FD).replace("@@FP@@", FP).replace("@@W@@", f"{w}px").replace("@@H@@", f"{h}px")
+           .replace("@@ACC@@", acc))
     keys = spec.get("keys") or []
     kicker = spec.get("kicker") or PILLAR_FA.get(pillar, "")
     handle = cfg.get("handle", "behnamjalali.tech")
     image = img_url(spec.get("image")) if spec.get("image") else ""
     fit = spec.get("fit") or "cover"
     parts = ['<div class="bg"></div>']
+    if kind in ("cover", "thumb") and not spec.get("lumen"):
+        parts = navy(spec, w, h) + ['<div class="grain" style="opacity:.04"></div>']
+        return (f'<!doctype html><html lang="fa"><head><meta charset="utf-8"><style>{css}</style></head>'
+                f'<body class="nv">{"".join(parts)}</body></html>')
     if kind == "thumb":
         # YouTube 1280x720: words on the right (RTL), the hero on the left, the spectral edge
         parts.append(f'<div class="bloom" style="width:520px;height:520px;left:60px;top:120px"></div>')
@@ -243,7 +342,7 @@ def render(specs, outs):
                 pg.goto("file://" + os.path.abspath(tmp))
                 pg.evaluate("document.fonts.ready")
                 pg.wait_for_timeout(250)
-                over = pg.evaluate("""() => [...document.querySelectorAll('.title,.body,.chip,.en')].filter(e =>
+                over = pg.evaluate("""() => [...document.querySelectorAll('.title,.body,.chip,.en,.nvtitle,.nvsub,.nvchip,.nvlatin')].filter(e =>
                     e.scrollWidth > e.clientWidth + 2 || e.getBoundingClientRect().right > innerWidth + 1 ||
                     e.getBoundingClientRect().left < -1 || e.getBoundingClientRect().bottom > innerHeight + 1).map(e => e.textContent.slice(0, 40))""")
                 pg.screenshot(path=out, type="jpeg", quality=93)
