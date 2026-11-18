@@ -289,7 +289,7 @@ def upload(ref: str, work: Path, state: dict, dry: bool) -> str:
     save_state(state)
     try:
         ans = call({"account": PROFILE, "task": "upload_long", "prompt": meta["title"][:100],
-                    "description": meta["description"], "tags": ",".join(up["tags"]) + ",", "visibility": "PUBLIC",
+                    "description": meta["description"], "tags": ",".join(up["tags"]) + ",", "visibility": "public",
                     "spooled": [v_name, t_name], "timeout_s": 1500})
     finally:
         spool_drop([v_name, t_name])
