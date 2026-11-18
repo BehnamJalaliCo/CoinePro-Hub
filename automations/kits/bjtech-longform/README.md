@@ -25,6 +25,32 @@ Chromium). PY = PCKIT/venv-render/bin/python; export PLAYWRIGHT_BROWSERS_PATH=PC
 - **Never silent:** a chapter without its voice is never rendered (wait for the quota, late with a voice).
 - **Never a repeat:** your order lists the channel's videos already out or queued; check `topic.py find` too.
 
+## Retention — HARD (the owner, 2026-11-18: «از فن‌هایی باید استفاده بکنی که تا ثانیه آخر مخاطب رو نگه داره»)
+A video that fails `python3 -I KIT/tools/long.py retention` is re-cut, NEVER delivered. Times are seconds in the WHOLE
+video (the chapters back to back).
+1. **Cold open, 0–8 s:** start at the climax (the moment itself, the shock, the stakes) and SAY one burning question by
+   8 s. No logo, no «سلام», no channel intro, no «سابسکرایب» before the end.
+2. **Open loops:** by 30 s promise a payoff that comes only at the END («و آخرش …»). Keep 1–2 loops open at all times;
+   close one only after the next is open.
+3. **Chapter cliffhangers:** every chapter but the last ends on a question or a turn the next chapter answers — never a
+   summary. A turn that is not a question is written into `script/retention.json` `cliffs`.
+4. **Re-hooks at ~25 %, 50 %, 75 % (±45 s):** a «ولی…», a twist or the stakes raised, WITH a visual pattern interrupt.
+5. **Pattern interrupts:** something new on screen every 4–6 s (a camera move, kinetic type, a diagram building, a cut,
+   a BEAT that really changes the frame); NOTHING static over 6 s; a clear visual or sound change every 20–40 s (a
+   new scene type, a music turn, a beat of silence).
+6. **Story spine:** a human at the centre (their stakes and feelings), tension rising, an emotional peak, the payoff,
+   then «برای تو یعنی چه».
+7. **Visible progress:** the slim chapter progress bar over the whole video (`long.py bar` writes each chapter's
+   place; the stage draws it) and chapter cards that NAME what is coming («فصل ۴: حرکتی که هیچ انسانی نمی‌زد»).
+8. **Ending:** the payoff and the takeaway land within the last 60 s; the outro (Telegram + the next video's tease) is
+   ≤ 15 s, so nobody leaves before the end.
+9. **QC with numbers** — `script/retention.json`:
+   `{"hook_question_at": 6.1, "open_loop_at": 24.0, "open_loop_closes_at": "ch07", "rehooks": {"25": 151, "50": 302,
+   "75": 455}, "payoff_at": 560, "outro_s": 12, "cliffs": {"03": "<the turn line>"}}` → `long.py retention` PASS (the
+   longest stretch with nothing new ≤ 6 s in every chapter, read from its real timeline; the hook question by 8 s; the
+   loop by 30 s; every chapter's end; the re-hooks; the payoff in the last 60 s; the outro ≤ 15 s). NOTES.md lists the
+   timestamps.
+
 ## Turn 1 — topic, script, voice
 1. **Topic:** the day's lane by the Tehran weekday: Saturday `deep` · Sunday `build` · Monday `compare` · Tuesday
    `explain` · Wednesday `story` · Thursday `career` · Friday `behind`. `python3 -I KIT/tools/topic.py next --lane
@@ -33,10 +59,11 @@ Chromium). PY = PCKIT/venv-render/bin/python; export PLAYWRIGHT_BROWSERS_PATH=PC
    lane's row: a `deep` on it, from the vendor's own pages. → `out/topic.txt` (line 1 the title; line 2 «سبک: …»).
 2. **Research:** the row's source, the vendor's pages, ONE `substitute.call` seat `quick_search` (player deepseek)
    for the key numbers with their sources. Every fact + link in NOTES.md.
-3. **Structure** `script/chapters.json` (`[{"n": 0, "title": "…"}, …]`): chapter 0 the cold open (30–45 s: the hook
-   in the first 5 s, the open loop, «توی این ویدیو …» with 3 promises); 7–11 chapters, each opening on
-   `CHAPTER(...)` with a re-hook (the question it answers) and ending on a mini cliffhanger; the last chapter the
-   ending (rules above). 1,250–2,000 words (Arlo ≈ 2.25 words a second → 9–15 minutes with the chapter cards).
+3. **Structure** `script/chapters.json` (`[{"n": 0, "title": "…"}, …]`), written to the Retention rules above:
+   chapter 0 the cold open (25–40 s: the climax, the burning question by 8 s, the end-loop by 30 s, no intro);
+   7–11 chapters, each opening on `CHAPTER(...)` with a title that names what is coming and its re-hook question,
+   each ending on a question or a turn; the re-hooks planned at 25/50/75 %; the last chapter the payoff in its last
+   60 s and an outro ≤ 15 s (Telegram + tomorrow's tease). Write `script/retention.json` with the planned times. 1,250–2,000 words (Arlo ≈ 2.25 words a second → 9–15 minutes with the chapter cards).
 4. `python3 -I KIT/tools/long.py init <the last chapter's n>` → ch/00 … ch/NN. In each chapter: `script/voice.txt`
    (one line per beat, names and numbers as SAID) and `script/subs.txt` (the same lines as the SCREEN shows them:
    names in Latin, digits; the srt is made from it).
@@ -68,6 +95,8 @@ Chromium). PY = PCKIT/venv-render/bin/python; export PLAYWRIGHT_BROWSERS_PATH=PC
     → `PY -I REELS/motion/reel.py --encode --audio build/mix.wav --out out/chapter.mp4` → `rm -rf build/seg`.
     (About 50 ms a frame a worker at 30 fps: a 75 s chapter ≈ 1–2 minutes.) `python3 -I KIT/tools/long.py status`
     shows what is left.
+10.1 Before the first render and again before concat: `python3 -I KIT/tools/long.py bar` (the progress bar's places)
+    and `python3 -I KIT/tools/long.py retention` (the real timelines; fix and re-render a chapter that fails).
 11. `python3 -I KIT/tools/long.py concat` → out/video.mp4 (8–15 minutes) → its own audio: `ffmpeg -v error -i
     out/video.mp4 -vn -ac 1 build/final_audio.wav` → audio_qc 0/0/0 → a last look: `ffmpeg -v error -i
     out/video.mp4 -vf fps=1/8,scale=320:-2,tile=8x10 -frames:v 1 qc/every8s.jpg` (read it whole).

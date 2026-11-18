@@ -97,7 +97,9 @@ def logo():
 
 def build():
     wt = json.load(open(os.path.join(ROOT, "direction", "word_times.json"), encoding="utf-8"))
+    vb = os.path.join(ROOT, "direction", "videobar.json")  # a long video's chapter: its place in the whole (long.py bar)
     data = {"dur": wt.get("duration"), "size": "wide" if WIDE else "reel",
+            "videobar": json.load(open(vb, encoding="utf-8")) if os.path.exists(vb) else None,
             "lines": [{"n": l["n"], "text": l.get("text", ""), "s": l["start"], "e": l["end"],
                        "words": [{"w": w["w"], "s": w["s"], "e": w["e"]} for w in l["words"]]} for l in wt["lines"]]}
     use = os.path.join(ROOT, "assets", "use")

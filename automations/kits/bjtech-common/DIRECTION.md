@@ -89,6 +89,12 @@ N = the day of the year (+3 for the evening reel, +5 for a breaking reel). `CONF
 Shots may override `bg` (`aurora` for a reveal, `void` for code, `dots` for a list). Never the same look two days
 running on the same slot; write the look in direction/CONTRACT.md.
 
+## 6.1 Long videos hold to the last second (the owner, 2026-11-18)
+«از فن‌هایی باید استفاده بکنی که تا ثانیه آخر مخاطب رو نگه داره»: the cold open at the climax with a question by 8 s,
+an end-loop promised by 30 s, a cliffhanger at every chapter's end, re-hooks at 25/50/75 %, something new every 4–6 s
+(nothing static over 6 s), a human at the centre, the visible chapter bar, the payoff in the last 60 s and an outro
+≤ 15 s. The numbers and the gate: bjtech-longform/README.md «Retention» and `tools/long.py retention`.
+
 ## 7. Words (the narrator's script)
 - Casual, warm, exact Persian with «تو»: «ساده، کاربردی و بدون حرف اضافه». No hype words without a number behind
   them («انقلابی»، «باورنکردنی» only when a number proves it). No «سلام دوستان», no intro: the first sentence IS

@@ -636,7 +636,20 @@ function CHAPTER(s, n, of, title, hook) {
   if (hook) T(hook, W / 2, H * .38 + (WIDE ? 250 : 330), WIDE ? 38 : 44, {f: 'fa', w: 600, col: MUTED, alpha: ease(s, .9, .5), maxW: WIDE ? 1500 : 940});
   T(`فصل ${fa(n)} از ${fa(of)}`, W / 2, H * .38 - (WIDE ? 250 : 330), WIDE ? 28 : 32, {f: 'fa', w: 700, col: ACC, alpha: ease(s, .1, .4)});
 }
+function videoBar(t) {
+  // ⟨2026-11-18⟩ a long video's slim progress bar over the WHOLE video, its chapters as segments (D.videobar from
+  // long.py bar: {start, total, marks:[chapter starts]}); the viewer always sees how far they are and what is left
+  const vb = D.videobar; if (!vb || !vb.total) return;
+  const p = cl((vb.start + t) / vb.total), y = H - 10, h = 6;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+  X.fillStyle = 'rgba(255,255,255,.10)'; X.fillRect(0, y, W, h);
+  X.fillStyle = specFill(0, 0, W, 0, t); X.fillRect(W - W * p, y, W * p, h);  // right to left, as Persian reads
+  X.fillStyle = INK;
+  for (const m of vb.marks || []) { const x = W - W * cl(m / vb.total); X.fillRect(x - 2, y - 1, 4, h + 2); }
+  X.restore();
+}
 function progressLine(t) {
+  if (D.videobar) return videoBar(t);
   if (!CFG.progress) return;
   X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
   const p = cl(t / END), y = WIDE ? 0 : 0;
