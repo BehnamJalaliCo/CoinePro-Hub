@@ -15,7 +15,11 @@ One pass (dotcoin-youtube.timer, every 15 minutes, user Hub):
      uploaded again; then uploads (task `upload`) through egress from inside the hub's network
      (`docker exec` into the worker, the hub's own path to POST /v1/substitutes/web) and records
      the video's link;
-  5. puts the link in the article's `youtube:` field in the content worktree (under the site sync's
+  5. ⟨2026-11-18⟩ sets the Short's thumbnail to its reel's own Instagram cover (the reel's
+     publication's thumbnail in the hub, read like the video; task `thumbnail`: Studio's per-video
+     custom thumbnail, then Save), on the same pass, and on later passes for a Short without it yet
+     (at most 3 tries; state `thumb_set` yes / no); a Short is never uploaded again for it;
+  6. puts the link in the article's `youtube:` field in the content worktree (under the site sync's
      own lock), commits, and runs the site sync once (push, build, deploy).
 
 Never a duplicate: one source -> one upload, keyed `<channel>|<external id>` (today
@@ -64,6 +68,8 @@ INSTAGRAM = "https://www.instagram.com/dotcoin.me"
 FFMPEG_IMAGE = "jrottenberg/ffmpeg:7.1-alpine"
 MAX_VIDEO = 300 * 1024 * 1024  # a reel's original (read limit)
 UPLOAD_CAP = 90 * 1024 * 1024  # under egress's upload cap (recipes.TASK_FILE_BYTES, 96 MB)
+MAX_COVER = 25 * 1024 * 1024  # a reel's cover (read limit)
+MAX_THUMB = 2 * 1024 * 1024  # YouTube's own cap for a custom thumbnail
 TRIES = 3
 SIGNED_OUT_WAIT_S = 2 * 3600  # a signed-out profile: tried again after this
 
@@ -71,6 +77,7 @@ WS_RE = re.compile(r"W-\d{3,9}")
 KEY_RE = re.compile(r"[0-9a-f]{16,64}")
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 IG_URL = re.compile(r"https://www\.instagram\.com/\S{3,200}")
+YT_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 YT_URL = re.compile(r"https://(?:www\.)?(?:youtube\.com/shorts/|youtu\.be/|youtube\.com/watch\?v=)([A-Za-z0-9_-]{11})")
 SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+){0,5}")
 # pictographs, dingbats, variation selectors and the zero-width joiner (never in a title)
@@ -118,9 +125,25 @@ REELS_SQL = f"""
            (SELECT c.args ->> 'caption' FROM infra.server_jobs c
              WHERE c.kind = 'publish' AND c.args -> 'session' ->> 'work' = j.args -> 'session' ->> 'work'
                AND coalesce(c.args ->> 'caption', '') <> '' ORDER BY c.created_at DESC LIMIT 1) AS caption,
-           j.result ->> 'url' AS url, f.storage_key AS key, f.sha256 AS sha, f.size AS size
+           j.result ->> 'url' AS url, f.storage_key AS key, f.sha256 AS sha, f.size AS size,
+           cover.storage_key AS cover_key, cover.sha256 AS cover_sha, cover.size AS cover_size,
+           cover.mime AS cover_mime
       FROM infra.server_jobs j
       JOIN files.files f ON f.id::text = j.args -> 'session' ->> 'file_id'
+      -- ⟨2026-11-18⟩ the reel's Instagram cover (the Short's thumbnail): its publication's thumbnail
+      -- (media.publications, the chain that holds this job), else the chain's publish job's cover file
+      LEFT JOIN LATERAL (
+           SELECT cf.storage_key, cf.sha256, cf.size, cf.mime FROM files.files cf
+            WHERE cf.id = coalesce(
+                  (SELECT p.thumb_file_id FROM media.publications p
+                    WHERE p.kind = 'reel' AND p.chain @> ARRAY[j.id] AND p.thumb_file_id IS NOT NULL
+                    ORDER BY p.updated_at DESC LIMIT 1),
+                  (SELECT (x ->> 'file_id')::uuid FROM infra.server_jobs c,
+                          jsonb_array_elements(CASE WHEN jsonb_typeof(c.args -> 'files') = 'array'
+                                                    THEN c.args -> 'files' ELSE '[]'::jsonb END) x
+                    WHERE c.kind = 'publish' AND c.args -> 'session' ->> 'work' = j.args -> 'session' ->> 'work'
+                      AND x ->> 'role' = 'cover' AND x ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$'
+                    ORDER BY c.created_at DESC LIMIT 1))) cover ON true
      WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
        AND j.state = 'done' AND j.result ->> 'url' LIKE 'https://www.instagram.com/%'
        AND j.created_at > now() - interval '30 days'
@@ -132,10 +155,10 @@ def published_reels() -> list[dict]:
             and UUID_RE.fullmatch(str(r.get("video") or "")) and IG_URL.fullmatch(str(r.get("url") or ""))]
 
 
-def fetch(row: dict, dest: Path) -> None:
-    """The reel's original bytes (docker exec) into `dest`, checked against its sha256."""
-    key = str(row["key"])
-    if not KEY_RE.fullmatch(key) or int(row["size"]) > MAX_VIDEO:
+def read_file(key: str, sha: str | None, size: int, cap: int, dest: Path) -> None:
+    """A file of the hub's storage (docker exec) into `dest`, checked against its sha256."""
+    key = str(key)
+    if not KEY_RE.fullmatch(key) or not 0 < int(size) <= cap:
         raise ValueError("unexpected storage key or size")
     with open(dest, "wb") as out:
         r = run(["docker", "exec", API, "cat", f"/data/files/{key[:2]}/{key}"], timeout=300, stdout=out)
@@ -145,8 +168,34 @@ def fetch(row: dict, dest: Path) -> None:
     with open(dest, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
-    if row.get("sha") and h.hexdigest() != row["sha"]:
+    if sha and h.hexdigest() != sha:
         raise ValueError("sha256 mismatch")
+
+
+def fetch(row: dict, dest: Path) -> None:
+    """The reel's original bytes into `dest`, checked against its sha256."""
+    read_file(row["key"], row.get("sha"), row["size"], MAX_VIDEO, dest)
+
+
+def cover_file(row: dict, work: Path) -> Path:
+    """The reel's Instagram cover as the Short's thumbnail: the cover itself (a JPEG or PNG of at most
+    2 MB, YouTube's own cap), else a JPEG made from it (same picture, at most 1080x1920)."""
+    if not row.get("cover_key"):
+        raise ValueError("the reel has no cover in the hub")
+    mime = str(row.get("cover_mime") or "")
+    src = work / ("cover.png" if mime == "image/png" else "cover.jpg" if mime == "image/jpeg" else "cover.img")
+    read_file(row["cover_key"], row.get("cover_sha"), row["cover_size"], MAX_COVER, src)
+    if src.suffix in (".jpg", ".png") and src.stat().st_size <= MAX_THUMB:
+        return src
+    dest = work / "thumb.jpg"
+    for q in (2, 4, 7):
+        r = tool(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(src), "-frames:v", "1", "-vf",
+                  "scale='min(1080,iw)':-2:flags=lanczos,format=yuvj420p", "-q:v", str(q), str(dest)], work, timeout=120)
+        if r.returncode or not dest.is_file():
+            raise RuntimeError(f"ffmpeg (cover): {tail(r.stderr)}")
+        if dest.stat().st_size <= MAX_THUMB:
+            return dest
+    raise ValueError("the cover is over YouTube's 2 MB even as a JPEG")
 
 
 # ------------------------------------------------------------------ the upload copy
@@ -265,7 +314,10 @@ except httpx.HTTPError as e:
 
 
 def egress(task: str, prompt: str, timeout_s: int, *, description: str | None = None,
-           video: Path | None = None, visibility: str | None = None, video_id: str | None = None) -> dict:
+           video: Path | None = None, visibility: str | None = None, video_id: str | None = None,
+           file: Path | None = None, file_name: str | None = None) -> dict:
+    """One job in the profile; `video` (an upload) or `file` (named `file_name`, e.g. a thumbnail) is
+    the job's one file."""
     job: dict = {"account": PROFILE, "task": task, "prompt": prompt, "timeout_s": timeout_s}
     if description:
         job["description"] = description
@@ -274,11 +326,13 @@ def egress(task: str, prompt: str, timeout_s: int, *, description: str | None = 
     if video_id:
         job["video_id"] = video_id
     if video is not None:
-        job["file_name"] = "dotcoin-short.mp4"
+        file, file_name = video, "dotcoin-short.mp4"
+    if file is not None:
+        job["file_name"] = file_name or file.name
     with tempfile.TemporaryFile() as stdin:
         stdin.write(json.dumps(job, ensure_ascii=False).encode() + b"\n")
-        if video is not None:
-            with open(video, "rb") as f:
+        if file is not None:
+            with open(file, "rb") as f:
                 shutil.copyfileobj(f, stdin)
         stdin.seek(0)
         r = run(["docker", "exec", "-i", WORKER, "python", "-c", CLIENT], stdin=stdin, timeout=timeout_s + 120)
@@ -466,6 +520,58 @@ def make_public(state: dict, w: str) -> int:
     return 0
 
 
+# ------------------------------------------------------------------ the thumbnail (⟨2026-11-18⟩)
+# The owner: a Short shows the same cover as its Instagram reel. Studio's own per-video custom
+# thumbnail (task `thumbnail`: the reel's cover into the details page's thumbnail input, then Save;
+# custom thumbnails are on since the channel's phone verification, 2026-11-17), set once the Short is
+# up, on the same pass, and tried again on later passes at most THUMB_TRIES times. A Short uploaded
+# before this (no `thumb_set` yet) gets its cover the same way: nothing is uploaded again.
+# Seen on 2026-11-18 (TyYsNUfodio): Studio takes a custom picture for a Short, and the channel's
+# Shorts tab then shows it whole, 9:16 (i.ytimg.com/vi/<id>/sardefault.jpg, not a frame's oarN.jpg).
+# Any later page's Shorts uploader made from this file keeps this step (the owner's rule).
+THUMB_TRIES = 3
+# what the thumbnail area says when the channel may not set one (English and Persian Studio)
+NO_THUMB = re.compile(r"verify|verification|not eligible|phone|تأیید|تایید|شماره(?:‌| )?ی? ?تلفن", re.I)
+
+
+def thumb_due(up: dict) -> bool:
+    return (up.get("status") in ("done", "unlisted") and bool(YT_ID.fullmatch(str(up.get("video_id") or "")))
+            and up.get("thumb_set") not in ("yes", "none") and up.get("thumb_tries", 0) < THUMB_TRIES)
+
+
+def set_thumbnail(state: dict, up: dict, row: dict) -> None:
+    """The Short's custom thumbnail: its reel's own Instagram cover (`thumb_set` yes / no; `none`: the
+    reel has no cover in the hub, YouTube's own frame stays)."""
+    if not row.get("cover_key"):
+        up.update(thumb_set="none", thumb_why="the reel has no cover in the hub", thumb_at=now())
+        log(f"{row['w']}: the reel has no cover in the hub: YouTube's own frame stays")
+        return
+    up["thumb_tries"] = up.get("thumb_tries", 0) + 1
+    save_state(state)  # a crash from here on still counts the try
+    work = Path(tempfile.mkdtemp(prefix="dotcoin-yt-thumb-"))
+    try:
+        pic = cover_file(row, work)
+        ans = egress("thumbnail", "thumbnail", 180, video_id=up["video_id"], file=pic,
+                     file_name=f"{row['w']}-cover{pic.suffix}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    if ans.get("error") in ("busy", "expired") or "the recipe has no" in str(ans.get("detail") or ""):
+        up["thumb_tries"] -= 1  # not the page's answer: tried again next run, no try counted
+        if ans.get("error") == "expired":
+            state["signed_out_at"] = now()
+        log(f"{row['w']}: thumbnail not set yet, tried again next run ({why(ans)})")
+        return
+    seen = f"{ans.get('text_md') or ''} {(ans.get('notes') or {}).get('thumbnail') or ''}".strip()
+    ok = bool(ans.get("ok")) and not NO_THUMB.search(seen)
+    up.update(thumb_set="yes" if ok else "no", thumb_sha=row.get("cover_sha"), thumb_at=now())
+    if ok:
+        up.pop("thumb_why", None)
+        log(f"{row['w']}: thumbnail set (its Instagram cover) on {up.get('url')}")
+    else:
+        up["thumb_why"] = why(ans) if not ans.get("ok") else f"the thumbnail area said: {seen[:160]}"
+        log(f"{row['w']}: thumbnail not set ({up['thumb_why']}; try {up['thumb_tries']} of {THUMB_TRIES})")
+
+
 def one_pass(args) -> int:
     if args.make_public:
         return make_public(load_state(), args.make_public)
@@ -481,7 +587,8 @@ def one_pass(args) -> int:
         return 0
     state.pop("signed_out_at", None)
     slugs = sync_slugs()
-    for row in published_reels():
+    rows = published_reels()
+    for row in rows:
         if args.only and row["w"] != args.only:
             continue
         if state["uploads"].get(f"{CHANNEL}|instagram:{row['w']}", {}).get("status") in (
@@ -498,6 +605,16 @@ def one_pass(args) -> int:
             break
     if args.dry_run:
         return 0
+    # each uploaded Short's thumbnail: its reel's Instagram cover (⟨2026-11-18⟩, the owner)
+    for row in rows:
+        up = state["uploads"].get(f"{CHANNEL}|instagram:{row['w']}") or {}
+        if (args.only and row["w"] != args.only) or not thumb_due(up) or state.get("signed_out_at"):
+            continue
+        try:
+            set_thumbnail(state, up, row)
+        except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+            log(f"{row['w']}: thumbnail: {str(e)[:200]} (tried again next run)")
+        save_state(state)
     # each uploaded Short's link on its article (tried again until it is there); ⟨2026-11-17⟩ a lesson
     # with a long video (youtube_long.py) keeps the long video's link
     long_slugs = {u.get("slug") for u in state["uploads"].values() if u.get("kind") == "long" and u.get("url")}
