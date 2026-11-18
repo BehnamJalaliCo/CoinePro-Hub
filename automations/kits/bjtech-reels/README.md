@@ -68,6 +68,7 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
    (DIRECTION §7); the screen shows them in Latin / digits (`CONFIG.caps`).
 4. **Voice:** `speech.make` (Arlo), the WHOLE script in one call. QC in this order (a failing take is remade with a
    new `speech.make` of the WHOLE script; never splice, never trim by hand):
+   **ZERO TOLERANCE (the owner, 2026-11-18): EVERY voice file passes audio_qc 0/0/0 — the raw take, qc/voice_raw.wav AND qc/voice_final.wav, not only the mix. Any click, cut or burst flag, however small (0.5 dB over, on a real word, a «detector edge»), = a NEW `speech.make` of the WHOLE script (a long video: of that chapter). Never judged, never kept because the mix passes, never patched by hand.**
    - `ASR -I tools/audio_qc.py in/<take> qc/take.audioqc.json` — 0 clicks, 0 cuts, 0 bursts;
    - `ASR -I tools/asr_words.py $M in/<take> qc/asr.txt qc/asr.json` → `python3 -I tools/qc_compare.py
      script/voice.txt qc/asr.txt qc/qc.json`: every line heard (a WHOLE line missing = remake); `tools/word_probe.py`
@@ -76,6 +77,8 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
    - `ASR -I tools/assemble_voice.py qc/voice_raw.wav qc/asr.json - qc/voice_final.wav` → audio_qc on it: 0/0/0;
    - `ASR -I tools/asr_words.py $M qc/voice_final.wav qc/asr_final.txt qc/asr_final.json` →
      `ASR -I tools/word_times.py script/voice.txt qc/asr_final.json qc/voice_final.wav direction/word_times.json`.
+   NOTES.md records the three 0/0/0 results (take, voice_raw, voice_final) and the mix's; a reel with any other number
+   is never rendered.
 5. **The look of the day** (DIRECTION §6: N, +3 for reel 2) → one line in `direction/CONTRACT.md`.
 6. **Pictures** (`assets/use/<name>.jpg|png`; the stage calls them by name): the hero first — the official launch
    image (a model, a product: the announcement page's `og:image`), a repo's social preview (its page's og:image),

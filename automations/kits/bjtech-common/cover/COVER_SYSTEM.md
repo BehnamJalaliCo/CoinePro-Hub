@@ -42,7 +42,11 @@ covers) and `refs/old_post_covers.jpg` (its posts), and the new ones beside them
   the element on the right: «سریع‌تر کد بزن!»); `|` breaks a title line where you want it.
 - Keep the title inside y 300–900 (Instagram's grid crops the top and bottom of a 9:16 cover).
 - The title block is fitted to the width by card.py (`fit` 900 px, `px` the cap 190): short lines, big type,
-  like the old covers; the hero is placed under the title block, whatever its height.
+  like the old covers.
+- **The hero fills the free area under the text block** (card.py does it; `element_top` / `element_h` are ignored):
+  its picture cut to its own content (no black margins), 78 % of the width (up to 95 % to fill the height), centred
+  in that area, never more than ~120 px below the text, the bloom on its base. An empty band of navy between the
+  text and the hero is a fault.
 - Read the result at full size: every letter, nothing on an edge (`card.py` prints `ok` or `overflow`).
 
 ## The YouTube thumbnail (1280×720, `out/thumbnail.jpg`) — the same family, wide

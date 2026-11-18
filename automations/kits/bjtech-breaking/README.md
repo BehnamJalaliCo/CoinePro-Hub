@@ -44,6 +44,7 @@ Already covered (your order's no-repeat list holds this release): skip the same 
 ## B. The breaking reel (flow bjtech_breaking)
 Exactly REELS/README.md's day (setup, facts, script, voice, look, pictures, contract, build, stills QC, sound,
 render, cover, texts, deliver) with these differences:
+- **Voice:** **ZERO TOLERANCE (the owner, 2026-11-18): EVERY voice file passes audio_qc 0/0/0 — the raw take, qc/voice_raw.wav AND qc/voice_final.wav, not only the mix. Any click, cut or burst flag, however small (0.5 dB over, on a real word, a «detector edge»), = a NEW `speech.make` of the WHOLE script (a long video: of that chapter). Never judged, never kept because the mix passes, never patched by hand.** Speed never excuses a flagged take.
 - **Speed:** aim to deliver within 90 minutes. 35–55 s, 90–120 words. One still round may suffice if every shot
   scores 8+.
 - **Facts:** the vendor's announcement, its docs / pricing / model card, and — when the page compares — its own

@@ -60,6 +60,8 @@ The bar is `KIT/example/` of bjtech-reels (Claude Fable 5.2, 62 s): read its NOT
   soft UI blips on the beats, low whooshes on the transitions, the boot chime on frame 0, the resolve chord on the
   end card. Never a hit or a boom. Mix −14 LUFS, voice −16, true peak < −1 dBTP, audio QC 0 clicks / 0 cuts / 0
   bursts on the voice AND the file's own audio.
+  **Zero tolerance (the owner, 2026-11-18):** every voice file (the raw take, voice_raw, voice_final) passes 0/0/0;
+  a flagged take is ALWAYS remade with a new speech.make, never judged a detector edge, never kept because the mix passes.
 
 ## 5. Pictures (AI stills are allowed only as pictures, never as text, never as video)
 - **Never a video from Gemini, ChatGPT or any AI video model (owner rule).** All motion is Claude's code.

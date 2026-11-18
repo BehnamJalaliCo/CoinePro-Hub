@@ -168,6 +168,12 @@ def keyed(path):
     ImageDraw.Draw(m).rounded_rectangle((pad, pad, w - pad, h - pad), radius=pad * 2, fill=255)
     m = m.filter(ImageFilter.GaussianBlur(pad * .8))
     im = ImageChops.multiply(im, Image.merge("RGB", (m, m, m)))
+    # ⟨2026-11-18⟩ the coordinator: the hero fills the space under the title: its black margins are cut away
+    lum = im.convert("L").point(lambda v: 255 if v > 38 else 0)
+    box = lum.getbbox()
+    if box:
+        pw, ph = int((box[2] - box[0]) * .03), int((box[3] - box[1]) * .03)
+        im = im.crop((max(0, box[0] - pw), max(0, box[1] - ph), min(w, box[2] + pw), min(h, box[3] + ph)))
     buf = io.BytesIO()
     im.save(buf, "PNG", optimize=True)
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
@@ -366,12 +372,19 @@ FIT_JS = """() => { document.querySelectorAll('[data-fit]').forEach(el => {
   for (let i = 0; i < 5; i++) { const w = width(); if (!w) break; px = Math.min(max, px * target / w); el.style.fontSize = px + 'px'; }
 });
   const head = document.getElementById('nvhead');
-  if (head) {  // the hero below the title block, whatever its size; it ends above the bottom UI
-    const hb = head.getBoundingClientRect().bottom + 6;
-    const hero = document.querySelector('img.nvel[data-follow]'), bloom = document.querySelector('.nvbloom[data-follow]');
-    if (hero) { const top = Math.max(parseFloat(hero.style.top), hb), hh = Math.min(parseFloat(hero.style.height), 1860 - top);
-      hero.style.top = top + 'px'; hero.style.height = hh + 'px';
-      if (bloom) bloom.style.top = (top + hh - 170) + 'px'; }
+  const hero = document.querySelector('img.nvel[data-follow]'), bloom = document.querySelector('.nvbloom[data-follow]');
+  if (head && hero && hero.naturalWidth) {
+    // ⟨2026-11-18⟩ the hero fills the free area under the text block: 78 % of the width (up to 95 % to fill its
+    // height), centred in it, never more than 120 px below the text; its bloom on its base
+    const W = innerWidth, freeTop = head.getBoundingClientRect().bottom + 24, freeBot = innerHeight - 70;
+    const freeH = freeBot - freeTop, ar = hero.naturalHeight / hero.naturalWidth;
+    let w = W * .78, h = w * ar;
+    if (h > freeH) { h = freeH; w = h / ar; } else { w = Math.min(W * .95, freeH / ar); h = w * ar; }
+    let top = freeTop + (freeH - h) / 2;
+    if (top - freeTop > 60) top = freeTop + 60;  // (the picture's own glow adds ~40 px: the eye's gap stays under ~120)
+    Object.assign(hero.style, {left: ((W - w) / 2) + 'px', top: top + 'px', width: w + 'px', height: h + 'px'});
+    if (bloom) Object.assign(bloom.style, {left: ((W - w * .7) / 2) + 'px', width: (w * .7) + 'px',
+                                           top: (top + h * .82) + 'px', height: (h * .2) + 'px'});
   }
 }"""
 

@@ -45,6 +45,7 @@ Chromium). PY = PCKIT/venv-render/bin/python; export PLAYWRIGHT_BROWSERS_PATH=PC
 6. **Voice, one `speech.make` per chapter** (Arlo, no style, no narrator.set) → each chapter's QC exactly as
    REELS/README.md step 4, inside its folder (`cd ch/NN`): audio_qc 0/0/0, every line heard, pauses 0.40,
    assemble, word times → `direction/word_times.json`.
+   **ZERO TOLERANCE (the owner, 2026-11-18): EVERY voice file passes audio_qc 0/0/0 — the raw take, qc/voice_raw.wav AND qc/voice_final.wav, not only the mix. Any click, cut or burst flag, however small (0.5 dB over, on a real word, a «detector edge»), = a NEW `speech.make` of the WHOLE script (a long video: of that chapter). Never judged, never kept because the mix passes, never patched by hand.**
 
 ## Turn 2 — pictures and scenes
 7. **Pictures** (shared: `assets/use/`): the official images of every product shown; 4–8 AI stills for what code
