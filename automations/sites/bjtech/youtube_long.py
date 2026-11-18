@@ -168,11 +168,19 @@ def save_state(s: dict) -> None:
     tmp.replace(STATE)
 
 
-def channel_name() -> str:
+def config() -> dict:
     try:
-        return str(json.loads(CONFIG.read_text("utf-8")).get("youtube_channel_name") or "").strip()
+        return json.loads(CONFIG.read_text("utf-8"))
     except (OSError, ValueError):
-        return ""
+        return {}
+
+
+def channel_name() -> str:
+    return str(config().get("youtube_channel_name") or "").strip()
+
+
+def channel_handle() -> str:
+    return str(config().get("youtube_channel_handle") or "").strip()
 
 
 def active_channel() -> tuple[str, dict]:
@@ -351,8 +359,10 @@ def due(dry: bool) -> int:
                 save_state(state)
                 log(f"{ref}: waiting: youtube-bj is signed out")
                 continue
-            if want not in active:
-                run_.update(status="waiting", why=f"the active channel is not {want!r}: {active[:80]!r}")
+            handle = channel_handle()
+            switcher = str((ans.get("notes") or {}).get("channels") or "")
+            if want not in active or (handle and handle not in switcher):
+                run_.update(status="waiting", why=f"the active channel is not {want!r} {handle}: {active[:80]!r}")
                 save_state(state)
                 log(f"{ref}: waiting: the active channel is not the page's")
                 continue
@@ -386,7 +396,10 @@ def main() -> int:
     if a.channel:
         active, ans = active_channel()
         print(json.dumps({"ok": ans.get("ok"), "error": ans.get("error"), "channels": (ans.get("notes") or {}).get("channels"),
-                          "active": active[:200], "expected": channel_name()}, ensure_ascii=False, indent=1))
+                          "active": active[:200], "expected": channel_name(), "handle": channel_handle(),
+                          "match": bool(channel_name()) and channel_name() in active
+                          and (not channel_handle() or channel_handle() in str((ans.get("notes") or {}).get("channels") or ""))},
+                         ensure_ascii=False, indent=1))
         return 0
     if a.due:
         return due(a.dry_run)

@@ -7,6 +7,8 @@
   "youtube": "https://www.youtube.com/@behnamjalali-tech",
   "instagram": "https://www.instagram.com/behnamjalali.tech",
   "_note": "The ONE place for the page's links (owner 2026-11-18: Telegram t.me/behnamjalali_tech, YouTube @behnamjalali-tech). Every kit reads it; change a link here only.",
-  "youtube_channel_name": "",
-  "_note_youtube": "The channel's exact name as YouTube Studio shows it for the active channel. Empty = the long-video uploader uploads nothing (never a video on the wrong channel). Set it once @behnamjalali-tech is reachable from the browser profile youtube-bj."
+  "youtube_channel_name": "Behnam Jalali | AI & Tech",
+  "_note_youtube": "The channel as YouTube Studio shows it (name, handle; the id for people). The uploader uploads only when the profile youtube-bj's active channel is this name AND its channel switcher shows this handle (checked 2026-11-18 14:3xZ: Google account behnamjalali88@gmail.com, Studio /channel/UCM6vlhPvok-WkZnTMmqQbRg).",
+  "youtube_channel_handle": "@behnamjalali-tech",
+  "youtube_channel_id": "UCM6vlhPvok-WkZnTMmqQbRg"
 }

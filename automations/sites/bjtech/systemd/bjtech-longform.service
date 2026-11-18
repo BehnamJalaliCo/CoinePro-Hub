@@ -9,7 +9,8 @@ Type=oneshot
 User=Hub
 Group=Hub
 WorkingDirectory=/home/Hub/sites
-ExecStart=/usr/bin/python3 -I /home/Hub/CoinePro-Hub/automations/sites/bjtech/youtube_long.py --due
+Environment=BJ_REPO=/home/Hub/sites/bjtech-auto
+ExecStart=/usr/bin/python3 -I /home/Hub/sites/bjtech-auto/automations/sites/bjtech/youtube_long.py --due
 TimeoutStartSec=5400
 Nice=10
 IOSchedulingClass=best-effort

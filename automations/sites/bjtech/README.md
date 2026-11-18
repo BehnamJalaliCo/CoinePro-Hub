@@ -10,7 +10,9 @@
   `systemd/bjtech-longform.timer`, every 10 minutes): out/ checked, the soundtrack 0/0/0, THE CHANNEL GUARD (only when
   the profile's active channel is `youtube_channel_name` of bjtech-common/brand/config.json; empty = nothing ever
   uploads), one Public upload, then tags, Persian subtitles, thumbnail. `youtube_long.py --channel` (read only) shows
-  the switcher's channels and the active one.
+  the switcher's channels and the active one. It runs from a detached worktree /home/Hub/sites/bjtech-auto
+  (`git -C /home/Hub/sites/bjtech-auto checkout --detach origin/server/p39-deploy` after a fetch to update it), so a fix to it
+  never needs the live checkout moved.
 
 Install (once, as root): `cp systemd/*.service systemd/*.timer /etc/systemd/system/ && systemctl daemon-reload &&
 systemctl enable --now bjtech-breaking.timer` (and `bjtech-longform.timer` once the channel is reachable).
