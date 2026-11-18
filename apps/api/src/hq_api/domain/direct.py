@@ -789,6 +789,22 @@ async def pending_word(tx: Tx, ref: str, j: dict[str, Any]) -> bool:
     return False
 
 
+async def voice_waited(tx: Tx, rep: dict[str, Any], j: dict[str, Any]) -> bool:
+    """⟨2026-11-18⟩ A voice speech.make made for this session while the turn ran. It reaches the
+    session's `in/` only with a next turn, and speech_make wakes nobody while the turn still runs
+    (F-0057: the voice came 08:30Z, the turn ended 08:31Z without it, no turn for 2.5 hours)."""
+    since = j.get("started_at") or j["created_at"]
+    return bool(
+        await tx.scalar(
+            """SELECT 1 FROM files.files WHERE meta ->> 'order_id' = :o
+                 AND meta ->> 'made_by' = 'speech.make' AND variant = 'original'
+                 AND created_at > :t LIMIT 1""",
+            o=str(rep["order_id"]),
+            t=since,
+        )
+    )
+
+
 async def after_turn(
     tx: Tx, hub: Any, j: dict[str, Any], w: dict[str, Any], *, answer: str, files: list[str]
 ) -> None:
@@ -824,6 +840,10 @@ async def after_turn(
     await events.emit(tx, w["company"], "order.updated", ref, {"direct": "idle"})
     if ref and await pending_word(tx, ref, j):
         await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"owner_reply:{ref}")
+    elif ref and await voice_waited(tx, dict(rep), j):
+        from hq_api.domain import speech_make as SM
+
+        await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{SM.DONE_REASON}{ref}")
     elif ref and text and not asked:
         await go_on(tx, dict(rep), w, ref)
 

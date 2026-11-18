@@ -617,6 +617,42 @@ async def test_a_voice_the_session_made_reaches_its_next_turn_in_the_in_folder(
     assert "in/" in nxt["args"]["brief"]
 
 
+async def test_a_voice_that_came_while_the_turn_ran_starts_the_next_turn(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-18⟩ F-0057: speech.make finished while the turn still ran (so it woke nobody), the
+    turn ended «the file has not come yet», and nothing started the next one for 2.5 hours. A
+    voice made during the turn now starts the next turn as the turn ends."""
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su, version="0.3.5")
+    o = await an_order(client, owner, su, co)
+    run = await queued_run(su, o)
+    note = await DR.hand_over(hub, run, o["emp"])
+    await end_run(su, run, note)
+    job = await take(client, rn)
+    order_id = await su.fetchval(
+        "SELECT order_id FROM owner.order_reports WHERE ref = $1", o["ref"]
+    )
+    await su.execute(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code, kind, meta)
+           VALUES ($1, 'speech-mid.ogg', 'audio/ogg', 10, repeat('b', 64), gen_random_uuid()::text, 'agent', $2,
+                   'audio', jsonb_build_object('order_id', $3::text, 'made_by', 'speech.make'))""",
+        o["emp"]["company_id"], o["holder"], str(order_id),
+    )  # fmt: skip
+    await result(client, rn, job["id"], "صدا ساخته شد ولی فایلش هنوز نرسیده؛ نوبت بعد.")
+    nxt = await su.fetch(
+        "SELECT reason FROM agents.runs WHERE work_id = $1 AND state = 'queued'", o["work_id"]
+    )
+    assert [r["reason"] for r in nxt] == [f"speech_done:{o['ref']}"]
+
+
 async def test_the_same_content_is_not_delivered_twice(
     hub: Hub, su: Any, new_company: Callable[..., Any]
 ) -> None:
