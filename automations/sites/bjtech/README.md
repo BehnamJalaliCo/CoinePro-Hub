@@ -6,7 +6,11 @@
   event flows of the hub (`bjtech_flash`: the flash story out at once; `bjtech_breaking`: the full reel) through
   `domain/flow_events.start_event`. Never the same news twice (its state + the hub's one run per event). State:
   /home/Hub/sites/bjtech-breaking/state.json; `breaking.py --status`.
-- `youtube_long.py` — the daily long video's uploader to @behnamjalali-tech (browser profile `youtube-bj`).
+- `youtube_long.py` — the daily long video's uploader to @behnamjalali-tech (browser profile `youtube-bj`,
+  `systemd/bjtech-longform.timer`, every 10 minutes): out/ checked, the soundtrack 0/0/0, THE CHANNEL GUARD (only when
+  the profile's active channel is `youtube_channel_name` of bjtech-common/brand/config.json; empty = nothing ever
+  uploads), one Public upload, then tags, Persian subtitles, thumbnail. `youtube_long.py --channel` (read only) shows
+  the switcher's channels and the active one.
 
 Install (once, as root): `cp systemd/*.service systemd/*.timer /etc/systemd/system/ && systemctl daemon-reload &&
-systemctl enable --now bjtech-breaking.timer`.
+systemctl enable --now bjtech-breaking.timer` (and `bjtech-longform.timer` once the channel is reachable).

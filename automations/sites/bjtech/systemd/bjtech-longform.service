@@ -1,0 +1,16 @@
+[Unit]
+Description=@behnamjalali.tech: each long video of the flow bjtech_long, once, Public on its YouTube channel at its hour after the audio check and the channel guard, then its tags, subtitles and thumbnail (browser profile youtube-bj)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+WorkingDirectory=/home/Hub/sites
+ExecStart=/usr/bin/python3 -I /home/Hub/CoinePro-Hub/automations/sites/bjtech/youtube_long.py --due
+TimeoutStartSec=5400
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

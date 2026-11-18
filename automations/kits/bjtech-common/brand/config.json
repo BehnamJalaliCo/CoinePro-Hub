@@ -6,5 +6,7 @@
   "telegram": "https://t.me/behnamjalali_tech",
   "youtube": "https://www.youtube.com/@behnamjalali-tech",
   "instagram": "https://www.instagram.com/behnamjalali.tech",
-  "_note": "The ONE place for the page's links (owner 2026-11-18: Telegram t.me/behnamjalali_tech, YouTube @behnamjalali-tech). Every kit reads it; change a link here only."
+  "_note": "The ONE place for the page's links (owner 2026-11-18: Telegram t.me/behnamjalali_tech, YouTube @behnamjalali-tech). Every kit reads it; change a link here only.",
+  "youtube_channel_name": "",
+  "_note_youtube": "The channel's exact name as YouTube Studio shows it for the active channel. Empty = the long-video uploader uploads nothing (never a video on the wrong channel). Set it once @behnamjalali-tech is reachable from the browser profile youtube-bj."
 }

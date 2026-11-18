@@ -53,7 +53,10 @@
    (the open-question chip: shown from `at`, flips to the answer at `close`), cta {at, word, line} (the comment
    word card from `at`), end {at} (the end card: the page's mark, the handle, Telegram; the last 2.6 s by
    default), edge [[from, to], …] (when the spectral edge glows; default: the first 1.2 s and the end card),
-   tail (s after the last word, default 2.6), progress (true: the thin spectral progress line on top).
+   tail (s after the last word, default 2.6), progress (true: the thin spectral progress line on top),
+   endCard (false: no end card, e.g. a long video's chapter but the last), captions (default: on for a reel,
+   off for a long video, whose words go to YouTube as Persian subtitles), chapter {n, of, title} (a long video:
+   the chip «فصل n از of» top right). CHAPTER(s, n, of, title, hook) draws a chapter's opening card.
    The stage draws on top of the shots: the grade and grain, the brand mark, the captions, the gap chip, the
    comment card, the end card and the edge glow. */
 const D = /*DATA*/;
@@ -78,7 +81,7 @@ const PILLAR_FA = {repo: 'ریپوی روز', model: 'معرفی مدل', news: 
 const TR_FAMILY = ['scan', 'zoom', 'slide', 'iris', 'dissolve'];
 const CFG = {pillar: 'model', look: {tr: 0, bg: 0, mood: 0}, kicker: '', caps: {}, noCaps: [], capY: WIDE ? H - 150 : 1440,
              gap: null, cta: null, end: null, edge: null, tail: 2.6, progress: true, handle: 'behnamjalali.tech',
-             telegram: 't.me/behnamjalali_tech'};
+             telegram: 't.me/behnamjalali_tech', endCard: true, captions: !WIDE, chapter: null};
 let ACC = PILLARS.model;
 const SH = [], BEATS = [];
 const IM = {};
@@ -548,6 +551,7 @@ function capsOf(i) {
 }
 const CAPC = {};
 function captions(t) {
+  if (!CFG.captions) return;  // (a long video: YouTube's own Persian subtitles, the srt, carry the words)
   const sh = shotAt(t); if (sh && !sh.caps) return;
   let i = -1;
   for (let k = 0; k < D.lines.length; k++) if (t >= D.lines[k].s - .05) i = k;
@@ -610,6 +614,27 @@ function brand(t) {
   const kick = CFG.kicker || PILLAR_FA[CFG.pillar] || '';
   if (kick) CHIP(kick, WIDE ? x + w + 24 : W / 2, WIDE ? y : y + 64, {px: WIDE ? 22 : 24, col: ACC, al: WIDE ? 'left' : 'center', alpha: .95});
   X.restore();
+}
+function chapterChip(t) {
+  const c = CFG.chapter; if (!c) return;
+  const a = pr(t, .6, 1.1) * (1 - pr(t, END - .5, END));
+  if (a <= 0) return;
+  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a;
+  CHIP(`فصل ${fa(c.n)} از ${fa(c.of)}` + (c.title ? ` · ${c.title}` : ''), W - 70, WIDE ? 70 : 230,
+       {px: WIDE ? 24 : 26, col: ACC, al: 'right', f: 'fa'});
+  X.restore();
+}
+// a chapter's opening card (use it as the first shot of a long video's chapter): its number, title and re-hook
+function CHAPTER(s, n, of, title, hook) {
+  CAM(s, {z: 1.0, drift: .6});
+  const p = E.o5(pr(s, 0, .7));
+  X.save(); X.globalAlpha *= p;
+  T(fa(n).padStart(2, '۰'), W / 2, H * .38, WIDE ? 220 : 300, {f: 'fa', w: 900, spec: true});
+  X.restore();
+  DIVIDER(W / 2 - (WIDE ? 380 : 300), H * .38 + (WIDE ? 50 : 70), WIDE ? 760 : 600, s, .25);
+  HEAD(s, .35, title, W / 2, H * .38 + (WIDE ? 150 : 200), WIDE ? 74 : 86, {keys: [], maxW: WIDE ? 1500 : 940});
+  if (hook) T(hook, W / 2, H * .38 + (WIDE ? 250 : 330), WIDE ? 38 : 44, {f: 'fa', w: 600, col: MUTED, alpha: ease(s, .9, .5), maxW: WIDE ? 1500 : 940});
+  T(`فصل ${fa(n)} از ${fa(of)}`, W / 2, H * .38 - (WIDE ? 250 : 330), WIDE ? 28 : 32, {f: 'fa', w: 700, col: ACC, alpha: ease(s, .1, .4)});
 }
 function progressLine(t) {
   if (!CFG.progress) return;
@@ -745,7 +770,7 @@ function frame(t) {
   }
   X = MX; X.setTransform(1, 0, 0, 1, 0, 0);
   grade(t);
-  brand(t); gapChip(t); captions(t); ctaCard(t); endCard(t); progressLine(t);
+  brand(t); chapterChip(t); gapChip(t); captions(t); ctaCard(t); endCard(t); progressLine(t);
   EDGE(edgeAlpha(t), t);
   return MAIN.toDataURL('image/jpeg', .94);
 }
@@ -774,7 +799,7 @@ async function boot() {
   grainInit();
   END = (D.dur || (D.lines.length ? D.lines[D.lines.length - 1].e : 10)) + CFG.tail;
   if (CFG.endAt) END = CFG.endAt;
-  if (!CFG.end) CFG.end = {at: END - CFG.tail};
+  if (!CFG.end && CFG.endCard) CFG.end = {at: END - CFG.tail};
   window.END = END;
   window.READY = true;
 }

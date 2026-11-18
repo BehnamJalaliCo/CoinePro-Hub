@@ -1,0 +1,11 @@
+[Unit]
+Description=@behnamjalali.tech: publish the long YouTube video of the flow bjtech_long at its hour, every 10 minutes
+
+[Timer]
+OnBootSec=11min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Unit=bjtech-longform.service
+
+[Install]
+WantedBy=timers.target
