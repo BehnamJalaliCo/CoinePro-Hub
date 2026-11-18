@@ -272,6 +272,11 @@ async def test_a_long_video_over_the_file_limit_left_in_out_still_makes_its_day(
         raw = await su.fetchval("SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", w["id"])
         meta = raw if isinstance(raw, dict) else json.loads(raw)
         assert meta.get("youtube") == "queued" and meta.get("sent")
+        assert meta.get("topic_fa") == "حرکت ۳۷"
+        # ⟨2026-11-18⟩ the page's long videos are in its «never twice» list too
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            lv = await FL.flow_by_key(tx, key)
+            assert lv is not None and "حرکت ۳۷" in await FL.published_topics(tx, lv)
         assert await su.fetchval(
             "SELECT closed_at IS NOT NULL FROM owner.order_reports WHERE ref = $1", order
         )

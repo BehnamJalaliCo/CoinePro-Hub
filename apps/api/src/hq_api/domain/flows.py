@@ -648,10 +648,21 @@ NO_REPEAT_FA = (
 )
 
 
+# ⟨2026-11-18⟩ a page's long YouTube videos are not IG publications: their days carry `topic_fa`
+# (set when the day is queued for YouTube), so «never the same topic twice» holds for them too
+VIDEO_DONE_SQL = """SELECT run_meta -> 'flow' ->> 'topic_fa' AS t, max(created_at) AS at
+    FROM work.work WHERE parent_id IS NULL AND run_meta -> 'flow' ->> 'account' = :a
+      AND run_meta -> 'flow' ->> 'kind' = 'video' AND run_meta -> 'flow' ? 'topic_fa'
+    GROUP BY 1 ORDER BY max(created_at) DESC LIMIT 300"""
+
+
 async def published_topics(tx: Tx, flow: Flow) -> list[str]:
     """The page's topics already out or queued, of this flow's kind of output (newest first)."""
     kinds = DONE_KINDS["stories"] if flow.stories else DONE_KINDS.get(flow.kind, ("reel",))
     rows = await tx.all(DONE_SQL, a=flow.account, k=list(kinds))
+    if flow.kind == "video" and not flow.stories:
+        rows = sorted([*rows, *await tx.all(VIDEO_DONE_SQL, a=flow.account)],
+                      key=lambda r: r["at"], reverse=True)  # fmt: skip
     out: list[str] = []
     size = 0
     for r in rows:
@@ -1495,6 +1506,8 @@ async def _queue_video(
     d = pkg["d"]
     meta["sent"] = datetime.now(UTC).isoformat()
     meta["youtube"] = "queued"
+    if topic:  # (the page's «never twice» list reads it: published_topics)
+        meta["topic_fa"] = " ".join(topic[0].split())[:300]
     await tx.exec(
         """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))
            WHERE id = :w""",
