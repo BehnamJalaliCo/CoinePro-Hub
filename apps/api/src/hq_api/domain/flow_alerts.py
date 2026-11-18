@@ -282,7 +282,7 @@ async def _clock(
     today = now.astimezone(tz).date()
     hit: list[tuple[FL.Flow, UUID]] = []
     for f in flows:
-        if f.state != "on":
+        if f.state != "on" or FL.on_event(f):  # (⟨2026-11-18⟩ an event's flow has no build hour)
             continue
         for day in (today, today + timedelta(days=1)):
             if quiet_since < FL.trigger_of(f, day) <= now:

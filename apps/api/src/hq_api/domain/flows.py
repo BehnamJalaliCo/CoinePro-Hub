@@ -495,6 +495,14 @@ PAUSED_NO_END_FA = "این اتوماسیون متوقف است؛ با کلید�
 SKIPPED_WHY_FA = "مدیر کل این روز را رد کرده است"
 NOT_ITS_DAY_FA = "این روز از روزهای این اتوماسیون نیست"
 NOT_STARTED_FA = "این اتوماسیون از {start} شروع میشود"
+# ⟨2026-11-18⟩ an automation an event starts, never the clock (@behnamjalali.tech's breaking news:
+# domain/flow_events.py, called by the hub's watcher); its row is on the board like any other
+EVENT_RECIPES = ("breaking",)
+EVENT_FA = "این اتوماسیون با خبر تازه شروع میشود، نه با ساعت"
+
+
+def on_event(flow: Flow) -> bool:
+    return flow.recipe in EVENT_RECIPES
 
 
 async def off_keys(tx: Tx) -> set[str]:
@@ -520,6 +528,8 @@ def held_why(flow: Flow, day: date) -> str | None:
             return PAUSED_NO_END_FA
         if day < flow.paused_until:
             return PAUSED_WHY_FA.format(until=fa_day(flow.paused_until))
+    if on_event(flow):
+        return EVENT_FA
     if day in flow.skips:
         return SKIPPED_WHY_FA
     if day_index(day) not in flow.days:
@@ -1555,8 +1565,13 @@ async def _publish_stories(
         if topic_d
         else []
     )
-    times = story_times(flow, date.fromisoformat(str(meta["day"])))
     now = datetime.now(UTC)
+    # ⟨2026-11-18⟩ an event's stories (breaking news) go out the moment they are in
+    times = (
+        [now] * len(pkg["stories"])
+        if meta.get("asap")
+        else story_times(flow, date.fromisoformat(str(meta["day"])))
+    )
     order = str(meta.get("order") or "") or None
     sent, late = [], []
     for i, ((f, d), at) in enumerate(zip(pkg["stories"], times, strict=False), 1):

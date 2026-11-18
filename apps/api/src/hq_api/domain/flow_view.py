@@ -127,6 +127,32 @@ STORY_TEXT: dict[str, dict[str, tuple[str, str]]] = {
 }
 
 
+# ⟨2026-11-18⟩ @behnamjalali.tech (tech & AI): the day's 12 stories, and the breaking news' flash story
+STORY_TEXT["bjtech"] = {
+    "data": (
+        "موضوع‌های روز: خبر داغ، ابزار، آموزش، معرفی",
+        "از بانک موضوع‌ها و خبرهای رسمی همان روز",
+    ),
+    "pictures": (
+        "تصویرها از ChatGPT و Gemini، هر کدام بهترینش",
+        "فقط تصویر؛ هر نوشته‌ی فارسی را کد میگذارد",
+    ),
+    "compose": ("کارت‌های LUMEN با کد: تیتر، نکته، نشان پیج", "story_1.jpg تا آخر، ۱۰۸۰×۱۹۲۰"),
+    "dm": ("جواب دایرکت با لینک‌های روز و کانال تلگرام", "comment.txt: لینک‌ها و دکمه‌ی کانال"),
+    "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، لینک‌ها را در دایرکت میگیرد"),
+}
+STORY_TEXT["breaking"] = {
+    "data": (
+        "خبر فوری از صفحه‌ی رسمی سازنده",
+        "دیده‌بان هاب پیدا کرد؛ جلسه اول آن را روی خود سایت تأیید میکند",
+    ),
+    "pictures": ("تصویر رسمی همان خبر", "عکس معرفی خود سازنده، بی هیچ تصویر ساختگی"),
+    "compose": ("قاب «خبر فوری» با کد", "story_1.jpg به محض آماده شدن منتشر میشود"),
+    "dm": ("جواب دایرکت با لینک رسمی خبر", "comment.txt: لینک خبر و کانال تلگرام"),
+    "rule": ("جواب دایرکت استوری", "هر کس کلمه را بفرستد، لینک رسمی خبر را میگیرد"),
+}
+
+
 # the lane (who does it) of each step: one row per lane on the app's canvas
 LANE = {
     "n8n": "n8n", "order": "hub", "package": "hub", "report": "hub",
@@ -153,6 +179,14 @@ def _head(flow: FL.Flow) -> list[FS.FlowStep]:
         rules.append("نوع روز به نوبت: " + "، ".join(flow.cycle))
     if flow.pair:
         rules.append("ریلز دوم روز؛ هیچ‌وقت هم‌ساعت ریلز اول نیست")
+    if FL.on_event(flow):  # ⟨2026-11-18⟩ the breaking news: the hub's watcher, not a clock
+        return [
+            _step("n8n", "دیده‌بان خبرهای فوری", "n8n", "code", inp="هر چند دقیقه، صفحه‌های رسمی سازنده‌ها",
+                  out="فقط مدل یا انتشار بزرگ تازه؛ هر خبر یک بار"),
+            _step("order", "جلسه‌ی فوری در هاب", "order", "code",
+                  out=f"یک جلسه‌ی خودکار در کارگاه، روی {_model(flow)}؛ بی پرسش و بی انتظار",
+                  rules=(cap.translate(FA_DIGITS), "هیچ خبری دو بار ساخته نمیشود")),
+        ]  # fmt: skip
     return [
         _step("n8n", "n8n روند را روشن میکند", "n8n", "code", inp=f"هر روز ساعت {at} تهران",
               out=f"درخواست امضاشده به هاب برای {day}"),
@@ -274,6 +308,28 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             _step("cover", "کاور کامل با ChatGPT از فولدر مدیر کل", "workshop", "gpt",
                   out="cover.jpg", rules=("خود مدیر کل با کت‌وشلوار تازه؛ هر حرف فارسی چک میشود",)),
             _step("texts", "کپشن، کلمه‌ی کامنت و خلاصه‌ی دایرکت", "workshop", "workshop",
+                  out="caption.txt، comment.txt", model=m),
+            *_tail(flow),
+        ]  # fmt: skip
+    if kind in ("bjtech", "breaking"):
+        # ⟨2026-11-18⟩ @behnamjalali.tech: the LUMEN engine (glass panels, live code, the spectral light)
+        topic = ("خبر فوری، تأییدشده روی صفحه‌ی رسمی سازنده" if kind == "breaking"
+                 else "موضوع روز به نوع روز: ریپو، مدل، ابزار، ترفند، خبر یا پشت صحنه")  # fmt: skip
+        return [
+            *_head(flow),
+            _step("topic", topic, "workshop", "workshop", out="topic.txt", model=m,
+                  rules=("هیچ موضوعی دو بار؛ هر عدد از منبع رسمی همان روز",)),
+            _step("script", "متن گوینده با پایان کامل", "workshop", "workshop", out="متن گوینده", model=m,
+                  rules=("چه شد، الان کجاست، یک جمع‌بندی",)),
+            _step("voice", "صدای گوینده (Arlo)", "workshop", "aistudio", out="فایل صدا"),
+            _step("voice_check", "بازبینی صدا: بی تق، بی بریدگی، بی نویز", "workshop", "code"),
+            _step("keyart", "تصویر رسمی و تصویرهای ChatGPT و Gemini", "workshop", "gpt",
+                  out="فقط تصویر؛ هر نوشته با کد"),
+            _step("direction", "کارگردانی LUMEN: نماها، دوربین، نور و صدا", "workshop", "workshop", model=m),
+            _step("render", "موشن‌گرافی با کد، رندر ۶۰ فریم", "workshop", "workshop", out="video.mp4",
+                  model=m, rules=("فونت Estedad و Geist؛ هر حرف فارسی چک میشود",)),
+            _step("cover", "کاور با کد: تیتر و تصویر روز", "workshop", "workshop", out="cover.jpg", model=m),
+            _step("texts", "کپشن، کلمه‌ی کامنت و دایرکت با لینک", "workshop", "workshop",
                   out="caption.txt، comment.txt", model=m),
             *_tail(flow),
         ]  # fmt: skip

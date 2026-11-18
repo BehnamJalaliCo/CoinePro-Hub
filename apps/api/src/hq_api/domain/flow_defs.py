@@ -1173,17 +1173,22 @@ async def create_by_hub(
     tx: Tx, hub: Any, *, key: str, account: str, kit: str, title_fa: str, kind: str,
     schedule: dict[str, Any], model: str, effort: str, usd_cap: float, budget_tokens: int,
     note_fa: str = "", recipe: str = "", channel: str = "instagram", skips: tuple[date, ...] = (),
+    story: bool = False, story_word: str = "",
 ) -> FlowDef:  # fmt: skip
     """⟨2026-11-17⟩ A new automation made by the hub itself (a kit no flow uses yet, e.g. DotCoin's
     long YouTube videos, kind `video`; ⟨2026-11-18⟩ its SEO days, kind `article`, channel `web`): the
     same checks as a save (§61.4), version 1 and its audit
     row, `on`; the hub's clock runs it. Not a route: the owner's own «بساز و روشن کن» is `create`.
     A key that exists is refused (a second call changes nothing). `skips`: days its clock leaves out
-    (a first day the hub must not make yet)."""
+    (a first day the hub must not make yet). ⟨2026-11-18⟩ A stories flow (kind `stories`) names its
+    hours in `schedule["stories"]`; `story_word` is its fixed reply word ("" = a fresh one a day);
+    `story`: a reel flow posts its reel as a story too."""
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}", key):
         raise ApiError(422, "invalid_flow", "bad key")
     if kind not in KINDS:
         raise ApiError(422, "invalid_flow", "bad kind")
+    if (kind == "stories") != bool(schedule.get("stories")):
+        raise ApiError(422, "invalid_flow", "a stories flow, and only it, names its story hours")
     from hq_api.domain.dispatch import ROUTE_TOKENS_MAX
 
     if not 10_000 <= budget_tokens <= ROUTE_TOKENS_MAX:  # (its day's order carries it: Route)
@@ -1198,11 +1203,12 @@ async def create_by_hub(
     hours = tuple(schedule.get("hours") or ())
     draft = FL.Flow(
         key=key, company=co.code, account=account, title_fa=" ".join(title_fa.split()), kit=kit,
-        start=start, hours=hours, story=False, budget_tokens=budget_tokens, n8n="",
+        start=start, hours=hours, budget_tokens=budget_tokens, n8n="",
         trigger_at=str(schedule.get("trigger_at") or "08:00"), usd_cap=Decimal(str(usd_cap)),
         model=model, same_day=bool(schedule.get("same_day", True)), recipe=recipe, effort=effort,
         note_fa=note_fa, days=tuple(int(d) for d in schedule.get("days") or FL.ALL_DAYS),
-        channel=channel,
+        channel=channel, stories=tuple(str(h) for h in schedule.get("stories") or ()),
+        story=bool(story), story_word=" ".join(story_word.split()),
     )  # fmt: skip
     if getattr(draft, "kind", None) != kind:  # (FL.Flow without `kind`: a hub not yet deployed)
         object.__setattr__(draft, "kind", kind)
@@ -1215,10 +1221,11 @@ async def create_by_hub(
         """INSERT INTO automations.flows (key, company_id, channel, account, title_fa, kit, kind,
                state, schedule, story, model, effort, usd_cap, budget_tokens, cycle, story_word,
                n8n, pair, recipe, note_fa, skips)
-           VALUES (:key, :co, :ch, :acc, :title, :kit, :kind, 'on', CAST(:sch AS jsonb), false,
-                   :model, :effort, :cap, :tokens, '{}', NULL, '', NULL, :recipe, :note, :skips)
+           VALUES (:key, :co, :ch, :acc, :title, :kit, :kind, 'on', CAST(:sch AS jsonb), :story,
+                   :model, :effort, :cap, :tokens, '{}', :word, '', NULL, :recipe, :note, :skips)
            RETURNING ref""",
         key=key, co=co.id, ch=channel, acc=account, title=draft.title_fa, kit=kit, kind=kind,
+        story=draft.story, word=draft.story_word or None,
         sch=json.dumps(after["schedule"], ensure_ascii=False), model=model, effort=effort,
         cap=Decimal(str(usd_cap)), tokens=budget_tokens, recipe=recipe or None, note=note_fa or None,
         skips=sorted(skips),
