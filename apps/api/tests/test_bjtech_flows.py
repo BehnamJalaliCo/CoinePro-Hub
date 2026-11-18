@@ -295,3 +295,12 @@ def test_a_long_video_of_a_page_without_a_site_never_names_dotcoins_channel() ->
     assert "۸ تا ۱۵ دقیقه" in text and "subtitles.fa.srt" in text and FL.NEVER_SILENT_FA in text
     dot = a_flow("XX", "dc_long", account="dotcoin.me", kind="video")
     assert "یوتیوب دات‌کوین" in FL.brief_of(dot, d(2026, 11, 19), at)
+
+
+def test_a_flash_storys_order_names_the_reply_words_already_taken() -> None:
+    flow = a_flow("XX", "bj_flash", recipe="breaking", stories=("12:00",), hours=("12:00",))
+    at = datetime(2026, 11, 19, 10, 0, tzinfo=UTC)
+    item = {"id": "x:y", "vendor": "OpenAI", "title": "t"}
+    text = EV.event_brief(flow, item, at, [], ["آسترا", "مدل"])
+    assert "«آسترا»" in text and "باید تازه باشد" in text and "story_1.jpg" in text
+    assert "باید تازه باشد" not in EV.event_brief(flow, item, at, [], [])
