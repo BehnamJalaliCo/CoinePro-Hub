@@ -23,6 +23,7 @@ Types:
 """
 import base64
 import html
+import tempfile
 import json
 import os
 import re
@@ -101,8 +102,11 @@ CSS = r"""
 .nv{font-family:YKX,EST,sans-serif}
 .nv .en{font-family:GEI,YKX,sans-serif}
 .nvbg{position:absolute;inset:0;background-size:cover;background-position:center}
-.nvtitle{font-family:YKX,EST,sans-serif;font-weight:900;color:#fff;line-height:1.24;letter-spacing:-.5px;
-  text-shadow:0 0 28px rgba(70,140,255,.35),0 6px 22px rgba(0,0,0,.55)}
+.nvtitle{font-family:YKX,EST,sans-serif;font-weight:900;color:#fff;line-height:1.2;letter-spacing:-.5px;
+  text-shadow:0 0 38px rgba(70,140,255,.5),0 0 12px rgba(120,180,255,.25),0 8px 26px rgba(0,0,0,.6)}
+.nvtitle>div,.nvlatin{white-space:nowrap}
+.nvbloom{position:absolute;border-radius:50%;background:radial-gradient(closest-side,rgba(60,150,255,.75),rgba(30,90,255,.35) 45%,rgba(20,60,200,0) 100%);
+  filter:blur(8px);mix-blend-mode:screen}
 .nvtitle .key,.nvkey{background:linear-gradient(180deg,#5CB8FF 0%,#2A86FF 55%,#1A5CFF 100%);-webkit-background-clip:text;
   background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 18px rgba(40,120,255,.55))}
 .nvsub{font-family:YKX,EST,sans-serif;font-weight:700;color:#C9D6EA;text-shadow:0 2px 10px rgba(0,0,0,.6)}
@@ -112,7 +116,7 @@ CSS = r"""
 .nvchip{display:inline-flex;align-items:center;gap:12px;padding:12px 28px;border-radius:999px;border:2px solid #2E7BFF;
   background:rgba(18,50,140,.45);box-shadow:0 0 22px rgba(46,123,255,.45),inset 0 0 12px rgba(46,123,255,.25);
   font-family:YKX,EST,sans-serif;font-weight:700;color:#fff;font-size:38px;line-height:1}
-.nvel{position:absolute;mix-blend-mode:screen;object-fit:contain;filter:drop-shadow(0 0 30px rgba(40,120,255,.55))}
+.nvel{position:absolute;mix-blend-mode:screen;object-fit:contain}  /* (no drop-shadow: it would outline the picture's box) */
 .nvglyph{position:absolute;display:grid;place-items:center;font-family:GEI,sans-serif;font-weight:900;color:transparent;
   -webkit-text-stroke:5px #56B4FF;filter:drop-shadow(0 0 16px #2A86FF) drop-shadow(0 0 40px rgba(42,134,255,.7));direction:ltr}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -150,6 +154,25 @@ body{font-family:EST,GEI,sans-serif;color:#F2F4F8;direction:rtl;position:relativ
 """
 
 
+def keyed(path):
+    """The hero as a PNG data URL, its near-black crushed to pure black and its edges feathered, so blended with
+    `screen` on the navy background it shows no box (a picture's «black» is rarely #000)."""
+    import io
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter
+    im = Image.open(path).convert("RGB")
+    lift = 26
+    im = im.point(lambda v: 0 if v <= lift else int((v - lift) * 255 / (255 - lift)))
+    w, h = im.size
+    m = Image.new("L", (w, h), 0)
+    pad = int(min(w, h) * .07)
+    ImageDraw.Draw(m).rounded_rectangle((pad, pad, w - pad, h - pad), radius=pad * 2, fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(pad * .8))
+    im = ImageChops.multiply(im, Image.merge("RGB", (m, m, m)))
+    buf = io.BytesIO()
+    im.save(buf, "PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
 def nv_title(spec, keys):
     """The title as lines: «|» breaks a line where the designer wants it; key words in the blue gradient."""
     lines = [x.strip() for x in str(spec.get("title") or "").split("|") if x.strip()]
@@ -171,34 +194,39 @@ def navy(spec, w, h):
     on top, and ONE glowing neon element (a 3D icon or illustration on black, blended so its black disappears)."""
     keys = spec.get("keys") or []
     bg = img_url(spec.get("background") or BG)
-    el = img_url(spec["element"]) if spec.get("element") else ""
-    glyph = html.escape(str(spec.get("element_text") or ""))
+    el = keyed(spec["element"]) if spec.get("element") else ""
+    # ⟨2026-11-18⟩ the coordinator's review: «A published cover must NEVER use a glyph fallback»: the hero is the cover
+    glyph = html.escape(str(spec.get("element_text") or "")) if spec.get("draft") else ""
+    if not el and not spec.get("draft"):
+        raise SystemExit("a cover needs its hero picture (`element`: the neon 3D object on pure black); never a glyph")
     layout = spec.get("layout") or "top"
     thumb = spec.get("type") == "thumb"
     parts = [f'<div class="nvbg" style="background-image:url({bg})"></div>']
     if thumb:
         parts.append('<div style="position:absolute;inset:0;background:linear-gradient(270deg,rgba(2,6,20,.72) 0%,rgba(2,6,20,.35) 55%,rgba(2,6,20,0) 100%)"></div>')
         if el:
-            parts.append(f'<img class="nvel" src="{el}" style="left:40px;top:70px;width:560px;height:580px">')
+            parts.append(f'<div class="nvbloom" style="left:110px;top:560px;width:460px;height:120px"></div>')
+            parts.append(f'<img class="nvel" src="{el}" style="left:10px;top:30px;width:660px;height:660px">')
         elif glyph:
             parts.append(f'<div class="nvglyph" style="left:60px;top:150px;width:520px;height:420px;font-size:250px">{glyph}</div>')
         y = 120
         box = [f'<div class="nvchip" style="font-size:26px">{rich(spec["chip"])}</div>'] if spec.get("chip") else []
-        box.append(f'<div class="nvtitle" style="font-size:{spec.get("px", 100)}px;margin-top:22px">{nv_title(spec, keys)}</div>')
+        box.append(f'<div class="nvtitle" data-fit="{spec.get("fit", 600)}" data-max="{spec.get("px", 150)}" style="font-size:100px;margin-top:18px">{nv_title(spec, keys)}</div>')
         if spec.get("latin"):
-            box.append(f'<div class="nvlatin" style="font-size:{spec.get("latin_px", 58)}px;margin-top:14px;text-align:right">{html.escape(spec["latin"])}</div>')
+            box.append(f'<div class="nvlatin" data-fit="{spec.get("latin_fit", 600)}" data-max="{spec.get("latin_px", 96)}" style="font-size:60px;margin-top:10px;text-align:right">{html.escape(spec["latin"])}</div>')
         if spec.get("sub"):
             box.append(f'<div class="nvsub" style="font-size:30px;margin-top:16px">{rich(spec["sub"])}</div>')
-        parts.append(f'<div style="position:absolute;right:64px;top:{y}px;width:{640 if (el or glyph) else 1150}px;text-align:right">{"".join(box)}</div>')
+        parts.append(f'<div style="position:absolute;right:56px;top:{spec.get("top", 70)}px;width:{620 if (el or glyph) else 1150}px;text-align:right">{"".join(box)}</div>')
     elif layout == "split":
         # the text block on the left half, the element on the right (as «سریع‌تر کد بزن!» and «چجوری هنوز کد می‌زنه؟»)
         top = spec.get("top", 640)
         if el:
-            parts.append(f'<img class="nvel" src="{el}" style="left:540px;top:{top - 160}px;width:520px;height:820px">')
+            parts.append(f'<div class="nvbloom" style="left:600px;top:{top + 560}px;width:420px;height:150px"></div>')
+            parts.append(f'<img class="nvel" src="{el}" style="left:500px;top:{top - 220}px;width:580px;height:900px">')
         elif glyph:
             parts.append(f'<div class="nvglyph" style="left:580px;top:{top - 60}px;width:460px;height:560px;font-size:220px">{glyph}</div>')
         box = [f'<div class="nvsub" style="font-size:34px;margin-bottom:10px">{rich(spec["chip"])}</div>'] if spec.get("chip") else []
-        box.append(f'<div class="nvtitle" style="font-size:{spec.get("px", 120)}px">{nv_title(spec, keys)}</div>')
+        box.append(f'<div class="nvtitle" data-fit="{spec.get("fit", 500)}" data-max="{spec.get("px", 170)}" style="font-size:120px">{nv_title(spec, keys)}</div>')
         if spec.get("sub"):
             box.append(f'<div class="nvsub" style="font-size:32px;margin-top:20px">{rich(spec["sub"])}</div>')
         parts.append(f'<div style="position:absolute;left:56px;top:{top}px;width:520px;text-align:right">{"".join(box)}</div>')
@@ -207,17 +235,18 @@ def navy(spec, w, h):
         y = spec.get("top", 300)
         box = [f'<div style="margin-bottom:22px"><span class="nvchip">{rich(spec["chip"])}</span></div>'] if spec.get("chip") else []
         if spec.get("latin") and spec.get("latin_first"):
-            box.append(f'<div class="nvlatin" style="font-size:{spec.get("latin_px", 104)}px;margin-bottom:6px">{html.escape(spec["latin"])}</div>')
-        box.append(f'<div class="nvtitle" style="font-size:{spec.get("px", 112)}px">{nv_title(spec, keys)}</div>')
+            box.append(f'<div class="nvlatin" data-fit="{spec.get("latin_fit", 900)}" data-max="{spec.get("latin_px", 170)}" style="font-size:110px;margin-bottom:6px">{html.escape(spec["latin"])}</div>')
+        box.append(f'<div class="nvtitle" data-fit="{spec.get("fit", 900)}" data-max="{spec.get("px", 190)}" style="font-size:120px">{nv_title(spec, keys)}</div>')
         if spec.get("latin") and not spec.get("latin_first"):
-            box.append(f'<div class="nvlatin" style="font-size:{spec.get("latin_px", 96)}px;margin-top:8px">{html.escape(spec["latin"])}</div>')
+            box.append(f'<div class="nvlatin" data-fit="{spec.get("latin_fit", 860)}" data-max="{spec.get("latin_px", 150)}" style="font-size:100px;margin-top:8px">{html.escape(spec["latin"])}</div>')
         if spec.get("sub"):
             box.append(f'<div class="nvsub" style="font-size:34px;margin-top:18px">{rich(spec["sub"])}</div>')
             box.append('<div style="margin:16px auto 0;width:150px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#2E7BFF,transparent);box-shadow:0 0 12px #2E7BFF"></div>')
-        parts.append(f'<div style="position:absolute;left:70px;right:70px;top:{y}px;text-align:center">{"".join(box)}</div>')
-        ey = spec.get("element_top", 900)
+        parts.append(f'<div id="nvhead" style="position:absolute;left:70px;right:70px;top:{y}px;text-align:center">{"".join(box)}</div>')
+        ey, eh = spec.get("element_top", 880), spec.get("element_h", 820)
         if el:
-            parts.append(f'<img class="nvel" src="{el}" style="left:90px;top:{ey}px;width:900px;height:{spec.get("element_h", 640)}px">')
+            parts.append(f'<div class="nvbloom" data-follow="1" style="left:190px;top:{ey + eh - 170}px;width:700px;height:200px"></div>')
+            parts.append(f'<img class="nvel" data-follow="1" src="{el}" style="left:20px;top:{ey}px;width:1040px;height:{eh}px">')
         elif glyph:
             parts.append(f'<div class="nvglyph" style="left:140px;top:{ey}px;width:800px;height:600px;font-size:340px">{glyph}</div>')
     return parts
@@ -329,6 +358,24 @@ def page(spec, w, h):
     return f'<!doctype html><html lang="fa"><head><meta charset="utf-8"><style>{css}</style></head><body>{"".join(parts)}</body></html>'
 
 
+FIT_JS = """() => { document.querySelectorAll('[data-fit]').forEach(el => {
+  const target = +el.dataset.fit, max = +el.dataset.max;
+  const width = () => { const kids = el.children.length ? [...el.children] : [el];
+    return Math.max(...kids.map(c => { const r = document.createRange(); r.selectNodeContents(c); return r.getBoundingClientRect().width; })); };
+  let px = parseFloat(getComputedStyle(el).fontSize);
+  for (let i = 0; i < 5; i++) { const w = width(); if (!w) break; px = Math.min(max, px * target / w); el.style.fontSize = px + 'px'; }
+});
+  const head = document.getElementById('nvhead');
+  if (head) {  // the hero below the title block, whatever its size; it ends above the bottom UI
+    const hb = head.getBoundingClientRect().bottom + 6;
+    const hero = document.querySelector('img.nvel[data-follow]'), bloom = document.querySelector('.nvbloom[data-follow]');
+    if (hero) { const top = Math.max(parseFloat(hero.style.top), hb), hh = Math.min(parseFloat(hero.style.height), 1860 - top);
+      hero.style.top = top + 'px'; hero.style.height = hh + 'px';
+      if (bloom) bloom.style.top = (top + hh - 170) + 'px'; }
+  }
+}"""
+
+
 def render(specs, outs):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
@@ -337,11 +384,14 @@ def render(specs, outs):
             for spec, out in zip(specs, outs):
                 w, h = SIZE.get(spec.get("type", "story"), (1080, 1920))
                 pg = b.new_page(viewport={"width": w, "height": h})
-                tmp = out + ".html"
+                # (the page is written beside the system's temp files, never into out/: a package holds only its files)
+                tmp = os.path.join(tempfile.gettempdir(), f"bjcard-{os.getpid()}-{os.path.basename(out)}.html")
                 open(tmp, "w", encoding="utf-8").write(page(spec, w, h))
                 pg.goto("file://" + os.path.abspath(tmp))
                 pg.evaluate("document.fonts.ready")
-                pg.wait_for_timeout(250)
+                pg.wait_for_timeout(150)
+                pg.evaluate(FIT_JS)
+                pg.wait_for_timeout(100)
                 over = pg.evaluate("""() => [...document.querySelectorAll('.title,.body,.chip,.en,.nvtitle,.nvsub,.nvchip,.nvlatin')].filter(e =>
                     e.scrollWidth > e.clientWidth + 2 || e.getBoundingClientRect().right > innerWidth + 1 ||
                     e.getBoundingClientRect().left < -1 || e.getBoundingClientRect().bottom > innerHeight + 1).map(e => e.textContent.slice(0, 40))""")
