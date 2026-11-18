@@ -16,7 +16,7 @@ import json
 import logging
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -1364,3 +1364,68 @@ async def test_without_the_local_voice_a_sentence_no_remote_engine_says_stays_te
     with pytest.raises(VoiceUnavailable):
         await S.speak(hub, req)
     assert voice.piper.spoken == []
+
+
+async def test_a_spent_key_hands_the_call_to_the_next_spare_key(
+    hub: Hub, voice: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨2026-11-18⟩ the 11-18 morning's quota ran out and every voice waited: the spare keys
+    (`<kv_path>-more`, each its own Google project) are asked in turn; a spent key is left until
+    Google's day turns, and none of them is ever kept in the answer."""
+    spare1, spare2 = "AIza" + "T" * 35, "AIza" + "U" * 35
+    voice.bao.data[PATH] = KEY
+    real_read = voice.bao.read_kv
+
+    async def read_kv(path: str) -> dict[str, Any]:
+        if path == f"{PATH}-more":
+            return {"secrets": [spare1, KEY, spare2, ""]}
+        return dict(await real_read(path))
+
+    monkeypatch.setattr(voice.bao, "read_kv", read_kv)
+    monkeypatch.setattr(remote, "SPENT", {})
+    assert await remote.keys_of(hub, "google") == [KEY, spare1, spare2]
+
+    spent = {KEY, spare1}
+
+    class Quota:
+        def __init__(self) -> None:
+            self.keys: list[str] = []
+
+        async def call(self, hub: Any, body: dict[str, Any]) -> dict[str, Any]:
+            self.keys.append(body["key"])
+            if body["key"] in spent:
+                return {"outcome": "error", "code": "quota", "data": None}
+            return await voice.egress.call(hub, body)
+
+    q = Quota()
+    remote.OVERRIDE = q  # type: ignore[assignment]
+    args = {"provider": "google", "model": FLASH, "voice": "Kore", "text": "سلام"}
+    out = await remote.run(hub, "speak", args)
+    assert out["outcome"] == "ok", out
+    assert q.keys == [KEY, spare1, spare2]
+    assert all(k not in str(out) for k in (KEY, spare1, spare2))
+    # the spent keys wait for Google's day: the next call goes straight to the third key
+    q.keys.clear()
+    assert (await remote.run(hub, "speak", args))["outcome"] == "ok"
+    assert q.keys == [spare2]
+    assert len(remote.SPENT) == 2 and all(k not in remote.SPENT for k in (KEY, spare1))
+    # the last fresh key spent too: the plain code comes back (the spent ones are not asked again)
+    spent.add(spare2)
+    q.keys.clear()
+    assert (await remote.run(hub, "speak", args))["code"] == "quota"
+    assert q.keys == [spare2]
+    # every key marked spent: all are asked once more (Google's day may turn before ours)
+    q.keys.clear()
+    assert (await remote.run(hub, "speak", args))["code"] == "quota"
+    assert q.keys == [KEY, spare1, spare2]
+    # a code no other key can mend (a bad request) is not handed on
+    spent.clear()
+    remote.SPENT.clear()
+    q.keys.clear()
+    voice.egress.fail["speak"] = "bad_request"
+    assert (await remote.run(hub, "speak", args))["code"] == "bad_request"
+    assert q.keys == [KEY]
+    voice.egress.fail.clear()
+    # Google's day turns at midnight Pacific (08:00Z in November)
+    t = datetime(2026, 11, 18, 3, 20, tzinfo=UTC).timestamp()
+    assert remote.next_turn(t) == datetime(2026, 11, 18, 8, 0, tzinfo=UTC).timestamp()

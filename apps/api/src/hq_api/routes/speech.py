@@ -44,8 +44,9 @@ class SpeechIn(Model):
 
 class SpeechMakeAnswer(BaseModel):
     """`running`: ask again with `job`; `done`: `file_id` is the audio (the company's file);
-    `failed`: `code` (signed_out, channel_not_configured, company_locked, timeout, recipe_failed,
-    invalid_args, failed) and `hint_fa`."""
+    `failed`: `code` (signed_out, quota (⟨2026-11-18⟩ every Gemini key spent: wait, never silent),
+    channel_not_configured, company_locked, timeout, recipe_failed, invalid_args, failed) and
+    `hint_fa`."""
 
     job: str
     state: Literal["running", "done", "failed"]

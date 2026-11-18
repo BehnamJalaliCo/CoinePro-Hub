@@ -340,10 +340,11 @@ async def test_the_api_speaks_first_and_the_web_page_only_when_it_cannot(
         def __init__(self) -> None:
             self.spoken: list[tuple[str, str]] = []
             self.fail = False
+            self.code = "bad_request"
 
         async def speak(self, hub_: Any, text: str, voice: str, rate: float) -> EngineAudio:
             if self.fail:
-                raise EngineFailed("نه", state="failing", code="bad_request")
+                raise EngineFailed("نه", state="failing", code=self.code)
             self.spoken.append((text, voice))
             holding = await hub_.companies.holding()
             fid = await audio.store(
@@ -406,6 +407,18 @@ async def test_the_api_speaks_first_and_the_web_page_only_when_it_cannot(
         r = await make(client, producer, {"text_fa": "دوباره", "voice": "Cruz"})
         assert r.status_code == 202 and r.json()["engine"] == "aistudio", r.text
         assert web.sent[-1]["prompt"] == "دوباره"
+
+        # ⟨2026-11-18⟩ every key's quota spent and the page signed out: the answer is the quota
+        # (when it comes back, never silent), not «sign in»; the quota is not tried twice
+        api.code = "quota"
+        web.answers = [EXPIRED]
+        r = await make(client, producer, {"text_fa": "سهمیه", "voice": "Cruz"})
+        got = r.json()
+        assert got["state"] == "failed" and got["code"] == "quota", r.text
+        assert got["hint_fa"] == SM.QUOTA_FA and "بی‌صدا" in got["hint_fa"]
+        assert SM.API_CODES == {}
+        await signed_in_again(hub)
+        web.answers = [OK]
     finally:
         voice_engines.OVERRIDE.pop(SM.API_ENGINE, None)
         await su.execute(
@@ -447,6 +460,11 @@ async def test_a_passing_api_refusal_is_tried_again_before_the_web_page(
     tries.clear()
     codes = ["bad_key"]
     assert await SM.api_speak(hub, job) is None and len(tries) == 1
+    # ⟨2026-11-18⟩ a spent quota (every key, the worker already tried them all): not again
+    tries.clear()
+    codes = ["quota"]
+    assert await SM.api_speak(hub, job) is None and len(tries) == 1
+    assert SM.API_CODES.pop("j1") == "quota"
 
 
 async def test_a_long_text_is_read_in_parts_and_joined(monkeypatch: pytest.MonkeyPatch) -> None:

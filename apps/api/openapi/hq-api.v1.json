@@ -54505,7 +54505,7 @@
         "type": "object"
       },
       "SpeechMakeAnswer": {
-        "description": "`running`: ask again with `job`; `done`: `file_id` is the audio (the company's file);\n`failed`: `code` (signed_out, channel_not_configured, company_locked, timeout, recipe_failed,\ninvalid_args, failed) and `hint_fa`.",
+        "description": "`running`: ask again with `job`; `done`: `file_id` is the audio (the company's file);\n`failed`: `code` (signed_out, quota (⟨2026-11-18⟩ every Gemini key spent: wait, never silent),\nchannel_not_configured, company_locked, timeout, recipe_failed, invalid_args, failed) and\n`hint_fa`.",
         "properties": {
           "bytes": {
             "anyOf": [

@@ -915,5 +915,6 @@ async def test_the_hub_makes_a_long_video_flow_whose_day_is_youtubes(
         brief = FL.brief_of(flow, tomorrow(), at)
         assert "یوتیوب" in brief and "meta.json" in brief and "caption.txt" in brief
         assert "ریلز" not in brief and brief.endswith("یادداشت ویدیو")
+        assert FL.NEVER_SILENT_FA in brief
     finally:
         await all_off(su, key)

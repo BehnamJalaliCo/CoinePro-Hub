@@ -64,6 +64,7 @@ async def test_the_four_weeks_have_their_hours(monkeypatch: pytest.MonkeyPatch) 
     assert at.astimezone(tz).strftime("%H:%M") == "09:30"
     text = FL.brief_of(f, START, at)
     assert "/kit/README.md" in text and "order.ask" in text and "story.mp4" in text
+    assert FL.NEVER_SILENT_FA in text  # ⟨2026-11-18⟩ never a silent reel, whatever the voice says
 
 
 def test_a_rotating_flow_names_the_days_kind_in_its_brief() -> None:
@@ -629,6 +630,9 @@ def test_a_fixed_story_word_and_a_reel_without_its_story_in_the_brief() -> None:
     assert "«الماس»" in FL.brief_of(fresh, date(2026, 11, 17), at, ["الماس"])
     reel = FL.brief_of(FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), at)
     assert "story.mp4" not in reel and "استوری نه" in reel and "video.mp4" in reel
+    assert FL.NEVER_SILENT_FA in reel and FL.NEVER_SILENT_FA not in FL.brief_of(
+        st, date(2026, 11, 17), at
+    )
     assert "story.mp4" in FL.brief_of(a_flow("PC"), START, at)
 
 

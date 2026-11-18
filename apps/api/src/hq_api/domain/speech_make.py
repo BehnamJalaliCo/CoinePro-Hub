@@ -67,6 +67,14 @@ SIGNED_OUT_FA = (
     "گوگل ای‌آی استودیو در مرورگر هاب وارد نشده است؛ مالک باید یک بار با دستور "
     "make aistudio-web-login وارد شود. تا آن وقت از این راه صدایی ساخته نمی‌شود."
 )
+# ⟨2026-11-18⟩ the API's quota spent on every key (the web page then answered «signed out» and one
+# reel went out silent): said as what it is, with when it comes back and what not to do meanwhile
+QUOTA_FA = (
+    "سهمیه‌ی روزانه‌ی همه‌ی کلیدهای صدای Gemini تمام شده است؛ ورود به حساب لازم نیست. سهمیه "
+    "نیمه‌شب آمریکا (ساعت ۱۱:۳۰ تهران) تازه می‌شود. ویدیو را بی‌صدا نساز و منتشر نکن: صبر کن و "
+    "بعد از تازه شدن سهمیه همین ابزار را دوباره صدا بزن."
+)
+API_CODES: dict[str, str] = {}  # a job -> the API's last refusal code (while the job runs)
 RUNNING_FA = "صدا در حال ساخت است؛ چند دقیقه بعد همین ابزار را با همین job دوباره صدا بزن."
 # a StepFailed code of tts.speak -> the tool's refusal code
 CODES = {
@@ -413,7 +421,8 @@ async def _api_once(
         return (data, str(row["mime"] or "audio/ogg")), False
     except EngineFailed as exc:
         log.info("speech by the API failed", extra={"job": str(job["job"]), "code": exc.code})
-        return None, exc.code in API_RETRY_CODES
+        API_CODES[str(job["job"])] = str(exc.code or "")
+        return None, exc.code in API_RETRY_CODES and exc.code != "quota"
     except Exception as exc:  # noqa: BLE001 - the web page is the fallback, never an error here
         log.warning(
             "speech by the API crashed", extra={"job": str(job["job"]), "error": type(exc).__name__}
@@ -427,6 +436,7 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
     voice, style, text = str(job["voice"]), str(job.get("style") or ""), str(job["text"])
     engine = "gemini_api"
     got = await api_speak(hub, job)
+    api_code = API_CODES.pop(str(job["job"]), "")
     try:
         if got is None:
             engine = "aistudio"
@@ -436,6 +446,8 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
         code = CODES.get(e.code, "failed")
         hint = SIGNED_OUT_FA if code == "signed_out" else e.reason_fa
         account: State | None = "signed_out" if code == "signed_out" else None
+        if api_code == "quota":  # (the page's own answer is not the reason the voice is missing)
+            code, hint = "quota", QUOTA_FA
         await _record(hub, job, account=account, summary=f"failed: {code}", file_id=None)
         await wake_caller(hub, job, done=False)
         return {"job": job["job"], "state": "failed", "code": code, "hint_fa": hint}

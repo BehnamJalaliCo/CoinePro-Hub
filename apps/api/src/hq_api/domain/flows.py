@@ -636,6 +636,16 @@ def stories_brief(flow: Flow, day: date, used: list[str]) -> str:
     )
 
 
+# ⟨2026-11-18⟩ the owner's rule, in every video's brief (zaribsad's 11-18 reel went out with music
+# only: the voice's quota was spent and the session read it as «signed out» and went on)
+NEVER_SILENT_FA = (
+    "قاعده‌ی مالک: ویدیو هرگز بی‌صدای گوینده ساخته، تحویل یا منتشر نمی‌شود. اگر speech.make صدا "
+    "نداد (مثلاً «سهمیه تمام شده»)، هیچ ویدیویی در out/ نگذار: صبر کن و بعد از تازه شدن سهمیه "
+    "(ساعت ۱۱:۳۰ تهران) دوباره بساز، حتی اگر ساعت انتشار بگذرد؛ دیر و با صدا، نه سر وقت و بی‌صدا. "
+    "برای صدا از مالک «ورود» نخواه."
+)
+
+
 def video_brief(flow: Flow, day: date, at: datetime) -> str:
     """⟨2026-11-17⟩ A long-video day (DotCoin's YouTube): made over several workshop turns from the
     kit; the hub's host uploader (automations/sites/dotcoin/youtube_long.py --due) publishes it on
@@ -651,7 +661,9 @@ def video_brief(flow: Flow, day: date, at: datetime) -> str:
         "subtitles.fa.srt، chapters.txt، caption.txt (همان توضیحات یوتیوب)، article.md و topic.txt؛ "
         "video.mp4 آخر از همه. وقتی همه در out/ بود، ستاد ویدیو را در ساعتش روی یوتیوب دات‌کوین "
         "منتشر میکند (اگر صدا و مقاله از بررسی‌اش رد شوند)، مقاله را روی dotcoin.me میگذارد، به مدیر "
-        "کل خبر میدهد و این جلسه را میبندد." + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
+        "کل خبر میدهد و این جلسه را میبندد.\n"
+        + NEVER_SILENT_FA
+        + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
     )
 
 
@@ -681,6 +693,7 @@ def brief_of(flow: Flow, day: date, at: datetime, used: list[str] | None = None)
             f"@{flow.account} زمان‌بندی میکند، کامنت هوشمند را روشن میکند، به مدیر کل خبر میدهد و "
             f"این جلسه را میبندد."
         )
+        + f"\n{NEVER_SILENT_FA}"
         + (f"\n\n{flow.note_fa}" if flow.note_fa else "")
     )
 

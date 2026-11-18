@@ -11,9 +11,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import logging
 import re
+import time
+from datetime import datetime, timedelta
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -25,6 +29,13 @@ log = logging.getLogger("hq_api.voice.remote")
 TIMEOUT_S = 45.0
 CHANNEL = "gemini-tts"
 RATE = re.compile(r"rate=(\d{4,6})")
+# ⟨2026-11-18⟩ the owner's spare keys, each from its own Google project (a quota is a project's):
+# kv/hq/voice/<provider>-more {secrets: [...]}. A refused key hands the call to the next one; a key
+# whose quota is spent is left until Google's day turns (midnight, Pacific) — the 11-18 morning ran
+# out at 03:20Z and every voice waited (one reel went out silent)
+NEXT_KEY_CODES = frozenset({"quota", "billing_off", "bad_key", "no_model_access"})
+SPENT: dict[str, float] = {}  # a key's sha256 (never the key) -> when it may be asked again
+GOOGLE_DAY = ZoneInfo("America/Los_Angeles")
 
 
 class Egress(Protocol):
@@ -74,6 +85,40 @@ async def key_of(hub: Any, provider: str) -> str | None:
     return value or None
 
 
+async def keys_of(hub: Any, provider: str) -> list[str]:
+    """The provider's key, then its spares (`<kv_path>-more`), each once; [] when none was given."""
+    out: list[str] = []
+    main = await key_of(hub, provider)
+    if main:
+        out.append(main)
+    path = catalog.load().providers[provider].kv_path
+    bao = getattr(hub, "bao", None)
+    if path and bao is not None:
+        try:
+            more = (await bao.read_kv(f"{path}-more")).get("secrets") or []
+        except SecretNotFound:
+            more = []
+        except OpenBaoError:
+            log.warning("openbao could not be read for the spare voice keys")
+            more = []
+        for k in more if isinstance(more, list) else []:
+            k = str(k or "").strip()
+            if k and k not in out:
+                out.append(k)
+    return out
+
+
+def _mark(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def next_turn(now: float) -> float:
+    """When Google's quota day turns after `now`: the next midnight in Pacific time."""
+    local = datetime.fromtimestamp(now, GOOGLE_DAY)
+    nxt = datetime.combine(local.date() + timedelta(days=1), datetime.min.time(), GOOGLE_DAY)
+    return nxt.timestamp()
+
+
 def _fail(code: str) -> dict[str, Any]:
     return {"outcome": "error", "code": code, "data": None}
 
@@ -89,20 +134,34 @@ async def run(hub: Any, op: str, args: dict[str, Any]) -> dict[str, Any]:
     provider = str(args.get("provider") or "")
     if provider != "google" or provider not in cat.providers:
         return _fail("op_not_allowed")
-    key = await key_of(hub, provider)
-    if key is None:
+    keys = await keys_of(hub, provider)
+    if not keys:
         return _fail("no_key")
-    body: dict[str, Any] = {
-        "channel": CHANNEL,
-        "op": op,
-        "model": str(args.get("model") or ""),
-        "key": key,
-    }
-    if op == "speak":
-        body |= {"voice": args.get("voice"), "text": args.get("text")}
-    del key
-    out = await egress().call(hub, body)
-    del body
+    now = time.time()
+    # a spent key waits for its day to turn; when all are spent, all are asked (a day may turn early)
+    fresh = [k for k in keys if SPENT.get(_mark(k), 0.0) <= now] or keys
+    out: dict[str, Any] = {"outcome": "error", "code": "no_key", "data": None}
+    for n, key in enumerate(fresh, 1):
+        body: dict[str, Any] = {
+            "channel": CHANNEL,
+            "op": op,
+            "model": str(args.get("model") or ""),
+            "key": key,
+        }
+        if op == "speak":
+            body |= {"voice": args.get("voice"), "text": args.get("text")}
+        out = await egress().call(hub, body)
+        del body
+        code = out.get("code")
+        if out.get("outcome") == "ok":
+            SPENT.pop(_mark(key), None)
+            break
+        if code == "quota":
+            SPENT[_mark(key)] = next_turn(now)
+        if code not in NEXT_KEY_CODES or n == len(fresh):
+            break
+        log.info("voice key refused; the next key is asked", extra={"code": code, "key_n": n})
+    del key, keys, fresh
     if out.get("outcome") != "ok":
         return {"outcome": out.get("outcome", "error"), "code": out.get("code"), "data": None}
     if op != "speak":
