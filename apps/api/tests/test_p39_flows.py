@@ -832,6 +832,32 @@ async def test_the_p2_pages_kits_a_new_automation_and_the_week(
         await all_off(su, *made)
 
 
+async def test_a_row_above_the_route_bound_still_starts_its_day(
+    hub: Hub,
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-18⟩ AF-0015 held budget_tokens 30M and the route allows 10M: the clock failed
+    every minute (ValidationError) and the day was never made. The estimate is clamped instead."""
+    co = await new_company()
+    key = fk()
+    await seed(su, monkeypatch, a_flow(co["code"], key, budget_tokens=30_000_000))
+    day = tomorrow()
+    try:
+        assert await su.fetchval(
+            "SELECT budget_tokens FROM automations.flows WHERE key = $1", key) == 30_000_000  # fmt: skip
+        await FL.clock(hub, FL.trigger_of(FL.FLOWS[key], day) + timedelta(minutes=1))
+        n = await su.fetchval(
+            "SELECT count(*) FROM work.work WHERE parent_id IS NULL"
+            " AND run_meta -> 'flow' ->> 'key' = $1 AND run_meta -> 'flow' ->> 'day' = $2",
+            key, day.isoformat())  # fmt: skip
+        assert n == 1
+    finally:
+        await all_off(su, key)
+
+
 async def test_the_hub_makes_a_long_video_flow_whose_day_is_youtubes(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -857,7 +883,7 @@ async def test_the_hub_makes_a_long_video_flow_whose_day_is_youtubes(
             made = await FD.create_by_hub(
                 tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/p39-long",
                 title_fa="ویدیوی بلند آزمایشی", kind="video", schedule=sch, model=OPUS,
-                effort="xhigh", usd_cap=150, budget_tokens=30_000_000, note_fa="یادداشت ویدیو",
+                effort="xhigh", usd_cap=150, budget_tokens=10_000_000, note_fa="یادداشت ویدیو",
             )  # fmt: skip
         assert made.state == "on" and made.version == 1 and made.kind == "video"
         with pytest.raises(ApiError):
@@ -865,8 +891,17 @@ async def test_the_hub_makes_a_long_video_flow_whose_day_is_youtubes(
                 await FD.create_by_hub(
                     tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/p39-long",
                     title_fa="دوباره", kind="video", schedule=sch, model=OPUS, effort="xhigh",
+                    usd_cap=150, budget_tokens=10_000_000,
+                )  # fmt: skip
+        # ⟨2026-11-18⟩ above the route's bound: refused (its day's order could never be placed)
+        with pytest.raises(ApiError) as above:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                await FD.create_by_hub(
+                    tx, hub, key=fk(), account="pro.chart", kit="/home/studio/kits/p39-long",
+                    title_fa="بیش از سقف", kind="video", schedule=sch, model=OPUS, effort="xhigh",
                     usd_cap=150, budget_tokens=30_000_000,
                 )  # fmt: skip
+        assert above.value.code == "invalid_flow"
         rows = (await client.get("/api/v1/automations/flows", headers=owner)).json()["items"]
         assert any(r["key"] == key and r["kind"] == "video" for r in rows)
         n = await su.fetchval(

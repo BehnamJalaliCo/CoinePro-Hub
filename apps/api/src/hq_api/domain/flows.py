@@ -776,7 +776,9 @@ async def start(
         route=D.Route(
             companies=[flow.company],
             kind="work",
-            budget_tokens=flow.budget_tokens,
+            # ⟨2026-11-18⟩ a row above the route's bound (AF-0015 at 30M) failed the clock every
+            # minute from its first day: the estimate is clamped, never the day
+            budget_tokens=max(10_000, min(flow.budget_tokens, D.ROUTE_TOKENS_MAX)),
             why_fa=f"اتوماسیون روزانه: {flow.title_fa}",
         ),
         pace="auto",

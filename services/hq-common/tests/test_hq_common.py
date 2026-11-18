@@ -76,6 +76,34 @@ async def test_heartbeat_writes_and_removes(tmp_path: Path) -> None:
     assert not heartbeat.is_fresh(tmp_path / "missing.json")
 
 
+async def test_heartbeat_outlives_a_failed_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨2026-11-18⟩ one write refused (ENOMEM on the tmpfs) and the next ones still land."""
+    import asyncio
+
+    path = tmp_path / "hb.json"
+    real = heartbeat._write
+    calls = {"n": 0}
+
+    def flaky(p: Path, state: dict[str, object]) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError(12, "Cannot allocate memory")
+        real(p, state)
+
+    async def check() -> dict[str, object]:
+        return {"ok": True}
+
+    monkeypatch.setattr(heartbeat, "_write", flaky)
+    task = asyncio.create_task(heartbeat.run(check, path=path, interval=0.02))
+    await asyncio.sleep(0.1)
+    assert not task.done()
+    assert calls["n"] >= 2
+    assert heartbeat.is_fresh(path)
+    task.cancel()
+
+
 def _bao_transport(
     calls: list[str], kv_status: int = 200, writes: list[dict[str, object]] | None = None
 ) -> httpx.MockTransport:

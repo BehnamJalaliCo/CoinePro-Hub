@@ -74,6 +74,7 @@ CORRECTABLE = ("companies", "department", "collaborators", "output_kind", "mode"
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 _ARABIC_LETTERS = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی"})
 MAX_COUNT = 100  # the most outputs one order may ask for (Route.count)
+ROUTE_TOKENS_MAX = 10_000_000  # Route.budget_tokens (an estimate, never a cap: §61.4)
 
 
 class Route(Model):
@@ -87,7 +88,7 @@ class Route(Model):
     collaborators: list[str] = Field(default_factory=list, max_length=10)
     output_kind: OutputKind = "other"
     count: int | None = Field(default=None, ge=1, le=MAX_COUNT)
-    budget_tokens: int = Field(default=200_000, ge=10_000, le=10_000_000)
+    budget_tokens: int = Field(default=200_000, ge=10_000, le=ROUTE_TOKENS_MAX)
     mode: Literal["single", "council"] = "single"
     player: Player = "auto"
     preview_fa: str = Field(default="", max_length=600)

@@ -34,7 +34,10 @@ async def run(
             state = await check()
         except Exception as exc:  # noqa: BLE001 - any failure means unhealthy
             state = {"ok": False, "error": type(exc).__name__}
-        await asyncio.to_thread(_write, path, state)
+        # ⟨2026-11-18⟩ a write that fails once (the api's tmpfs page refused at its memory limit,
+        # an empty .tmp left) must not end the loop: the container stayed unhealthy for good
+        with contextlib.suppress(OSError):
+            await asyncio.to_thread(_write, path, state)
         await asyncio.sleep(interval)
 
 

@@ -1178,6 +1178,10 @@ async def create_by_hub(
         raise ApiError(422, "invalid_flow", "bad key")
     if kind not in KINDS:
         raise ApiError(422, "invalid_flow", "bad kind")
+    from hq_api.domain.dispatch import ROUTE_TOKENS_MAX
+
+    if not 10_000 <= budget_tokens <= ROUTE_TOKENS_MAX:  # (its day's order carries it: Route)
+        raise ApiError(422, "invalid_flow", f"budget_tokens outside 10000..{ROUTE_TOKENS_MAX}")
     if key in await FL.active_flows(tx):
         raise ApiError(409, "conflict", f"the flow {key} exists")
     account = account.strip().lstrip("@")
