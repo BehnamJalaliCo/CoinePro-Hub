@@ -1,4 +1,25 @@
-# The example reel — NOTES (2026-11-17, built by the hub's Claude through this kit; not published)
+# The example reel — NOTES (v1 2026-11-17; v2 2026-11-18 with its ending, published on @ipoxxo.vpn 2026-11-18 21:30)
+
+## v2 (2026-11-18): the ending
+- The owner on v1: «خیلی برام جذاب بود ولی ته نداشت … منتظر بودم آخرش نتیجه‌گیری … بدونم چه اتفاقی براش افتاد و چی
+  شده الان». v2 adds, after the payoff and before the sponsor line: «آخرش؟ پولش تموم شد و سایت رو رها کردن.» ·
+  «امروز فقط همین درپوشِ جوش‌خورده مونده، وسط یه خرابه.» · «ما تا ماه رفتیم، ولی زیر پامون فقط دو دهم درصدِ راه رو
+  کندیم.» — and cuts the basalt line (v1 line 5) to stay under 60 s.
+- Facts of the ending: drilling ended in 1995 for lack of funding; the site was abandoned in 2008 when its operator was
+  liquidated; the borehole is welded shut and the buildings over it are in ruins (Wikipedia, the 2012 photo); the Moon
+  is 384,400 km away on average; 12.262 / 6,371 = 0.19 %.
+- Screen: «پایانِ ماجرا» with 1989 / 1995 / 2008 on the dark station; «امروز» on the hook's cap with «جوش‌خورده و رها»
+  (the loop closes on the first picture); the Moon against «۰٫۲٪ زیرِ پای خودمون».
+- Voice (Cruz, 127 words): v2 took 7 takes. Take 1 was 58.8 s (over the budget with the tail) and its script was
+  cut; takes 2, 3 and 64 each carried one burst (rejected by audio_qc); the speech API then hit its daily request
+  quota (≈ 100 a day, about 103 used in the 24 h before) until the 08:00Z reset; take 71: 0 clicks, 0 cuts, 0 bursts,
+  every line heard, the brand heard «آی پی اوکسو» (word_probe), VPN «وی‌پی‌اِنه» → pauses ≤ 0.40 s → voice_final
+  58.26 s, 0/0/0. The reel is 59.88 s; the mix and the file's own audio 0/0/0, −14.1 LUFS, true peak −1.1 dBTP.
+- Shots: 15, the longest stretch without an interrupt 2.66 s.
+- Published as the evening reel of 2026-11-18 21:30 Tehran with its cover (tools/cover_title.py), caption.txt,
+  comment.txt (any comment → the channel's DM) and a teaser story at 21:15.
+
+## v1 (2026-11-17)
 
 ## Topic and facts
 - Topic: «عمیق‌ترین چاه دنیا» — the Kola Superdeep Borehole (row #1 of topics.md, status `sample:2026-11-17`).

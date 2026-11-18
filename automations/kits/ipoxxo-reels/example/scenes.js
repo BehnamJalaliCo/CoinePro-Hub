@@ -1,24 +1,27 @@
-/* The example reel (2026-11-17, the kit's sample): «عمیق‌ترین چاه دنیا» — the Kola Superdeep Borehole.
+/* The example reel (2026-11-18, v2 with its ending; published on @ipoxxo.vpn on the owner's word):
+   «عمیق‌ترین چاه دنیا» — the Kola Superdeep Borehole.
    Look of the example: zoom-through transitions (family 2), crane up/down reveals (camera 4), amber support
    accent (4) for heat and rust, dark cinematic pulse (mood 0); a cool teal grade over true-colour stills.
-   Lines (0-based): 0 hook · 1 12 km + Everest · 2 19 years + the question · 3 water · 4 fossils · 5 basalt ·
-   6 the answer: 180° · 7 plastic rock · 8 0.2 % · 9 the sponsor line.
+   Lines (0-based): 0 hook · 1 12 km + Everest · 2 19 years + the question · 3 water · 4 fossils ·
+   5 the answer: 180° · 6 plastic rock · THE ENDING: 7 what happened in the end · 8 how it is today (back to the
+   hook's cap: the loop closes) · 9 the closing line (the Moon vs 0.2 %) · 10 the sponsor line.
    Stills: cap, station, water, cores, drill, strata (ChatGPT); fossil, earth (Gemini); everest (ChatGPT, cut out). */
 CONFIG({
   look: {tr: 2, cam: 4, accent: 4, mood: 0, grade: {col: '#0b3d66', a: .16}, vign: .45},
   badgeIn: 2.0,
-  gap: {at: 17.75, close: WF(6, 'صد').s, q: 'چرا متوقفش کردن؟', a: 'جواب: ۱۸۰ درجه'},
-  sponsorLine: 9,
+  gap: {at: 17.75, close: WF(5, 'صد').s, q: 'چرا متوقفش کردن؟', a: 'جواب: ۱۸۰ درجه'},
+  sponsorLine: 10,
   caps: {
     0: {keys: ['عمیق‌ترین']},
     1: {text: 'بیشتر از ۱۲ کیلومتر می‌ره پایین؛ اورست رو برعکس توش بذاری، تازه ۳ کیلومتر هم جا داره!', keys: ['۱۲', 'اورست', '۳']},
     2: {text: '۱۹ سال کندن. ولی یه روز، برای همیشه متوقفش کردن. چرا؟', keys: ['۱۹', 'متوقفش']},
-    3: {text: '۳ کیلومتر پایین‌تر: آب! جایی که هیچ‌کس انتظارش رو نداشت.', keys: ['آب']},
+    3: {text: '۳ کیلومتر پایین‌تر: آب! جایی که انتظارش نبود.', keys: ['آب']},
     4: {text: '۶ کیلومتری: فسیلِ پلانکتون‌های ذره‌بینی.', keys: ['فسیلِ']},
-    5: {text: '۷ کیلومتری قرار بود به بازالت برسن؛ هیچ‌وقت نرسیدن.', keys: ['بازالت', 'هیچ‌وقت']},
-    6: {text: 'تهِ چاه، جوابِ این راز: ۱۸۰ درجه! تقریباً ۲ برابرِ پیش‌بینی.', keys: ['۱۸۰', '۲']},
-    7: {keys: ['پلاستیک', 'می‌بست']},
-    8: {text: 'این همه راه، فقط ۰٫۲ درصدِ راهِ مرکز زمین بود.', keys: ['۰٫۲']},
+    5: {text: 'تهِ چاه، جوابِ این راز: ۱۸۰ درجه! تقریباً ۲ برابرِ پیش‌بینی.', keys: ['۱۸۰', '۲']},
+    6: {keys: ['پلاستیک', 'می‌بست']},
+    7: {keys: ['آخرش', 'رها']},
+    8: {keys: ['امروز', 'جوش‌خورده']},
+    9: {text: 'ما تا ماه رفتیم، ولی زیر پامون فقط ۰٫۲ درصدِ راه رو کندیم.', keys: ['ماه', '۰٫۲']},
   },
 });
 const AMB = ACC;            // amber: heat and rust
@@ -180,25 +183,12 @@ SHOT(f6, (s, t) => {
 }, {name: 'fossils'});
 BEAT(fos, 'the microscope opens'); BEAT(fos + 1.4, 'the lens zooms');
 
-/* 10 · 7 km: basalt expected, granite found */
-const b7 = LN(5).s - .2, bas = WF(5, 'بازالت').s, never = WF(5, 'هیچ‌وقت').s;
-SHOT(b7, (s, t) => {
-  plate('cores', {...CAM(s, 4.2, 'panR', 1), ay: .55});
-  shade(.35, .5);
-  gaugeR(count(t, b7, b7 + .7, 6, 7)); gaugeTag(7, fa(7) + ' کیلومتر');
-  const a = E.back(pr(t, bas - .15, bas + .3)), x = pr(t, never, never + .5), g = E.back(pr(t, never + .35, never + .8));
-  if (a > 0) { X.save(); X.translate(490, 590); X.scale(a, a); pill(0, 0, 640, 140, {fill: 'rgba(0,9,40,.88)', line: 'rgba(245,251,255,.6)', r: 24}); T('انتظار: بازالت', 0, 0, 62, {col: WHITE}); X.restore(); }
-  xmark(490, 590, 170, x, '#FF5470', 16);
-  if (g > 0) { X.save(); X.translate(490, 790); X.scale(g, g); pill(0, 0, 640, 140, {fill: 'rgba(0,9,40,.88)', line: CYAN, r: 24, glow: 16}); T('پیدا شد: گرانیت', 0, 0, 62, {col: CYAN}); X.restore(); }
-}, {name: 'basalt vs granite'});
-BEAT(bas, 'the basalt card'); BEAT(never, 'crossed out');
-
 /* 11 · the bottom: the drill glows, the answer 180° (the chip flips) */
-const bot = LN(6).s - .2, ans = WF(6, 'صد').s, twice = WF(6, 'تقریباً').s;
+const bot = LN(5).s - .2, ans = WF(5, 'صد').s, twice = WF(5, 'تقریباً').s;
 SHOT(bot, (s, t) => {
   plate('drill', {...CAM(s, 6, 'push', 1.3), ay: .62});
   shade(.3, .45);
-  const km = count(t, bot, bot + 1.2, 7, KM); gaugeR(km, {col: AMB}); gaugeTag(km, fa(Math.round(km * 10) / 10, 1) + ' کیلومتر', AMB);
+  const km = count(t, bot, bot + 1.2, 6, KM); gaugeR(km, {col: AMB}); gaugeTag(km, fa(Math.round(km * 10) / 10, 1) + ' کیلومتر', AMB);
   const c = pr(t, ans - .05, ans + 1.1);
   if (c > 0) { const v = Math.round(count(t, ans - .05, ans + 1.1, 100, 180)); X.save(); X.translate(480, 610); const z = 1 + .08 * (1 - E.o3(pr(t, ans + 1.0, ans + 1.4))) * (c >= 1 ? 1 : 0); X.scale(z, z);
     T(fa(v), 0, 0, 230, {f: 'YB', col: v >= 180 ? AMB : WHITE, glow: v >= 180 ? 50 : 0, glowCol: AMB, stroke: 14}); X.restore(); T('درجه‌ی سانتی‌گراد', 480, 750, 44, {f: 'YR', col: WHITE, stroke: 8, alpha: c}); }
@@ -213,10 +203,10 @@ SHOT(bot, (s, t) => {
 BEAT(ans, '180 lands'); BEAT(twice, 'the bars');
 
 /* 12 · rock like plastic: the picture itself flows, the hole closes in, the drill stops */
-const pl = LN(7).s - .2, closeT = WF(7, 'چاه').s, bit = WF(7, 'مته').s;
+const pl = LN(6).s - .2, closeT = WF(6, 'چاه').s, bit = WF(6, 'مته').s;
 SHOT(pl, (s, t) => {
   const im = IM.drill, z = 1.32, k = Math.max(W / im.width, H / im.height) * z, w = im.width * k, h = im.height * k, ox = (W - w) / 2, oy = H / 2 - h * .6;
-  const flow = E.io(pr(t, WF(7, 'پلاستیک').s - .1, closeT + .4)), n = 48, sh = h / n;
+  const flow = E.io(pr(t, WF(6, 'پلاستیک').s - .1, closeT + .4)), n = 48, sh = h / n;
   for (let j = 0; j < n; j++) { // horizontal strips, each pushed by its own slow wave: the rock flows
     const y = oy + j * sh, dx = flow * (osc(j / n * 2.2 + t * .55, 1, 26) + osc(j / n * 5.1 - t * .8, 1, 10));
     X.drawImage(im, 0, j * im.height / n, im.width, im.height / n + 1, ox + dx, y, w, sh + 1);
@@ -224,26 +214,61 @@ SHOT(pl, (s, t) => {
   X.save(); X.globalAlpha = .25; X.fillStyle = '#2a0c04'; X.fillRect(0, 0, W, H); X.restore();
   const c = E.io(pr(t, closeT - .1, bit + .4)); // the hole closing: a dark iris from the edges
   if (c > 0) { X.save(); const g = X.createRadialGradient(540, 760, mix(1300, 260, c), 540, 760, mix(1500, 520, c)); g.addColorStop(0, 'rgba(10,3,1,0)'); g.addColorStop(1, 'rgba(10,3,1,.96)'); X.fillStyle = g; X.fillRect(0, 0, W, H); X.restore(); }
-  HEAD(t, WF(7, 'پلاستیک').s - .05, 'مثل پلاستیک', 540, 480, 84, {col: AMB, stroke: 12});
+  HEAD(t, WF(6, 'پلاستیک').s - .05, 'مثل پلاستیک', 540, 480, 84, {col: AMB, stroke: 12});
   const kk = pr(t, bit + .2, bit + .7); if (kk > 0) { pill(540, 800, 140 + 420 * E.o3(kk), 130, {fill: 'rgba(0,9,40,.9)', line: '#FF5470', lw: 6, glow: 22, alpha: kk}); T('مته جلو نمی‌رفت', 540, 800, 52, {col: WHITE, alpha: pr(t, bit + .45, bit + .7)}); }
 }, {name: 'plastic rock', tr: 'match'});
-BEAT(WF(7, 'پلاستیک').s, 'the rock starts to flow'); BEAT(closeT, 'the hole closes'); BEAT(bit + .2, 'the drill stops');
+BEAT(WF(6, 'پلاستیک').s, 'the rock starts to flow'); BEAT(closeT, 'the hole closes'); BEAT(bit + .2, 'the drill stops');
 
-/* 13 · the scale: pull out to the whole planet, 0.2 % of the way */
-const sc = LN(8).s - .25, pct = WF(8, 'دو').s;
+/* 13 · THE ENDING (1): what happened in the end — the station goes dark, three dates */
+const end0 = LN(7).s - .2, money = WF(7, 'پولش').s, left = WF(7, 'رها').s;
+SHOT(end0, (s, t) => {
+  plate('station', {...CAM(s, 4, 'pull', 1), ay: .62});
+  X.save(); X.globalAlpha = .5 + .2 * pr(t, left, left + .6); X.fillStyle = '#000410'; X.fillRect(0, 0, W, H); X.restore();
+  shade(.2, .5);
+  HEAD(t, end0 + .05, 'پایانِ ماجرا', 540, 470, 88, {col: AMB, stroke: 12});
+  const rows = [[end0 + .35, fa(1989, 0, false), fa(12262) + ' متر، عمیق‌ترین نقطه', CYAN],
+                [money - .1, fa(1995, 0, false), 'بودجه تموم شد', AMB],
+                [left - .1, fa(2008, 0, false), 'سایت رها شد', '#FF5470']];
+  glowLine(780, 600, 780, mix(600, 1000, E.io(pr(t, end0 + .3, left + .3))), 'rgba(245,251,255,.7)', 3, 0);
+  rows.forEach(([at, y, what, col], k) => { const a = E.back(pr(t, at, at + .4)); if (a <= 0) return; const yy = 620 + k * 180;
+    X.save(); X.translate(780, yy); X.scale(a, a); X.fillStyle = col; X.shadowColor = col; X.shadowBlur = 20; X.beginPath(); X.arc(0, 0, 14, 0, Math.PI * 2); X.fill(); X.restore();
+    T(y, 740, yy - 26, 52, {al: 'right', col, stroke: 9, alpha: pr(t, at, at + .2)}); T(what, 740, yy + 34, 40, {al: 'right', f: 'YR', col: WHITE, stroke: 8, alpha: pr(t, at + .1, at + .3)}); });
+}, {name: 'ending: what happened', tr: 'flash', d: .3});
+BEAT(money, '1995'); BEAT(left, '2008');
+
+/* 14 · THE ENDING (2): how it is today — back to the hook's cap, now named for what it is */
+const today = LN(8).s - .15, weld = WF(8, 'جوش').s;
+SHOT(today, (s, t) => {
+  plate('cap', {...CAM(s, 4, 'push', 1.1), ay: .55});
+  shade(.45, .4);
+  const a = E.back(pr(t, today + .1, today + .5));
+  if (a > 0) { X.save(); X.translate(540, 520); X.scale(a, a); chip('امروز', 0, 0, 56, {fill: CYAN, col: NAVY, line: CYAN, glow: 24}); X.restore(); }
+  const lp = pr(t, weld - .1, weld + .7); ring(512, 1000, 330 - 40 * E.o3(lp), lp, {col: AMB, lw: 6, alpha: .95});
+  T('جوش‌خورده و رها', 540, 650, 54, {col: AMB, stroke: 10, alpha: pr(t, weld, weld + .3)});
+}, {name: 'ending: today', tr: 'zoom'});
+BEAT(weld, 'the welded cap');
+
+/* 15 · THE ENDING (3): the closing line — the Moon, and 0.2 % under our feet */
+function moon(x, y, r, alpha = 1) { // a clean code Moon: shaded disc and a few soft maria
+  X.save(); X.globalAlpha *= alpha; const g = X.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r); g.addColorStop(0, '#e9e9e4'); g.addColorStop(.7, '#a9a9a3'); g.addColorStop(1, '#55574f');
+  X.fillStyle = g; X.shadowColor = 'rgba(220,230,255,.5)'; X.shadowBlur = 30; X.beginPath(); X.arc(x, y, r, 0, Math.PI * 2); X.fill(); X.shadowBlur = 0;
+  X.fillStyle = 'rgba(70,72,66,.35)'; for (const [dx, dy, rr2] of [[-.3, -.1, .22], [.15, .25, .16], [.3, -.3, .12], [-.05, .45, .09]]) { X.beginPath(); X.arc(x + dx * r, y + dy * r, rr2 * r, 0, Math.PI * 2); X.fill(); }
+  X.restore();
+}
+const sc = LN(9).s - .25, toMoon = WF(9, 'ماه').s, pct = WF(9, 'دو').s;
 SHOT(sc, (s, t) => {
   X.fillStyle = '#00030c'; X.fillRect(0, 0, W, H);
-  const p = E.io(pr(s, 0, 3.0)), z = mix(2.4, .74, p);
-  // the globe: centre (.5, .5) of the still, radius 37 % of its width (measured); keep it at (540, 900)
-  const im = IM.earth, k = W / im.width * z, w = im.width * k, h = im.height * k, gx = 540, gy = mix(760, 900, p), gr = .374 * w;
-  X.save(); X.imageSmoothingQuality = 'high'; X.drawImage(im, gx - w * .5, gy - h * .5 - (p < 1 ? (1 - p) * .18 * h : 0), w, h); X.restore();
-  const a = pr(s, 2.7, 3.1); const ang = -1.05, sx = gx + Math.cos(ang) * gr, sy = gy + Math.sin(ang) * gr;
-  if (a > 0) { X.save(); X.globalAlpha *= a; glowLine(sx, sy, mix(sx, gx, E.o3(a)), mix(sy, gy, E.o3(a)), AMB, 5, 20); X.fillStyle = CYAN; X.shadowColor = CYAN; X.shadowBlur = 25; X.beginPath(); X.arc(sx, sy, 12, 0, Math.PI * 2); X.fill(); X.restore();
-    T(fa(6371) + ' کیلومتر', (sx + gx) / 2 - 30, (sy + gy) / 2 + 10, 40, {al: 'right', col: AMB, stroke: 9, alpha: a}); }
+  const p = E.io(pr(s, 0, 2.6)), z = mix(2.0, .66, p);
+  const im = IM.earth, k = W / im.width * z, w = im.width * k, h = im.height * k, gx = mix(540, 430, p), gy = mix(900, 1010, p), gr = .374 * w;
+  X.save(); X.imageSmoothingQuality = 'high'; X.drawImage(im, gx - w * .5, gy - h * .5, w, h); X.restore();
+  const m = E.back(pr(t, toMoon - .1, toMoon + .5));
+  if (m > 0) { moon(850, 520, 70 * m); T('ماه · ' + fa(384400) + ' کیلومتر', 850, 630, 34, {col: WHITE, stroke: 8, alpha: pr(t, toMoon, toMoon + .3)});
+    X.save(); X.globalAlpha *= pr(t, toMoon, toMoon + .4); X.setLineDash([12, 12]); X.strokeStyle = 'rgba(245,251,255,.55)'; X.lineWidth = 3; X.beginPath(); X.moveTo(gx + gr * .6, gy - gr * .8); X.lineTo(790, 560); X.stroke(); X.restore(); }
   const b = E.back(pr(t, pct - .1, pct + .35));
-  if (b > 0) { X.save(); X.translate(540, 470); X.scale(b, b); T(fa(.2, 1) + '٪', 0, 0, 160, {col: CYAN, glow: 40, stroke: 12}); X.restore(); }
-}, {name: 'the whole planet'});
-BEAT(sc + 2.7, 'the radius line'); BEAT(pct, '0.2 %');
+  if (b > 0) { X.save(); X.translate(gx, gy); X.scale(b, b); T(fa(.2, 1) + '٪', 0, 0, 150, {col: CYAN, glow: 40, stroke: 12}); X.restore();
+    T('زیرِ پای خودمون', gx, gy + 110, 40, {col: WHITE, stroke: 8, alpha: pr(t, pct + .2, pct + .5)}); }
+}, {name: 'ending: the closing line'});
+BEAT(toMoon, 'the Moon'); BEAT(pct, '0.2 %');
 
-/* 14 · under the sponsor card and the end card: back to the cap (the loop) */
-SHOT(LN(9).s - .2, (s, t) => { plate('cap', {...CAM(s, 8, 'pull', .8), ay: .55}); }, {name: 'sponsor + end', tr: 'zoom', caps: false});
+/* 16 · under the sponsor card and the end card: back to the cap (the loop) */
+SHOT(LN(10).s - .2, (s, t) => { plate('cap', {...CAM(s, 8, 'pull', .8), ay: .55}); }, {name: 'sponsor + end', tr: 'zoom', caps: false});
