@@ -15,7 +15,7 @@
 #   thumbnail    its custom thumbnail (the channel must be phone-verified)
 # Driven by automations/sites/bjtech/youtube_long.py (a host timer), never by an agent.
 key: youtube-bj
-version: "2026-11-18.4"
+version: "2026-11-18.5"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -76,6 +76,10 @@ tasks:
       - {do: read, selector: "ytd-rich-grid-renderer #contents", alt: ["ytd-browse #contents", "body"]}
   upload:
     timeout_s: 600
+    # 2026-11-18.5: no request interception (browser_web.ProxyRelay), like upload_long: an intercepted
+    # body is copied into Chrome's browser process (~9x the file: a 50-85 MiB reel holds 450-800 MiB
+    # of browser-web's 1068 MiB, and an OOM kills the whole browser with every job in it)
+    intercept: false
     steps:
       # the upload dialog of the active channel (Studio's own route)
       - {do: goto, url: "https://www.youtube.com/upload?hl=en"}

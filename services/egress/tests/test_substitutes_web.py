@@ -143,16 +143,16 @@ def test_a_job_gets_only_its_tasks_steps() -> None:
     }  # fmt: skip
 
 
-def test_only_a_big_upload_runs_without_interception() -> None:
-    """⟨2026-11-18⟩ a long video (youtube-bj's and DotCoin's youtube-web): no request interception
-    (browser_web.ProxyRelay); every other task keeps it (Shorts' `upload` too), and a capture step
-    (which needs it) refuses `intercept: false`."""
+def test_only_a_videos_upload_runs_without_interception() -> None:
+    """⟨2026-11-18⟩ a video's upload (a Short's `upload` and a long video's `upload_long`, youtube-bj
+    and DotCoin's youtube-web): no request interception (browser_web.ProxyRelay); every other task
+    keeps it, and a capture step (which needs it) refuses `intercept: false`."""
     got = RC.load(recipes_dir())
+    uploads = ("upload", "upload_long")
     for account in ("youtube-bj", "youtube-web"):
         yt = got[account]
-        assert yt.for_job("upload_long")["intercept"] is False, account
-        assert all(yt.for_job(t)["intercept"] for t in yt.tasks if t != "upload_long"), account
-    assert got["youtube-web"].for_job("upload")["intercept"] is True
+        assert all(yt.for_job(t)["intercept"] is False for t in uploads), account
+        assert all(yt.for_job(t)["intercept"] for t in yt.tasks if t not in uploads), account
     others = [r for k, r in got.items() if k not in ("youtube-bj", "youtube-web")]
     assert all(r.for_job(t)["intercept"] for r in others for t in r.tasks)
     r = RC.Recipe.model_validate(_recipe())

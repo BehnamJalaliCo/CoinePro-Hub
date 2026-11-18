@@ -42,7 +42,7 @@
 # Driven by automations/sites/dotcoin/youtube.py, youtube_long.py and seo.py (host timers), never
 # by an agent.
 key: youtube-web
-version: "2026-11-18.2"
+version: "2026-11-18.3"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -96,6 +96,10 @@ tasks:
       - {do: read, selector: "ytd-rich-grid-renderer #contents", alt: ["ytd-browse #contents", "body"]}
   upload:
     timeout_s: 600
+    # 2026-11-18.3: no request interception (browser_web.ProxyRelay), like upload_long: an intercepted
+    # body is copied into Chrome's browser process (~9x the file: a 50-85 MiB reel holds 450-800 MiB
+    # of browser-web's 1068 MiB, and an OOM kills the whole browser with every job in it)
+    intercept: false
     steps:
       # the upload dialog of the active channel (Studio's own route)
       - {do: goto, url: "https://www.youtube.com/upload"}
@@ -149,7 +153,7 @@ tasks:
     # 2026-11-18.2: no request interception for this task (browser_web.ProxyRelay): an intercepted
     # upload body is copied into Chrome's browser process (~9x the file); DotCoin's 186 MB long
     # video was killed at browser-web's memory cap (15:05Z, TargetClosedError at step 3). The egress
-    # proxy still keeps the job to the hosts above. (Shorts' `upload` keeps interception.)
+    # proxy still keeps the job to the hosts above. (Shorts' `upload` too, from 2026-11-18.3.)
     intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/upload"}
