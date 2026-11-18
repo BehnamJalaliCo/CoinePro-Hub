@@ -1173,7 +1173,7 @@ async def create_by_hub(
     tx: Tx, hub: Any, *, key: str, account: str, kit: str, title_fa: str, kind: str,
     schedule: dict[str, Any], model: str, effort: str, usd_cap: float, budget_tokens: int,
     note_fa: str = "", recipe: str = "", channel: str = "instagram", skips: tuple[date, ...] = (),
-    story: bool = False, story_word: str = "",
+    story: bool = False, story_word: str = "", cycle: tuple[str, ...] = (),
 ) -> FlowDef:  # fmt: skip
     """⟨2026-11-17⟩ A new automation made by the hub itself (a kit no flow uses yet, e.g. DotCoin's
     long YouTube videos, kind `video`; ⟨2026-11-18⟩ its SEO days, kind `article`, channel `web`): the
@@ -1182,7 +1182,7 @@ async def create_by_hub(
     A key that exists is refused (a second call changes nothing). `skips`: days its clock leaves out
     (a first day the hub must not make yet). ⟨2026-11-18⟩ A stories flow (kind `stories`) names its
     hours in `schedule["stories"]`; `story_word` is its fixed reply word ("" = a fresh one a day);
-    `story`: a reel flow posts its reel as a story too."""
+    `story`: a reel flow posts its reel as a story too; `cycle`: the day's kinds in turn."""
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}", key):
         raise ApiError(422, "invalid_flow", "bad key")
     if kind not in KINDS:
@@ -1208,7 +1208,7 @@ async def create_by_hub(
         model=model, same_day=bool(schedule.get("same_day", True)), recipe=recipe, effort=effort,
         note_fa=note_fa, days=tuple(int(d) for d in schedule.get("days") or FL.ALL_DAYS),
         channel=channel, stories=tuple(str(h) for h in schedule.get("stories") or ()),
-        story=bool(story), story_word=" ".join(story_word.split()),
+        story=bool(story), story_word=" ".join(story_word.split()), cycle=tuple(cycle),
     )  # fmt: skip
     if getattr(draft, "kind", None) != kind:  # (FL.Flow without `kind`: a hub not yet deployed)
         object.__setattr__(draft, "kind", kind)
@@ -1222,10 +1222,10 @@ async def create_by_hub(
                state, schedule, story, model, effort, usd_cap, budget_tokens, cycle, story_word,
                n8n, pair, recipe, note_fa, skips)
            VALUES (:key, :co, :ch, :acc, :title, :kit, :kind, 'on', CAST(:sch AS jsonb), :story,
-                   :model, :effort, :cap, :tokens, '{}', :word, '', NULL, :recipe, :note, :skips)
+                   :model, :effort, :cap, :tokens, :cycle, :word, '', NULL, :recipe, :note, :skips)
            RETURNING ref""",
         key=key, co=co.id, ch=channel, acc=account, title=draft.title_fa, kit=kit, kind=kind,
-        story=draft.story, word=draft.story_word or None,
+        story=draft.story, word=draft.story_word or None, cycle=list(draft.cycle),
         sch=json.dumps(after["schedule"], ensure_ascii=False), model=model, effort=effort,
         cap=Decimal(str(usd_cap)), tokens=budget_tokens, recipe=recipe or None, note=note_fa or None,
         skips=sorted(skips),

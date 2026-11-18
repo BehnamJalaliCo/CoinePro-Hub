@@ -152,9 +152,11 @@ async def test_the_hub_makes_a_stories_flow_with_its_hours_and_word(
                 tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/p39-stories",
                 title_fa="استوری‌های آزمایشی", kind="stories", schedule=sch, model=OPUS, effort="xhigh",
                 usd_cap=60, budget_tokens=10_000_000, recipe="bjtech", story_word="لینک",
+                cycle=("خبر", "آموزش"),
             )  # fmt: skip
         assert made.kind == "stories" and made.schedule.stories == ["08:45", "10:15", "11:40"]
         assert made.story_word == "لینک" and made.story_word_mode == "fixed"
+        assert made.cycle == ["خبر", "آموزش"]
         async with hub.db.tx(await hub.companies.ids()) as tx:
             flow = await FL.flow_by_key(tx, key)
         assert (
