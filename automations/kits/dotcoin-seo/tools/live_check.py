@@ -4,9 +4,9 @@
     python3 -I KIT/tools/live_check.py [--all]
 
 - every sitemap URL answers 200 with its own canonical (with --all; else the 12 newest by lastmod);
-- /vip/ is live, its numbers are at most two days old (TradeYar's record), and every /go/vip-*
-  link goes to TradeYar's tracker, whose next hop is the bot (t.me/TradeYarSignalBot) or the
-  exchange's referral page (LBank TRADEYAR, Ourbit Coinepro);
+- /vip/ is live with its record's date, and every /go/vip-* link answers 302 to TradeYar's own
+  tracker with src=dotcoin (the tracker itself is never requested: every request there is counted
+  as a click; trade-future.ir/vip and the bot are checked by the hub when the facts change);
 - the IndexNow key file is served; robots.txt keeps /go/ out.
 Prints one line per check; «FAIL» lines go in report.md (and are fixed when they are content).
 """
@@ -55,12 +55,10 @@ def main() -> int:
     for pl in re.findall(r'href="(/go/vip-[a-z_]+/)"', body.decode("utf-8", "replace")) + ["/go/vip-lesson/"]:
         st, h, _ = get(f"https://{SITE}{pl}", "HEAD")
         loc = h.get("location", "")
-        ok = st in (301, 302) and loc.startswith("https://trade-future.ir/go/") and "src=dotcoin" in loc
-        st2, h2, _ = get(loc, "HEAD") if ok else (0, {}, b"")
-        nxt = h2.get("location", "")
-        ok2 = st2 in (301, 302) and re.match(r"https://(t\.me/TradeYarSignalBot|(www\.)?lbank\.com/ref/TRADEYAR|www\.ourbit\.com/register\?inviteCode=Coinepro)", nxt or "")
-        fails += not (ok and ok2)
-        line(bool(ok and ok2), f"{pl} -> {loc[:80]} -> {nxt[:70]}")
+        ok = (st in (301, 302) and "src=dotcoin" in loc
+              and re.match(r"https://trade-future\.ir/go/(vip|lbank|ourbit)\?", loc) is not None)
+        fails += not ok
+        line(ok, f"{pl} -> {loc[:90]}")
     st, _, rb = get(f"https://{SITE}/robots.txt")
     line(b"Disallow: /go/" in rb, "robots.txt keeps /go/ out")
     return 1 if fails else 0

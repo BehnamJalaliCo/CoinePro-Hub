@@ -3,12 +3,13 @@
 #   bash KIT/tools/lighthouse.sh https://dotcoin.me/learn/x/ …   -> work/lh-<n>.json + one line each
 set -euo pipefail
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NODE="$(command -v node || echo /home/studio/.local/bin/node)"
 CHROME="$(ls -d /home/studio/kits/prochart-reels/ms-playwright/chromium-*/chrome-linux*/chrome | tail -1)"
 mkdir -p work/lh-home
 n=0
 for u in "$@"; do
   n=$((n + 1))
-  HOME="$PWD/work/lh-home" CHROME_PATH="$CHROME" timeout 240 node "$KIT/tools/lh.mjs" "$u" "work/lh-$n.json" >/dev/null 2>&1 \
+  HOME="$PWD/work/lh-home" CHROME_PATH="$CHROME" timeout 240 "$NODE" "$KIT/tools/lh.mjs" "$u" "work/lh-$n.json" >/dev/null 2>&1 \
     || { echo "$u: lighthouse failed"; continue; }
   python3 -I -c '
 import json, sys
