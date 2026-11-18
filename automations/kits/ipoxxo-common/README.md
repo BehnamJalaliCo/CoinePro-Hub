@@ -12,6 +12,6 @@ The page @ipoxxo.vpn (Instagram, on IG-Hub) brings people to the FREE proxy and 
 retell the channel's posts (its hourly news, its proxy lists).
 
 **⟨2026-11-17⟩ The reels are gripping edutainment, the channel their sponsor** (the owner: «محتوا سرگرمی یا علمی
-بسازیم … و آخرش بگیم اسپانسر این ویدیو ipoxxo»): a badge on the video, the sponsor line after the payoff, an end
+بسازیم … و آخرش بگیم اسپانسر این ویدیو ipoxxo»): a badge on the video, the sponsor line after the ending, an end
 card and the link in the caption (ipoxxo-reels/README.md). The stories stay original ads for the channel; the
 10:00 one teases the noon reel.

@@ -21,7 +21,7 @@ stay what they were: original ads for the channel (ipoxxo-stories/README.md). Wh
 3. **The channel in every reel — as the sponsor** (owner, 2026-11-17):
    - the badge on the video for most of the reel (the reel stage draws it: the round logo, «ipoxxo», «اسپانسر
      این ویدیو» / «پروکسی و VPN رایگان» / «t.me/ipoxxo» in turn);
-   - the voice's last line, right after the payoff, exactly (ipoxxo-reels/README.md):
+   - the voice's last line, right after the story's ending, exactly (ipoxxo-reels/README.md):
      «اسپانسر این ویدیو، آی پی اوکسو؛ پروکسی و وی پی اِنِ کاملاً رایگان. لینکش توی کپشنه.»;
    - the end card: the round logo, «ipoxxo», «پروکسی و VPN کاملاً رایگان», «لینکش توی کپشنه», «t.me/ipoxxo»;
    - the caption's sponsor lines with `t.me/ipoxxo`, and any comment gets the link in a DM.
