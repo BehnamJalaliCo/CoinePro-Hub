@@ -381,6 +381,9 @@ def load_page(name: str) -> tuple[dict, str]:
 
 # ---------------------------------------------------------------- page shell
 NAV = [("/learn/", "آموزش‌ها"), ("/exchanges/", "صرافی‌ها"), ("/glossary/", "واژه‌نامه"), ("/about/", "درباره")]
+NAV_EN = ["LEARN", "EXCHANGES", "GLOSSARY", "ABOUT"]
+# ⟨2026-11-18⟩ TradeYar's free VIP signal channel (content/vip.json): its own page, last in the menu
+VIP_NAV = ("/vip/", "سیگنال VIP")
 PAGES: list[dict] = []  # for the sitemap
 OG_JOBS: list[dict] = []
 _BASE = (TPL / "base.html").read_text("utf-8")
@@ -570,8 +573,13 @@ def render(path: str, meta: dict, main: str, *, kind: str, ld: list[dict], og: d
         f'<a href="{href}"{" aria-current=page" if path.startswith(href) else ""}>{name}</a>' for href, name in NAV)
     drawer = '<a href="/"><span>خانه</span><i dir="ltr">HOME</i></a>' + "".join(
         f'<a href="{href}"><span>{name}</span><i dir="ltr">{en}</i></a>'
-        for (href, name), en in zip(NAV, ["LEARN", "EXCHANGES", "GLOSSARY", "ABOUT"]))
+        for (href, name), en in zip(NAV, NAV_EN))
     foot_nav = '<a href="/">خانه</a>' + "".join(f'<a href="{h}">{n}</a>' for h, n in NAV)
+    if VIP:
+        cur = " aria-current=page" if path.startswith(VIP_NAV[0]) else ""
+        nav += f'<a class="nav-vip" href="{VIP_NAV[0]}"{cur}>{VIP_NAV[1]}</a>'
+        drawer += f'<a class="drawer-vip" href="{VIP_NAV[0]}"><span>{VIP_NAV[1]}</span><i dir="ltr">VIP</i></a>'
+        foot_nav += f'<a href="{VIP_NAV[0]}">کانال VIP تریدیار</a>'
     foot_lessons = "".join(f'<a href="{a["url"]}">{esc(a["title"])}</a>' for a in (lessons or [])[:4])
     page = fill(_BASE, {
         "page_kind": kind, "seo_title": esc(seo_title), "description": esc(desc), "canonical": canonical,
@@ -691,6 +699,88 @@ def faq_ld(faqs: list[dict]) -> dict:
 def ring_svg(text: str, rid: str = "ringp") -> str:
     return (f'<svg class="ring" viewBox="0 0 200 200" aria-hidden="true" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><path id="{rid}" d="M100 100m-84 0a84 84 0 1 1 168 0a84 84 0 1 1-168 0"/></defs>'
             f'<text direction="ltr"><textPath href="#{rid}" xlink:href="#{rid}" textLength="525">{esc(text)}</textPath></text></svg>')
+
+
+# ---------------------------------------------------------------- the VIP (TradeYar's signal channel)
+def _json_or_none(name: str) -> dict | None:
+    p = CONTENT / name
+    try:
+        return json.loads(p.read_text("utf-8")) if p.exists() else None
+    except ValueError:
+        sys.exit(f"content/{name} is not valid JSON")
+
+
+VIP = _json_or_none("vip.json")
+VIP_STATS = _json_or_none("vip_stats.json") or {}
+REL_TY = 'target="_blank" rel="sponsored nofollow noopener"'
+
+
+def fa_num(x, digits: int = 0) -> str:
+    """1850 -> ۱٬۸۵۰; 63.2 -> ۶۳٫۲ (Persian digits, separators)."""
+    t = f"{float(x):,.{digits}f}" if digits else f"{int(round(float(x))):,}"
+    return t.replace(",", "٬").replace(".", "٫").translate(FA_DIGITS)
+
+
+def vip_go(pl: str) -> str:
+    """The bot through TradeYar's tracker, behind the site's own redirect (counted per placement)."""
+    return f"/go/vip-{pl}/"
+
+
+def vip_stats_items() -> list[tuple[str, str, str]]:
+    """(value, label, note) from TradeYar's public record only; none when the file is missing."""
+    st = VIP_STATS
+    if not st.get("trades"):
+        return []
+    out = [(fa_num(st["trades"]), "معامله‌ی بسته‌شده", f"در {fa_num(st.get('days') or 0)} روز")]
+    if st.get("win_rate_pct") is not None:
+        out.append((fa_num(st["win_rate_pct"], 1) + "٪", "نرخ برد", f"از {fa_num(st['trades'])} معامله"))
+    if st.get("profit_factor") is not None:
+        out.append((fa_num(st["profit_factor"], 2), "ضریب سود", "مجموع سودها به مجموع زیان‌ها"))
+    if st.get("symbols"):
+        out.append((fa_num(st["symbols"]), "نماد", "ارزهایی که سیگنال گرفته‌اند"))
+    return out
+
+
+def vip_as_of() -> str:
+    """The record's last trade, as a Tehran day (the API gives UTC)."""
+    from zoneinfo import ZoneInfo
+
+    try:
+        at = datetime.fromisoformat(str(VIP_STATS.get("as_of") or ""))
+    except ValueError:
+        return ""
+    return jdate(at.astimezone(ZoneInfo("Asia/Tehran")).date()) if at.tzinfo else jdate(at.date())
+
+
+def vip_stats_html(cls: str = "") -> str:
+    items = vip_stats_items()
+    if not items:
+        return ""
+    tiles = "".join(f'<li class="vs-i"><b class="vs-v">{v}</b><span class="vs-l">{esc(lbl)}</span><span class="vs-n">{esc(n)}</span></li>'
+                    for v, lbl, n in items)
+    when = vip_as_of()
+    src = (f'<p class="vs-src">منبع: <a href="{esc(VIP["record"])}" {REL_TY}>کارنامه‌ی عمومی تریدیار</a>'
+           + (f"، تا {when}" if when else "") + "</p>")
+    return f'<div class="vs {cls}"><ul class="vs-list">{tiles}</ul>{src}</div>'
+
+
+def vip_cta(slug: str) -> str:
+    """⟨2026-11-18⟩ ONE block per lesson (after the lesson, its sources, its video box and its FAQ;
+    never between its paragraphs, never a pop-up): what the VIP is, its free condition, the guide
+    and the bot."""
+    if not VIP:
+        return ""
+    st = VIP_STATS
+    line = (f"{fa_num(st['trades'])} معامله‌ی بسته‌شده در کارنامه‌ی عمومی، نرخ برد {fa_num(st['win_rate_pct'], 1)}٪."
+            if st.get("trades") and st.get("win_rate_pct") is not None else "")
+    return f"""<aside class="vipcta rv" aria-labelledby="vip-{esc(slug)}">
+<div class="vipcta-copy"><span class="sec-n" dir="ltr">VIP SIGNALS · TRADEYAR</span>
+<h2 id="vip-{esc(slug)}">سیگنال‌های VIP تریدیار، رایگان</h2>
+<p>کانال VIP تریدیار سیگنال‌های فیوچرز را پیش از مشخص شدن نتیجه منتشر می‌کند و همه‌ی معامله‌ها، برد و باخت، در کارنامه‌ی عمومی‌اش می‌مانند. عضویت رایگان است: حساب صرافی با لینک تریدیار، دست‌کم {fa(VIP["min_usdt"])} تتر در حساب خودت و ارسال UID به ربات.</p>
+{f'<p class="vipcta-num">{line}</p>' if line else ""}
+<div class="vipcta-act"><a class="btn btn-acc" href="/vip/">راهنمای ورود رایگان {ARROW}</a><a class="lnk" href="{vip_go("lesson")}" {REL_TY}>ربات تریدیار <bdi>@{esc(VIP["bot"])}</bdi></a></div></div>
+<div class="vipcta-mark" aria-hidden="true" dir="ltr"><span>VIP</span></div>
+</aside>"""
 
 
 # ---------------------------------------------------------------- pages
@@ -936,6 +1026,7 @@ def page_article(a, arts):
     {sources}
     {reel_block}
     {faq_html(a['faqs'])}
+    {vip_cta(a['slug'])}
     <nav class="pns" aria-label="درس‌های دیگر">{''.join(pn)}</nav>
   </div>
 </div>
@@ -1094,6 +1185,74 @@ def page_exchange(x, xs, arts):
            body_class="p-exchange", lessons=arts)
 
 
+def page_vip(arts, xs):
+    """⟨2026-11-18⟩ /vip/: TradeYar's free VIP signal channel, its numbers (TradeYar's public record
+    only), what it gives, the three steps with TradeYar's own referral links and codes (tracked per
+    placement), the bot, the FAQ (content/pages/vip.md, content/vip.json)."""
+    meta, body = load_page("vip")
+    crumbs = [("/", "خانه"), ("/vip/", "سیگنال VIP")]
+    main_md, faqs = split_faq(body)
+    by_slug = {x["slug"]: x for x in xs}
+    feats = "".join(f'<li class="rv" style="--i:{i}"><span class="fn">{two(i + 1)}</span><span>{inline(f)}</span></li>'
+                    for i, f in enumerate(meta.get("features") or []))
+    steps_src = [x.split("|", 1) for x in (meta.get("steps") or []) if "|" in x]
+    cards = ""
+    for i, x in enumerate(VIP["exchanges"]):
+        base = by_slug.get(x["slug"]) or {"name": x["slug"], "name_en": x["slug"], "en": x["slug"].upper()}
+        chip = {**x, "code_label": x.get("code_label") or "کد دعوت"}
+        cards += f"""<article class="xc vip-x rv" style="--i:{i}">
+<div class="xc-top">{logo_img(base) if base.get("logo") else ""}<span class="xc-en" dir="ltr">{esc(base.get("en", ""))}</span></div>
+<h3 class="xc-t">{esc(base.get("name", ""))} <span dir="ltr">{esc(base.get("name_en", ""))}</span></h3>
+<p class="xc-l">{esc(x.get("note") or "")}</p>{code_chip(chip)}
+<div class="xc-act"><a class="btn btn-solid" href="/go/vip-{esc(x['slug'])}/" {REL_TY}>{esc(x["button"])} {ARROW}</a></div></article>"""
+    steps = ""
+    for i, (t, txt) in enumerate(steps_src):
+        txt = txt.strip().replace("{min}", fa(VIP["min_usdt"]))
+        extra = ""
+        if i == 0:
+            extra = f'<div class="xcards vip-xs">{cards}</div>'
+        elif i == 2:
+            extra = (f'<div class="x-cta"><a class="btn btn-solid btn-lg" href="{vip_go("steps")}" {REL_TY}>باز کردن ربات '
+                     f'<bdi>@{esc(VIP["bot"])}</bdi> {ARROW}</a></div>')
+        steps += f'<li class="rv" style="--i:{i}"><span class="sn">{fa(i + 1)}</span><div><b>{esc(t.strip())}</b><p>{inline(txt)}</p>{extra}</div></li>'
+    keep = (f'<p class="vip-keep">شرط ماندن در کانال: موجودی حساب از {fa(VIP["keep_usdt"])} تتر کمتر نشود. '
+            "پول همیشه در حساب خود توست.</p>")
+    hero_cta = (f'<div class="hero-cta ld" style="--d:4"><a class="btn btn-solid btn-lg" href="#steps">سه قدم تا کانال VIP {ARROW}</a>'
+                f'<a class="btn btn-line btn-lg" href="{vip_go("hero")}" {REL_TY}>ربات تریدیار</a></div>')
+    stats = vip_stats_html("vs-band")
+    record = f'<a class="lnk sec-more" href="{esc(VIP["record"])}" {REL_TY}>کارنامه‌ی کامل {EXT}</a>'
+    head = sec_head("01", "THE RECORD", '<span id="vs-t">کارنامه‌ی عمومی، با عدد</span>', record,
+                    "هر سیگنال پیش از نتیجه در تلگرام منتشر می‌شود و با کد یکتای خودش در کارنامه می‌ماند، برد یا باخت.")
+    stats_sec = (f'<section class="sec sec-tight vip-stats" aria-labelledby="vs-t"><div class="wrap">{head}{stats}</div></section>'
+                 if stats else "")
+    faq_sec = (markdown(main_md, h2_numbers=False)[0] if main_md.strip() else "") + faq_html(faqs)
+    main = page_hero(meta, "VIP", crumbs, hero_cta, "hero-vip") + f"""
+{stats_sec}
+<section class="sec sec-tight" aria-labelledby="vf-t"><div class="wrap">
+  {sec_head("02", "WHAT YOU GET", '<span id="vf-t">VIP چه می‌دهد</span>')}
+  <ul class="feats">{feats}</ul>
+</div></section>
+<section class="sec sec-tight" id="steps" aria-labelledby="st-t"><div class="wrap vip-steps">
+  {sec_head("03", "THREE STEPS", '<span id="st-t">ورود رایگان در سه قدم</span>', "", "حساب صرافی و پولت همیشه مال خودت می‌ماند.")}
+  <ol class="steps">{steps}</ol>
+  {keep}
+</div></section>
+<section class="sec sec-tight"><div class="wrap vip-faq">{faq_sec}</div></section>
+<section class="sec vip-end" aria-labelledby="ve-t"><div class="wrap"><div class="vipcta vipcta-end">
+<div class="vipcta-copy"><span class="sec-n" dir="ltr">@{esc(VIP["bot"])}</span><h2 id="ve-t">ربات تریدیار، قدم آخر</h2>
+<p>حساب ساختی و شارژش کردی؟ UID را در ربات بفرست؛ بررسی خودکار است و لینک کانال VIP همان‌جا می‌رسد.</p>
+<div class="vipcta-act"><a class="btn btn-acc btn-lg" href="{vip_go("final")}" {REL_TY}>ارسال UID در ربات {ARROW}</a></div></div>
+<div class="vipcta-mark" aria-hidden="true" dir="ltr"><span>VIP</span></div></div></div></section>
+{follow_block("vip")}"""
+    ld = [org_ld(), crumbs_ld(crumbs), {"@type": "WebPage", "@id": URL + "/vip/#page", "url": URL + "/vip/",
+          "name": meta["title"], "description": meta["description"], "inLanguage": "fa", "isPartOf": {"@id": SITE_ID},
+          "dateModified": meta.get("updated") or LATEST}]
+    if faqs:
+        ld.append(faq_ld(faqs))
+    render("/vip/", meta, main, kind="vip", ld=ld, og={"key": "vip", "en": meta.get("og_en") or "VIP",
+           "kicker": meta.get("og_kicker") or ""}, body_class="p-vip", lessons=arts)
+
+
 def page_about(arts, terms):
     meta, body = load_page("about")
     crumbs = [("/", "خانه"), ("/about/", "درباره")]
@@ -1157,7 +1316,20 @@ def write_meta_files(arts):
     for x in load_exchanges():
         target = x["link"].replace("{page}", "site")
         red += [f"/go/{x['slug']}/ {target} 302", f"/go/{x['slug']} {target} 302"]
+    if VIP:  # ⟨2026-11-18⟩ TradeYar's tracker, one placement per link (its clicks counted there)
+        red.append("# TradeYar's VIP (from content/vip.json; src=dotcoin, pl=<placement>)")
+        for pl in VIP["placements"]:
+            target = VIP["bot_link"].replace("{pl}", pl)
+            red += [f"/go/vip-{pl}/ {target} 302", f"/go/vip-{pl} {target} 302"]
+        for x in VIP["exchanges"]:
+            target = x["link"].replace("{pl}", "vip_page")
+            red += [f"/go/vip-{x['slug']}/ {target} 302", f"/go/vip-{x['slug']} {target} 302"]
+        red += [f"/go/vip/ {VIP['bot_link'].replace('{pl}', 'site')} 302"]
     (DIST / "_redirects").write_text("\n".join(red) + "\n", "utf-8")
+    # ⟨2026-11-18⟩ IndexNow (Bing, Yandex…): the key is public by design, served at the site's root
+    key = str(SITE.get("indexnow") or "")
+    if re.fullmatch(r"[A-Za-z0-9-]{8,128}", key):
+        (DIST / f"{key}.txt").write_text(key, "utf-8")
 
 
 def write_og_sources():
@@ -1218,6 +1390,8 @@ def main() -> int:
     for x in xs:
         page_exchange(x, xs, arts)
     page_about(arts, terms)
+    if VIP:
+        page_vip(arts, xs)
     page_404(arts)
     write_meta_files(arts)
     write_og_sources()

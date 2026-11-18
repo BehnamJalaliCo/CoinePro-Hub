@@ -1,0 +1,18 @@
+[Unit]
+Description=DotCoin.me: the daily SEO automation's host side (Search Console read into the session's input pack before the build; the day's package checked, applied, reviewed at 390 px, deployed, then IndexNow and Request indexing)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+# runs from the content worktree (branch site/dotcoin-content), like the site sync; it needs sudo -u studio
+# (the input pack, the workspace's out/, the phone review in the studio's Chromium), so no NoNewPrivileges
+WorkingDirectory=/home/Hub/sites/dotcoin-content
+ExecStart=/usr/bin/python3 -I /home/Hub/sites/dotcoin-content/automations/sites/dotcoin/seo.py --due
+TimeoutStartSec=5400
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

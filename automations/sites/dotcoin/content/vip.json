@@ -1,0 +1,16 @@
+{
+ "_note": "TradeYar's free VIP signal channel on dotcoin.me (owner 2026-11-18: «تبلیغات کانال سیگنال vip»; the VIP is TradeYar's). The ONE place for its links, codes and conditions. Every link goes through TradeYar's own tracker (src=dotcoin, pl=<placement>) behind the site's /go/vip-<placement>/ (a 302 in _redirects), so each placement's clicks are counted on TradeYar's side. Facts as https://trade-future.ir/vip states them (read 2026-11-18): membership is free; an account opened with TradeYar's link on Ourbit or LBank (an account already on that exchange cannot be registered: use the other one), at least 50 USDT in it, the exchange UID sent to the bot, an automatic check, then the channel link; to stay, the balance never under 30 USDT. Numbers on the site come ONLY from content/vip_stats.json (TradeYar's public API, refreshed by seo.py).",
+ "bot": "TradeYarSignalBot",
+ "bot_link": "https://trade-future.ir/go/vip?src=dotcoin&goal=V&pl={pl}",
+ "record": "https://trade-future.ir/performance",
+ "ledger": "https://trade-future.ir/ledger",
+ "min_usdt": 50,
+ "keep_usdt": 30,
+ "placements": ["hero", "steps", "final", "lesson", "nav", "drawer", "footer", "home"],
+ "exchanges": [
+  {"slug": "ourbit", "link": "https://trade-future.ir/go/ourbit?src=dotcoin&goal=R&pl={pl}", "code": "Coinepro",
+   "code_label": "کد دعوت تریدیار", "button": "افتتاح حساب در اوربیت", "note": "رابط کاربری فارسی دارد"},
+  {"slug": "lbank", "link": "https://trade-future.ir/go/lbank?src=dotcoin&goal=R&pl={pl}", "code": "TRADEYAR",
+   "code_label": "کد دعوت تریدیار", "button": "افتتاح حساب در ال بانک", "note": "رابط کاربری فارسی دارد"}
+ ]
+}

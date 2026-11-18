@@ -609,3 +609,52 @@ svg path,svg rect,svg circle{vector-effect:non-scaling-stroke}
 .yt iframe{display:block;width:100%;aspect-ratio:16/9;height:auto;border:0;border-radius:var(--r);background:#000}
 .vid figcaption,.yt figcaption{margin-top:10px;text-align:center;font-size:.92rem;color:var(--mute)}
 .vid figcaption a{display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- ⟨2026-11-18⟩ TradeYar's VIP: the menu entry, the lesson block, the /vip/ page ---------- */
+.nav a.nav-vip{margin-inline-start:6px;padding:8px 16px;border-radius:999px;background:var(--on-hero);color:var(--hero);font-weight:800;transition:background .35s,color .35s}
+.nav a.nav-vip::after{display:none}
+.nav a.nav-vip:hover,.nav a.nav-vip[aria-current]{background:var(--mustard);color:#000;box-shadow:inset 0 0 0 1.5px #000}
+.hdr.scrolled .nav a.nav-vip{background:var(--ink);color:var(--bg)}
+.hdr.scrolled .nav a.nav-vip:hover{background:var(--mustard);color:#000}
+.drawer-nav a.drawer-vip span{color:var(--mustard)}
+.drawer-nav a:nth-child(6){animation-delay:.25s}
+.vipcta{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:18px;margin-block:clamp(40px,6vw,64px);padding:clamp(22px,3vw,34px);border-radius:var(--r);
+  background:var(--panel);color:var(--on-panel);overflow:hidden;isolation:isolate;box-shadow:inset 0 0 0 1px var(--panel-line)}
+.vipcta .sec-n{color:var(--panel-acc)}
+.vipcta h2{font-weight:950;font-size:clamp(24px,2.6vw,32px);line-height:1.35;margin:8px 0 10px}
+.vipcta p{font-size:16px;line-height:1.95;color:rgba(244,240,230,.82);max-width:36em}
+.vipcta .vipcta-num{margin-top:10px;font-weight:800;color:var(--panel-acc)}
+.vipcta-act{display:flex;align-items:center;flex-wrap:wrap;gap:14px 22px;margin-top:20px}
+.vipcta .lnk{color:var(--on-panel);border-color:var(--panel-acc)}
+.vipcta .lnk:hover{border-color:var(--on-panel)}
+.vipcta-mark{position:absolute;z-index:-1;inset:auto -.04em -.16em auto;font-family:var(--fd);font-size:clamp(120px,16vw,200px);line-height:.8;color:transparent;-webkit-text-stroke:1.5px rgba(243,194,66,.35);pointer-events:none;user-select:none}
+.vipcta-end{margin-block:0}
+.vipcta-end h2{font-size:clamp(28px,3.4vw,44px)}
+.vs-list{display:grid;gap:clamp(12px,1.6vw,18px);grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))}
+.vs-i{display:flex;flex-direction:column;gap:4px;padding:clamp(18px,2.2vw,26px);border-radius:var(--r);background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.vs-v{font-weight:950;font-size:clamp(34px,4.4vw,56px);line-height:1.1;color:var(--ink)}
+.vs-l{font-weight:800;font-size:16px}
+.vs-n{font-size:14px;color:var(--mute)}
+.vs-src{margin-top:16px;font-size:14px;color:var(--mute)}
+.vs-src a{font-weight:700;border-bottom:1.5px solid var(--acc)}
+.vip-steps .steps{max-width:900px}
+/* the step's own column may shrink: the cards inside it never push the page wider than the phone */
+.vip-steps .steps li{grid-template-columns:52px minmax(0,1fr)}
+.vip-steps .steps li>div{min-width:0}
+.vip-steps .steps p{max-width:42em}
+.vip-xs{margin-top:18px}
+.vip-x{gap:12px}
+.vip-steps .x-cta{margin-top:16px}
+.vip-keep{max-width:900px;margin-top:8px;padding:16px 20px;border-radius:16px;background:color-mix(in srgb,var(--acc) 22%,transparent);font-weight:700;color:var(--ink)}
+.vip-faq{max-width:900px}
+@media (max-width:640px){
+  .vipcta-act .btn,.vip-steps .x-cta .btn{flex:1 1 100%;width:100%}
+  .vipcta-mark{font-size:120px}
+  .vs-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .vs-v{font-size:30px}
+  .steps li,.vip-steps .steps li{grid-template-columns:44px minmax(0,1fr);gap:14px}
+  .vip-xs{grid-template-columns:minmax(0,1fr)}
+  .steps .sn{width:44px;height:44px;font-size:18px}
+  .steps li::before{right:21px;top:44px}
+}
+@media print{.vipcta{display:none!important}}
