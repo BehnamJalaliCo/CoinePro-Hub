@@ -246,7 +246,7 @@ def encode():
     os.makedirs(os.path.dirname(out), exist_ok=True)
     subprocess.run(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-i", audio,
                     "-filter_complex", f"[1:a]apad=whole_dur={end},atrim=0:{end},aformat=channel_layouts=stereo[a]",
-                    "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-ar", "48000",
+                    "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
                     "-t", f"{end:.3f}", "-movflags", "+faststart", out], check=True)
     print("wrote", out, f"{end:.2f}s")
 
