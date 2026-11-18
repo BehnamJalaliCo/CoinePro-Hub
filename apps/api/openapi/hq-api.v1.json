@@ -20017,7 +20017,7 @@
         "type": "object"
       },
       "FlowNotStarted": {
-        "description": "⟨1.39⟩ §61.2 n8n's per-flow call that makes nothing (202): `before_trigger` (the row's build\nhour has not come: the owner moved it later in the app), `off`, `paused`, `skipped`,\n`not_its_day`.",
+        "description": "⟨1.39⟩ §61.2 n8n's per-flow call that makes nothing (202): `before_trigger` (the row's build\nhour has not come: the owner moved it later in the app), `off`, `paused`, `skipped`,\n`not_its_day`, `not_started` (⟨2026-11-18⟩ a day before the flow's start).",
         "properties": {
           "reason": {
             "title": "Reason",
