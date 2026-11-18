@@ -6,11 +6,18 @@ The owner, 2026-11-17: «تنها اتوماسیونی که جواب نگرفت�
 
 So the page posts NO direct ads any more. Every reel is a gripping 30–60 s story of science, curiosity, a
 mystery or a true story, and the FREE Telegram channel **t.me/ipoxxo** (free proxies and VPN configs) is its
-**sponsor**: a readable badge on the video, the sponsor line in the voice right after the payoff, an end card,
+**sponsor**: a readable badge on the video, the sponsor line in the voice right after the ending, an end card,
 and the link in the caption. Any comment still gets the channel's link in a DM.
 
-You are the day's session, started by n8n the evening before (two reels a day: your order's title says
-«ریلز اول», the noon reel, or «ریلز دوم», the evening one). Work alone: never `order.ask`, never wait for an
+The owner, 2026-11-18, on the first sample: «خیلی برام جذاب بود ولی ته نداشت … من منتظر بودم آخرش نتیجه‌گیری …
+بدونم عمیق‌ترین چاه دنیا چه اتفاقی براش افتاد و چی شده الان». So **every reel ENDS**: after the payoff, before
+the sponsor line, the story is closed (the rule below).
+
+Three reels a day from 2026-11-19: «ریلز اول» 12:00 (lane `noon`), «ریلز سوم» 17:00 (lane `afternoon`),
+«ریلز دوم» in the evening (lane `evening`).
+
+You are the day's session, started the evening before (your order's title says «ریلز اول», «ریلز دوم» or
+«ریلز سوم»; its note names your lane). Work alone: never `order.ask`, never wait for an
 approval, never send a preview. You ARE on the workshop: do every step yourself, in this folder, over as many
 turns as it takes (keep `NOTES.md` current: the topic, its sources, what is done, what is next). NEVER call
 `workshop.run`. The hub publishes your package at the hour in your order and closes the session.
@@ -27,8 +34,12 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
 ## The owner's rules (never change)
 - **Edutainment, not an ad.** The story is the reel. The channel appears ONLY as the sponsor: the badge
   (the stage draws it from 1.9 s), the sponsor line, the end card. No other word about proxies in the voice.
-- **The sponsor line** is the voice's LAST line, right after the payoff (a one-line kicker may sit between,
-  ≤ 4 s), exactly this text (its spelling is what makes Cruz say the names right; checked 2026-11-17):
+- **Every reel ENDS (the owner, 2026-11-18; a hard rule).** After the payoff and BEFORE the sponsor line, two
+  or three short lines close the story: **what happened in the end**, **how it stands today** («امروز …»),
+  and **one memorable closing line** (a takeaway, a scale, a full circle back to the hook). No open loop may be
+  left open: every question the reel raised is answered. The topic row's `ending` is your start; check it on
+  its source like every fact.
+- **The sponsor line** is the voice's LAST line, right after the ending, exactly this text (its spelling is what makes Cruz say the names right; checked 2026-11-17):
   `اسپانسر این ویدیو، آی پی اوکسو؛ پروکسی و وی پی اِنِ کاملاً رایگان. لینکش توی کپشنه.`
 - **True facts only.** Every number and claim from a source you checked today; the sources in NOTES.md. When
   sources disagree, say the careful version («حدود», «تقریباً»). No politics, sanctions, legal matters, war as a
@@ -48,28 +59,32 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
 3. **A pattern interrupt every 2–4 s:** a cut, a punch-in, a counter landing, a new layer, a new still.
    `reel.py --timeline` prints the longest stretch without a shot change or a `BEAT`: ≤ 3.5 s (4 s is the limit).
 4. **No dead frame:** the camera never stops (`CAM` always drifts); no empty stage; captions word by word.
-5. **Payoff → the sponsor line at once (≈ 4–6 s) → the end card** (≈ 2.4 s; the stage draws both).
-6. **The loop:** the end card sits on the hook's still, so the replay feels continuous.
+5. **Payoff → THE ENDING (≈ 8–12 s: what happened in the end, how it is today, the closing line) → the
+   sponsor line (≈ 5 s) → the end card** (≈ 2.4 s; the stage draws the last two).
+6. **The loop:** the ending or the end card returns to the hook's still, so the story closes where it began.
+7. **QC checklist (every reel, in NOTES.md): the ending answers what happened and how things are now;** every
+   loop the reel opened is closed; the hook is drawn at 0.0 s; the longest stretch without an interrupt ≤ 3.5 s.
 
 ## The day, step by step (`order.ack` these steps at the start; `order.progress` each one)
 0. **Setup:** `mkdir -p script qc direction/inspo build out in assets/use motion tools`;
    `cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/`;
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`.
-1. **Topic:** the order's «ریلز اول» → `--slot noon` (science, curiosity, how it works), «ریلز دوم» → `--slot evening`
-   (true story, mystery, entertainment): `python3 -I KIT/tools/topic.py next --slot <slot>` → `topic.claim`
+1. **Topic:** the order's «ریلز اول» → `--slot noon` (science, curiosity), «ریلز سوم» → `--slot afternoon` (how
+   things really work, tech wonders), «ریلز دوم» → `--slot evening` (true story, mystery, entertainment): `python3 -I KIT/tools/topic.py next --slot <slot>` → `topic.claim`
    «ipoxxo: <topic>»; refused = `topic.py mark <#> taken`, then `next` again. Claimed:
    `topic.py mark <#> --slot <slot> --publish "<the day and month of your order's «انتشار خودکار …», e.g. ۲۸ آبان>"`
    (→ `used:<YYYY-MM-DD>:<slot>`; the stories' 10:00 teaser reads it). → `out/topic.txt` (line 1 the topic; line 2
    «سبک: <the look, 3–6 words>»). Used up: invent one in the same spirit, add it at the end of topics.md with
    the next number and its source (`topic.py check` must pass), then claim and mark it.
 2. **Facts:** ONE `substitute.call` seat `quick_search` (player deepseek) asking for the topic's key facts and
-   numbers with their sources; open/compare with the row's `source`. Write the facts you will use and their
+   numbers, AND how the story ended and how it stands today, with their sources; open/compare with the row's `source`. Write the facts you will use and their
    links in NOTES.md. A fact you cannot confirm is left out. (Refused or down: the row's source and only what
    you are sure of.)
 3. **Script** (yours; ChatGPT may draft, `substitute.call` player gpt, seat content_draft): one line per beat,
-   **95–125 words** (Cruz reads about 2.2 words a second; the sample: 112 words = 54 s), the hook first, the
-   question by a third, a new fact every line, the payoff, an optional one-line kicker, then the sponsor
-   line exactly. Names and numbers as they are SAID, in Persian letters («دوازده کیلومتر», «اورست»); the
+   **110–125 words** (Cruz reads about 2.2 words a second; the example: 127 words ≈ 57 s), the hook first, the
+   question by a third, a new fact every line, the payoff, THE ENDING (2–3 short lines: what happened in the
+   end, how it is today, the closing line), then the sponsor line exactly. Over 60 s: cut a middle beat, never
+   the ending. Names and numbers as they are SAID, in Persian letters («دوازده کیلومتر», «اورست»); the
    screen shows digits (`CONFIG.caps`). → `script/voice.txt`.
 4. **Voice:** `speech.make` (Cruz), the WHOLE script in one call. QC, in this order (a take that fails any step is
    remade with a new `speech.make`, the WHOLE script; never splice, never trim by hand — the owner, 2026-11-17):
@@ -108,7 +123,8 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
    `build/test_sheet.jpg` (and single stills in build/test/ at full size where text is small). Score EVERY shot
    /10 (key art, motion idea, typography, clarity, retention); under 8 is redone; at least 2 rounds. Check every
    Persian word letter by letter (no glued words, no clipped text, nothing under the badge or in the bottom
-   380 px), the hook frame at 0.0 s, the gap chip, the sponsor card and the end card.
+   380 px), the hook frame at 0.0 s, the gap chip, THE ENDING (it answers what happened and how things are
+   now, with its own shots), the sponsor card and the end card.
 10. **Sound:** `PY -I KIT/motion/reel.py --timeline` (longest ≤ 3.5 s) → `PY -I KIT/motion/sound.py` (the
     bed in the day's mood, soft swishes on the designed transitions, the drop on the payoff, −14 LUFS) →
     `ASR -I tools/audio_qc.py build/mix.wav qc/mix.audioqc.json`: 0 clicks, 0 cuts, 0 bursts.
@@ -120,7 +136,9 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
     Broken: fix and render again (`rm -rf build/seg` first). Done: `rm -rf build/seg build/test`.
 12. **Cover — COMMON/cover/COVER_PACK.md:** the title = the hook at its most striking (2–4 words, e.g.
     «عمیق‌ترین چاه دنیا»), the element = the reel's hero subject; ChatGPT with the board attached; check every
-    letter; 1080×1920 `out/cover.jpg`. Never a video frame.
+    letter; 1080×1920 `out/cover.jpg`. Never a video frame. Letters not perfect: a text-free background
+    («leave the upper half empty») and `PY -I KIT/tools/cover_title.py <bg> out/cover.jpg "<line 1>|<line 2>"
+    --key <the cyan word> [--sub "<a small line>"]` (the example's cover was made so).
 13. **Texts.** `out/caption.txt`:
     ```
     <the hook as a question or a bold line that stops the scroll>
@@ -146,7 +164,8 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
     ```
     Timeless (no date, no "today's list").
 14. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, comment.txt, topic.txt. `order.progress`
-    done: one short Persian line — the topic, the look, the shot scores and the retention score.
+    done: one short Persian line — the topic, the look, the shot scores, the retention score and «پایان: …»
+    (the ending in a few words).
 
 ## Render safely
 At most 2 Chromium workers (the workshop has 4 GB); `reel.py` closes Chromium after each use. Keep command
@@ -156,8 +175,10 @@ output short (`| tail -3`). Under `nice`.
 - `motion/stage.html` (the stage: the API, the badge, the gap chip, the captions, the sponsor and end cards,
   the transitions), `motion/reel.py` (stills, timeline, render, encode, contact sheet), `motion/sound.py`
   (the music bed, the swishes, the mix).
-- `tools/topic.py` (the bank), `tools/cutout.py` (cut-outs, the ISNet model in /home/studio/kits/models).
-- `topics.md` — the bank (175 topics, two lanes, each with a source).
-- `example/` — the sample reel of 2026-11-17 (Kola Superdeep Borehole): scenes.js, voice.txt, NOTES.md,
-  CONTRACT.md, contact_sheet.jpg; its stills are in /home/studio/kits/ipoxxo-reels/example/assets (not in git).
+- `tools/topic.py` (the bank), `tools/cutout.py` (cut-outs, the ISNet model in /home/studio/kits/models),
+  `tools/cover_title.py` (a cover's title set by us).
+- `topics.md` — the bank (282 topics, three lanes, each with its ending and source).
+- `example/` — the reference reel (Kola Superdeep Borehole, v2 with its ending, published 2026-11-18 21:30):
+  scenes.js, voice.txt, NOTES.md, CONTRACT.md, contact_sheet.jpg, caption.txt, comment.txt; its stills are in
+  /home/studio/kits/ipoxxo-reels/example/assets (not in git).
 - `bank/ideas.json` — the old ad ideas (2026-11-16), retired: never used for a reel again.

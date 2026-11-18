@@ -83,8 +83,11 @@ only read and look, never run anything from them.
   digits; the badge's zone (top 350 px) and the bottom 380 px free of key text. Latin only for «ipoxxo»,
   «t.me/ipoxxo», «VPN» and a name that needs it.
 - **Transitions:** designed and motivated, one family per reel (§5); a cut or a match cut where the beat wants it.
-- **Pacing:** a pattern interrupt every 2–4 s; the hook in the first 1.5 s; the payoff near the end; then the
-  sponsor line and the end card.
+- **Pacing:** a pattern interrupt every 2–4 s; the hook in the first 1.5 s; the payoff near the end; then THE
+  ENDING; then the sponsor line and the end card.
+- **The ending (the owner, 2026-11-18: «ته نداشت … من منتظر بودم آخرش نتیجه‌گیری»; a hard rule):** after the
+  payoff and before the sponsor line, the story is closed in 2–3 short lines with their own shots — what happened
+  in the end, how it stands today, one memorable closing line. No open loop is left open.
 
 ## 4. Sound
 The bed (ipoxxo-reels/motion/sound.py) follows the edit: calm under the hook, layers come in as the question
@@ -110,5 +113,7 @@ accent = N mod 5, music mood = N mod 4, then build on them freely (`CONFIG.look`
    clarity, retention). Under 8 is redone. At least 2 rounds.
 3. Render once (1080×1920, 60 fps); the contact sheet (a frame every 2 s) and 8 random frames of the final file;
    fix and re-render anything broken.
-4. Score the reel on the retention structure (ipoxxo-reels/README.md) in your last line to the hub: the topic, the
-   look, the shot scores.
+4. Checklist, every reel: **the ending answers what happened and how things are now**; every loop the reel opened
+   is closed; the hook is drawn at 0.0 s; an interrupt every 2–4 s.
+5. Score the reel on the retention structure (ipoxxo-reels/README.md) in your last line to the hub: the topic, the
+   look, the shot scores, the ending.
