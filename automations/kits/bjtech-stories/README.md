@@ -58,10 +58,15 @@ Every bank topic you use: `python3 -I REELS/tools/topic.py mark <#> --slot story
    ```
    keyword: <today's word>
    reply: <a warm first line>
-   reply: <every resource of today's cards: one short line + its official https link each, at most 6>
-   reply: <«هر روز خبرها و ابزارهای هوش مصنوعی رو توی کانال تلگرامم می‌ذارم»>
+   reply: <every resource of today's cards: one short line each, NAMED, never its URL; at most 6>
+   reply: <«هر روز خبرها و ابزارهای هوش مصنوعی رو توی کانال تلگرامم می‌ذارم 👇»>
+   button: <the most useful resource, ≤ 20 characters> | <its official https URL>
+   button: <the second, optional> | <its official https URL>
    button: کانال تلگرام | <COMMON/brand/config.json telegram>
    ```
+   **No link in a `reply:` line, ever (HARD):** Meta refuses this page's DM when its text holds a link
+   (508/2534122, 2026-11-18). Links are `button:` lines only, at most three, Telegram always last; the reply
+   ≤ 600 characters.
 5. `out/topic.txt`: line 1 «استوری‌های <day>: <the 3 main subjects>». **Deliver:** out/ holds ONLY story_1.jpg …
    story_N.jpg (1080×1920, in the order of the hours), comment.txt, topic.txt. `order.progress` done: one Persian
    line — the 12 subjects in a few words, the word, the score.

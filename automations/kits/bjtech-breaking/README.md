@@ -37,8 +37,10 @@ Already covered (your order's no-repeat list holds this release): skip the same 
    (HH:MM), `chip` the vendor, `latin` the exact product name, `title` 4–9 Persian words («مدل تازه‌ی OpenAI همین
    الان منتشر شد»), `keys`, `image`, `source` the page's domain + path. `PY -I COMMON/tools/card.py
    direction/flash.json out/story_1.jpg` → `ok` → read it at full size (every letter).
-4. `out/comment.txt` (keyword: a fresh word, e.g. «خبر» + something not taken; reply: the official link + one line;
-   `button: کانال تلگرام | <config telegram>`), `out/topic.txt` («خبر فوری: <vendor> <product>»).
+4. `out/comment.txt` (keyword: a fresh word, e.g. «خبر» + something not taken; reply: the news in one or two lines,
+   NO link in it; `button: <صفحه‌ی رسمی …, ≤ 20 characters> | <the official https URL>`, then
+   `button: کانال تلگرام | <config telegram>`), `out/topic.txt` («خبر فوری: <vendor> <product>»). No link in a
+   `reply:` line, ever: Meta refuses this page's DM when its text holds one (508/2534122, 2026-11-18).
    Deliver: out/ holds ONLY story_1.jpg, comment.txt, topic.txt. `order.progress` done.
 
 ## B. The breaking reel (flow bjtech_breaking)
@@ -57,8 +59,8 @@ render, cover, texts, deliver) with these differences:
 - **Look:** pillar `news`, `CONFIG.look.mood` 3 (breaking), the official image as the hero of shot 2 labelled
   «تصویر رسمی <vendor>», a red «فوری» chip as the kicker for the first 3 s.
 - **Mark the bank:** nothing (news is never banked); NOTES.md keeps the item's id and link.
-- **Texts:** caption starts with «🔴 فوری:»; the DM gives the official announcement link (+ the model page / pricing)
-  and the Telegram button.
+- **Texts:** caption starts with «🔴 فوری:»; the DM's text names the news (no link in it); its buttons: the official
+  announcement (+ the model page or pricing, optional), then the Telegram channel last (at most three).
 Deliver: out/ holds ONLY video.mp4, cover.jpg, caption.txt, comment.txt, topic.txt (video.mp4 last).
 
 ## Never

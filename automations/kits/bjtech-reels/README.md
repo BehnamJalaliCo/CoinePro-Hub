@@ -125,12 +125,17 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
     ```
     keyword: <the word>, <its plural or a near form>
     reply: <a warm first line about the reel's topic>
-    reply: <the resource itself: the repo / tool / official page URL, one per line, with one short line each>
-    reply: <«خبرهای روزانه‌ی هوش مصنوعی رو توی کانال تلگرام می‌ذارم»>
+    reply: <what the resource is, one short line each, NAMED, never its URL («… با دکمه‌های زیر باز می‌شن»)>
+    reply: <«خبرهای روزانه‌ی هوش مصنوعی رو توی کانال تلگرام می‌ذارم 👇»>
+    button: <the resource, ≤ 20 characters> | <its official https URL>
+    button: <a second resource, optional> | <its official https URL>
     button: کانال تلگرام | <config telegram>
     public: <ten short public replies, all different: a line about the topic + that the DM is on its way>
     ```
-    The resource URLs: https only, official. Timeless (no "today's list").
+    **No link in a `reply:` line, ever (HARD).** Meta refuses this page's DM when its text holds a link
+    (508/2534122, 2026-11-18: two reels' DMs never went out); every link is a `button:` line: at most
+    three, the Telegram channel always the last one, so at most two resources. Button titles ≤ 20 characters;
+    the whole reply ≤ 600 characters. The resource URLs: https only, official. Timeless (no "today's list").
 14. **Deliver:** out/ holds ONLY video.mp4, cover.jpg, caption.txt, comment.txt, topic.txt (video.mp4 last).
     `order.progress` done: one short Persian line — the topic, the look, the shot scores, «پایان: …».
 
