@@ -61,6 +61,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 bdi,[dir=ltr]{unicode-bidi:isolate}
 /* a Latin run (a name, a term, a ticker) never breaks across two lines inside a lesson: its parentheses stay with it on a phone */
 .art-body bdi{white-space:nowrap}
+/* …but a long run (a headline in a source's label, an English sentence) wraps like any text */
+.art-body bdi.lw{white-space:normal;overflow-wrap:anywhere}
 /* Latin labels in the Yekan face keep Latin digits (TRC20, P2P, (06) FOLLOW, a code with digits) */
 .term-en,.code-b b{font-family:YekanLat,var(--f)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

@@ -521,7 +521,10 @@ def _isolate_text(chunk: str) -> str:
     out, i = [], 0
     for a, b in runs:
         run = text[a:b]
-        cls = ' class="lat"' if re.search(r"[0-9]", run) else ""
+        # (Latin digits keep the Latin face; ⟨2026-11-18⟩ a long run, a headline or a sentence in a
+        # source's label, may wrap: a lesson keeps short names whole, never a page wider than a phone)
+        names = (["lat"] if re.search(r"[0-9]", run) else []) + (["lw"] if len(run) > 28 or run.count(" ") >= 3 else [])
+        cls = f' class="{" ".join(names)}"' if names else ""
         out += [html.escape(text[i:a], quote=False), f'<bdi dir="ltr"{cls}>{html.escape(run, quote=False)}</bdi>']
         i = b
     out.append(html.escape(text[i:], quote=False))
