@@ -12,7 +12,7 @@ A spec (JSON; every text Persian unless it is a name; digits may be Latin, they 
 Latin runs): {"type": "cover" | "story" | "flash" | "thumb", "pillar": "repo|model|news|tool|trick|behind|explain",
   "kicker": "ریپوی روز", "title": "…", "keys": ["words in the spectrum"], "latin": "Claude Fable 5.2" (a big
   Latin name), "body": ["line", "line"], "image": "<path of a picture>", "fit": "cover|contain",
-  "chip": "…", "badge": "۲ از ۱۲", "word": "<the day's reply word>", "cta": "…", "source": "anthropic.com",
+  "chip": "…", "badge": "۲ از ۱۲" (a counter: drawn «n از m» in Persian digits, one RTL run, whatever digits it is given), "word": "<the day's reply word>", "cta": "…", "source": "anthropic.com",
   "time": "۱۸:۴۰", "layout": "hero|split|list|quote|stat|teaser", "stat": "۳۶×", "stat_label": "…",
   "list": ["…", "…"], "accent": "#hex (optional; else the pillar's)"}
 Types:
@@ -52,6 +52,38 @@ def config():
 
 def b64(path):
     return base64.b64encode(open(path, "rb").read()).decode()
+
+
+# ⟨2026-11-19⟩ the owner: the page's ROUND profile logo beside every «behnamjalali.tech» handle (never a coloured dot);
+# COMMON/brand/logo_round.png is made by COMMON/tools/make_logo.py from the real Instagram profile picture
+LOGO_FILE = os.path.join(COMMON, "brand", "logo_round.png")
+
+
+def logo_tag(px=44):
+    """The round logo as an <img> beside the handle."""
+    return (f'<img class="logo" alt="" src="data:image/png;base64,{b64(LOGO_FILE)}" '
+            f'style="width:{px}px;height:{px}px">')
+
+
+# ⟨2026-11-19⟩ the owner: a story's counter at the top right read «۷ از 12» (mixed digits, its order scrambled by
+# bidi). A counter is «n از m»: ALL Persian digits, ONE right-to-left run, in the handle pill's own font.
+COUNTER_IN = re.compile(r"^\s*([0-9۰-۹]{1,3})\s*(?:از|/|of)\s*([0-9۰-۹]{1,3})\s*$")
+COUNTER_OUT = re.compile(r"^[۰-۹]{1,3} از [۰-۹]{1,3}$")
+
+
+def check_counter(text):
+    """A counter as it will be drawn: refused when it mixes digits or is not «n از m»."""
+    if re.search(r"[0-9٠-٩]", text) or not COUNTER_OUT.fullmatch(text):
+        raise ValueError(f"a counter must be «n از m» in Persian digits only, not {text!r}")
+    return text
+
+
+def counter(text):
+    """«۷ از 12», «7/12», «7 of 12» -> «۷ از ۱۲» (checked)."""
+    m = COUNTER_IN.match(str(text or ""))
+    if not m:
+        raise ValueError(f"a counter is «n از m» (e.g. «۷ از ۱۲»), not {text!r}")
+    return check_counter(f"{m.group(1).translate(FA)} از {m.group(2).translate(FA)}")
 
 
 def rich(text, keys=()):
@@ -139,8 +171,12 @@ body{font-family:EST,GEI,sans-serif;color:#F2F4F8;direction:rtl;position:relativ
 .chip{display:inline-flex;align-items:center;gap:12px;padding:12px 26px;border-radius:999px;font-weight:700;
   border:1.6px solid @@ACC@@aa;background:rgba(255,255,255,.06);font-size:32px;line-height:1}
 .dot{width:16px;height:16px;border-radius:50%;background:conic-gradient(#7B61FF,#22D3EE,#3CFFB5,#FFD166,#FF5FA2,#7B61FF);box-shadow:0 0 16px @@ACC@@}
-.handle{position:absolute;display:flex;gap:14px;align-items:center;padding:14px 28px;border-radius:999px;
+.handle{position:absolute;display:flex;gap:14px;align-items:center;padding:8px 28px 8px 8px;border-radius:999px;
   background:rgba(12,14,22,.7);border:1.4px solid rgba(255,255,255,.13);font-family:GMO;font-size:28px;color:#C9CEDA;direction:ltr}
+.logo{display:block;border-radius:50%;flex:0 0 auto}
+.counter{position:absolute;display:flex;align-items:center;height:62px;padding:0 26px;border-radius:999px;
+  background:rgba(12,14,22,.7);border:1.4px solid rgba(255,255,255,.13);font-family:GMO,EST,sans-serif;font-size:28px;
+  color:#C9CEDA;direction:rtl;unicode-bidi:isolate}
 .frame{position:absolute;overflow:hidden;border-radius:34px;border:2px solid rgba(255,255,255,.14);box-shadow:0 30px 80px rgba(0,0,0,.6);background:#0B0D15}
 .frame img{width:100%;height:100%;display:block}
 .frame.ring::after{content:"";position:absolute;inset:0;border-radius:34px;padding:4px;background:conic-gradient(from 120deg,#7B61FF,#22D3EE,#3CFFB5,#FFD166,#FF5FA2,#7B61FF);
@@ -289,7 +325,7 @@ def page(spec, w, h):
     elif kind == "flash":
         t = spec.get("time", "")
         parts.append('<div class="bloom" style="width:760px;height:760px;left:160px;top:520px;background:#FF4D5E;opacity:.18"></div>')
-        parts.append(f'<div class="handle" style="top:150px;left:50%;transform:translateX(-50%)"><span class="dot"></span>{html.escape(handle)}</div>')
+        parts.append(f'<div class="handle" style="top:150px;left:50%;transform:translateX(-50%)">{logo_tag()}{html.escape(handle)}</div>')
         parts.append('<div style="position:absolute;top:262px;left:0;right:0;text-align:center">'
                      '<div class="chip" style="border-color:#FF4D5E;background:rgba(255,77,94,.14);font-size:40px;padding:16px 34px">'
                      '<span style="width:18px;height:18px;border-radius:50%;background:#FF4D5E;box-shadow:0 0 22px #FF4D5E"></span>فوری'
@@ -308,7 +344,7 @@ def page(spec, w, h):
     else:
         # cover and story: the handle on top, the kicker chip, the hero, the title, the body
         top = 150
-        parts.append(f'<div class="handle" style="top:{top}px;left:50%;transform:translateX(-50%)"><span class="dot"></span>{html.escape(handle)}</div>')
+        parts.append(f'<div class="handle" style="top:{top}px;left:50%;transform:translateX(-50%)">{logo_tag()}{html.escape(handle)}</div>')
         if kind == "cover":
             # the grid's 4:5 window is y 285..1635: everything that matters is inside it
             parts.append('<div class="bloom" style="width:820px;height:820px;left:130px;top:520px"></div>')
@@ -324,7 +360,7 @@ def page(spec, w, h):
         else:
             layout = spec.get("layout") or ("hero" if image else "list")
             if spec.get("badge"):
-                parts.append(f'<div class="mono muted" style="position:absolute;top:{top + 10}px;right:64px;font-size:26px;direction:ltr">{html.escape(str(spec["badge"]))}</div>')
+                parts.append(f'<div class="counter" style="top:{top}px;right:64px"><bdi dir="rtl">{html.escape(counter(spec["badge"]))}</bdi></div>')
             parts.append(f'<div style="position:absolute;top:270px;left:0;right:0;text-align:center"><div class="chip"><span class="dot"></span>{rich(kicker)}</div></div>')
             y = 380
             if layout == "stat" and spec.get("stat"):
@@ -347,7 +383,7 @@ def page(spec, w, h):
             for line in spec.get("body") or []:
                 box.append(f'<div class="body" style="font-size:{spec.get("body_px", 40)}px;margin-bottom:12px">{rich(line, keys)}</div>')
             for i, line in enumerate(spec.get("list") or [], 1):
-                box.append(f'<div class="li"><b class="en">{i}</b><div class="body" style="font-size:{spec.get("body_px", 40)}px">{rich(line, keys)}</div></div>')
+                box.append(f'<div class="li"><b>{str(i).translate(FA)}</b><div class="body" style="font-size:{spec.get("body_px", 40)}px">{rich(line, keys)}</div></div>')
             if box:
                 parts.append(f'<div class="glass" style="position:absolute;top:{y}px;left:64px;right:64px;padding:44px 50px 34px">{"".join(box)}</div>')
             bottom = []

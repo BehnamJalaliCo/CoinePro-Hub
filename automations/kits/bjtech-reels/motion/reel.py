@@ -83,13 +83,15 @@ def still(path):
     return name, f"data:{mime};base64,{b64(cache)}"
 
 
-def logo():
+def logo(name="profile_round.png", size=400):
+    """A round mark of COMMON/brand as a data URL: profile_round.png (the end card draws its own ring around it) or
+    ⟨2026-11-19⟩ logo_round.png (with its thin spectral rim: the handle pill's logo, never a coloured dot)."""
     from PIL import Image
-    p = os.path.join(COMMON, "brand", "profile_round.png")
+    p = os.path.join(COMMON, "brand", name)
     if not os.path.exists(p):
         return None
     im = Image.open(p).convert("RGBA")
-    im.thumbnail((400, 400), Image.LANCZOS)
+    im.thumbnail((size, size), Image.LANCZOS)
     buf = io.BytesIO()
     im.save(buf, "PNG", optimize=True)
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
@@ -109,10 +111,11 @@ def build():
     fonts = {k: cache.setdefault(v, b64(FD + v)) for k, v in FONTS.items()}
     html = open(STAGE, encoding="utf-8").read()
     scenes = open(os.path.join(ROOT, "motion", "scenes.js"), encoding="utf-8").read()
-    for key in ("/*DATA*/", "/*IMAGES*/", "/*FONTS*/", "/*LOGO*/", "/*SCENES*/"):
+    for key in ("/*DATA*/", "/*IMAGES*/", "/*FONTS*/", "/*LOGO*/", "/*LOGOR*/", "/*SCENES*/"):
         assert key in html, key
     html = (html.replace("/*DATA*/", json.dumps(data, ensure_ascii=False)).replace("/*IMAGES*/", json.dumps(imgs))
             .replace("/*FONTS*/", json.dumps(fonts)).replace("/*LOGO*/", json.dumps(logo()))
+            .replace("/*LOGOR*/", json.dumps(logo("logo_round.png", 160)))
             .replace("/*SCENES*/", scenes))
     os.makedirs(os.path.dirname(PAGE), exist_ok=True)
     open(PAGE, "w", encoding="utf-8").write(html)

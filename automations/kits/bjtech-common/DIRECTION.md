@@ -43,6 +43,15 @@ The bar is `KIT/example/` of bjtech-reels (Claude Fable 5.2, 62 s): read its NOT
 - On-screen numbers in Persian digits (`fa()`); a Latin run (GPT-6.2, $8, 49.1%) stays Latin and isolated.
   No full stop, «،» or «؛» at the end of on-screen text. No word ever touches a frame edge or a panel border.
 
+## 3.1 The handle and the counters (the owner, 2026-11-19; HARD)
+- **The page's round profile logo beside every «behnamjalali.tech» handle** (stories, reels, Shorts, long videos,
+  thumbnails, Telegram pictures, the end card): `COMMON/brand/logo_round.png` (the real Instagram profile picture,
+  a clean circle with a thin spectral rim; `COMMON/tools/make_logo.py` makes it again only when the profile picture
+  changes). Never a coloured dot. card.py, the stage (`brand`) and KIT/templates of Telegram draw it themselves.
+- **A counter is «n از m» in Persian digits only, one right-to-left run**: never «۷ از 12» (mixed digits scramble
+  their order). card.py's `badge` goes through `counter()` (any digits in, «۷ از ۱۲» out, refused if mixed); on the
+  stage write `COUNTER(n, of)`, never a template string with numbers; `COMMON/tools/test_card.py` checks both.
+
 ## 4. Motion
 - **The stage, not a new engine:** KIT/motion/stage.html is the API (PANEL, TERM, CODE, BARS, STAT, BIG, HEAD,
   CHIP, IMG, NET, STREAM, CAM, EDGE …). A scene is parameters and shots; a helper of your own lives in scenes.js.

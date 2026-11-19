@@ -63,6 +63,7 @@ const D = /*DATA*/;
 const IMG_SRC = /*IMAGES*/;
 const FONTS = /*FONTS*/;
 const LOGO_SRC = /*LOGO*/;
+const LOGOR_SRC = /*LOGOR*/;  // ⟨2026-11-19⟩ the round logo with its rim: beside the handle, never a coloured dot
 const WIDE = D.size === 'wide';
 const W = WIDE ? 1920 : 1080, H = WIDE ? 1080 : 1920;
 const U = WIDE ? 1080 / 1920 : 1;              // the reel's px in a wide frame (type scale)
@@ -85,7 +86,7 @@ const CFG = {pillar: 'model', look: {tr: 0, bg: 0, mood: 0}, kicker: '', caps: {
 let ACC = PILLARS.model;
 const SH = [], BEATS = [];
 const IM = {};
-let LOGO = null, END = 0, NOW = 0;
+let LOGO = null, LOGOR = null, END = 0, NOW = 0;
 
 /* ---------------------------------------------------------------- the scenes' API -- */
 function CONFIG(o) { Object.assign(CFG, o); if (o.look) CFG.look = Object.assign({tr: 0, bg: 0, mood: 0}, o.look); ACC = PILLARS[CFG.pillar] || PILLARS.model; }
@@ -606,21 +607,34 @@ function brand(t) {
   X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a;
   const y = WIDE ? 70 : 150, px = WIDE ? 24 : 27;
   const label = CFG.handle;
-  const w = measure(label, px, 600, 'mono') + 76, x = WIDE ? 70 : (W - w) / 2;
+  const lr = 23;  // ⟨2026-11-19⟩ the owner: the page's ROUND profile logo beside the handle (never a coloured dot)
+  const w = measure(label, px, 600, 'mono') + 2 * lr + 44, x = WIDE ? 70 : (W - w) / 2;
   rr(x, y - 30, w, 60, 30); X.fillStyle = 'rgba(12,14,22,.66)'; X.fill(); X.lineWidth = 1.4; X.strokeStyle = LINE; X.stroke();
-  const pulse = .6 + .4 * Math.cos(t * 3.2);
-  X.beginPath(); X.arc(x + 30, y, 8, 0, 7); X.fillStyle = specFill(x + 20, y - 8, x + 40, y + 8, t); X.shadowColor = ACC; X.shadowBlur = 14 * pulse; X.fill(); X.shadowBlur = 0;
-  T(label, x + 52, y + 9, px, {f: 'mono', w: 600, col: '#C9CEDA', al: 'left'});
+  if (LOGOR) {
+    X.save(); X.beginPath(); X.arc(x + 7 + lr, y, lr, 0, 7); X.clip();
+    X.drawImage(LOGOR, x + 7, y - lr, 2 * lr, 2 * lr); X.restore();
+  } else {
+    const pulse = .6 + .4 * Math.cos(t * 3.2);
+    X.beginPath(); X.arc(x + 30, y, 8, 0, 7); X.fillStyle = specFill(x + 20, y - 8, x + 40, y + 8, t); X.shadowColor = ACC; X.shadowBlur = 14 * pulse; X.fill(); X.shadowBlur = 0;
+  }
+  T(label, x + 7 + 2 * lr + 14, y + 9, px, {f: 'mono', w: 600, col: '#C9CEDA', al: 'left'});
   const kick = CFG.kicker || PILLAR_FA[CFG.pillar] || '';
   if (kick) CHIP(kick, WIDE ? x + w + 24 : W / 2, WIDE ? y : y + 64, {px: WIDE ? 22 : 24, col: ACC, al: WIDE ? 'left' : 'center', alpha: .95});
   X.restore();
+}
+// ⟨2026-11-19⟩ the owner: a counter («۷ از 12» on a story) mixed digits and bidi scrambled its order. Every counter
+// on the stage is COUNTER(n, of): Persian digits only, one right-to-left run (RLI … PDI), never a template string.
+function COUNTER(n, of) {
+  const s = `${fa(n, 0, false)} از ${fa(of, 0, false)}`;
+  if (/[0-9٠-٩]/.test(s)) throw new Error('a counter with a Latin digit: ' + s);
+  return '\u2067' + s + '\u2069';
 }
 function chapterChip(t) {
   const c = CFG.chapter; if (!c) return;
   const a = pr(t, .6, 1.1) * (1 - pr(t, END - .5, END));
   if (a <= 0) return;
   X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a;
-  CHIP(`فصل ${fa(c.n)} از ${fa(c.of)}` + (c.title ? ` · ${c.title}` : ''), W - 70, WIDE ? 70 : 230,
+  CHIP('فصل ' + COUNTER(c.n, c.of) + (c.title ? ` · ${c.title}` : ''), W - 70, WIDE ? 70 : 230,
        {px: WIDE ? 24 : 26, col: ACC, al: 'right', f: 'fa'});
   X.restore();
 }
@@ -634,7 +648,7 @@ function CHAPTER(s, n, of, title, hook) {
   DIVIDER(W / 2 - (WIDE ? 380 : 300), H * .38 + (WIDE ? 50 : 70), WIDE ? 760 : 600, s, .25);
   HEAD(s, .35, title, W / 2, H * .38 + (WIDE ? 150 : 200), WIDE ? 74 : 86, {keys: [], maxW: WIDE ? 1500 : 940});
   if (hook) T(hook, W / 2, H * .38 + (WIDE ? 250 : 330), WIDE ? 38 : 44, {f: 'fa', w: 600, col: MUTED, alpha: ease(s, .9, .5), maxW: WIDE ? 1500 : 940});
-  T(`فصل ${fa(n)} از ${fa(of)}`, W / 2, H * .38 - (WIDE ? 250 : 330), WIDE ? 28 : 32, {f: 'fa', w: 700, col: ACC, alpha: ease(s, .1, .4)});
+  T('فصل ' + COUNTER(n, of), W / 2, H * .38 - (WIDE ? 250 : 330), WIDE ? 28 : 32, {f: 'fa', w: 700, col: ACC, alpha: ease(s, .1, .4)});
 }
 function videoBar(t) {
   // ⟨2026-11-18⟩ a long video's slim progress bar over the WHOLE video, its chapters as segments (D.videobar from
@@ -809,6 +823,7 @@ async function boot() {
   const load = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
   for (const [k, v] of Object.entries(IMG_SRC)) IM[k] = await load(v);
   if (LOGO_SRC) LOGO = await load(LOGO_SRC);
+  if (LOGOR_SRC) LOGOR = await load(LOGOR_SRC);
   grainInit();
   END = (D.dur || (D.lines.length ? D.lines[D.lines.length - 1].e : 10)) + CFG.tail;
   if (CFG.endAt) END = CFG.endAt;

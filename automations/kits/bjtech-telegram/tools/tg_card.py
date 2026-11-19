@@ -3,8 +3,10 @@
     PY -I KIT/tools/tg_card.py <page.html> <out.jpg> [--size 1080x1350]   a JPEG (quality 92)
     PY -I KIT/tools/tg_card.py <page.html> --pdf <out.pdf>               an A4 PDF (the Wednesday cheat sheet)
 Start from KIT/templates/card.html or table.html: `@@FONTS@@` there becomes the page's @font-face rules (Estedad,
-Geist, Geist Mono, IRANYekanX from the kits' font folders). The page is opened from its own folder, so relative
+Geist, Geist Mono, IRANYekanX from the kits' font folders) and `@@LOGO@@` the page's round profile logo (always beside
+the handle, never a coloured dot). The page is opened from its own folder, so relative
 pictures work. Every Persian letter is set by the browser, never by an image model."""
+import base64
 import os
 import sys
 import tempfile
@@ -12,6 +14,8 @@ from pathlib import Path
 
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
 FD = os.environ.get("BJ_FONTS", "/home/studio/kits/fonts-bj")
+# ⟨2026-11-19⟩ the page's round profile logo (COMMON/brand/logo_round.png) beside the handle: `@@LOGO@@` in the HTML
+LOGO = os.environ.get("BJ_LOGO", "/home/studio/kits/bjtech-common/brand/logo_round.png")
 FP = os.environ.get("BJ_FONTS_PRO", "/home/studio/kits/fonts-pro")
 FONTS = "".join(
     f"@font-face{{font-family:{fam};src:url(file://{d}/{f});font-weight:{w}}}"
@@ -36,7 +40,8 @@ def main() -> int:
     w, h = 1080, 1350
     if "--size" in args:
         w, h = (int(x) for x in args[args.index("--size") + 1].lower().split("x"))
-    page_html = src.read_text("utf-8").replace("@@FONTS@@", FONTS)
+    logo = "data:image/png;base64," + base64.b64encode(Path(LOGO).read_bytes()).decode()
+    page_html = src.read_text("utf-8").replace("@@FONTS@@", FONTS).replace("@@LOGO@@", logo)
     from playwright.sync_api import sync_playwright
 
     with tempfile.NamedTemporaryFile("w", suffix=".html", dir=src.parent, delete=False, encoding="utf-8") as t:
