@@ -161,12 +161,14 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
     # F-0020: the package comes over two turns (the cover and the texts, then the video and the
     # story): nothing goes out before the whole package, then it goes out from both outputs;
     # F-0023 (2026-11-14): the first of them stopped unfinished (exit 1) after writing its files
+    # ⟨2026-11-19⟩ the cover comes last here: a reel never goes out without one (P-000122), the
+    # session is woken once to make it, and the day goes out when it is in
     turns = (
-        (("cover.png", "image/png", a_png(1)),
-         ("caption.txt", "text/plain", "کپشن #پرو_چارت".encode()),
+        (("caption.txt", "text/plain", "کپشن #پرو_چارت".encode()),
          ("comment.txt", "text/plain", COMMENT.encode()),
          ("topic.txt", "text/plain", "بازپخش".encode())),
         (("video.mp4", "video/mp4", mp4(2)), ("story.mp4", "video/mp4", mp4(1))),
+        (("cover.png", "image/png", a_png(1)),),
     )  # fmt: skip
     for n, sent in enumerate(turns):
         if n:
@@ -187,12 +189,24 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
             headers=ws["h"],
         )  # fmt: skip
         assert r.status_code == 200, r.text
-        if not n:
+        if n < 2:
             assert not await su.fetchval(
                 "SELECT count(*) FROM infra.server_jobs WHERE kind = 'publish'"
                 " AND args -> 'session' ->> 'order' = $1",
                 order,
             )
+        if n == 1:  # the video and the texts are in, the cover is not: asked for, once
+            asked = await su.fetchval(
+                "SELECT run_meta -> 'flow' ->> 'cover_asked' FROM work.work WHERE id = $1", w["id"]
+            )
+            assert asked
+            steps = await su.fetchval(
+                "SELECT steps::text FROM owner.order_reports WHERE ref = $1", order
+            )
+            assert "بی کاور منتشر نمیشود" in steps
+            assert await su.fetchval(
+                "SELECT count(*) FROM agents.runs WHERE work_id = $1 AND state = 'queued'", w["id"]
+            ) == 1  # fmt: skip
     jobs = await su.fetch(
         "SELECT id, args FROM infra.server_jobs WHERE kind = 'publish'"
         " AND args -> 'session' ->> 'order' = $1 ORDER BY created_at",

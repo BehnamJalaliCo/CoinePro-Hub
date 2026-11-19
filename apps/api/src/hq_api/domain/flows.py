@@ -1229,7 +1229,7 @@ async def flow_of_work(tx: Tx, work_id: UUID) -> dict[str, Any] | None:
     return {**dict(row), "flow": OR._j(row["flow"]) or {}}
 
 
-async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
+async def package(tx: Tx, w: dict[str, Any], *, need_cover: bool = True) -> dict[str, Any] | None:
     """The day's package from every finished output of its work, the newest file of each name (a
     session delivers it over several turns: F-0020 sent the cover and the texts first, the video and
     the story in a later turn). None until a video and `caption.txt` are both there. `d`: the output
@@ -1282,6 +1282,11 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
         return None
     covers = [f for f, _ in newest.values()
               if str(f["mime"]).startswith("image/") and str(f["name"] or "").lower().startswith("cover")]  # fmt: skip
+    if not covers and need_cover and (flow is None or flow.kind == "reel"):
+        # ⟨2026-11-19⟩ DotCoin's P-000122 went out with a video frame: its session never made
+        # cover.jpg, and a reel was published without one. A reel's day waits for its cover
+        # (_publish wakes the session once to make it).
+        return None
     comment = next((newest[n] for n in SPB.COMMENT_NAMES if n in newest), None)
     topic = newest.get("topic.txt")
     owner_of = {id(f): d for f, d in newest.values()}
@@ -1294,6 +1299,37 @@ async def package(tx: Tx, w: dict[str, Any]) -> dict[str, Any] | None:
         "comment_d": comment[1] if comment else None,
         "topic_d": topic[1] if topic else None,
     }
+
+
+COVER_MISSING_FA = (
+    "ریلز و کپشن رسید ولی out/cover.jpg نیست. هیچ ریلزی بی کاور منتشر نمیشود (دستور مالک): "
+    "کاور را دقیقاً در خانواده‌ی کاورهای همین پیج بساز (کیت، بخش کاور)، در out/ بگذار و تحویل بده."
+)
+
+
+async def _ask_for_cover(tx: Tx, w: dict[str, Any]) -> bool:
+    """A reel day whose video and caption are in but not its cover: the session is woken once to
+    make it (`cover_asked` on the run). True when it was woken now."""
+    meta = w.get("flow") or {}
+    if meta.get("cover_asked") or meta.get("kind") in ("video", "article"):
+        return False
+    pkg = await package(tx, w, need_cover=False)
+    if pkg is None or pkg.get("cover") is not None or pkg.get("reel") is None:
+        return False
+    await tx.exec(
+        """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow,cover_asked}',
+               to_jsonb(CAST(:t AS text))) WHERE id = :w""",
+        t=datetime.now(UTC).isoformat(),
+        w=w["id"],
+    )
+    order = str(meta.get("order") or "")
+    rep = await OR.ensure(tx, order) if order else None
+    if rep is not None:  # (always a step: a turn already queued reads it in its brief)
+        await OR._append_steps(tx, rep["id"], [OR._step("سامانه", COVER_MISSING_FA)])
+    await tx.scalar(
+        "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"cover_missing:{order or w['ref']}"
+    )
+    return True
 
 
 VIDEO_LEFT_SQL = """SELECT 1 FROM infra.server_jobs j,
@@ -1396,6 +1432,7 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
             from hq_api.domain import flow_events as EV
 
             return await EV.close_skipped(tx, hub, w) or "open"
+        await _ask_for_cover(tx, w)
         return "open"
     if meta.get("kind") == "video":
         return await _queue_video(tx, hub, w, meta, pkg)
