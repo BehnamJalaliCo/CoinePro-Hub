@@ -120,11 +120,14 @@ class EgressPublisher:
             }
             for i, (_, data, mime) in enumerate(files)
         ]
-        form = {"call": json.dumps({**call, "files": meta}, ensure_ascii=False)}
-        parts = {f"file{i}": (f"file{i}", data, mime) for i, (_, data, mime) in enumerate(files)}
+        # Always multipart: egress reads only multipart/form-data. A call with no file
+        # (Telegram getMe / getChatMember / sendMessage) went out url-encoded -> 422 invalid_args.
+        head = json.dumps({**call, "files": meta}, ensure_ascii=False).encode()
+        parts: dict[str, Any] = {"call": (None, head, "application/json")}
+        parts |= {f"file{i}": (f"file{i}", data, mime) for i, (_, data, mime) in enumerate(files)}
         try:
             async with httpx.AsyncClient(timeout=180) as http:
-                resp = await http.post(url, data=form, files=parts or None)
+                resp = await http.post(url, files=parts)
             out = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             log.warning("media publish call failed", extra={"error": type(exc).__name__})
