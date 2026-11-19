@@ -6,11 +6,33 @@ The owner is on every cover. «هر کاور یک کت و شلوار خاص بر
 him (he overlaps them), the Persian title low in a bar. Minimal, high contrast, readable as a small
 square in the grid.
 
+## ONE FAMILY — HARD RULES (the owner, 2026-11-19; above everything below)
+After P-000073 «BITCOIN ETF» (a black ground: «it breaks the row») and P-000122 «SEED PHRASE» (the
+legs cut by the pill) he ordered: every DotCoin reel cover is ONE family, and a cover that breaks one
+of these rules is never delivered.
+1. **Always the mustard ground.** A flat mustard #F3C242 background (as ChatGPT draws it), the GIANT
+   ultra-bold condensed BLACK English words edge to edge at the TOP, behind him; him (his photo, a new
+   suit every cover); the Persian title with its key word in a **rounded black chip with mustard
+   letters**; the **black pill** «کلمه‌ی «<word>» رو کامنت کن» (white letters, the word in mustard);
+   the **hand-drawn black arrow** from the pill down toward the caption. Never a black ground, never
+   any other ground, never mustard words on black: the old A/B alternation is gone. (His two sample
+   covers below are black: they set the craft, NOT the ground.)
+2. **The bottom is clean or whole.** Under the title, the pill and the arrow there is EITHER clean,
+   flat mustard (his body ends behind the title: waist up or knees up, nothing of him below the
+   title) OR him full length down to his shoes. NEVER legs or a body cut by the pill or the arrow,
+   never trousers showing under the pill.
+3. **The row check before delivery.** `PY -I COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg`
+   puts the new cover beside the page's last 4 covers (COMMON/cover/family/, newest last; workshop
+   only, like refs/) and checks the ground. Read the sheet: the new cover must sit in that row — the
+   same ground, the same black words at the top, the same chip, pill and arrow, a clean or whole
+   bottom, a suit and a pose that differ from the four beside it. If not, ask ChatGPT again naming
+   exactly what is wrong (the ≤ 2 more tries of step 3 below).
+
 ## THE TARGET LOOK — the owner's own two sample covers (2026-11-16)
 `/home/studio/kits/dotcoin-common/cover/samples/owner_sample_1_crypto.jpg` and
 `owner_sample_2_forex.jpg` (he made them with ChatGPT from his pack). READ BOTH before every cover.
-What they show:
-- a black ground (B), the giant mustard English words EDGE TO EDGE (`CRYPTO CHANNEL`,
+What they show (their craft, not their ground: the page's ground is ALWAYS mustard, rule 1 above):
+- a black ground, the giant mustard English words EDGE TO EDGE (`CRYPTO CHANNEL`,
   `FOREX CHANNEL`), him in front of them;
 - the Persian title set STRAIGHT ON THE GROUND (no bar): big and heavy, one line mustard or white,
   the key word in a **rounded mustard chip with black letters** («کریپتو», «فارکس»);
@@ -19,21 +41,22 @@ What they show:
 - sample 1: waist up, arms crossed, glasses, the title centred under him; sample 2: full body on
   the right, hands in pockets, the title in the free column on his left.
 
-**The layout changes cover to cover** (the owner: «نه صرفا کلمه پشت سر باشه، میتونه متفاوت هم
-باشه جای نوشته»): the words behind him, in front of him, as an outline over him, at the top, at
-the bottom, or in a column; the title under him, beside him, or at the top; him on the left, the
-right or the centre, full body, knees up or waist up. Never the same layout twice in a row; the
-samples set the bar for craft, not one fixed template. `cover_compose.py` takes any of them.
+**What changes cover to cover** (the owner: «نه صرفا کلمه پشت سر باشه، میتونه متفاوت هم
+باشه جای نوشته»; inside the ONE family of 2026-11-19): his suit, accessories, pose and element; him
+on the left, the right or the centre, waist up, knees up or full length (rule 2); the title under
+him or beside him; one English line may come again as an outline over him. The ground, the black
+English words at the top, the chip, the pill and the arrow stay (rule 1). The samples set the bar
+for craft, not one fixed template.
 
 ## The fixed rules (his pack)
 - **Two colours only for the design:** mustard **#F3C242** and black **#000000** (white only small).
   The cover is the brand layer of the page's three colour layers (brand/README.md); the owner
   approved this look on 2026-11-17. Inside the reel, the content is in full colour. On the cover,
   only the suit, the accessories and the element keep their natural colours.
-  - **A:** mustard ground + black English words + black title bar (white Persian, mustard key word).
-  - **B:** black ground + mustard English words + mustard title bar (black Persian, white key word).
-  - The covers alternate A/B/A/B in the grid: **the day's first reel = A, the second = B** (a pilot
-    = B, like the owner's samples).
+  - **Always:** mustard ground + black English words + the Persian title in black (one line may be
+    white) with its key word in the black chip (mustard letters) + the black pill. Every reel, both
+    reels of a day, a pilot too. (Until 2026-11-19 the covers alternated A/B with a black ground B;
+    the owner stopped it: one family, rule 1.)
 - **English backdrop:** ultra-bold condensed UPPERCASE (Anton or Bebas Neue), 1–2 lines, 2–12
   letters a line, behind the subject; one line may be drawn again as an outline in front of him
   (the reference's «PAGE»). Short and strong: `COLD WALLET`, `SEED PHRASE`, `HALVING`, `NEWS`, `DCA`.
@@ -73,8 +96,10 @@ The owner, after the first sample: «کاور جالب نشده؛ باید فو�
 his two covers as images, the pack's rules as text) and a precise brief, and draws the finished
 cover itself — him, the words, the Persian title, the chip, the pill, the arrow.
 
-1. **Brief line** in direction/CONTRACT.md: Palette / Layout / Pose / Suit / Accessories / English
-   words / Persian title (+ the chip word) / Call to action / Element.
+1. **Brief line** in direction/CONTRACT.md: Layout (+ the bottom: clean or full length) / Pose / Suit /
+   Accessories / English words / Persian title (+ the chip word) / Call to action / Element. The
+   ground is always mustard (ONE FAMILY, rule 1); pick a suit, a pose and a side that differ from
+   the four covers in COMMON/cover/family/.
 2. **ONE `substitute.call`:** seat **creative**, kind **image**, placement **other**, player **gpt**,
    `file_ids` = ALL EIGHT files below (his six photos, then his two covers), `input_md` = the brief
    below, every «…» filled.
@@ -83,14 +108,22 @@ cover itself — him, the words, the Persian title, the chip, the pill, the arro
      right dots, right-to-left), the chip around the right word, the English words spelled right;
    - his face (bald head, beard, eyes, nose, jaw: the man of photos 00 and 01), natural proportions,
      hands; the suit and accessories as briefed;
-   - the two colours only, the layout as briefed, nothing else written, as clean as his samples.
-   Wrong: ask again (≤ 2 more), saying exactly what was wrong («the word «…» was written «…»»).
+   - the two colours only, the layout as briefed, nothing else written, as clean as his samples;
+   - THE FAMILY (hard, 2026-11-19): the mustard ground, the black English words at the top, the
+     black chip, the black pill and the arrow; the bottom clean mustard or him full length to his
+     shoes, never legs cut by the pill or the arrow; a finished cover, never a cut-out of him alone;
+   - the row: `PY -I COMMON/tools/cover_sheet.py <the picture> qc/cover_sheet.jpg`, then Read the
+     sheet (ONE FAMILY, rule 3).
+   Wrong: ask again (≤ 2 more), saying exactly what was wrong («the word «…» was written «…»», «the
+   legs show under the pill: leave clean mustard there», «the ground must be mustard, not black»).
 4. **Still wrong letters after 3 tries:** ONE more call asking for the same cover WITHOUT any Persian
    text (its place left empty), then set the Persian yourself on it with
    `COMMON/tools/cover_compose.py` and `"background": "<that picture>"` (IRANYekanX Pro).
-5. **Size:** fit to 1080×1920 (Lanczos; crop to 9:16 only on the ground, never on him or the text) →
-   `out/cover.jpg` (quality 92). His face and the title must sit inside the grid's 3:4 crop
-   (y 240–1680).
+5. **Size:** fit to 1080×1920 (Lanczos; crop to 9:16 only on the ground, never on him or the text;
+   a picture narrower than 9:16 gets its flat ground extended at both sides) → `out/cover.jpg`
+   (quality 92). His face and the title must sit inside the grid's 3:4 crop (y 240–1680).
+6. **The row check on the final file:** `PY -I COMMON/tools/cover_sheet.py out/cover.jpg
+   qc/cover_sheet.jpg` must say `ground ok`; Read the sheet once more. Only then deliver.
 
 ### The eight files (IG-Hub; the originals on the workshop)
 | id | what |
@@ -113,18 +146,25 @@ himself. Images 7 and 8 are two covers I already made: follow THEIR style exactl
 
 Make ONE new vertical 9:16 Instagram reel cover (1080x1920) for my page DotCoin (dotcoin.me).
 
-THE STYLE (as in images 7 and 8): a flat …BLACK #000000 / MUSTARD #F3C242… background; GIANT
-ultra-bold condensed UPPERCASE English words in …mustard #F3C242 / black…, edge to edge; me as a
-clean, sharp, premium studio photo cut-out; the Persian title in a heavy geometric Persian sans-serif
-(like IRANYekanX Black, as in images 7 and 8), set straight on the background; ONE key word inside a
-rounded mustard box with black letters; a pill with a mustard outline for the call to action and a
-hand-drawn mustard arrow. Only black, mustard #F3C242 and white. Minimal, high contrast, premium,
-readable as a small square in the grid.
+THE STYLE (as in images 7 and 8, but with the colours swapped): a flat MUSTARD #F3C242 background;
+GIANT ultra-bold condensed UPPERCASE English words in pure BLACK #000000, edge to edge, at the TOP;
+me as a clean, sharp, premium studio photo cut-out; the Persian title in a heavy geometric Persian
+sans-serif (like IRANYekanX Black, as in images 7 and 8), set straight on the background; ONE key word
+inside a rounded BLACK box with mustard letters; a black pill for the call to action and a hand-drawn
+black arrow. Only mustard #F3C242, black and a little white. Minimal, high contrast, premium,
+readable as a small square in the grid. No texture, no grain, no glow.
 
-THIS COVER'S LAYOUT: …e.g. "the English words at the top behind me; me full body on the right; the
-Persian title and the pill in the free column on my left" — or another layout, different from the
-last cover: the words in front of me / at the bottom / as an outline over me; me left / centre /
-right; full body / knees up / waist up…
+THIS COVER'S LAYOUT: the two English words stacked at the TOP, edge to edge, behind me (my head
+overlaps the lower word); me …WAIST UP / KNEES UP / FULL LENGTH…, …left / centre / right…; the
+Persian title …at the bottom, centred / in the free column beside me…; the pill under the title, the
+arrow curling down from the pill toward the caption.
+THE BOTTOM: …EITHER "below the title, the pill and the arrow stand on CLEAN, FLAT MUSTARD only — no
+legs, no trousers, no part of my body under the title or around the pill and the arrow" OR "me full
+length down to my shoes, the title and the pill in the free space beside me, nothing covering my
+legs"…
+
+This is ONE finished cover (the mustard background, the English words, me, the Persian title, the
+pill and the arrow all in one picture) — never a cut-out of me alone on an empty background.
 
 ME: exactly the man of photos 1 and 2 — bald head, the same eyes, eyebrows, nose, full dark beard and
 jaw; do not change or beautify my face. Natural body proportions as in photos 4 and 6 (head to body
@@ -137,14 +177,19 @@ ELEMENT (one, fits the video): ….
 
 THE TEXT — write these EXACTLY, letter by letter, nothing added, nothing changed:
 - English, giant: «…» (line 1) «…» (line 2)
-- Persian title, right to left: line 1 «…» in …white/mustard…; line 2 «…» in …white…; the word «…»
-  inside the rounded mustard box with black letters.
-- The pill: «…», with the word «…» in mustard. The arrow points down toward the caption.
+- Persian title, right to left: line 1 «…» in black; line 2 «…» in black; the word «…» inside the
+  rounded black box with mustard letters.
+- The pill (black, white letters): «کلمه‌ی «…» رو کامنت کن», with the word «…» in mustard. The arrow
+  points down toward the caption.
+Write every Persian word with normal, compact letter joins: no kashida, no stretched strokes.
 No other words, letters, numbers, logos or watermarks anywhere.
 Keep my face and the Persian title inside the central 3:4 area of the frame.
 ```
 
 ## Never
+- A black or any other ground; mustard words on black (2026-11-19: one family, the mustard ground).
+- Legs or a body cut by the pill or the arrow; trousers under the pill (clean mustard or full length).
+- A cover delivered without its row check (COMMON/tools/cover_sheet.py beside the last 4).
 - An AI-made logo; a video frame as the cover; Persian with a wrong letter (check every one).
 - Neon yellow or gold instead of #F3C242; a third dominant colour.
 - More than two English lines; a long, small Persian title; his face outside the 3:4 crop.

@@ -27,7 +27,10 @@ You are that maker: Opus 5.5, extra-high effort (the owner, 2026-11-17). Cost ha
    («بیت‌کوین», «اتریوم», «تتر», «بایننس», «متامسک», «دات‌کوین», «لِجر»…); never Latin letters in the voice
    text. Probe each name after the voice (`tools/word_probe.py`), remake a sentence said wrong.
 6. **A cover from the owner's cover system, every reel** (cover/COVER_SYSTEM.md): the owner himself,
-   a new suit and accessories each time; never a video frame.
+   a new suit and accessories each time; never a video frame. **ONE family (hard, 2026-11-19):**
+   always the mustard ground with the black English words at the top, the black chip, pill and arrow;
+   the bottom clean mustard or him full length to his shoes, never legs cut by the pill; checked in
+   a contact sheet beside the last 4 covers (tools/cover_sheet.py) before delivery.
 7. **No full stop at the end of on-screen text** («.», «،», «؛»). Persian digits on screen.
 8. **Crisp:** no grain, haze, bokeh or blur on the picture; motion blur only on a fast move. Give
    smooth gradients an invisible dither (±1 level), so they do not band after the 8-bit re-encode.

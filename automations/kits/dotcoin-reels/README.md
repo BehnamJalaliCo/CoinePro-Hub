@@ -85,6 +85,13 @@ mark each step done with `order.progress`.
     (style, layout, his suit and accessories, the exact text; the pill «کلمه‌ی «<word>» رو کامنت کن»
     with the word in mustard); check his face and every letter; → `out/cover.jpg`. Send all
     eight file_ids (the hub takes up to ten).
+    **ONE FAMILY — HARD (the owner, 2026-11-19; COVER_SYSTEM.md «ONE FAMILY»):** every DotCoin cover,
+    both reels of every day, has the MUSTARD ground (never black, never another ground: no A/B), the
+    giant black English words at the top, him, the black chip, the black pill and the arrow. The
+    bottom is clean flat mustard under the title, pill and arrow, or him full length to his shoes:
+    NEVER legs cut by the pill. Before delivery run `PY -I COMMON/tools/cover_sheet.py out/cover.jpg
+    qc/cover_sheet.jpg` (the new cover beside the last 4) and Read the sheet; `ground WRONG`, cut
+    legs, or a cover that does not sit in that row = ask ChatGPT again (≤ 2 more), never deliver it.
 12. **Caption** `out/caption.txt`: a first line that stops the scroll, 2–4 short lines of the
     lesson or the news, «کلمه‌ی «<word>» رو کامنت کن تا خلاصه‌ش برات بیاد», **3 to 5 hashtags**
     (#دات_کوین always, then the topic's).

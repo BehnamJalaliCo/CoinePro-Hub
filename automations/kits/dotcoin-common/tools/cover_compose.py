@@ -14,8 +14,9 @@ usage: cover_compose.py <spec.json> <outdir>
 
 spec.json (all positions in 1080x1920 units; the master is x2). "subject" or "background".
 {
-  "palette": "B",                       B: black ground + mustard words (the owner's samples)
-                                        A: mustard ground + black words
+  "palette": "A",                       A: mustard ground + black words — ALWAYS (the owner,
+                                        2026-11-19: one cover family, COVER_SYSTEM.md «ONE FAMILY»)
+                                        B: black ground + mustard words (retired: never on a cover)
   "background": "assets/gpt_cover.png", optional: a finished picture under everything, filling the
                                         frame (ChatGPT's cover made without its Persian text: the
                                         title is then set here); "subject" may then be omitted
@@ -104,7 +105,7 @@ def arrow_svg(ar: dict, ink: str) -> str:
 
 
 def page(spec: dict, root: str) -> str:
-    c = colours(str(spec.get("palette", "B")).upper())
+    c = colours(str(spec.get("palette", "A")).upper())
     # --- the subject
     side = spec.get("subject_side", "right")
     sh = max(0.45, min(0.98, float(spec.get("subject_height", 0.80)))) * H
