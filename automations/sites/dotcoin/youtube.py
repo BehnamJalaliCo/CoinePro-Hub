@@ -20,7 +20,12 @@ One pass (dotcoin-youtube.timer, every 15 minutes, user Hub):
      custom thumbnail, then Save), on the same pass, and on later passes for a Short without it yet
      (at most 3 tries; state `thumb_set` yes / no); a Short is never uploaded again for it;
   6. puts the link in the article's `youtube:` field in the content worktree (under the site sync's
-     own lock), commits, and runs the site sync once (push, build, deploy).
+     own lock), commits, and runs the site sync once (push, build, deploy);
+  7. ⟨2026-11-19⟩ keeps the cover kit's row current: the newest 4 PUBLISHED dotcoin.me reel covers
+     (their publications' covers, never a frame) in /home/studio/kits/dotcoin-common/cover/family/,
+     the row that kit's tools/cover_sheet.py compares a new cover with (the owner: one cover family).
+     Written as user studio, file by file (a temporary name, then a rename), the rest removed; never
+     in git. Unchanged: nothing is written and nothing logged.
 
 Never a duplicate: one source -> one upload, keyed `<channel>|<external id>` (today
 `youtube:@DotCoin-me|instagram:<the reel's work ref>`; a long video later gets its own external id),
@@ -148,6 +153,74 @@ REELS_SQL = f"""
        AND j.state = 'done' AND j.result ->> 'url' LIKE 'https://www.instagram.com/%'
        AND j.created_at > now() - interval '30 days'
      ORDER BY j.args -> 'session' ->> 'work', j.created_at DESC"""
+
+
+# ------------------------------------------------------------------ the cover family (⟨2026-11-19⟩)
+FAMILY = Path(os.environ.get("DOTCOIN_COVER_FAMILY", "/home/studio/kits/dotcoin-common/cover/family"))
+FAMILY_AS = os.environ.get("DOTCOIN_FAMILY_AS", "studio")  # "" in the tests: the current user
+FAMILY_N = 4
+FAMILY_NAME = re.compile(r"\d{4}-\d{2}-\d{2}T\d{4}Z_P-\d{6}_[0-9a-f]{8}\.(?:jpg|png)")
+FAMILY_SQL = f"""
+    SELECT p.ref, to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24MI"Z"') AS at,
+           f.storage_key AS key, f.sha256 AS sha, f.size AS size, f.mime AS mime
+      FROM media.publications p
+      JOIN LATERAL (SELECT x ->> 'file_id' AS fid FROM jsonb_array_elements(p.files) x
+                     WHERE x ->> 'role' = 'cover'
+                       AND x ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$' LIMIT 1) c ON true
+      JOIN files.files f ON f.id = c.fid::uuid
+     WHERE p.account = '{ACCOUNT}' AND p.kind = 'reel' AND p.state = 'published' AND p.published_at IS NOT NULL
+     ORDER BY p.published_at DESC LIMIT {FAMILY_N}"""
+
+
+def family_plan(rows: list[dict]) -> dict[str, dict]:
+    """The family's files by name: <published, UTC>_<P-ref>_<sha8>.<ext>, so a name sorts by time and a
+    cover replaced on the same publication gets a new name."""
+    plan = {}
+    for r in rows[:FAMILY_N]:
+        ext = {"image/jpeg": ".jpg", "image/png": ".png"}.get(str(r.get("mime") or ""))
+        name = f"{r.get('at')}_{r.get('ref')}_{str(r.get('sha') or '')[:8]}{ext}"
+        if ext and FAMILY_NAME.fullmatch(name) and KEY_RE.fullmatch(str(r.get("key") or "")):
+            plan[name] = r
+    return plan
+
+
+def as_family(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+    return run((["sudo", "-n", "-u", FAMILY_AS] if FAMILY_AS else []) + cmd, timeout=60, **kw)
+
+
+def refresh_family() -> str:
+    """FAMILY = the newest FAMILY_N published covers, exactly. Answers what changed ("" when nothing)."""
+    plan = family_plan(sql(FAMILY_SQL))
+    if not plan:
+        return ""
+    r = as_family(["find", str(FAMILY), "-maxdepth", "1", "-type", "f", "-printf", "%f\\n"])
+    if r.returncode:
+        if as_family(["mkdir", "-p", str(FAMILY)]).returncode:
+            raise RuntimeError(f"cannot make {FAMILY}: {tail(r.stderr, 1)}")
+        have: set[str] = set()
+    else:
+        have = {n for n in r.stdout.decode().split("\n") if n}
+    new = [n for n in sorted(plan) if n not in have]
+    old = sorted(n for n in have if n not in plan)
+    if not new and not old:
+        return ""
+    work = Path(tempfile.mkdtemp(prefix="dotcoin-family-"))
+    try:
+        for name in new:
+            row = plan[name]
+            pic = work / name
+            read_file(row["key"], row.get("sha"), row["size"], MAX_COVER, pic)  # sha256-checked
+            tmp = FAMILY / f".tmp-{name}"
+            with open(pic, "rb") as f:
+                w = as_family(["tee", str(tmp)], stdin=f, stdout=subprocess.DEVNULL)
+            if w.returncode or as_family(["mv", "-f", str(tmp), str(FAMILY / name)]).returncode:
+                as_family(["rm", "-f", str(tmp)])
+                raise RuntimeError(f"cannot write {name}: {tail(w.stderr, 1)}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    for name in old:  # after the new ones are in: the row is never short
+        as_family(["rm", "-f", "--", str(FAMILY / name)])
+    return f"{len(new)} written, {len(old)} removed"
 
 
 def published_reels() -> list[dict]:
@@ -651,10 +724,17 @@ def main() -> int:
         except BlockingIOError:
             return 0
         try:
-            return one_pass(args)
+            code = one_pass(args)
         except (RuntimeError, subprocess.TimeoutExpired) as e:
             log(f"error: {str(e)[:200]}")
-            return 1
+            code = 1
+        if not (args.dry_run or args.task or args.make_public):
+            try:  # ⟨2026-11-19⟩ the cover kit's row (the newest published covers), after every pass
+                if got := refresh_family():
+                    log(f"cover family: {got} ({FAMILY})")
+            except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                log(f"cover family not refreshed: {str(e)[:200]}")
+        return code
 
 
 if __name__ == "__main__":

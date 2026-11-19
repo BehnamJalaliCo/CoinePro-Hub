@@ -209,6 +209,85 @@ class Thumbnails(unittest.TestCase):
             self.assertIn(f"AS {col}", q)
 
 
+class CoverFamily(unittest.TestCase):
+    """⟨2026-11-19⟩ the cover kit's row: always the newest 4 PUBLISHED covers, written file by file."""
+
+    def setUp(self) -> None:
+        LOG.clear()
+        self.dir = TMP / "family"
+        shutil.rmtree(self.dir, ignore_errors=True)
+        Y.FAMILY, Y.FAMILY_AS = self.dir, ""
+        Y.read_file = fake_read_file
+        self.rows: list[dict] = []
+        Y.sql = lambda q: [dict(r) for r in self.rows] if q == Y.FAMILY_SQL else self.fail(f"unexpected query {q[:40]}")
+
+    def pub(self, ref: str, at: str, data: bytes, mime: str = "image/jpeg") -> dict:
+        key, sha = put(data)
+        return {"ref": ref, "at": at, "key": key, "sha": sha, "size": len(data), "mime": mime}
+
+    def names(self) -> list[str]:
+        return sorted(p.name for p in self.dir.iterdir())
+
+    def test_the_row_is_exactly_the_newest_four_and_the_rest_goes(self) -> None:
+        self.dir.mkdir()
+        (self.dir / "2026-11-17_P-000073.jpg").write_bytes(b"a hand-placed old cover")
+        (self.dir / ".tmp-left-over.jpg").write_bytes(b"x")
+        self.rows = [self.pub(f"P-00012{i}", f"2026-11-1{9 - i}T0931Z", COVER + bytes([i])) for i in range(5)]
+        self.assertEqual(Y.refresh_family(), "4 written, 2 removed")
+        want = sorted(f"{r['at']}_{r['ref']}_{r['sha'][:8]}.jpg" for r in self.rows[:4])
+        self.assertEqual(self.names(), want)
+        for r in self.rows[:4]:
+            self.assertEqual((self.dir / f"{r['at']}_{r['ref']}_{r['sha'][:8]}.jpg").read_bytes(),
+                             (STORE / r["key"]).read_bytes())
+        self.assertEqual(Y.refresh_family(), "")  # unchanged: nothing written, nothing said
+        self.assertEqual(self.names(), want)
+
+    def test_names_sort_by_publish_time(self) -> None:
+        self.rows = [self.pub("P-000099", "2026-11-19T0931Z", COVER + b"1"),
+                     self.pub("P-000200", "2026-11-18T1701Z", COVER + b"2")]
+        Y.refresh_family()
+        self.assertEqual([n.split("_")[1] for n in self.names()], ["P-000200", "P-000099"])
+
+    def test_a_cover_replaced_after_publishing_replaces_its_file(self) -> None:
+        self.rows = [self.pub("P-000122", "2026-11-19T0931Z", COVER + b"frame")]
+        Y.refresh_family()
+        self.rows = [self.pub("P-000122", "2026-11-19T0931Z", COVER + b"the real cover")]
+        self.assertEqual(Y.refresh_family(), "1 written, 1 removed")
+        self.assertEqual(len(self.names()), 1)
+        self.assertEqual((self.dir / self.names()[0]).read_bytes(), COVER + b"the real cover")
+
+    def test_a_tampered_or_odd_file_never_enters_the_row(self) -> None:
+        bad = self.pub("P-000300", "2026-11-19T1701Z", COVER + b"x")
+        bad["sha"] = "0" * 64
+        with self.assertRaises(ValueError):
+            self.rows = [bad]
+            Y.refresh_family()
+        self.rows = [self.pub("P-000301", "2026-11-19T1701Z", b"GIF89a", mime="image/gif")]
+        self.assertEqual(Y.refresh_family(), "")
+        self.assertFalse(self.dir.exists() and self.names())
+
+    def test_the_query_takes_published_covers_never_a_frame(self) -> None:
+        q = Y.FAMILY_SQL
+        self.assertIn("'cover'", q)
+        self.assertNotIn("'thumb'", q)
+        self.assertIn("p.state = 'published'", q)
+        self.assertIn("ORDER BY p.published_at DESC LIMIT 4", q)
+
+    def test_every_pass_refreshes_it_a_dry_run_or_a_task_never(self) -> None:
+        calls: list[str] = []
+        real_pass, real_refresh, argv = Y.one_pass, Y.refresh_family, sys.argv
+        Y.one_pass = lambda a: 0
+        Y.refresh_family = lambda: calls.append("refresh") or "1 written, 0 removed"
+        try:
+            for extra, want in (([], 1), (["--dry-run"], 0), (["--task", "titles"], 0), (["--only", "W-000656"], 1)):
+                calls.clear()
+                sys.argv = ["youtube.py", *extra]
+                self.assertEqual(Y.main(), 0)
+                self.assertEqual(len(calls), want, extra)
+        finally:
+            Y.one_pass, Y.refresh_family, sys.argv = real_pass, real_refresh, argv
+
+
 if __name__ == "__main__":
     try:
         unittest.main(verbosity=2)

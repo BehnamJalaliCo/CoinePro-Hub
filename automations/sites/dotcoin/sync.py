@@ -10,13 +10,18 @@ Every DotCoin reel's session (kit dotcoin-reels; educational and informational) 
      `attach: <slug>`, binds the reel to a lesson that already exists;
   4. makes the reel's web copy (/media/<slug>.mp4 + .jpg poster + .json, H.264 720x1280, about
      2 Mbit/s, faststart) in /home/Hub/sites/dotcoin-media (never in git; build.py copies it);
+     ⟨2026-11-19⟩ the poster is the reel's REAL cover: its publication's cover in the hub (the one the
+     owner's app and the Short show; a cover made or replaced after publishing too), else the
+     publish job's cover; a video frame only when the reel has no cover at all. When the cover
+     changes later (or a frame poster gets a cover), the poster alone is made again (state `poster`:
+     the cover's file id, or `frame`);
   5. puts the Instagram URL in `reel:` once the publish job has `result.url`;
   6. only if something changed: build check, commit, push the branch, deploy.sh (Cloudflare, IPv4).
 
 Never a duplicate: one source (`<channel>:<id>`, today `instagram:<the reel's work ref>`; later
 `youtube:<video id>`) -> one slug, a slug or a topic is never published twice, an article bound to
 another source is never overwritten. State: /home/Hub/sites/dotcoin-sync.json. One lock. An idle
-run reads one query, logs nothing and exits. Never prints a secret.
+run reads two queries, logs nothing and exits. Never prints a secret.
 
     sync.py                                       one pass
     sync.py --dry-run                             find and validate only; write nothing
@@ -94,8 +99,15 @@ def sql(query: str) -> list[dict]:
 JOBS_SQL = f"""
     SELECT DISTINCT ON (j.args -> 'session' ->> 'work')
            j.args -> 'session' ->> 'work' AS w, j.id::text AS job, j.args -> 'session' ->> 'file_id' AS video,
-           (SELECT x ->> 'file_id' FROM jsonb_array_elements(j.args -> 'files') x
-             WHERE x ->> 'role' = 'cover' LIMIT 1) AS cover,
+           -- ⟨2026-11-19⟩ the reel's real cover: its publication's cover (role cover: never the hub's
+           -- frame, role thumb), else the publish job's own cover file
+           coalesce(
+             (SELECT x ->> 'file_id' FROM media.publications p, jsonb_array_elements(p.files) x
+               WHERE p.kind = 'reel' AND p.chain @> ARRAY[j.id] AND x ->> 'role' = 'cover'
+               ORDER BY p.updated_at DESC LIMIT 1),
+             (SELECT x ->> 'file_id' FROM jsonb_array_elements(
+                     CASE WHEN jsonb_typeof(j.args -> 'files') = 'array' THEN j.args -> 'files' ELSE '[]'::jsonb END) x
+               WHERE x ->> 'role' = 'cover' LIMIT 1)) AS cover,
            j.args -> 'meta' ->> 'scheduled_at' AS at, j.result ->> 'url' AS url
       FROM infra.server_jobs j
      WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
@@ -375,17 +387,7 @@ def make_media(slug: str, src: dict, job: dict) -> bool:
                 break
         else:
             raise RuntimeError("the web copy is over 24 MB")
-        poster = work / "poster.jpg"
-        if crow:
-            fetch(crow, work / "cover.img", limit=30_000_000)
-            src_img, seek = [str(work / "cover.img")], []
-        else:  # no cover: a frame of the video
-            src_img, seek = [str(out)], ["-ss", "1"]
-        r = ffmpeg(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", *seek, "-i", *src_img, "-frames:v", "1",
-                    "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280",
-                    "-q:v", "3", str(poster)], work)
-        if r.returncode:
-            raise RuntimeError(f"poster: {tail(r.stderr, 2)}")
+        poster = poster_into(work, out, crow)
         r = ffmpeg(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)], work)
         secs = round(float((r.stdout or b"0").decode().strip() or 0))
         shutil.move(out, MEDIA / f"{slug}.mp4")
@@ -393,9 +395,56 @@ def make_media(slug: str, src: dict, job: dict) -> bool:
     finally:
         shutil.rmtree(work, ignore_errors=True)
     src["media"] = str(job.get("video"))
+    src["poster"] = str(crow["id"]) if crow else "frame"
     src["duration"] = f"PT{secs // 60}M{secs % 60}S" if secs >= 60 else f"PT{secs}S"
     write_sidecar(slug, src, job)
     log(f"{slug}: video {round((MEDIA / f'{slug}.mp4').stat().st_size / 1e6, 1)} MB, {secs} s")
+    return True
+
+
+def poster_into(work: Path, video: Path, crow: dict | None) -> Path:
+    """work/poster.jpg (720x1280, the site's poster): the reel's cover when it has one, else the video's
+    frame at 1 s."""
+    poster = work / "poster.jpg"
+    if crow:
+        fetch(crow, work / "cover.img", limit=30_000_000)
+        src_img, seek = [str(work / "cover.img")], []
+    else:  # no cover: a frame of the video
+        src_img, seek = [str(video)], ["-ss", "1"]
+    r = ffmpeg(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", *seek, "-i", *src_img, "-frames:v", "1",
+                "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280",
+                "-q:v", "3", str(poster)], work)
+    if r.returncode or not poster.is_file():
+        raise RuntimeError(f"poster: {tail(r.stderr, 2)}")
+    return poster
+
+
+def poster_due(src: dict, job: dict) -> bool:
+    """⟨2026-11-19⟩ The web copy is there but its poster is not the reel's current cover (a frame poster
+    whose reel got a cover, or a cover replaced after publishing)."""
+    cover = str(job.get("cover") or "")
+    return (bool(UUID_RE.fullmatch(cover)) and src.get("poster") != cover and bool(src.get("slug"))
+            and (MEDIA / f"{src['slug']}.mp4").is_file() and src.get("poster_tries", 0) < 3)
+
+
+def make_poster(slug: str, src: dict, job: dict) -> bool:
+    """MEDIA/<slug>.jpg again from the reel's current cover (the video stays as it is)."""
+    crow = file_row(str(job.get("cover") or ""))
+    if not crow:
+        log(f"{slug}: the reel's cover is not on the hub (any more)")
+        return False
+    work = Path(tempfile.mkdtemp(prefix="tmp-", dir=MEDIA))
+    try:
+        os.chmod(work, 0o777)
+        poster = poster_into(work, MEDIA / f"{slug}.mp4", crow)
+        os.chmod(poster, 0o644)
+        os.replace(poster, MEDIA / f"{slug}.jpg")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    old = src.get("poster") or "unknown"
+    src["poster"] = str(crow["id"])
+    src.pop("poster_tries", None)
+    log(f"{slug}: poster = the reel's cover {crow['id'][:8]} (was {old[:8]})")
     return True
 
 
@@ -575,9 +624,7 @@ def one_pass(args) -> int:
         rows = [{"id": "import-" + hashlib.sha256(raw).hexdigest()[:16], "w": args.workspace, "raw": raw}]
     else:
         rows = new_articles(set(state["files"]))
-    pending = [s for s in state["sources"].values() if s.get("slug") and s.get("media_tries", 0) < 3 and (
-        not s.get("reel") or not s.get("media") or not (MEDIA / f"{s['slug']}.mp4").is_file())]
-    jobs = reel_jobs() if rows or pending else {}
+    jobs = reel_jobs()  # ⟨2026-11-19⟩ every run: a reel's cover may change after its article (the poster)
     live = live_slugs() if rows else None
     for r in rows:
         if r["id"] in state["files"]:
@@ -608,6 +655,13 @@ def one_pass(args) -> int:
             except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
                 src["media_tries"] = src.get("media_tries", 0) + 1
                 log(f"{slug}: video not made ({str(e)[:160]})")
+        elif poster_due(src, job):
+            try:
+                if not make_poster(slug, src, job):
+                    src["poster_tries"] = src.get("poster_tries", 0) + 1
+            except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                src["poster_tries"] = src.get("poster_tries", 0) + 1
+                log(f"{slug}: poster not made ({str(e)[:160]})")
         url = job.get("url") or ""
         if IG_URL.fullmatch(url) and src.get("reel") != url:
             src["reel"] = url
