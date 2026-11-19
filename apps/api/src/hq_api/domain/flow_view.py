@@ -267,9 +267,9 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
         breaking = FL.on_event(flow)
         made = (
             _step("write", "یک پست فوری: تصویر رسمی، توضیح کوتاه فارسی و لینک منبع", "workshop", "workshop",
-                  model=m, out="telegram.json", rules=("خبر اول روی صفحه‌ی رسمی سازنده تأیید میشود",))
+                  model=m, out="telegram.txt", rules=("خبر اول روی صفحه‌ی رسمی سازنده تأیید میشود",))
             if breaking else
-            _step("write", "پست‌های روز به ریتم کانال", "workshop", "workshop", model=m, out="telegram.json",
+            _step("write", "پست‌های روز به ریتم کانال", "workshop", "workshop", model=m, out="telegram.txt",
                   rules=("خلاصه‌ی صبح، ابزار روز با کد نصب، پرامپت و چیت‌شیت، نظرسنجی، جدول مقایسه، "
                          "کلیپ، یادداشت صوتی، نکته‌ی شب",
                          "هیچ موضوعی دو بار در کانال؛ کپی ریلزها ممنوع"))
@@ -283,7 +283,7 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
                   out="عکس‌های ۱۰۸۰ پیکسلی با فونت فارسی تمیز"),
             *(() if breaking else (
                 _step("voice", "یادداشت صوتی با گوینده‌ی پیج", "workshop", "aistudio", out="OGG/Opus"),)),
-            _step("package", "بررسی بسته‌ی تلگرام", "package", "code", out="telegram.json",
+            _step("package", "بررسی بسته‌ی تلگرام", "package", "code", out="telegram.txt",
                   rules=("HTML تلگرام، طول متن، دکمه‌های لینک، نظرسنجی، فایل‌ها، ساعت‌ها و تکرار",
                          "بسته‌ی ایرادی هیچ پستی نمیفرستد؛ ایرادها به جلسه برمیگردد")),
             _step("tg_queue", "هر پست در ساعت خودش" if not breaking else "انتشار همان لحظه", "publish", "code",
@@ -775,7 +775,7 @@ async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> stor
                   if f"story_{i}{e}" in f["files"]), None) for i in range(1, n_stories + 1)]  # fmt: skip
     # ⟨2026-11-18⟩ a site's SEO day ends on its package, not on a video
     final = (FL.ARTICLE_PACKAGE if getattr(flow, "kind", "") == "article"
-             else "telegram.json" if getattr(flow, "kind", "") == "tg_post" else "video.mp4")  # fmt: skip
+             else "telegram.txt" if getattr(flow, "kind", "") == "tg_post" else "video.mp4")  # fmt: skip
     have_video = (final in f["files"]) if not n_stories else all(pics)
     final_at = (f["files"][final]["created_at"] if not n_stories
                 else max(x["created_at"] for x in pics if x)) if have_video else None  # fmt: skip

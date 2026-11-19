@@ -182,14 +182,17 @@ def check_message(out: Path, m, where: str, last: bool, errors: list[str]) -> st
 def main() -> int:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "out")
     errors: list[str] = []
+    if (out / "telegram.json").exists() and not (out / "telegram.txt").exists():
+        print("the manifest is out/telegram.txt (JSON inside): the workshop's runner never delivers a .json")
+        return 1
     try:
-        doc = json.loads((out / "telegram.json").read_text("utf-8"))
+        doc = json.loads((out / "telegram.txt").read_text("utf-8"))
     except (OSError, ValueError) as e:
-        print(f"telegram.json: {e}")
+        print(f"telegram.txt: {e}")
         return 1
     posts = doc.get("posts") if isinstance(doc, dict) else None
     if not isinstance(posts, list) or not posts:
-        print('telegram.json must be {"posts": [...]}')
+        print('telegram.txt must be {"posts": [...]}')
         return 1
     breaking = all(isinstance(p, dict) and p.get("type") == "breaking" for p in posts)
     if len(posts) > (1 if breaking else POSTS_MAX):

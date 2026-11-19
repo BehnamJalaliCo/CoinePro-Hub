@@ -2,7 +2,7 @@
 
 The owner (2026-11-19) for t.me/behnamjalali_tech: «فعالیت به شدت قوی … با محتوای مخصوص خود تلگرام».
 A `tg_post` flow's session (the kit, e.g. automations/kits/bjtech-telegram) delivers the day's
-package in out/: `telegram.json` (the posts, each at its Tehran hour) and the files it names. Then:
+package in out/: `telegram.txt` (JSON: the posts, each at its Tehran hour) and the files it names. Then:
 
     check()   the package as Telegram takes it: its HTML subset (b i u s code pre a blockquote
               tg-spoiler …, https links only), the visible lengths in UTF-16 units (a message 4096,
@@ -46,7 +46,10 @@ from hq_api.principal import Principal
 log = logging.getLogger("hq_api.tg_posts")
 _WHO = Principal(kind="service", code="telegram", role="service")
 
-TG_FILE = "telegram.json"
+TG_FILE = "telegram.txt"
+# ⟨2026-11-19⟩ the workshop's runner delivers .txt, never .json (outbox.TYPES): the manifest is the same
+# JSON in telegram.txt; a telegram.txt (a runner that delivers it) is read too
+TG_FILES = (TG_FILE, "telegram.json")
 TG_FILE_MAX = 256 * 1024
 TEHRAN = ZoneInfo("Asia/Tehran")
 CONNECTION = "telegram"
@@ -94,8 +97,8 @@ STALE_FA = "منتشر نشد: زمانش گذشته بود ({why})"
 STUCK_FA = "جواب تلگرام نرسید؛ شاید رفته باشد، دوباره فرستاده نمیشود"
 FAILED_FA = "تلگرام نپذیرفت: {why}"
 PACKAGE_FA = (
-    "بسته‌ی تلگرام امروز پذیرفته نشد و هیچ پستی نرفت. این‌ها را درست کن، telegram.json و فایل‌ها را "
-    "دوباره در out/ بگذار و تحویل بده (قاعده‌ها: کیت، بخش «telegram.json»):\n{errors}"
+    "بسته‌ی تلگرام امروز پذیرفته نشد و هیچ پستی نرفت. این‌ها را درست کن، telegram.txt و فایل‌ها را "
+    "دوباره در out/ بگذار و تحویل بده (قاعده‌ها: کیت، بخش «telegram.txt»):\n{errors}"
 )
 NO_CHANNEL_FA = "کانال تلگرام این پیج در اتصال تلگرام شرکت نیست (channels: page، chat)"
 
@@ -374,7 +377,7 @@ def check(
     errors: list[str] = []
     raw_posts = doc.get("posts") if isinstance(doc, dict) else None
     if not isinstance(raw_posts, list) or not raw_posts:
-        return [], ['telegram.json باید {"posts": [...]} با دست‌کم یک پست باشد']
+        return [], ['telegram.txt باید {"posts": [...]} با دست‌کم یک پست باشد']
     if len(raw_posts) > (1 if asap else POSTS_MAX):
         errors.append(f"حداکثر {1 if asap else POSTS_MAX} پست در یک بسته")
     seen = {fold(t) for t in done or [] if fold(t)}
@@ -586,8 +589,8 @@ def brief(flow: Any, day: date, at: datetime, done: list[str] | None, ig: list[s
         "order.ask نزن و منتظر تأیید نمان.\n"
         f"روند، قاعده‌ها و ابزارها در کیت ثابت است: {flow.kit}/README.md. اول همان را بخوان و قدم‌به‌قدم "
         "انجام بده؛ هیچ فایلی از کیت را عوض نکن.\n"
-        "تحویل: out/telegram.json (پست‌های امروز، هر کدام با ساعتش به وقت تهران) و همه‌ی فایل‌هایی که نام "
-        "برده (عکس، ویدیو، صدا، PDF)؛ telegram.json آخر از همه. ستاد بسته را بررسی میکند، هر پست را در "
+        "تحویل: out/telegram.txt (پست‌های امروز، هر کدام با ساعتش به وقت تهران) و همه‌ی فایل‌هایی که نام "
+        "برده (عکس، ویدیو، صدا، PDF)؛ telegram.txt آخر از همه. ستاد بسته را بررسی میکند، هر پست را در "
         "ساعت خودش در کانال تلگرام منتشر میکند و این جلسه را میبندد. اگر بسته ایرادی داشت، فهرست کامل "
         "ایرادها به همین جلسه برمیگردد و هیچ پستی نیمه‌کاره نمیرود."
         + FL.no_repeat(done).replace("این پیج", "این کانال تلگرام")
@@ -629,7 +632,7 @@ async def queue(
     done = await done_topics(tx, str(meta.get("account") or ""))
     posts: list[Post] = []
     if doc is None:
-        errors = ["telegram.json خوانده نشد (JSON درست، UTF-8، حداکثر ۲۵۶ کیلوبایت)"]
+        errors = ["telegram.txt خوانده نشد (JSON درست، UTF-8، حداکثر ۲۵۶ کیلوبایت)"]
     else:
         posts, errors = check(
             doc, pkg["files"], day=day, first=first, asap=bool(meta.get("asap")), done=done
@@ -637,7 +640,7 @@ async def queue(
     order = str(meta.get("order") or "") or None
     if errors:
         if meta.get("tg_errors_for") == str(pkg["manifest"]["id"]):
-            return "open"  # (told once for this package; a new telegram.json is checked again)
+            return "open"  # (told once for this package; a new telegram.txt is checked again)
         meta["tg_errors_for"] = str(pkg["manifest"]["id"])
         await tx.exec(
             "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb)) WHERE id = :w",

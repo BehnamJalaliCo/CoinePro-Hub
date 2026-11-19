@@ -48,7 +48,8 @@ from COMMON/brand/config.json (`telegram`, `instagram`, `youtube`): never typed 
 is at most 4096 characters, of a caption 1024 (Telegram counts UTF-16 units; an emoji counts 2): `tg_check.py`
 counts it. Use `<blockquote expandable>` for a long quote or a transcript.
 
-## telegram.json (out/; written LAST, after every file it names)
+## telegram.txt (out/; JSON in a .txt file — the workshop's runner delivers .txt, never .json; written LAST,
+## after every file it names)
 ```json
 {"posts": [
   {"at": "08:30", "type": "brief", "topic": "صبحانه‌ی هوش مصنوعی: GPT-6.2، Gemini 4 Neon و …",
@@ -96,7 +97,7 @@ it is about; the no-repeat list is made of these). File names: `tg_<NN>_<what>.<
 3. Plan the 8 posts in the rhythm above (Friday: the long read; Wednesday: the PDF). Each a different topic.
 4. Write every text in Telegram's HTML; make the cards/tables (`tg_card.py`), the voice note, the clip.
 5. `tg_check.py out/` until OK; read every picture again at full size.
-6. Write `out/telegram.json` last. `order.progress` done with the 8 topics.
+6. Write `out/telegram.txt` last. `order.progress` done with the 8 topics.
 
 ## Breaking (an order from the hub's breaking-news watcher)
 Check the news on the vendor's own page first: not real, not new or not important → only `out/skip.txt` with

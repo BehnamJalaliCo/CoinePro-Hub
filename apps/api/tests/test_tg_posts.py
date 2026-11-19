@@ -7,7 +7,7 @@ post in the channel, each post once.
   after the flow's, never a topic the channel has had;
 - calls(): one Bot API call per message (HTML, link buttons, a text's preview off, an album's caption on its
   first photo, an anonymous poll or quiz);
-- a breaking item's Telegram post: its session's telegram.json and picture become one publication due now;
+- a breaking item's Telegram post: its session's telegram.txt (its JSON: the runner delivers .txt) and picture become one publication due now;
 - tick(): nothing while the bot is no admin (said on the post), once it is the post goes out once, a post
   far past its hour is cancelled, Telegram's own limit makes it wait.
 """
@@ -266,7 +266,7 @@ def test_a_telegram_flow_has_its_own_map() -> None:
     assert {"write", "package", "tg_queue", "tg_send"} <= set(keys) and "render" not in keys
     assert FV.steps_of(news)[0].title_fa == "دیده‌بان خبرهای فوری"
     assert "voice" not in [s.key for s in FV.steps_of(news)]
-    assert "telegram.json" in FL.brief_of(daily, DAY, FIRST, done=["الف"], ig=["ریلز دیروز"])
+    assert "telegram.txt" in FL.brief_of(daily, DAY, FIRST, done=["الف"], ig=["ریلز دیروز"])
     assert "«ریلز دیروز»" in FL.brief_of(daily, DAY, FIRST, ig=["ریلز دیروز"])
 
 
@@ -393,7 +393,7 @@ async def test_a_breaking_post_goes_out_once_and_only_when_the_bot_may_post(
         files = []
         for name, ctype, data in (
             ("tg_01.png", "image/png", a_pic(1)),
-            ("telegram.json", "application/json", json.dumps(package).encode()),
+            ("telegram.txt", "text/plain", json.dumps(package, ensure_ascii=False).encode()),
         ):
             r = await send_file(client, ws, job["id"], name, ctype, data)
             assert r.status_code == 201, r.text

@@ -51,8 +51,8 @@ def event_brief(
     """The order's text: the kit makes the day; the news item rides along as quoted data."""
     asap = flow.stories != ()
     what = (
-        "out/telegram.json با یک پست فوری (type: breaking) و تصویر رسمی همان خبر که نام برده؛ پست به محض "
-        "رسیدن بسته در کانال تلگرام منتشر میشود (telegram.json آخر از همه)"
+        "out/telegram.txt با یک پست فوری (type: breaking) و تصویر رسمی همان خبر که نام برده؛ پست به محض "
+        "رسیدن بسته در کانال تلگرام منتشر میشود (telegram.txt آخر از همه)"
         if flow.kind == "tg_post"
         else "یک استوری فوری (story_1.jpg، ۱۰۸۰×۱۹۲۰) با تصویر رسمی همان خبر، comment.txt و topic.txt؛ "
         "استوری به محض رسیدن بسته منتشر میشود"

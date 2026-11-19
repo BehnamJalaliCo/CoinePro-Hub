@@ -1401,11 +1401,11 @@ def _stories_package(
 def _telegram_package(
     newest: dict[str, tuple[dict[str, Any], dict[str, Any]]],
 ) -> dict[str, Any] | None:
-    """⟨2026-11-19⟩ A Telegram day: `telegram.json` (written last) and every file of the session by
-    its name (tg_posts.check finds each one it names). None until telegram.json is in."""
+    """⟨2026-11-19⟩ A Telegram day: `telegram.txt` (its JSON, written last; or telegram.json) and every
+    file of the session by its name (tg_posts.check finds each one it names). None until it is in."""
     from hq_api.domain import tg_posts as TG
 
-    man = newest.get(TG.TG_FILE)
+    man = next((newest[n] for n in TG.TG_FILES if n in newest), None)
     if man is None:
         return None
     return {"d": man[1], "manifest": man[0], "files": {n: f for n, (f, _) in newest.items()}}
