@@ -5,8 +5,10 @@ check. Read the sheet before delivering: the new cover must sit in that row.
 
 usage: PY -I COMMON/tools/cover_sheet.py NEW_COVER out.jpg [--family DIR] [--n 4]
   NEW_COVER  the candidate (ChatGPT's picture or out/cover.jpg)
-  out.jpg    the sheet: the last N covers of DIR (default COMMON/cover/family/, newest last, the files
-             named YYYY-MM-DD_<ref>.jpg; workshop only), then the new one, framed in red
+  out.jpg    the sheet: the last N covers of DIR (default COMMON/cover/family/, newest last: the files
+             are named by publish time, <YYYY-MM-DDTHHMMZ>_<P-ref>_<sha8>.jpg; workshop only; the DotCoin
+             site's youtube.py writes the newest 4 PUBLISHED covers there every 15 minutes), then the new
+             one, framed in red
 prints:
   ground ok | ground WRONG   the median colour of the cover's outer frame against the family's mustard
                              (a black or any other ground is WRONG: never deliver it)
@@ -43,7 +45,8 @@ def main() -> int:
     new, out = Path(sys.argv[1]), Path(sys.argv[2])
     fam = Path(arg("--family", str(FAMILY)))
     n = int(arg("--n", "4"))
-    last = sorted(p for p in fam.glob("*") if p.suffix.lower() in (".jpg", ".jpeg", ".png"))[-n:]
+    last = sorted(p for p in fam.glob("*") if p.suffix.lower() in (".jpg", ".jpeg", ".png")
+                  and not p.name.startswith("."))[-n:]  # (.tmp-*: a file being written)
     im = Image.open(new).convert("RGB")
     a = np.asarray(im).astype(int)
     ref = MUSTARD

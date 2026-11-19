@@ -19,9 +19,10 @@ Beside the kit on the workshop only (personal or licensed, never in git):
 - /home/studio/kits/dotcoin-common/brand/profile_ig.jpg, logo_round.png — the page's photo (its mark).
 - /home/studio/kits/dotcoin-common/cover/refs/ — the owner's reference photos (also IG-Hub files,
   their ids in cover/COVER_SYSTEM.md).
-- /home/studio/kits/dotcoin-common/cover/family/ — the page's last published covers, named
-  YYYY-MM-DD_<P-ref>.jpg (the row tools/cover_sheet.py compares with; the hub's Claude adds each new
-  published cover; the hub's media.publications thumbs are the source).
+- /home/studio/kits/dotcoin-common/cover/family/ — the page's newest 4 PUBLISHED reel covers, named
+  <YYYY-MM-DDTHHMMZ>_<P-ref>_<sha8>.jpg (the row tools/cover_sheet.py compares with). Kept current
+  automatically: the DotCoin site's youtube.py (dotcoin-youtube.timer, every 15 minutes) writes them
+  from the hub's media.publications covers after each pass and removes the rest.
 - /home/studio/kits/fonts-pro — IRANYekanX Pro (the owner's licence) + Anton and Bebas Neue (OFL).
 - /home/studio/kits/models/isnet-general-use.onnx — the cut-out model (Apache-2.0).
 Run the tools with /home/studio/kits/prochart-reels/venv-render/bin/python and
