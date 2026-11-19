@@ -1,0 +1,11 @@
+[Unit]
+Description=@behnamjalali.tech: upload new reels as YouTube Shorts (thumbnail = the Instagram cover) every 15 minutes
+
+[Timer]
+OnBootSec=9min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Unit=bjtech-shorts.service
+
+[Install]
+WantedBy=timers.target

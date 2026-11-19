@@ -14,5 +14,17 @@
   (`git -C /home/Hub/sites/bjtech-auto checkout --detach origin/server/p39-deploy` after a fetch to update it), so a fix to it
   never needs the live checkout moved.
 
+- `youtube.py` — every reel of the page, once, as a Public YouTube Short on @behnamjalali-tech, its thumbnail the
+  reel's own Instagram cover (the owner, 2026-11-19; `systemd/bjtech-shorts.timer`, every 15 minutes, as Hub). A
+  sibling of DotCoin's youtube.py (site commit c3680b82) on the profile `youtube-bj`: it shares youtube_long.py's
+  lock, egress client, spool and CHANNEL GUARD. Title = the caption's first line + " #Shorts"; description = the
+  caption without its Instagram calls to action, then the Telegram channel and the Instagram page (links from
+  bjtech-common/brand/config.json), 3-5 hashtags. Never twice: key `youtube:@behnamjalali-tech|instagram:<work ref>`,
+  the video's sha256 (also against the long videos), its title in the channel's Shorts. An upload that failed
+  after its file went in (YouTube keeps a draft) is state `check`, never retried by itself. State:
+  /home/Hub/sites/bjtech-shorts.json. `youtube.py --dry-run` prints what it would upload; `test_youtube.py` (stdlib)
+  checks its rules.
+
 Install (once, as root): `cp systemd/*.service systemd/*.timer /etc/systemd/system/ && systemctl daemon-reload &&
-systemctl enable --now bjtech-breaking.timer` (and `bjtech-longform.timer` once the channel is reachable).
+systemctl enable --now bjtech-breaking.timer` (and `bjtech-longform.timer` and `bjtech-shorts.timer` once the
+channel is reachable).

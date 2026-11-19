@@ -1,0 +1,20 @@
+[Unit]
+Description=@behnamjalali.tech: each reel published on Instagram, once, as a public YouTube Short on @behnamjalali-tech with its Instagram cover as the thumbnail (browser profile youtube-bj)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+# the uploader's own worktree (detached, updated by hand after a review); state and lock in /home/Hub/sites
+# (the lock is youtube_long.py's: one profile, one job at a time)
+WorkingDirectory=/home/Hub/sites
+Environment=BJ_REPO=/home/Hub/sites/bjtech-auto
+ExecStart=/usr/bin/python3 -I /home/Hub/sites/bjtech-auto/automations/sites/bjtech/youtube.py
+TimeoutStartSec=3600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=yes

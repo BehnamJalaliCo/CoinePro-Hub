@@ -39,6 +39,13 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
   financial advice.
 - **Never a repeat:** your order lists the page's topics already out or queued (the hub's no-repeat rule) — check
   yours against it AND `topic.py find`. Same subject with another title = a repeat.
+- **Every reel is also a YouTube Short (the owner, 2026-11-19; the hub does it, not you):** once the reel is out on
+  Instagram, the host job `automations/sites/bjtech/youtube.py` (timer `bjtech-shorts`, every 15 minutes) uploads
+  it, Public, to @behnamjalali-tech with ITS INSTAGRAM COVER as the Short's thumbnail. So: `cover.jpg` is
+  mandatory (1080×1920 JPEG, under 2 MB, the page's cover family), the caption's first line is the Short's title
+  (≤ 90 characters, a hook that stands alone without Instagram), the caption's other lines its description
+  (call-to-action lines «کامنت / دایرکت / فالو» and link lines are left out, the Telegram and Instagram links are
+  added). Never upload anything to YouTube yourself.
 - **Length 40–62 s** (110–135 words), 1080×1920, 60 fps; Estedad / Geist / Geist Mono only; Persian digits on
   screen; no full stop, «،» or «؛» at the end of on-screen text.
 
