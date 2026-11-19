@@ -42,7 +42,7 @@
 # Driven by automations/sites/dotcoin/youtube.py, youtube_long.py and seo.py (host timers), never
 # by an agent.
 key: youtube-web
-version: "2026-11-18.3"
+version: "2026-11-19.1"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -125,6 +125,9 @@ tasks:
       - {do: wait, selector: "ytcp-video-upload-progress[upload-progress-ended], ytcp-video-info a", state: attached, timeout_s: 300}
       - {do: read, selector: "ytcp-video-info a", alt: [".video-url-fadeable a"]}
       - {do: click, selector: "#done-button", timeout_s: 30}
+      # 2026-11-19: YouTube may ask «We're still checking your content» first: Publish anyway
+      - {do: pause, ms: 2500}
+      - {do: click, selector: "ytcp-button:has-text('Publish anyway'), button:has-text('Publish anyway')", timeout_s: 8, optional: true}
       # the "published" dialog and its link (the answer)
       - {do: wait, selector: "ytcp-video-share-dialog, ytcp-uploads-still-processing-dialog", state: attached, timeout_s: 120}
       - {do: pause, ms: 3000}
@@ -201,6 +204,9 @@ tasks:
       - {do: wait_gone, selector: "ytcp-video-upload-progress[uploading]", timeout_s: 120, optional: true}
       - {do: read, selector: "ytcp-video-info a", alt: [".video-url-fadeable a"]}
       - {do: click, selector: "#done-button", timeout_s: 30}
+      # 2026-11-19: YouTube may ask «We're still checking your content» first: Publish anyway
+      - {do: pause, ms: 2500}
+      - {do: click, selector: "ytcp-button:has-text('Publish anyway'), button:has-text('Publish anyway')", timeout_s: 8, optional: true}
       # the "saved" / "published" dialog and its link (the answer; the link above when it is not shown)
       - {do: wait, selector: "ytcp-video-share-dialog, ytcp-uploads-still-processing-dialog", state: attached, timeout_s: 120, optional: true}
       - {do: pause, ms: 3000}
