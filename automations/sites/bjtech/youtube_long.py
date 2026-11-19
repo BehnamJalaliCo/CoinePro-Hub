@@ -17,6 +17,14 @@ A due pass (bjtech-longform.timer, every 10 minutes, as Hub) for each run of the
   5. spools the video and the thumbnail into the profile browser and runs ONE `upload_long` (Public);
   6. then the video's tags and language (`details`), its Persian subtitles (`subtitles`) and, when the upload did
      not take it, its thumbnail (`thumbnail`), each tried again on later passes (at most 3 times).
+  7. ⟨2026-11-19, the owner⟩ once the video is PUBLIC (its id in the channel's public feed, which lists public
+     videos only), ONE Instagram story on @behnamjalali.tech (a LUMEN story card made from the video's thumbnail:
+     the bjtech-common card.py, type story) and ONE post on the page's Telegram channel (the thumbnail, the title,
+     a hook from the description, the link as a button). Both go the hub's own ways, inside the api (`docker
+     exec`, as breaking.py): the story is session_publish._send (IG-Hub's `publish` job, the stories flows'
+     path), the post a scheduled `tg_post` publication (tg_posts: the worker's hq-telegram-tick sends it). Once
+     per video: the state's `promo`, an advisory lock and a check of the hub's own records (the story's job,
+     the post's fixed chain key); an upload older than PROMO_FROM or PROMO_MAX_AGE is never promoted.
 State: /home/Hub/sites/bjtech-youtube.json. Never retried by itself after the Done click (state `check`).
 
     youtube_long.py --channel        read only: the switcher's channels and the active channel
@@ -35,7 +43,9 @@ import re
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HOME = Path(os.environ.get("BJ_SYNC_HOME", "/home/Hub/sites"))
@@ -44,6 +54,7 @@ TMP, SHOTS = HOME / "bjtech-longform-tmp", HOME / "bjtech-youtube-shots"
 REPO = Path(os.environ.get("BJ_REPO", "/home/Hub/CoinePro-Hub"))
 CONFIG = REPO / "automations" / "kits" / "bjtech-common" / "brand" / "config.json"
 PROFILE, WORKER, BROWSER, PG = "youtube-bj", "coinepro-hq-worker-1", "coinepro-hq-browser-web-1", "coinepro-hq-postgres-1"
+API = "coinepro-hq-api-1"
 SPOOL = "/profiles/.spool/" + PROFILE
 WORKSPACE = Path("/home/studio/hq-workspace")
 STUDIO_PY = "/home/studio/kits/prochart-reels/asr/venv/bin/python"
@@ -61,6 +72,108 @@ DUE_SQL = """
        AND (w.run_meta -> 'flow' ->> 'publish_at')::timestamptz <= now()
        AND w.created_at > now() - interval '7 days'
      ORDER BY w.created_at"""
+# ⟨2026-11-19⟩ the owner: after each long video is Public, one story + one Telegram post about it
+PROMO_FROM = datetime(2026, 11, 19, 21, 0, tzinfo=timezone.utc)  # (W-000636 of 11-18 is never promoted)
+PROMO_MAX_AGE, PROMO_TRIES = timedelta(hours=48), 30
+PUBLIC_FEED = "https://www.youtube.com/feeds/videos.xml?channel_id={id}"  # public videos only
+STUDIO_PROMO = Path("/home/studio/bjtech-promo")
+RENDER_PY = "/home/studio/kits/prochart-reels/venv-render/bin/python"
+CARD = "/home/studio/kits/bjtech-common/tools/card.py"
+BROWSERS = "/home/studio/kits/prochart-reels/ms-playwright"
+FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+# Runs in the api (python -c): one video (JSON on stdin) -> its story (IG-Hub publish job) and its Telegram post
+PROMO = r"""
+import asyncio, base64, json, sys, uuid
+from datetime import UTC, datetime
+job = json.loads(sys.stdin.read())
+async def main():
+    from hq_api.__main__ import build
+    from hq_api.config import Settings
+    from hq_api import audit
+    from hq_api.domain import files as F, flows as FL, gate, publications as P, session_publish as SPB
+    from hq_api.domain import tg_posts as TG
+    hub, _ = await build(Settings())
+    out = {"ok": True}
+    try:
+        vid, ref, account = job["video_id"], job["work"], job["account"]
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k="bjtech-promo:" + vid)
+            co = await tx.first("SELECT id, code FROM core.companies WHERE code = :c", c=job["company"])
+            lock = await gate.holding_lock(tx) or await gate.automation_lock(tx, co["id"])
+            if lock is not None:
+                print(json.dumps({"ok": False, "why": "held: " + str(lock)})); return
+            async def put(name, raw, w, h):
+                data = base64.b64decode(raw)
+                key, sha = await hub.storage.put(data)
+                fid = await F.insert(tx, company_id=co["id"], name=name, mime="image/jpeg", size=len(data),
+                                     sha256=sha, storage_key=key, kind="image", by_kind="service",
+                                     by_code=FL.FLOW.code, width=w, height=h, meta={"promo": "youtube:" + vid})
+                return {"id": fid, "name": name, "mime": "image/jpeg", "size": len(data)}
+            # the story: once (any job of it, whatever its end: never a second story of the same video)
+            had = await tx.first(
+                "SELECT j.id, j.state FROM infra.server_jobs j WHERE j.kind = 'publish' AND j.args ->> 'kind' = 'story'"
+                " AND j.args -> 'session' ->> 'output' = :o AND j.args ->> 'account' = :a ORDER BY j.created_at LIMIT 1",
+                o=ref, a=account)
+            if had is not None:
+                out["story"] = {"was": str(had["id"]), "state": had["state"]}
+            else:
+                route = await SPB._route(tx, co["id"])
+                if not route["ready"]:
+                    out["story"] = {"error": "route_not_ready"}
+                else:
+                    f = await put(f"yt_story_{ref}.jpg", job["story_b64"], 1080, 1920)
+                    d = {"ref": ref, "company": co["code"], "company_id": co["id"], "title": job["title"][:200],
+                         "work_ref": ref}
+                    j = await SPB._send(tx, FL.FLOW, d, f, None, hub=hub, what="story", account=account,
+                                        caption="", route=route, order=None,
+                                        publication={"topic_fa": job["topic"], "day": job["day"]})
+                    pub = await tx.scalar("SELECT ref FROM media.publications WHERE chain[1] = :j", j=j["id"])
+                    out["story"] = {"job": str(j["id"]), "publication": pub}
+            # the Telegram post: once (its chain key is fixed by the video)
+            chain = str(uuid.uuid5(TG.NS, "youtube-promo:" + vid))
+            had = await tx.first("SELECT ref, state FROM media.publications WHERE chain[1] = CAST(:c AS uuid)", c=chain)
+            chat = await TG.channel_of(tx, co["id"], account)
+            if had is not None:
+                out["tg"] = {"was": had["ref"], "state": had["state"]}
+            elif chat is None:
+                out["tg"] = {"error": "no_channel"}
+            else:
+                f = await put(f"tg_yt_{ref}.jpg", job["photo_b64"], job["photo_w"], job["photo_h"])
+                errors = []
+                part = TG._part({"photo": f["name"], "text": job["caption"], "buttons": job["buttons"]},
+                                {f["name"].lower(): f}, "پست", errors, True)
+                if errors or part is None:
+                    out["tg"] = {"error": "check", "errors": errors[:5]}
+                else:
+                    now = datetime.now(UTC)
+                    post = {"type": "post", "parts": [part]}
+                    caption = TG.read_html(job["caption"])[0]
+                    pid = await tx.scalar(
+                        P.INSERT_SQL, co=co["id"], channel="telegram", account=account, kind="tg_post",
+                        state="scheduled", note=None, scheduled_at=now, published_at=None, url=None, ext=None,
+                        title=job["topic"][:200], topic=job["topic"][:300], caption=caption, comment=None,
+                        story_word=None, files=json.dumps([{**part["photo"], "role": "attachment"}]),
+                        thumb=str(f["id"]), set_key=None, set_n=None,
+                        source=json.dumps({"flow_key": job["flow_key"], "day": job["day"], "work": ref,
+                                           "order": None, "n": 1, "type": "post", "chat": chat, "post": post,
+                                           "promo": "youtube:" + vid}, ensure_ascii=False, default=str),
+                        chain=[chain], search=P.search_of(job["topic"], job["topic"], caption, [], None),
+                        created_at=None)
+                    if pid is not None:
+                        row = await tx.one("SELECT * FROM media.publications WHERE id = :id", id=pid)
+                        await P._emit(tx, dict(row))
+                        out["tg"] = {"publication": row["ref"]}
+            await audit.record(tx, FL.FLOW, company_id=co["id"], action="flow.publish", action_class="A3",
+                               target_kind="work", target_ref=ref,
+                               summary=(f"YouTube {vid} is public: its story and Telegram post to @{account} "
+                                        f"(the owner's order of 2026-11-19): {json.dumps(out, default=str)}")[:500])
+    finally:
+        if hub.bus is not None:
+            await hub.bus.close()
+        await hub.db.close()
+    print(json.dumps(out, ensure_ascii=False, default=str))
+asyncio.run(main())
+"""
 # the egress client (in the worker): one JSON job on stdin -> egress's /v1/substitutes/web answer
 CLIENT = r"""
 import json, os, sys, httpx
@@ -339,6 +452,167 @@ def finish(state: dict, up: dict) -> None:
     save_state(state)
 
 
+# ------------------------------------------------------------------ ⟨2026-11-19⟩ the story + Telegram post
+def public_ids() -> set[str] | None:
+    """The channel's PUBLIC videos (its feed lists nothing private, unlisted or scheduled); None: not read."""
+    cid = str(config().get("youtube_channel_id") or "")
+    if not cid:
+        return None
+    req = urllib.request.Request(PUBLIC_FEED.format(id=cid), headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return set(re.findall(r"<yt:videoId>([A-Za-z0-9_-]{11})</yt:videoId>", r.read().decode("utf-8", "replace")))
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def short_title(title: str) -> str:
+    return " ".join(title.split("|")[0].split()) or " ".join(title.split())
+
+
+def minutes_fa(meta: dict) -> str:
+    try:
+        n = max(1, round(float(meta.get("duration") or 0) / 60))
+    except (TypeError, ValueError):
+        return ""
+    return str(n).translate(FA_DIGITS)
+
+
+def hook_lines(meta: dict) -> list[str]:
+    """The description's first paragraph (the session wrote it as the video's hook), at most 3 lines."""
+    out = []
+    for ln in str(meta.get("description") or "").split("\n"):
+        ln = " ".join(ln.split())
+        if not ln:
+            if out:
+                break
+            continue
+        if "http" in ln or ln.startswith(("📄", "🔗", "#")):
+            break
+        out.append(ln)
+        if len(out) == 3:
+            break
+    return out
+
+
+def render_story(ref: str, meta: dict, thumb: Path) -> bytes:
+    """The story card (1080x1920, the page's LUMEN story family) with the video's thumbnail as its hero."""
+    title = short_title(str(meta.get("title") or ""))
+    mins = minutes_fa(meta)
+    spec = {"type": "story", "pillar": "news", "accent": "#FF3B4E", "kicker": "ویدیوی تازه در یوتیوب",
+            "layout": "hero", "image": str(STUDIO_PROMO / f"{ref}.thumb.jpg"), "image_h": 536, "fit": "cover",
+            "title": title, "px": 70 if len(title) <= 60 else 60 if len(title) <= 85 else 52,
+            "cta": f"ویدیوی کامل ({mins} دقیقه) در یوتیوب" if mins else "ویدیوی کامل در یوتیوب",
+            "word": f"YouTube: {channel_handle() or '@behnamjalali-tech'}"}
+    with tempfile.TemporaryDirectory() as tmp:
+        sp = Path(tmp) / "spec.json"
+        sp.write_text(json.dumps(spec, ensure_ascii=False), "utf-8")
+        sudo(["-u", "studio", "mkdir", "-p", str(STUDIO_PROMO)])
+        names = [STUDIO_PROMO / f"{ref}.thumb.jpg", STUDIO_PROMO / f"{ref}.spec.json", STUDIO_PROMO / f"{ref}.story.jpg"]
+        try:
+            for src, dst in ((thumb, names[0]), (sp, names[1])):
+                if sudo(["install", "-o", "studio", "-m", "644", str(src), str(dst)]).returncode:
+                    raise RuntimeError(f"could not hand {src.name} to the studio user")
+            r = sudo(["-u", "studio", "env", f"PLAYWRIGHT_BROWSERS_PATH={BROWSERS}", RENDER_PY, "-I", CARD,
+                      str(names[1]), str(names[2])], timeout=300)
+            if r.returncode or b" ok" not in (r.stdout or b""):
+                raise RuntimeError(f"card.py: {tail(r.stdout) or tail(r.stderr)}")
+            got = sudo(["cat", str(names[2])], timeout=60).stdout
+        finally:
+            sudo(["rm", "-f", *map(str, names)])
+    if not got or got[:2] != b"\xff\xd8":
+        raise RuntimeError("the story card is not a JPEG")
+    return got
+
+
+def tg_caption(meta: dict, url: str) -> tuple[str, list]:
+    """The Telegram post (the bjtech-telegram kit's voice: HTML, the signature line, links as buttons)."""
+    import html as H
+    cfg = config()
+    title = H.escape(short_title(str(meta.get("title") or "")), quote=False)
+    hook = "\n".join(H.escape(x, quote=False) for x in hook_lines(meta))
+    mins = minutes_fa(meta)
+    text = (f"🎬 <b>ویدیوی تازه در یوتیوب</b>\n\n<b>{title}</b>\n\n" + (f"{hook}\n\n" if hook else "")
+            + (f"⏱ {mins} دقیقه؛ ویدیوی کامل رو توی یوتیوب ببین 👇" if mins else "ویدیوی کامل رو توی یوتیوب ببین 👇")
+            + "\n\n🆔 @behnamjalali_tech")
+    buttons = [[{"text": "▶️ تماشای ویدیو در یوتیوب", "url": url}]]
+    more = [{"text": t, "url": str(cfg.get(k))} for t, k in (("کانال یوتیوب", "youtube"), ("اینستاگرام", "instagram"))
+            if str(cfg.get(k) or "").startswith("https://")]
+    if more:
+        buttons.append(more)
+    return text, buttons
+
+
+def promote(state: dict, up: dict, public: set[str] | None) -> None:
+    """The video's story and Telegram post, once, after it is Public."""
+    vid, ref = str(up.get("video_id") or ""), str(up.get("run") or "")
+    pr = up.get("promo") or {}
+    if up.get("status") != "done" or not vid or not REF_RE.fullmatch(ref) or pr.get("status") in ("done", "check", "skipped"):
+        return
+    try:
+        at = datetime.fromisoformat(str(up.get("at")))
+    except ValueError:
+        return
+    if at < PROMO_FROM or datetime.now(timezone.utc) - at > PROMO_MAX_AGE:
+        if not pr:
+            up["promo"] = {"status": "skipped", "why": "uploaded before the order or too long ago"}
+            save_state(state)
+        return
+    if public is None or vid not in public:
+        pr.update(status="waiting", why="not in the channel's public feed yet")
+        up["promo"] = pr
+        save_state(state)
+        return
+    keep = HOME / "bjtech-longform" / ref
+    try:
+        meta = json.loads((keep / "meta.json").read_text("utf-8"))
+        story = render_story(ref, meta, keep / "thumbnail.jpg")
+        caption, buttons = tg_caption(meta, f"https://youtu.be/{vid}")
+        photo = (keep / "thumbnail.jpg").read_bytes()
+        pv = probe(keep / "thumbnail.jpg")
+        ps = next((s for s in pv.get("streams", []) if s.get("codec_type") == "video"), {})
+        job = {"video_id": vid, "work": ref, "account": str(config().get("handle") or "behnamjalali.tech"),
+               "company": "IG", "title": short_title(str(meta.get("title") or ""))[:200],
+               "topic": f"ویدیوی یوتیوب: {short_title(str(meta.get('title') or ''))}"[:300],
+               "day": state["runs"].get(ref, {}).get("day"), "flow_key": "bjtech_long",
+               "story_b64": base64.b64encode(story).decode(), "photo_b64": base64.b64encode(photo).decode(),
+               "photo_w": int(ps.get("width") or 1280), "photo_h": int(ps.get("height") or 720),
+               "caption": caption, "buttons": buttons}
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as e:
+        pr.update(status="waiting", why=f"not made: {str(e)[:200]}", tries=pr.get("tries", 0) + 1)
+        if pr["tries"] >= PROMO_TRIES:
+            pr["status"] = "check"
+        up["promo"] = pr
+        save_state(state)
+        log(f"{ref}: story/Telegram not made ({str(e)[:160]})")
+        return
+    with tempfile.TemporaryFile() as stdin:
+        stdin.write(json.dumps(job, ensure_ascii=False).encode())
+        stdin.seek(0)
+        try:
+            r = run(["docker", "exec", "-i", "-w", "/tmp", API, "python", "-c", PROMO], stdin=stdin, timeout=300)
+            lines = [ln for ln in r.stdout.decode("utf-8", "replace").splitlines() if ln.startswith("{")]
+            ans = json.loads(lines[-1]) if lines else {"ok": False, "why": f"no answer ({tail(r.stderr, 1)})"}
+        except (subprocess.TimeoutExpired, ValueError) as e:
+            ans = {"ok": False, "why": type(e).__name__}
+    del job
+    st, tg = ans.get("story") or {}, ans.get("tg") or {}
+    pr.update(story=st, tg=tg, at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    made = lambda x: bool(x.get("job") or x.get("publication") or x.get("was"))  # noqa: E731
+    if ans.get("ok") and made(st) and made(tg):
+        pr.update(status="done", why="")
+        log(f"{ref}: public on YouTube -> story {st.get('publication') or st.get('was')} and Telegram post "
+            f"{tg.get('publication') or tg.get('was')}")
+    else:
+        pr.update(status="waiting", why=str(ans.get("why") or json.dumps(ans, ensure_ascii=False))[:300],
+                  tries=pr.get("tries", 0) + 1)
+        if pr["tries"] >= PROMO_TRIES:
+            pr["status"] = "check"
+        log(f"{ref}: story/Telegram not out yet: {pr['why'][:200]}")
+    up["promo"] = pr
+    save_state(state)
+
+
 def due(dry: bool) -> int:
     TMP.mkdir(parents=True, exist_ok=True)
     with open(LOCK, "w") as lk:
@@ -389,6 +663,12 @@ def due(dry: bool) -> int:
         for up in list(state["uploads"].values()):
             if up.get("status") == "done" and not dry:
                 finish(state, up)
+        if not dry:  # ⟨2026-11-19⟩ the story and the Telegram post of a video now public, once
+            todo = [u for u in state["uploads"].values() if u.get("status") == "done"
+                    and (u.get("promo") or {}).get("status") not in ("done", "check", "skipped")]
+            public = public_ids() if todo else None
+            for up in todo:
+                promote(state, up, public)
     return 0
 
 
