@@ -47,7 +47,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -74,6 +76,10 @@ UPLOAD_CAP = 90 * 1024 * 1024  # under egress's upload cap (recipes.TASK_FILE_BY
 MAX_COVER = 25 * 1024 * 1024  # a reel's cover (read limit)
 MAX_THUMB = 2 * 1024 * 1024  # YouTube's own cap for a custom thumbnail
 TRIES, THUMB_TRIES = 3, 3
+# the custom thumbnail, checked on YouTube's public side (Studio's answer once said «saved» for a Short whose
+# custom picture never took, W-000651 2026-11-19): YouTube serves a Short's custom picture as sardefault.jpg
+VERIFY_AFTER, VERIFY_GIVE_UP = timedelta(minutes=10), timedelta(minutes=40)
+PUBLIC_THUMB = "https://i.ytimg.com/vi/{id}/sardefault.jpg"
 SIGNED_OUT_WAIT_S = 2 * 3600  # a signed-out profile: tried again after this
 TERMINAL = ("done", "exists", "check", "failed")
 
@@ -447,6 +453,39 @@ def set_thumbnail(state: dict, up: dict, row: dict) -> None:
         log(f"{row['w']}: thumbnail not set ({up['thumb_why']}; try {up['thumb_tries']} of {THUMB_TRIES})")
 
 
+def public_thumb(video_id: str) -> bool | None:
+    """True when YouTube serves the Short's custom thumbnail publicly, False when it does not (404), None when
+    the check itself failed."""
+    req = urllib.request.Request(PUBLIC_THUMB.format(id=video_id), method="HEAD",
+                                 headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status == 200
+    except urllib.error.HTTPError as e:
+        return False if e.code == 404 else None
+    except (urllib.error.URLError, OSError):
+        return None
+
+
+def verify_thumbnail(up: dict) -> None:
+    """A thumbnail Studio said it saved, checked on YouTube's public side: `thumb_verified` yes once it is
+    there; still missing VERIFY_GIVE_UP after its Save, it is set again (thumb_set no, within THUMB_TRIES)."""
+    if (up.get("status") != "done" or up.get("thumb_set") != "yes" or up.get("thumb_verified") == "yes"
+            or not YT_ID.fullmatch(str(up.get("video_id") or "")) or not up.get("thumb_at")):
+        return
+    age = datetime.now(timezone.utc) - datetime.fromisoformat(str(up["thumb_at"]))
+    if age < VERIFY_AFTER:
+        return
+    got = public_thumb(str(up["video_id"]))
+    if got:
+        up.update(thumb_verified="yes", thumb_verified_at=now())
+        log(f"{up.get('w')}: its Instagram cover is the Short's public thumbnail ({up.get('url')})")
+    elif got is False and age >= VERIFY_GIVE_UP:
+        up.update(thumb_set="no", thumb_why=f"YouTube shows no custom thumbnail {int(age.total_seconds() // 60)} min "
+                                            "after Studio said saved (sardefault.jpg 404): set again")
+        log(f"{up.get('w')}: {up['thumb_why']}")
+
+
 # ------------------------------------------------------------------ one pass
 def one_pass(args) -> int:
     state = load_state()
@@ -471,6 +510,9 @@ def one_pass(args) -> int:
             log(f"{row['w']}: skipped, the same video as {other or 'a long video'}")
             continue
         todo.append(row)
+    for row in rows:  # (a thumbnail Studio said it saved: is it on YouTube's public side?)
+        if not args.dry_run:
+            verify_thumbnail(state["uploads"].get(f"{CHANNEL}|instagram:{row['w']}") or {})
     thumbs = [r for r in rows if thumb_due(state["uploads"].get(f"{CHANNEL}|instagram:{r['w']}") or {})]
     if args.dry_run:
         for row in todo:

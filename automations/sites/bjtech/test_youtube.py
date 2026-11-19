@@ -75,5 +75,41 @@ class Shorts(unittest.TestCase):
         self.assertFalse(Y.thumb_due({"status": "check", "video_id": "abcdefghijk"}))
 
 
+class Verify(unittest.TestCase):
+    def setUp(self) -> None:
+        self.real = Y.public_thumb
+
+    def tearDown(self) -> None:
+        Y.public_thumb = self.real
+
+    def up(self, minutes: int) -> dict:
+        at = (Y.datetime.now(Y.timezone.utc) - Y.timedelta(minutes=minutes)).isoformat()
+        return {"w": "W-1", "status": "done", "video_id": "abcdefghijk", "thumb_set": "yes", "thumb_at": at,
+                "thumb_tries": 1}
+
+    def test_a_saved_thumbnail_is_checked_on_youtubes_public_side(self) -> None:
+        Y.public_thumb = lambda vid: True
+        up = self.up(5)
+        Y.verify_thumbnail(up)
+        self.assertNotIn("thumb_verified", up)  # (too early: YouTube takes a few minutes)
+        up = self.up(12)
+        Y.verify_thumbnail(up)
+        self.assertEqual(up["thumb_verified"], "yes")
+
+    def test_a_thumbnail_that_never_took_is_set_again(self) -> None:
+        Y.public_thumb = lambda vid: False
+        up = self.up(20)
+        Y.verify_thumbnail(up)
+        self.assertEqual(up["thumb_set"], "yes")  # (not yet: it may still come)
+        up = self.up(45)
+        Y.verify_thumbnail(up)
+        self.assertEqual(up["thumb_set"], "no")
+        self.assertTrue(Y.thumb_due(up))
+        Y.public_thumb = lambda vid: None  # (the check itself failed: nothing changes)
+        up = self.up(45)
+        Y.verify_thumbnail(up)
+        self.assertEqual(up["thumb_set"], "yes")
+
+
 if __name__ == "__main__":
     sys.exit(0 if unittest.main(exit=False).result.wasSuccessful() else 1)
