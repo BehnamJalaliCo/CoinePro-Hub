@@ -14,7 +14,8 @@ A pass (bjtech-breaking.timer, every 4 minutes, as Hub):
      flagship repo on a vendor's Hugging Face org (no quantised copies, no drafts);
   3. folds every candidate into ONE news event per vendor + family + version («openai:gpt-6.2»), whatever the
      source, and keeps the earliest link and the official image (the page's og:image, read through egress);
-  4. starts the hub's two event flows for a NEW event: bjtech_flash (the flash story, out at once) then
+  4. starts the hub's event flows for a NEW event: bjtech_flash (the flash story, out at once),
+     bjtech_tg_breaking (⟨2026-11-19⟩ the Telegram channel's breaking post, out at once) and
      bjtech_breaking (the full reel): domain/flow_events.start_event inside the api container (`docker exec`),
      which itself refuses a second run of the same event (and is a no-op while a flow is switched off).
 Never twice: the state (HOME/bjtech-breaking/state.json) keeps every event fired, forever, and every item seen
@@ -48,7 +49,9 @@ from pathlib import Path
 HOME = Path(os.environ.get("BJ_BREAKING_HOME", "/home/Hub/sites/bjtech-breaking"))
 STATE, LOCK = HOME / "state.json", HOME / "state.lock"
 WORKER, API = "coinepro-hq-worker-1", "coinepro-hq-api-1"
-FLOWS = ("bjtech_flash", "bjtech_breaking")  # the flash story first: it must be out in minutes
+# the flash story first (out in minutes), the Telegram channel's breaking post (⟨2026-11-19⟩, out the moment
+# its package is in), then the full reel; a flow missing or off answers "off" and the others go on
+FLOWS = ("bjtech_flash", "bjtech_tg_breaking", "bjtech_breaking")
 MAX_A_DAY, GAP_MIN, STALE_H, FRESH_H = 4, 30, 6, 12
 SEEN_DAYS = 30
 UTC = timezone.utc

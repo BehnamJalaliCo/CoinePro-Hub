@@ -9,6 +9,9 @@ media_sweep      every 5 minutes (hq-media-sweep): the sealed series'
 media_publish    one item now (after its card's approval; also gated).
 media_unpublish  the owner's sealed request to take an item down (the owner's
                  own act, started by the api: it only removes).
+telegram_tick    ⟨2026-11-19⟩ every minute (hq-telegram-tick): a page's Telegram channel's due posts
+                 (tg_posts.tick: the bot's rights read first, each post once). Nothing while the
+                 holding is locked.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from hq_api.domain import gate, oversight
 from hq_api.domain import studio as S
 from hq_api.domain import studio_checks as K
 from hq_api.domain import studio_publish as P
+from hq_api.domain import tg_posts as TG
 from hq_api.hub import Hub
 
 log = logging.getLogger("hq_api.worker.studio")
@@ -36,7 +40,7 @@ class StudioActivities:
         self._tx = tx
 
     def all(self) -> list[Any]:
-        return [self.media_sweep, self.media_publish, self.media_unpublish]
+        return [self.media_sweep, self.media_publish, self.media_unpublish, self.telegram_tick]
 
     @activity.defn(name="media_sweep")
     async def media_sweep(self) -> dict[str, Any]:
@@ -48,6 +52,13 @@ class StudioActivities:
         unpublished = await P.unpublish_due(self.hub)
         sampled = await self.recheck()
         return {**made, **published, **unpublished, "rechecked": sampled}
+
+    @activity.defn(name="telegram_tick")
+    async def telegram_tick(self) -> dict[str, Any]:
+        async with self._tx() as tx:
+            if (lock := await gate.holding_lock(tx)) is not None:
+                return gate.skipped(lock)
+        return await TG.tick(self.hub)
 
     @activity.defn(name="media_publish")
     async def media_publish(self, ref: str) -> dict[str, Any]:

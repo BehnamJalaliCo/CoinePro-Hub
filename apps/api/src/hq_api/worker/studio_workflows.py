@@ -48,4 +48,18 @@ class MediaUnpublish:
         return out
 
 
-STUDIO_WORKFLOWS = [MediaSweep, MediaPublish, MediaUnpublish]
+@workflow.defn(name="TelegramTick")
+class TelegramTick:
+    """⟨2026-11-19⟩ Every minute: a page's Telegram channel's due posts (each once)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        out: dict[str, Any] = await workflow.execute_activity(
+            "telegram_tick",
+            start_to_close_timeout=timedelta(minutes=10),
+            retry_policy=RetryPolicy(maximum_attempts=1),  # (a send is never repeated by a retry)
+        )
+        return out
+
+
+STUDIO_WORKFLOWS = [MediaSweep, MediaPublish, MediaUnpublish, TelegramTick]

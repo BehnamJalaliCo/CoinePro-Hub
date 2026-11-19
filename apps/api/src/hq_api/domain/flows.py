@@ -112,7 +112,7 @@ class Flow:
 
 
 # ⟨2026-11-18⟩ the kinds whose day never goes to IG-Hub (the hub's own host publisher takes it)
-OFF_IG_KINDS = ("video", "article")
+OFF_IG_KINDS = ("video", "article", "tg_post")  # (⟨2026-11-19⟩ a page's Telegram channel)
 
 
 # ⟨2026-11-17⟩ DotCoin.me's twelve story slides a day, about one an hour (never on a reel's minute)
@@ -634,7 +634,12 @@ def kind_of(flow: Flow, day: date) -> str:
 # ⟨2026-11-18⟩ the owner: «نباید محتوای تکراری ارسال بشه». DotCoin's 11-18 reel («بلاک‌چین با یک
 # مثال ساده») was 11-17's («بلاک‌چین مثل دفتر دنگ سفر») again: that one was made by hand, so the
 # kit's bank never marked it. Every day's order now carries what the page already has.
-DONE_KINDS = {"reel": ("reel",), "video": ("video",), "stories": ("story",)}
+DONE_KINDS = {
+    "reel": ("reel",),
+    "video": ("video",),
+    "stories": ("story",),
+    "tg_post": ("tg_post",),
+}
 DONE_MAX_CHARS = 4500  # (the order's text is at most 10 000 characters)
 DONE_SQL = """SELECT coalesce(nullif(topic_fa, ''), title_fa) AS t, max(at) AS at
     FROM media.publications WHERE account = :a AND kind = ANY(:k)
@@ -805,10 +810,15 @@ def article_brief(flow: Flow, day: date, at: datetime) -> str:
 
 def brief_of(
     flow: Flow, day: date, at: datetime, used: list[str] | None = None,
-    done: list[str] | None = None,
+    done: list[str] | None = None, ig: list[str] | None = None,
 ) -> str:  # fmt: skip
     """The order's text: what the day's session makes, from the kit, and when it goes out.
-    `done`: the page's topics already out or queued (⟨2026-11-18⟩ never a second time)."""
+    `done`: the page's topics already out or queued (⟨2026-11-18⟩ never a second time); `ig`: a
+    Telegram day's page's own recent reels (⟨2026-11-19⟩ never their copy)."""
+    if flow.kind == "tg_post":
+        from hq_api.domain import tg_posts as TG
+
+        return TG.brief(flow, day, at, done, ig)
     if flow.stories:
         return stories_brief(flow, day, used or [], done)
     if flow.kind == "video":
@@ -923,6 +933,14 @@ async def start(
             return {"order": str(m.get("order") or ""), "work": str(made["ref"]),
                     "publish_at": str(m.get("publish_at") or ""), "why_fa": "پیش از این ساخته شده"}  # fmt: skip
         at, why = await slot_of(tx, flow, the_day, co["id"])
+        ig: list[str] = []
+        if flow.kind == "tg_post":
+            from hq_api.domain import tg_posts as TG
+
+            # ⟨2026-11-19⟩ no Telegram day is made before its channel and its bot's token are set
+            if not forced and (held := await TG.connected(tx, co["id"], flow.account)) is not None:
+                return {"order": "", "work": None, "publish_at": "", "why_fa": held}
+            ig = await TG.reel_topics(tx, flow.account)
         if not forced and flow.ref and await published_day(tx, flow, the_day, at):
             # ⟨2026-11-17⟩ its work wiped, its package scheduled: never a second one
             return {"order": "", "work": None, "publish_at": "", "why_fa": MADE_PUBLISHED_FA}
@@ -930,7 +948,7 @@ async def start(
         # (a site's SEO day keeps its pages unique by the site's own rules, not by the page's posts)
         done = await published_topics(tx, flow) if flow.account and flow.kind != "article" else []
     body = OrderIn(
-        text=brief_of(flow, the_day, at, used, done),
+        text=brief_of(flow, the_day, at, used, done, ig),
         company=flow.company,
         route=D.Route(
             companies=[flow.company],
@@ -1255,6 +1273,10 @@ async def package(tx: Tx, w: dict[str, Any], *, need_cover: bool = True) -> dict
         for f in await SPB._files(tx, d):
             newest.setdefault(str(f["name"] or "").strip().lower(), (dict(f), d))
     flow = await flow_by_key(tx, str((w.get("flow") or {}).get("key") or ""))
+    if (w.get("flow") or {}).get("kind") == "tg_post" or (
+        flow is not None and flow.kind == "tg_post"
+    ):
+        return _telegram_package(newest)
     if flow is not None and flow.stories:
         return _stories_package(flow, newest)
     if (w.get("flow") or {}).get("kind") == "article" or (
@@ -1311,7 +1333,7 @@ async def _ask_for_cover(tx: Tx, w: dict[str, Any]) -> bool:
     """A reel day whose video and caption are in but not its cover: the session is woken once to
     make it (`cover_asked` on the run). True when it was woken now."""
     meta = w.get("flow") or {}
-    if meta.get("cover_asked") or meta.get("kind") in ("video", "article"):
+    if meta.get("cover_asked") or meta.get("kind") in OFF_IG_KINDS:
         return False
     pkg = await package(tx, w, need_cover=False)
     if pkg is None or pkg.get("cover") is not None or pkg.get("reel") is None:
@@ -1376,6 +1398,19 @@ def _stories_package(
     }
 
 
+def _telegram_package(
+    newest: dict[str, tuple[dict[str, Any], dict[str, Any]]],
+) -> dict[str, Any] | None:
+    """⟨2026-11-19⟩ A Telegram day: `telegram.json` (written last) and every file of the session by
+    its name (tg_posts.check finds each one it names). None until telegram.json is in."""
+    from hq_api.domain import tg_posts as TG
+
+    man = newest.get(TG.TG_FILE)
+    if man is None:
+        return None
+    return {"d": man[1], "manifest": man[0], "files": {n: f for n, (f, _) in newest.items()}}
+
+
 def _article_package(
     newest: dict[str, tuple[dict[str, Any], dict[str, Any]]],
 ) -> dict[str, Any] | None:
@@ -1434,6 +1469,10 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
             return await EV.close_skipped(tx, hub, w) or "open"
         await _ask_for_cover(tx, w)
         return "open"
+    if meta.get("kind") == "tg_post":
+        from hq_api.domain import tg_posts as TG
+
+        return await TG.queue(tx, hub, w, meta, pkg)
     if meta.get("kind") == "video":
         return await _queue_video(tx, hub, w, meta, pkg)
     if meta.get("kind") == "article" or "zip" in pkg:

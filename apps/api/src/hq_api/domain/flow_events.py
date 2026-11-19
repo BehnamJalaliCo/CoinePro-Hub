@@ -51,7 +51,10 @@ def event_brief(
     """The order's text: the kit makes the day; the news item rides along as quoted data."""
     asap = flow.stories != ()
     what = (
-        "یک استوری فوری (story_1.jpg، ۱۰۸۰×۱۹۲۰) با تصویر رسمی همان خبر، comment.txt و topic.txt؛ "
+        "out/telegram.json با یک پست فوری (type: breaking) و تصویر رسمی همان خبر که نام برده؛ پست به محض "
+        "رسیدن بسته در کانال تلگرام منتشر میشود (telegram.json آخر از همه)"
+        if flow.kind == "tg_post"
+        else "یک استوری فوری (story_1.jpg، ۱۰۸۰×۱۹۲۰) با تصویر رسمی همان خبر، comment.txt و topic.txt؛ "
         "استوری به محض رسیدن بسته منتشر میشود"
         if asap
         else "ریلز کامل همین خبر: video.mp4، cover.jpg، caption.txt، comment.txt و topic.txt؛ ستاد آن را "
@@ -137,12 +140,17 @@ async def start_event(
         if flow.state != "on":
             return {"order": "", "work": None, "publish_at": "", "why_fa": OFF_FA, "new": False}
         co = await tx.one("SELECT id FROM core.companies WHERE code = :c", c=flow.company)
+        if flow.kind == "tg_post":  # ⟨2026-11-19⟩ never a session before the channel and its bot
+            from hq_api.domain import tg_posts as TG
+
+            if (held := await TG.connected(tx, co["id"], flow.account)) is not None:
+                return {"order": "", "work": None, "publish_at": "", "why_fa": held, "new": False}
         done = await FL.published_topics(tx, flow)
         words = (
             await FL.story_words(tx, flow.account) if flow.stories and not flow.story_word else []
         )
     day = now.astimezone(ZoneInfo(FL.TEHRAN)).date()
-    at = now if flow.stories else publish_at(flow, now, lead_min)
+    at = now if flow.stories or flow.kind == "tg_post" else publish_at(flow, now, lead_min)
     request = FL.clock_request(flow.key, day, again=f":{eid}")
     later = BackgroundTasks()
     body = OrderIn(
@@ -164,7 +172,8 @@ async def start_event(
     meta = {"key": flow.key, "day": day.isoformat(), "publish_at": at.isoformat(),
             "account": flow.account, "story": flow.story, "order": ref,
             "event": {"id": eid, "url": _clean(event.get("url"), 300), "vendor": _clean(event.get("vendor"), 60)},
-            **({"asap": True} if flow.stories else {}),
+            **({"asap": True} if flow.stories or flow.kind == "tg_post" else {}),
+            **({"kind": flow.kind} if flow.kind in FL.OFF_IG_KINDS else {}),
             **({"model": model} if model else {}),
             **({"effort": flow.effort} if flow.effort else {})}  # fmt: skip
     async with hub.db.tx(await hub.companies.ids()) as tx:

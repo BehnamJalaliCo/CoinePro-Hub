@@ -1166,7 +1166,7 @@ async def kits(tx: Tx) -> list[Kit]:
 
 
 HUB = Principal(kind="service", code="hub", role="service")
-KINDS = ("reel", "stories", "video", "article")
+KINDS = ("reel", "stories", "video", "article", "tg_post")  # (⟨2026-11-19⟩ a page's Telegram channel)
 
 
 async def create_by_hub(

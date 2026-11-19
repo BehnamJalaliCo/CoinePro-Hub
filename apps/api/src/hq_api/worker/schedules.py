@@ -89,6 +89,8 @@ Schedule ids:
     hq-usage-weekly           Saturday 09:00 Asia/Tehran  UsageReport("week") (§33.1: the
                               advisor's thread)
     hq-sales-tick             every 15 min  SalesTick (§33.4, §33.6: lead reminders; impacts)
+    hq-telegram-tick          every minute  TelegramTick (⟨2026-11-19⟩ a page's Telegram channel:
+                              its due posts after the bot's own rights; gated on the lock)
     hq-affiliate-gaps         daily 07:20 Asia/Tehran  AffiliateGaps (§33.5, after the revenue pull)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
@@ -181,6 +183,7 @@ MONEY_WEEKLY = "hq-money-weekly"
 USAGE_DAILY = "hq-usage-daily"
 USAGE_WEEKLY = "hq-usage-weekly"
 SALES_TICK = "hq-sales-tick"
+TELEGRAM_TICK = "hq-telegram-tick"
 AFFILIATE_GAPS = "hq-affiliate-gaps"
 P24M = (
     MONEY_READ,
@@ -219,6 +222,7 @@ FIXED = (
     *P12B,
     *OWNER_TOOLS,
     MEDIA_SWEEP,
+    TELEGRAM_TICK,
     *P13B,
     *P14,
     *P21C,
@@ -635,11 +639,15 @@ def p12b_fixed(tz: str) -> list[Desired]:
 
 
 def studio_fixed() -> list[Desired]:
-    """Prompt 13 §2: the media sweep gates itself (hq_api.domain.gate)."""
+    """Prompt 13 §2: the media sweep gates itself (hq_api.domain.gate); ⟨2026-11-19⟩ the Telegram
+    channels' tick too."""
     return [
         Desired(
             MEDIA_SWEEP, "MediaSweep", (), every(5), timedelta(minutes=10), timedelta(minutes=25)
-        )
+        ),
+        Desired(
+            TELEGRAM_TICK, "TelegramTick", (), every(1), timedelta(minutes=2), timedelta(minutes=10)
+        ),
     ]
 
 

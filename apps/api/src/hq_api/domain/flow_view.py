@@ -90,6 +90,8 @@ def recipe(flow: FL.Flow) -> str:
     """⟨2026-11-15⟩ Which steps a flow has: «stories», a Zarib×100 reel, or the Pro-Chart reel."""
     if flow.stories:
         return "stories"
+    if getattr(flow, "kind", "") == "tg_post":  # ⟨2026-11-19⟩ a page's own Telegram channel
+        return "telegram"
     if flow.recipe:  # ⟨2026-11-16⟩ ipoxxo: Zarib×100's premium recipe on its own page
         return "zaribsad" if flow.recipe == "ipoxxo" else flow.recipe  # (⟨11-17⟩ «dotcoin»)
     return "zaribsad" if "/zaribsad-" in flow.kit else "reel"
@@ -259,6 +261,38 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
             *posts,
             _step("rule", txt["rule"][0], "publish", "ighub", out=txt["rule"][1]),
             _step("report", "خبر به مدیر کل", "report", "code", out="«آماده شد» با کلمه‌ی امروز"),
+        ]  # fmt: skip
+    if kind == "telegram":
+        # ⟨2026-11-19⟩ the page's Telegram channel: content made for Telegram, the hub sends it
+        breaking = FL.on_event(flow)
+        made = (
+            _step("write", "یک پست فوری: تصویر رسمی، توضیح کوتاه فارسی و لینک منبع", "workshop", "workshop",
+                  model=m, out="telegram.json", rules=("خبر اول روی صفحه‌ی رسمی سازنده تأیید میشود",))
+            if breaking else
+            _step("write", "پست‌های روز به ریتم کانال", "workshop", "workshop", model=m, out="telegram.json",
+                  rules=("خلاصه‌ی صبح، ابزار روز با کد نصب، پرامپت و چیت‌شیت، نظرسنجی، جدول مقایسه، "
+                         "کلیپ، یادداشت صوتی، نکته‌ی شب",
+                         "هیچ موضوعی دو بار در کانال؛ کپی ریلزها ممنوع"))
+        )  # fmt: skip
+        return [
+            *_head(flow),
+            _step("topic", "خبر و موضوع‌های تازه با منبع رسمی", "workshop", "workshop", model=m,
+                  rules=("هر عدد و ادعا از منبع رسمی همان روز",)),
+            made,
+            _step("keyart", "تصویرها، جدول‌ها و چیت‌شیت‌ها", "workshop", "workshop", model=m,
+                  out="عکس‌های ۱۰۸۰ پیکسلی با فونت فارسی تمیز"),
+            *(() if breaking else (
+                _step("voice", "یادداشت صوتی با گوینده‌ی پیج", "workshop", "aistudio", out="OGG/Opus"),)),
+            _step("package", "بررسی بسته‌ی تلگرام", "package", "code", out="telegram.json",
+                  rules=("HTML تلگرام، طول متن، دکمه‌های لینک، نظرسنجی، فایل‌ها، ساعت‌ها و تکرار",
+                         "بسته‌ی ایرادی هیچ پستی نمیفرستد؛ ایرادها به جلسه برمیگردد")),
+            _step("tg_queue", "هر پست در ساعت خودش" if not breaking else "انتشار همان لحظه", "publish", "code",
+                  out="ردیف انتشار هر پست (کانال تلگرام)"),
+            _step("tg_send", "انتشار در کانال با ربات", "publish", "code",
+                  out="پیام، عکس، آلبوم، ویدیو، صدا، PDF یا نظرسنجی؛ HTML و دکمه‌ی لینک",
+                  rules=("اول دسترسی ربات خوانده میشود: مدیر کانال با «Post Messages»",
+                         "هر پست فقط یک بار؛ پست خیلی دیر رسیده نمیرود")),
+            _step("report", "در «انتشار» اپ", "report", "code", out="هر پست با لینکش"),
         ]  # fmt: skip
     if kind == "dotcoin_seo":
         # ⟨2026-11-18⟩ DotCoin.me's SEO day: the hub reads Search Console before the session, the
@@ -740,7 +774,8 @@ async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> stor
     pics = [next((f["files"][f"story_{i}{e}"] for e in FL.PICTURE_EXT
                   if f"story_{i}{e}" in f["files"]), None) for i in range(1, n_stories + 1)]  # fmt: skip
     # ⟨2026-11-18⟩ a site's SEO day ends on its package, not on a video
-    final = FL.ARTICLE_PACKAGE if getattr(flow, "kind", "") == "article" else "video.mp4"
+    final = (FL.ARTICLE_PACKAGE if getattr(flow, "kind", "") == "article"
+             else "telegram.json" if getattr(flow, "kind", "") == "tg_post" else "video.mp4")  # fmt: skip
     have_video = (final in f["files"]) if not n_stories else all(pics)
     final_at = (f["files"][final]["created_at"] if not n_stories
                 else max(x["created_at"] for x in pics if x)) if have_video else None  # fmt: skip
@@ -778,6 +813,12 @@ async def day_run(tx: Tx, hub: Any, order: str, with_files: bool = True) -> stor
         err: str | None = None
         if s.key in ("n8n", "order", "gsc"):
             st, start, end = "done", d["created_at"], d["created_at"]
+        elif s.key in ("tg_queue", "tg_send"):
+            # ⟨2026-11-19⟩ a Telegram day: its posts are publications the worker sends at their hours
+            if sent:
+                st, end = ("done", sent) if s.key == "tg_queue" else ("waiting", None)
+            elif stopped:
+                st = "skipped"
         elif s.key in ("site", "index") or (s.key == "report" and flow.kind == "article"):
             # ⟨2026-11-18⟩ the hub's host takes the package at its hour (seo.py --due)
             if sent:

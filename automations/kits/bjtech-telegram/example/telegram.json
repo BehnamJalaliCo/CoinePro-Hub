@@ -1,0 +1,11 @@
+{"posts": [
+  {"at": "08:30", "type": "brief", "topic": "صبحانه‌ی هوش مصنوعی: نمونه‌ی ساختار خلاصه‌ی صبح",
+   "text": "☕️ <b>صبحانه‌ی هوش مصنوعی</b>\n\n<b>۱) عنوان خبر اول</b>\nیک تا دو خط: چه شد و برای تو یعنی چه. <a href=\"https://openai.com/news/\">منبع</a>\n\n<b>۲) عنوان خبر دوم</b>\n… <a href=\"https://blog.google/technology/ai/\">منبع</a>\n\n🆔 @behnamjalali_tech",
+   "buttons": [[{"text": "اینستاگرام", "url": "https://www.instagram.com/behnamjalali.tech"},
+                {"text": "یوتیوب", "url": "https://www.youtube.com/@behnamjalali-tech"}]]},
+  {"at": "14:30", "type": "poll", "topic": "نظرسنجی: ایجنت کدنویسی اصلی تو",
+   "poll": {"question": "ایجنت کدنویسی اصلیت کدومه؟", "options": ["Claude Code", "Codex CLI", "Gemini CLI", "هنوز هیچ"]}},
+  {"at": "22:00", "type": "tip", "topic": "نکته‌ی شب: نمونه‌ی ساختار یک نکته", "silent": true,
+   "text": "💡 <b>نکته‌ی شب</b>\n\nیک نکته‌ی کاربردی در چند خط، با یک مثال:\n<pre><code class=\"language-bash\">echo 'hello'</code></pre>\n\n🆔 @behnamjalali_tech",
+   "buttons": [[{"text": "اینستاگرام", "url": "https://www.instagram.com/behnamjalali.tech"}]]}
+]}
