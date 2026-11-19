@@ -139,6 +139,14 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
     letter; 1080×1920 `out/cover.jpg`. Never a video frame. Letters not perfect: a text-free background
     («leave the upper half empty») and `PY -I KIT/tools/cover_title.py <bg> out/cover.jpg "<line 1>|<line 2>"
     --key <the cyan word> [--sub "<a small line>"]` (the example's cover was made so).
+    **The page's cover family is HARD (owner, 2026-11-19: «چرا کاور ریلز آخر ipoxxo نذاشتی» about
+    «آسمون چرا آبیه؟», a plain sky photo that read as no cover at all):** a DARK background (black or deep
+    navy, never a bright photo or a sky), ONE big glowing 3D hero object of the topic in the lower
+    half (the well's lid, the plane, the satellite, the skull with the rod), cyan rim light, the
+    white title with one cyan key word on top. A topic about something light or bright (the sky, the
+    sun, snow) still gets a dark cover: its hero is a 3D object (a glowing sun or a prism splitting
+    light) on black. Before delivering, put the new cover beside the last three in
+    COMMON/cover/refs (contact sheet) and look: if it does not sit in that row, make it again.
 13. **Texts.** `out/caption.txt`:
     ```
     <the hook as a question or a bold line that stops the scroll>
