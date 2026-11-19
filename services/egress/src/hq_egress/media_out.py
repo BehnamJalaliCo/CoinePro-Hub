@@ -15,9 +15,17 @@ telegram   https://api.telegram.org/bot<token>/<method>, the bot an admin of the
            caption?, duration?, width?, height?, supports_streaming?} · sendPhoto
            {chat_id, photo: "attach://fileN", caption?} · sendMediaGroup {chat_id,
            media: [{type: photo|video, media: "attach://fileN", caption?}] (2-10)} ·
-           deleteMessage {chat_id, message_id}. Plain captions only: no parse_mode, no
-           markup, no buttons. A channel story has no Bot API method: it is a card
-           with the file for the owner (any story method is refused here).
+           deleteMessage {chat_id, message_id}. A channel story has no Bot API method: it is a
+           card with the file for the owner (any story method is refused here).
+           ⟨2026-11-19⟩ a page's own Telegram channel (the owner: content made for Telegram):
+           sendMessage {chat_id, text, link_preview_options?} · sendVoice {chat_id, voice:
+           "attach://fileN" (OGG/Opus), caption?, duration?} · sendDocument {chat_id, document:
+           "attach://fileN" (a PDF), caption?} · sendPoll {chat_id, question, options (2-10),
+           type? regular|quiz, allows_multiple_answers?, correct_option_id?, explanation?} (always
+           anonymous: a channel's) · getChatMember {chat_id, user_id} (the bot's own rights). Every
+           send may carry parse_mode "HTML" (no other mode), reply_markup {inline_keyboard: rows
+           of {text, url} buttons, https links only: no callback, no login, no pay} and
+           disable_notification; a media group's items may carry parse_mode.
 instagram  https://graph.instagram.com/<GRAPH_VERSION>/..., the access token in the
            Authorization header (never in a URL). me · create {ig_user_id, media_type:
            REELS | STORIES | IMAGE | CAROUSEL, video_url | image_url | children, caption?,
@@ -105,8 +113,10 @@ PART = re.compile(r"^file[0-9]$")
 ATTACH = re.compile(r"^attach://(file[0-9])$")
 MEDIA_TOKEN = re.compile(r"^[A-Za-z0-9_-]{20,200}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-MIMES = {"image/jpeg": "photo", "image/png": "photo", "video/mp4": "video"}
-EXT = {"image/jpeg": "jpg", "image/png": "png", "video/mp4": "mp4"}
+MIMES = {"image/jpeg": "photo", "image/png": "photo", "video/mp4": "video",
+         "audio/ogg": "voice", "application/pdf": "document"}  # fmt: skip
+EXT = {"image/jpeg": "jpg", "image/png": "png", "video/mp4": "mp4", "audio/ogg": "ogg",
+       "application/pdf": "pdf"}  # fmt: skip
 # Telegram's refusals that mean "this bot cannot post in this channel".
 NO_CHANNEL = (
     "chat not found",
@@ -267,6 +277,10 @@ def _magic_ok(mime: str, data: memoryview) -> bool:
         return head.startswith(b"\x89PNG\r\n\x1a\n")
     if mime == "video/mp4":
         return head[4:8] == b"ftyp"
+    if mime == "audio/ogg":
+        return head.startswith(b"OggS")
+    if mime == "application/pdf":
+        return head.startswith(b"%PDF-")
     return False
 
 
@@ -292,24 +306,66 @@ def uploads(call: CallIn, parts: dict[str, memoryview]) -> dict[str, Upload]:
 
 
 # --------------------------------------------------------------- telegram --
+# ⟨2026-11-19⟩ what every send may carry besides its own fields (HTML only, link buttons only)
+SEND_EXTRA = frozenset({"parse_mode", "reply_markup", "disable_notification"})
 TELEGRAM_KEYS: dict[str, frozenset[str]] = {
     "getMe": frozenset(),
     "getChat": frozenset({"chat_id"}),
+    "getChatMember": frozenset({"chat_id", "user_id"}),
+    "sendMessage": frozenset({"chat_id", "text", "link_preview_options"}) | SEND_EXTRA,
     "sendVideo": frozenset(
-        {"chat_id", "video", "caption", "duration", "width", "height", "supports_streaming"}
+        {
+            "chat_id",
+            "video",
+            "caption",
+            "duration",
+            "width",
+            "height",
+            "supports_streaming",
+            "show_caption_above_media",
+        }
+    )
+    | SEND_EXTRA,
+    "sendPhoto": frozenset({"chat_id", "photo", "caption", "show_caption_above_media"})
+    | SEND_EXTRA,
+    "sendVoice": frozenset({"chat_id", "voice", "caption", "duration"}) | SEND_EXTRA,
+    "sendDocument": frozenset({"chat_id", "document", "caption"}) | SEND_EXTRA,
+    "sendPoll": frozenset(
+        {
+            "chat_id",
+            "question",
+            "options",
+            "is_anonymous",
+            "type",
+            "allows_multiple_answers",
+            "correct_option_id",
+            "explanation",
+            "explanation_parse_mode",
+            "disable_notification",
+        }
     ),
-    "sendPhoto": frozenset({"chat_id", "photo", "caption"}),
-    "sendMediaGroup": frozenset({"chat_id", "media"}),
+    "sendMediaGroup": frozenset({"chat_id", "media", "disable_notification"}),
     "deleteMessage": frozenset({"chat_id", "message_id"}),
 }
 TELEGRAM_REQUIRED: dict[str, frozenset[str]] = {
     "getChat": frozenset({"chat_id"}),
+    "getChatMember": frozenset({"chat_id", "user_id"}),
+    "sendMessage": frozenset({"chat_id", "text"}),
     "sendVideo": frozenset({"chat_id", "video"}),
     "sendPhoto": frozenset({"chat_id", "photo"}),
+    "sendVoice": frozenset({"chat_id", "voice"}),
+    "sendDocument": frozenset({"chat_id", "document"}),
+    "sendPoll": frozenset({"chat_id", "question", "options"}),
     "sendMediaGroup": frozenset({"chat_id", "media"}),
     "deleteMessage": frozenset({"chat_id", "message_id"}),
 }
-TELEGRAM_CLASS = {"getMe": "A0", "getChat": "A0"}  # every other method is the publication itself
+# every other method is the publication itself
+TELEGRAM_CLASS = {"getMe": "A0", "getChat": "A0", "getChatMember": "A0"}
+TEXT_MAX = 4096  # a message's text (Telegram counts it after the HTML is read)
+HTML_SLACK = 2  # the raw HTML of a text or caption may be this many times its visible limit
+BUTTON_ROWS, BUTTONS_PER_ROW, BUTTON_TEXT = 4, 3, 64
+LINK = re.compile(r"^https://[^\s]{3,1000}$")
+POLL_QUESTION, POLL_OPTION, POLL_EXPLANATION, POLL_OPTIONS = 300, 100, 200, (2, 10)
 
 
 def _int(value: Any, low: int, high: int) -> int:
@@ -322,6 +378,99 @@ def _caption(value: Any, limit: int) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise Refused("payload_not_allowed")
     return value
+
+
+def _bool(value: Any) -> bool:
+    if not isinstance(value, bool):
+        raise Refused("payload_not_allowed")
+    return value
+
+
+def _html(value: Any) -> str:
+    """⟨2026-11-19⟩ the one parse mode a page's post may use."""
+    if value != "HTML":
+        raise Refused("payload_not_allowed")
+    return "HTML"
+
+
+def _markup(value: Any) -> dict[str, Any]:
+    """Link buttons only: rows of {text, url}, https links; never a callback, a login, a game,
+    a payment or a switch-inline button."""
+    ok = isinstance(value, dict) and set(value) == {"inline_keyboard"}
+    rows = value.get("inline_keyboard") if ok else None
+    if not isinstance(rows, list) or not 1 <= len(rows) <= BUTTON_ROWS:
+        raise Refused("payload_not_allowed")
+    out = []
+    for row in rows:
+        if not isinstance(row, list) or not 1 <= len(row) <= BUTTONS_PER_ROW:
+            raise Refused("payload_not_allowed")
+        got = []
+        for b in row:
+            if not isinstance(b, dict) or set(b) != {"text", "url"}:
+                raise Refused("payload_not_allowed")
+            text, url = b["text"], b["url"]
+            if not isinstance(text, str) or not text.strip() or len(text) > BUTTON_TEXT:
+                raise Refused("payload_not_allowed")
+            if not isinstance(url, str) or not LINK.match(url):
+                raise Refused("url_not_allowed")
+            got.append({"text": text, "url": url})
+        out.append(got)
+    return {"inline_keyboard": out}
+
+
+def _preview(value: Any) -> dict[str, Any]:
+    allowed = {"is_disabled", "url", "prefer_small_media", "prefer_large_media", "show_above_text"}
+    if not isinstance(value, dict) or not value or set(value) - allowed:
+        raise Refused("payload_not_allowed")
+    out: dict[str, Any] = {}
+    for k, v in value.items():
+        if k == "url":
+            if not isinstance(v, str) or not LINK.match(v):
+                raise Refused("url_not_allowed")
+            out[k] = v
+        else:
+            out[k] = _bool(v)
+    return out
+
+
+def _poll(payload: dict[str, Any]) -> list[tuple[str, Any]]:
+    """A channel's poll: anonymous (Telegram's own rule for a channel), 2-10 options."""
+    fields: list[tuple[str, Any]] = [("question", _caption(payload["question"], POLL_QUESTION))]
+    opts = payload["options"]
+    if not isinstance(opts, list) or not POLL_OPTIONS[0] <= len(opts) <= POLL_OPTIONS[1]:
+        raise Refused("payload_not_allowed")
+    options = []
+    for o in opts:
+        text = o.get("text") if isinstance(o, dict) and set(o) == {"text"} else o
+        options.append({"text": _caption(text, POLL_OPTION)})
+    fields.append(("options", options))
+    if "is_anonymous" in payload and payload["is_anonymous"] is not True:
+        raise Refused("payload_not_allowed")
+    kind = payload.get("type", "regular")
+    if kind not in ("regular", "quiz"):
+        raise Refused("payload_not_allowed")
+    fields.append(("type", kind))
+    if "allows_multiple_answers" in payload:
+        if kind == "quiz":
+            raise Refused("payload_not_allowed")
+        fields.append(("allows_multiple_answers", _bool(payload["allows_multiple_answers"])))
+    if kind == "quiz":
+        if "correct_option_id" not in payload:
+            raise Refused("payload_not_allowed")
+        fields.append(
+            ("correct_option_id", _int(payload["correct_option_id"], 0, len(options) - 1))
+        )
+    elif "correct_option_id" in payload:
+        raise Refused("payload_not_allowed")
+    if "explanation" in payload:
+        if kind != "quiz":
+            raise Refused("payload_not_allowed")
+        fields.append(
+            ("explanation", _caption(payload["explanation"], POLL_EXPLANATION * HTML_SLACK))
+        )
+    if "explanation_parse_mode" in payload:
+        fields.append(("explanation_parse_mode", _html(payload["explanation_parse_mode"])))
+    return fields
 
 
 def _chat(value: Any) -> str:
@@ -371,27 +520,53 @@ def telegram_request(
             fields.append(("supports_streaming", payload["supports_streaming"]))
     elif method == "sendPhoto":
         out.append(("photo", files[_attach(payload["photo"], files, "photo", used)]))
+    elif method == "sendVoice":
+        out.append(("voice", files[_attach(payload["voice"], files, "voice", used)]))
+        if "duration" in payload:
+            fields.append(("duration", _int(payload["duration"], 1, 36000)))
+    elif method == "sendDocument":
+        out.append(("document", files[_attach(payload["document"], files, "document", used)]))
+    elif method == "sendMessage":
+        html = "parse_mode" in payload
+        fields.append(("text", _caption(payload["text"], TEXT_MAX * (HTML_SLACK if html else 1))))
+        if "link_preview_options" in payload:
+            fields.append(("link_preview_options", _preview(payload["link_preview_options"])))
+    elif method == "sendPoll":
+        fields.extend(_poll(payload))
+    elif method == "getChatMember":
+        fields.append(("user_id", _int(payload["user_id"], 1, 2**53)))
     elif method == "sendMediaGroup":
         media = payload["media"]
         if not isinstance(media, list) or not 2 <= len(media) <= MAX_FILES:
             raise Refused("payload_not_allowed")
         items = []
         for m in media:
-            if not isinstance(m, dict) or set(m) - {"type", "media", "caption"}:
+            if not isinstance(m, dict) or set(m) - {"type", "media", "caption", "parse_mode"}:
                 raise Refused("payload_not_allowed")
             if m.get("type") not in ("photo", "video"):
                 raise Refused("payload_not_allowed")
             part = _attach(m.get("media"), files, m["type"], used)
             item = {"type": m["type"], "media": f"attach://{part}"}
             if "caption" in m:
-                item["caption"] = _caption(m["caption"], CAPTION_MAX)
+                cap_max = CAPTION_MAX * (HTML_SLACK if "parse_mode" in m else 1)
+                item["caption"] = _caption(m["caption"], cap_max)
+            if "parse_mode" in m:
+                item["parse_mode"] = _html(m["parse_mode"])
             items.append(item)
             out.append((part, files[part]))
         fields.append(("media", json.dumps(items, ensure_ascii=False)))
     elif method == "deleteMessage":
         fields.append(("message_id", _int(payload["message_id"], 1, 2**53)))
     if "caption" in payload:
-        fields.append(("caption", _caption(payload["caption"], CAPTION_MAX)))
+        cap_max = CAPTION_MAX * (HTML_SLACK if "parse_mode" in payload else 1)
+        fields.append(("caption", _caption(payload["caption"], cap_max)))
+    if "parse_mode" in payload:
+        fields.append(("parse_mode", _html(payload["parse_mode"])))
+    if "reply_markup" in payload:
+        fields.append(("reply_markup", _markup(payload["reply_markup"])))
+    for flag in ("disable_notification", "show_caption_above_media"):
+        if flag in payload:
+            fields.append((flag, _bool(payload[flag])))
     if set(files) - used:
         raise Refused("file_mismatch")  # every uploaded file is used, and only once
     return fields, out
@@ -400,6 +575,8 @@ def telegram_request(
 def _form_value(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, dict | list):
+        return json.dumps(value, ensure_ascii=False)  # (reply_markup, a poll's options …)
     return str(value)
 
 
@@ -439,8 +616,15 @@ def _message(result: Any) -> dict[str, Any]:
 
 
 def telegram_result(method: str, result: Any) -> Any:
-    if method in ("sendVideo", "sendPhoto"):
+    if method in ("sendVideo", "sendPhoto", "sendMessage", "sendVoice", "sendDocument", "sendPoll"):
         return _message(result)
+    if method == "getChatMember" and isinstance(result, dict):
+        # ⟨2026-11-19⟩ the bot's own rights in the channel (a page's posts wait until it may post)
+        raw = result.get("user")
+        user: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        return {"status": result.get("status"), "user_id": user.get("id"),
+                "can_post_messages": result.get("can_post_messages"),
+                "can_edit_messages": result.get("can_edit_messages")}  # fmt: skip
     if method == "sendMediaGroup":
         msgs = [_message(m) for m in result] if isinstance(result, list) else []
         first = msgs[0] if msgs else {}

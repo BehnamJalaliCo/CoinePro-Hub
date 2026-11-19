@@ -101,8 +101,19 @@ class Fakes:
         if method == "sendMediaGroup":
             return httpx.Response(200, json={"ok": True, "result": [
                 {**msg, "message_id": 43}, {**msg, "message_id": 44}]})  # fmt: skip
-        if method in ("sendVideo", "sendPhoto"):
+        if method in (
+            "sendVideo",
+            "sendPhoto",
+            "sendMessage",
+            "sendVoice",
+            "sendDocument",
+            "sendPoll",
+        ):
             return httpx.Response(200, json={"ok": True, "result": msg})
+        if method == "getChatMember":
+            return httpx.Response(200, json={"ok": True, "result": {
+                "status": "administrator", "user": {"id": 1, "is_bot": True},
+                "can_post_messages": True, "can_edit_messages": True}})  # fmt: skip
         if method == "getChat":
             return httpx.Response(200, json={"ok": True, "result": {
                 "id": -1001234567890, "type": "channel", "username": "coine_channel",
@@ -275,6 +286,64 @@ async def test_get_me_and_get_chat_are_reads_with_a_few_fields(egress: Any) -> N
 
 
 V = {"file0": (MP4, "video/mp4")}
+OGG = b"OggS" + bytes(60)
+PDF = b"%PDF-1.7\n" + bytes(60)
+
+
+async def test_a_pages_own_post_html_link_buttons_a_voice_a_document_a_poll(egress: Any) -> None:
+    """⟨2026-11-19⟩ a page's Telegram channel: HTML text with link buttons, a voice note, a PDF,
+    an anonymous poll, and the bot's own rights read before the first post."""
+    c, fakes = egress
+    keys = {"inline_keyboard": [[{"text": "اینستاگرام", "url": "https://www.instagram.com/x"},
+                                 {"text": "یوتیوب", "url": "https://www.youtube.com/@x"}]]}  # fmt: skip
+    text = (
+        '<b>خبر</b> <a href="https://openai.com/x">منبع</a>\n<pre><code>pip install x</code></pre>'
+    )
+    r = await post(c, tg("sendMessage", {"chat_id": "@coine_channel", "text": text, "parse_mode": "HTML",
+                                         "reply_markup": keys, "disable_notification": True,
+                                         "link_preview_options": {"is_disabled": True}}))  # fmt: skip
+    out = r.json()
+    assert (out["outcome"], out["data"]["message_id"]) == ("ok", 42), out
+    sent = json.loads(fakes.seen[-1].content)
+    assert sent == {"chat_id": "@coine_channel", "text": text, "link_preview_options": {"is_disabled": True},
+                    "parse_mode": "HTML", "reply_markup": keys, "disable_notification": True}  # fmt: skip
+    assert out["entries"][0]["class"] == "A3"
+    one = {"file0": (OGG, "audio/ogg")}
+    r = await post(c, tg("sendVoice", {"chat_id": "@coine_channel", "voice": "attach://file0",
+                                       "caption": "<i>یک دقیقه</i>", "parse_mode": "HTML", "duration": 58,
+                                       "reply_markup": keys}, one), one)  # fmt: skip
+    assert r.json()["outcome"] == "ok", r.json()
+    form = fakes.form(fakes.seen[-1])
+    assert (
+        form["voice"] == OGG
+        and form["parse_mode"] == b"HTML"
+        and json.loads(form["reply_markup"]) == keys
+    )
+    assert b'filename="voice.ogg"' in fakes.seen[-1].content
+    doc = {"file0": (PDF, "application/pdf")}
+    r = await post(c, tg("sendDocument", {"chat_id": "@coine_channel", "document": "attach://file0",
+                                          "caption": "چیت‌شیت"}, doc), doc)  # fmt: skip
+    assert r.json()["outcome"] == "ok" and fakes.form(fakes.seen[-1])["document"] == PDF
+    r = await post(c, tg("sendPoll", {"chat_id": "@coine_channel", "question": "کدوم؟",
+                                      "options": ["GPT", {"text": "Gemini"}], "type": "quiz",
+                                      "correct_option_id": 1, "explanation": "<b>چون</b>",
+                                      "explanation_parse_mode": "HTML", "is_anonymous": True}))  # fmt: skip
+    assert r.json()["outcome"] == "ok", r.json()
+    sent = json.loads(fakes.seen[-1].content)
+    assert (
+        sent["options"] == [{"text": "GPT"}, {"text": "Gemini"}] and sent["correct_option_id"] == 1
+    )
+    assert "is_anonymous" not in sent and sent["type"] == "quiz"
+    r = await post(c, tg("getChatMember", {"chat_id": "@coine_channel", "user_id": 1}))
+    assert r.json()["data"] == {"status": "administrator", "user_id": 1, "can_post_messages": True,
+                                "can_edit_messages": True}  # fmt: skip
+    assert r.json()["entries"][0]["class"] == "A0"
+    group = {"file0": (JPG, "image/jpeg"), "file1": (PNG, "image/png")}
+    r = await post(c, tg("sendMediaGroup", {"chat_id": "@coine_channel", "media": [
+        {"type": "photo", "media": "attach://file0", "caption": "<b>جدول</b>", "parse_mode": "HTML"},
+        {"type": "photo", "media": "attach://file1"}]}, group), group)  # fmt: skip
+    assert r.json()["outcome"] == "ok", r.json()
+    assert json.loads(fakes.form(fakes.seen[-1])["media"])[0]["parse_mode"] == "HTML"
 
 
 @pytest.mark.parametrize(
@@ -293,7 +362,7 @@ V = {"file0": (MP4, "video/mp4")}
         ),
         (
             "sendVideo",
-            {"chat_id": "@coine_channel", "video": "attach://file0", "parse_mode": "HTML"},
+            {"chat_id": "@coine_channel", "video": "attach://file0", "parse_mode": "MarkdownV2"},
             V,
             None,
             "payload_not_allowed",
@@ -364,7 +433,98 @@ V = {"file0": (MP4, "video/mp4")}
         ),
         ("sendStory", {"chat_id": "@coine_channel"}, {}, None, "method_not_allowed"),
         ("postStory", {"chat_id": "@coine_channel"}, {}, None, "method_not_allowed"),
-        ("sendMessage", {"chat_id": "@coine_channel", "text": "x"}, {}, None, "method_not_allowed"),
+        (
+            "sendMessage",
+            {"chat_id": "@coine_channel", "text": "x", "parse_mode": "Markdown"},
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        # ⟨2026-11-19⟩ link buttons only, https only; a channel's poll is anonymous; a quiz names its answer
+        (
+            "sendMessage",
+            {
+                "chat_id": "@coine_channel",
+                "text": "x",
+                "reply_markup": {"inline_keyboard": [[{"text": "b", "callback_data": "x"}]]},
+            },
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        (
+            "sendMessage",
+            {
+                "chat_id": "@coine_channel",
+                "text": "x",
+                "reply_markup": {
+                    "inline_keyboard": [[{"text": "b", "url": "http://plain.test/x"}]]
+                },
+            },
+            {},
+            None,
+            "url_not_allowed",
+        ),
+        (
+            "sendMessage",
+            {
+                "chat_id": "@coine_channel",
+                "text": "x",
+                "reply_markup": {
+                    "inline_keyboard": [[{"text": "b", "url": "https://a.test", "pay": True}]]
+                },
+            },
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        (
+            "sendMessage",
+            {"chat_id": "@coine_channel", "text": "x" * 8193, "parse_mode": "HTML"},
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        (
+            "sendPoll",
+            {
+                "chat_id": "@coine_channel",
+                "question": "q",
+                "options": ["a", "b"],
+                "is_anonymous": False,
+            },
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        (
+            "sendPoll",
+            {"chat_id": "@coine_channel", "question": "q", "options": ["a"]},
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        (
+            "sendPoll",
+            {"chat_id": "@coine_channel", "question": "q", "options": ["a", "b"], "type": "quiz"},
+            {},
+            None,
+            "payload_not_allowed",
+        ),
+        (
+            "sendVoice",
+            {"chat_id": "@coine_channel", "voice": "attach://file0"},
+            {"file0": (JPG, "audio/ogg")},
+            None,
+            "file_mismatch",
+        ),
+        (
+            "sendDocument",
+            {"chat_id": "@coine_channel", "document": "attach://file0"},
+            V,
+            None,
+            "file_mismatch",
+        ),
         ("forwardMessage", {"chat_id": "@coine_channel"}, {}, None, "method_not_allowed"),
     ],
 )
