@@ -5,7 +5,9 @@ One topic per reel, never twice. Three lanes, one per daily reel:
 - **afternoon** (reel 3, «ریلز سوم», 17:00 Tehran): how things really work, tech wonders, engineering, Iran's
   own ingenious inventions (qanats, windcatchers, windmills …);
 - **evening** (reel 2, «ریلز دوم»): true stories, mysteries, inventions by accident, history's strange moments,
-  entertainment.
+  entertainment. ⟨2026-11-20⟩ the owner: «ریلز دوم» is now the world's trend of the day (lane **trend**, README
+  step 1T: the session finds it in Google Trends and Wikipedia's most read, adds it as a new row at the end and
+  marks it); this lane is its fallback on a day with no fit trend.
 
 Every row is a TRUE fact with its source, and its **ending**: what happened in the end, how it stands today, or
 one closing fact — the reel's ending is built on it (README: «the ending answers what happened and how things are
@@ -21,7 +23,7 @@ fear-mongering.
   order's «انتشار خودکار …») → `used:2026-11-19:noon`. That writes this file's status column on the workshop
   (the ONE kit file a session changes; `sync.sh` keeps every status that is not `free`).
 - `topic.py day today` lists the topics published today, Tehran (the stories' 10:00 teaser reads it).
-- Statuses: `free` · `used:<date>:<slot>` · `taken` (the hub's ledger refused it) · `sample:<date>`.
+- Statuses: `free` · `used:<date>:<slot>` (slot noon|afternoon|evening|trend) · `taken` (the hub's ledger refused it) · `sample:<date>`.
 - New topics go at the END with the next number (with their ending and source); never reorder, renumber or delete a
   row. `topic.py check` must pass.
 

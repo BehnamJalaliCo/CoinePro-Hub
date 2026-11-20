@@ -3,14 +3,16 @@
 
 usage (python3 -I KIT/tools/topic.py …; stdlib only):
   next --slot noon|afternoon|evening
-                                  the first `free` row of the slot's lane (another lane's when it is used up)
-  mark <#> --slot noon|afternoon|evening --publish "۲۸ آبان"
+                                  the first `free` row of the slot's lane (another lane's when it is used up);
+                                  `trend` rows are added day by day by «ریلز دوم» (README step 1T), never taken here
+  mark <#> --slot noon|afternoon|evening|trend --publish "۲۸ آبان"
                                   the topic is taken for that publish day: the day and month exactly as the order
                                   writes them (Jalali; the nearest such date to today) -> used:<YYYY-MM-DD>:<slot>
   mark <#> <status>               set a row's status: used:<YYYY-MM-DD>:<slot> · taken · free · sample:<date>
   day today|<YYYY-MM-DD>|"۲۸ آبان"  the topics marked for that publish day (the stories' teaser: `day today`)
   check                           the table is sound (columns, numbers, statuses); exit 1 otherwise
-  merge <old topics.md>           (sync.sh) this file with every non-free status of the old copy, to stdout
+  merge <old topics.md>           (sync.sh) this file with every non-free status of the old copy, and every row
+                                  the old copy added at its end (the day's trends, invented topics), to stdout
   --file PATH                     another topics.md (default: the kit's own)
 
 The status column is the ONLY thing a session changes in the kit (README step 1). A mark takes a lock and
@@ -26,8 +28,8 @@ from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROW = re.compile(r"^\|\s*(\d+)\s*\|")
-STATUS = re.compile(r"^(free|taken|used:\d{4}-\d{2}-\d{2}:(noon|afternoon|evening)|sample:\d{4}-\d{2}-\d{2})$")
-LANES = ("noon", "afternoon", "evening")
+STATUS = re.compile(r"^(free|taken|used:\d{4}-\d{2}-\d{2}:(noon|afternoon|evening|trend)|sample:\d{4}-\d{2}-\d{2})$")
+LANES = ("noon", "afternoon", "evening", "trend")  # trend: ⟨2026-11-20⟩ the owner, the world's trend of the day
 COLS = ("#", "status", "lane", "topic", "hook", "payoff", "ending", "source")
 
 
@@ -147,6 +149,13 @@ def main():
                 c = r["cells"]
                 c[1] = st
                 lines[r["line"]] = "| " + " | ".join(c) + " |"
+        # the rows the workshop's copy added at its end (the day's trends, invented topics): kept, in order
+        have = {r["n"] for r in rows(new)}
+        extra = ["| " + " | ".join(r["cells"]) + " |" for r in rows(open(args[1], encoding="utf-8").read())
+                 if r["n"] not in have]  # fmt: skip
+        if extra:
+            last = max(r["line"] for r in rows(new))
+            lines[last + 1 : last + 1] = extra
         sys.stdout.write("\n".join(lines) + "\n")
         return
     lock = open(path + ".lock" if os.access(os.path.dirname(os.path.abspath(path)), os.W_OK) else os.devnull, "a")
@@ -162,9 +171,11 @@ def main():
         sys.exit(1 if errs else 0)
     if cmd == "next":
         slot = args[args.index("--slot") + 1] if "--slot" in args else "noon"
+        if slot == "trend":
+            sys.exit("trend: README step 1T finds the day's trend, adds it at the end and marks it")
         if slot not in LANES:
             sys.exit("--slot noon|afternoon|evening")
-        rs = [r for r in rows(text) if r["cells"][1] == "free"]
+        rs = [r for r in rows(text) if r["cells"][1] == "free" and r["cells"][2] != "trend"]
         pick = next((r for r in rs if r["cells"][2] == slot), None) or (rs[0] if rs else None)
         if pick is None:
             sys.exit("the bank is used up: invent a topic in the same spirit, add it at the end, then mark it")
@@ -175,7 +186,7 @@ def main():
         if "--publish" in args:
             slot = args[args.index("--slot") + 1] if "--slot" in args else ""
             if slot not in LANES:
-                sys.exit("--slot noon|afternoon|evening")
+                sys.exit("--slot noon|afternoon|evening|trend")
             st = f"used:{day_of(args[args.index('--publish') + 1]).isoformat()}:{slot}"
         else:
             st = args[2]

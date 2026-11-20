@@ -4,8 +4,8 @@ The owner, 2026-11-17: «تنها اتوماسیونی که جواب نگرفت�
 نظرم اینه که محتوا سرگرمی یا علمی بسازیم یا محتوایی که مخاطب تا ثانیه آخر میخکوب بشه و روی ویدیو تبلیغات کانال
 تلگرام رو بذاریم و آخرش بگیم اسپانسر این ویدیو ipoxxo پروکسی و vpn کاملا رایگان، لینکشو میخوای تو کپشن نوشتم».
 
-So the page posts NO direct ads any more. Every reel is a gripping 30–60 s story of science, curiosity, a
-mystery or a true story, and the FREE Telegram channel **t.me/ipoxxo** (free proxies and VPN configs) is its
+So the page posts NO direct ads any more. Every reel is a gripping 75–90 s story of science, curiosity, a
+mystery, a true story or the world's trend of the day, and the FREE Telegram channel **t.me/ipoxxo** (free proxies and VPN configs) is its
 **sponsor**: a readable badge on the video, the sponsor line in the voice right after the ending, an end card,
 and the link in the caption. Any comment still gets the channel's link in a DM.
 
@@ -14,7 +14,12 @@ The owner, 2026-11-18, on the first sample: «خیلی برام جذاب بود 
 the sponsor line, the story is closed (the rule below).
 
 Three reels a day from 2026-11-19: «ریلز اول» 12:00 (lane `noon`), «ریلز سوم» 17:00 (lane `afternoon`),
-«ریلز دوم» in the evening (lane `evening`).
+«ریلز دوم» in the evening (lane `trend`, the world's trend of the day; the bank's `evening` lane only when no
+trend is fit).
+
+The owner, 2026-11-20: «برای پیج ipoxxo.vpn باید مطالب ترند روز دنیا مثل GTA6 که کلی ترند شده مطلب بذاری و
+اصلا هرچی فکت باحاله در مورد ترندای دنیا بذاری همینایی هم که میزاری عالیه و درضمن ویدیو رو تا ۹۰ ثانیه کش بده».
+So «ریلز دوم» is **the world's trend of the day** (step 1T below) and **every reel runs 75–90 s**.
 
 You are the day's session, started the evening before (your order's title says «ریلز اول», «ریلز دوم» or
 «ریلز سوم»; its note names your lane). Work alone: never `order.ask`, never wait for an
@@ -44,7 +49,7 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
 - **True facts only.** Every number and claim from a source you checked today; the sources in NOTES.md. When
   sources disagree, say the careful version («حدود», «تقریباً»). No politics, sanctions, legal matters, war as a
   subject, religion, medical advice or fear-mongering; nothing about any government or country's rules.
-- **Length 30–60 s** (what the story needs); 1080×1920, 60 fps. Voice «Cruz» by `speech.make`, NO style, NO
+- **Length 75–90 s** (the owner, 2026-11-20: «تا ۹۰ ثانیه»; never over 90 s); 1080×1920, 60 fps. Voice «Cruz» by `speech.make`, NO style, NO
   narrator.set; casual Persian with «تو». Font IRANYekanX Eco only; Persian digits on screen; NO full stop,
   «،» or «؛» at the end of on-screen text.
 - **Every reel looks different** (DIRECTION §5, the look of the day) and premium: AI stills from ChatGPT AND
@@ -70,21 +75,41 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
    `cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/`;
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`.
 1. **Topic:** the order's «ریلز اول» → `--slot noon` (science, curiosity), «ریلز سوم» → `--slot afternoon` (how
-   things really work, tech wonders), «ریلز دوم» → `--slot evening` (true story, mystery, entertainment): `python3 -I KIT/tools/topic.py next --slot <slot>` → `topic.claim`
+   things really work, tech wonders), «ریلز دوم» → **step 1T, the trend of the day** (only when no trend is fit:
+   `--slot evening`, a true story, mystery, entertainment): `python3 -I KIT/tools/topic.py next --slot <slot>` → `topic.claim`
    «ipoxxo: <topic>»; refused = `topic.py mark <#> taken`, then `next` again. Claimed:
    `topic.py mark <#> --slot <slot> --publish "<the day and month of your order's «انتشار خودکار …», e.g. ۲۸ آبان>"`
    (→ `used:<YYYY-MM-DD>:<slot>`; the stories' 10:00 teaser reads it). → `out/topic.txt` (line 1 the topic; line 2
    «سبک: <the look, 3–6 words>»). Used up: invent one in the same spirit, add it at the end of topics.md with
    the next number and its source (`topic.py check` must pass), then claim and mark it.
+1T. **«ریلز دوم»: the world's trend of the day** (the owner, 2026-11-20, e.g. GTA 6). Read what the world is
+   searching and reading NOW (curl with a browser User-Agent, `-L --compressed -m 20`):
+   - Google Trends, the day's searches: `https://trends.google.com/trending/rss?geo=US`, then `geo=GB`, `DE`,
+     `JP`, `BR`, `IN` (the `<title>` of every `<item>`; `<ht:approx_traffic>` is its size);
+   - Wikipedia's most read of yesterday: `https://api.wikimedia.org/feed/v1/wikipedia/en/featured/<YYYY/MM/DD>`
+     (`mostread.articles[].normalizedtitle`, `views`; e.g. 2026-11-19: «Grand Theft Auto VI» first).
+   Take the ONE trend that is big in more than one list and makes a gripping reel with **cool, true facts** a
+   Persian viewer (16–35) loves: games (GTA 6), films and series, music, sport feats and records, tech launches
+   and gadgets, space, viral moments, internet culture, the world's wonders in the news. Never politics,
+   elections, war, crime, a death or illness, a disaster, a scandal or gossip about a private life, religion,
+   money advice (the owner's rules above stand). The reel is NOT news: it is «what is this trend and the
+   most surprising facts behind it» (how GTA 6 was made, its budget, its map, its record trailer…), with its
+   ending (where it stands today, what comes next, one closing line). The same trend twice: never (the
+   no-repeat list); a new angle of a still-hot trend only after 7 days.
+   Add the topic as a new row at the END of topics.md (lane `trend`, the next number, hook, payoff, ending and
+   the source you read it from; `topic.py check` must pass), `topic.claim` «ipoxxo: <topic>», then
+   `topic.py mark <#> --slot trend --publish "<the day and month>"`. NOTES.md names the lists and their
+   rank. Nothing fit today: `--slot evening` from the bank (step 1).
 2. **Facts:** ONE `substitute.call` seat `quick_search` (player deepseek) asking for the topic's key facts and
    numbers, AND how the story ended and how it stands today, with their sources; open/compare with the row's `source`. Write the facts you will use and their
    links in NOTES.md. A fact you cannot confirm is left out. (Refused or down: the row's source and only what
    you are sure of.)
 3. **Script** (yours; ChatGPT may draft, `substitute.call` player gpt, seat content_draft): one line per beat,
-   **110–125 words** (Cruz reads about 2.2 words a second; the example: 127 words ≈ 57 s), the hook first, the
-   question by a third, a new fact every line, the payoff, THE ENDING (2–3 short lines: what happened in the
-   end, how it is today, the closing line), then the sponsor line exactly. Over 60 s: cut a middle beat, never
-   the ending. Names and numbers as they are SAID, in Persian letters («دوازده کیلومتر», «اورست»); the
+   **165–195 words** (Cruz reads about 2.2 words a second: the example's 127 words ≈ 57 s, so 165–195 ≈ 75–89 s),
+   the hook first, the question by a third, a new fact every line (a 90 s reel holds 2–3 more facts and a second
+   surprise, never padding), the payoff, THE ENDING (2–3 short lines: what happened in the end, how it is
+   today, the closing line), then the sponsor line exactly. The final voice must be 75–90 s: over 90 s cut a
+   middle beat, never the ending; under 75 s add a true fact. Names and numbers as they are SAID, in Persian letters («دوازده کیلومتر», «اورست»); the
    screen shows digits (`CONFIG.caps`). → `script/voice.txt`.
 4. **Voice:** `speech.make` (Cruz), the WHOLE script in one call. QC, in this order (a take that fails any step is
    remade with a new `speech.make`, the WHOLE script; never splice, never trim by hand — the owner, 2026-11-17):
@@ -102,7 +127,7 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
 5. **The look of the day** (DIRECTION §5: N = the day of the year, +3 for the evening reel → transition
    family, camera, support accent, music mood) and **inspiration** (DIRECTION §1.1, 3–5 Pinterest queries on the
    topic's visual world and on premium documentary motion design). One line in `direction/CONTRACT.md`.
-6. **Key art: at least 6 stills, every brief to BOTH players.** `substitute.call` seat creative, kind image,
+6. **Key art: at least 8 stills (a 90 s reel), every brief to BOTH players.** `substitute.call` seat creative, kind image,
    placement other, once with player **gpt** and once with player **gemini**, the same brief (DIRECTION §2):
    photoreal or premium 3D, the topic's TRUE colours (not the brand's navy), 9:16, "no text, no letters, no
    numbers, no logos". Send them all at once and end the turn (`order.progress` «تصویرها در راه است»): the
@@ -110,7 +135,7 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
    shown wrong, warped, text in it): ask again saying what was wrong (≤ 2 more). A subject that must move
    on its own plane: `PY -I KIT/tools/cutout.py in/x.png assets/use/x.png --trim`. The kept ones →
    `assets/use/<name>.jpg|png` (the stage calls them by name). A texture for a whole world (strata, a
-   starfield, a city map) is worth one of the six.
+   starfield, a city map) is worth one of the eight.
 7. **Contract:** `direction/CONTRACT.md` — the idea and why it holds to the last second, the look, the
    question and where it is paid off, the shot list on the word times (an interrupt every 2–4 s), the stills
    per shot, the transitions, the sound mood. Then `NOTES.md`.
@@ -129,7 +154,7 @@ ASR = build/asr/venv/bin/python; M = the Whisper model: `M=$(ls -d build/asr/mod
     bed in the day's mood, soft swishes on the designed transitions, the drop on the payoff, −14 LUFS) →
     `ASR -I tools/audio_qc.py build/mix.wav qc/mix.audioqc.json`: 0 clicks, 0 cuts, 0 bursts.
 11. **Render once:** `PY -I KIT/motion/reel.py --render --workers 2 --chunks 8 --fps 60` (resumable; about
-    3–4 minutes for 55 s) → `PY -I KIT/motion/reel.py --encode --audio build/mix.wav --out out/video.mp4`.
+    5–7 minutes for 85 s) → `PY -I KIT/motion/reel.py --encode --audio build/mix.wav --out out/video.mp4`.
     Then: `--sheet --step 2` (→ qc/contact_sheet.jpg: read it whole) and `--frames 8` (→ build/final_frames.jpg);
     the file's own audio: `ffmpeg -v error -i out/video.mp4 -vn -ac 1 build/final_audio.wav` → audio_qc = 0/0/0;
     the tail: `ffmpeg -sseof -2.5 -i out/video.mp4 -af astats=metadata=1:reset=1 -f null -` (the peak falls).
@@ -185,7 +210,8 @@ output short (`| tail -3`). Under `nice`.
   (the music bed, the swishes, the mix).
 - `tools/topic.py` (the bank), `tools/cutout.py` (cut-outs, the ISNet model in /home/studio/kits/models),
   `tools/cover_title.py` (a cover's title set by us).
-- `topics.md` — the bank (282 topics, three lanes, each with its ending and source).
+- `topics.md` — the bank (282 topics, three lanes, each with its ending and source; the `trend` rows are
+  added day by day by «ریلز دوم», step 1T).
 - `example/` — the reference reel (Kola Superdeep Borehole, v2 with its ending, published 2026-11-18 21:30):
   scenes.js, voice.txt, NOTES.md, CONTRACT.md, contact_sheet.jpg, caption.txt, comment.txt; its stills are in
   /home/studio/kits/ipoxxo-reels/example/assets (not in git).
