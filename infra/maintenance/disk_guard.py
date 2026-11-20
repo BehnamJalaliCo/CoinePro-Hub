@@ -287,8 +287,8 @@ SINCE_SQL = """(SELECT ((date_trunc('day', now() AT TIME ZONE z) - interval '1 d
 def posted_days_ago() -> None:
     """Every other file of a publication (a story's picture, a cover, a set's frame, the thumbnail, the
     kept caption, their thumb/poster/frame children) and its archive copies leave the disk once every
-    publication using it is posted (with its post's URL/id) or cancelled, at least one is posted, every
-    one's time is before the owner's yesterday, no publish job still carries it, and a reel's Short is
+    publication using it is final (posted with its post's URL/id, cancelled or failed), every one's time
+    is before the owner's yesterday, no publish job still carries it, and a reel's Short is
     uploaded. The app no longer shows these (publications.SHOWN_SQL)."""
     rows = sql(f"""
         WITH since AS (SELECT {SINCE_SQL} AS s),
@@ -301,7 +301,7 @@ def posted_days_ago() -> None:
                      WHERE e ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$'
               UNION SELECT unnest(k.kept) FROM files.publish_keep k WHERE p.chain @> ARRAY[k.job_id]) x)
         SELECT f.id::text AS id, f.storage_key AS key, f.sha256 AS sha,
-               bool_and(p.state IN ('published', 'cancelled') AND p.at < (SELECT s FROM since)) AS past,
+               bool_and(p.state IN ('published', 'cancelled', 'failed') AND p.at < (SELECT s FROM since)) AS past,
                bool_or(p.state = 'published') AS posted,
                bool_and(p.state <> 'published' OR coalesce(p.url, p.external_id) IS NOT NULL) AS confirmed,
                json_agg(json_build_object('ref', p.ref, 'state', p.state, 'account', p.account, 'kind', p.kind,
@@ -316,7 +316,8 @@ def posted_days_ago() -> None:
     )
     shorts = {acc: load(p).get("uploads") or {} for acc, p in SHORTS.items()}
     for f in rows:
-        if not (f["past"] and f["posted"] and f["confirmed"]) or f["id"] in busy:
+        # a cancelled or failed one is final too: the app no longer shows it, nothing will send it
+        if not (f["past"] and f["confirmed"]) or f["id"] in busy:
             continue
         if short_waits(f["pubs"], f["sha"], shorts):
             continue
@@ -330,7 +331,7 @@ def posted_days_ago() -> None:
                 rm(path)
                 gone.append(key)
         if gone:
-            note("posted media", str(FILES / f["key"][:2] / f["key"]), size, "posted, before yesterday",
+            note("past media", str(FILES / f["key"][:2] / f["key"]), size, "final, before yesterday",
                  file_id=f["id"], files=len(gone), publications=[p["ref"] for p in f["pubs"]],
                  posts=[p["url"] for p in f["pubs"] if p["state"] == "published"])  # fmt: skip
     # the §58.4 archive records of those publications: every copy (the video, the cover, caption.txt)
@@ -344,10 +345,10 @@ def posted_days_ago() -> None:
          WHERE r.destroyed_at IS NULL
            AND EXISTS (SELECT 1 FROM media.publications p WHERE p.chain @> ARRAY[k.job_id])
            AND NOT EXISTS (SELECT 1 FROM media.publications p WHERE p.chain @> ARRAY[k.job_id]
-                            AND (p.state NOT IN ('published', 'cancelled') OR p.at >= (SELECT s FROM since)))""")
+                            AND (p.state NOT IN ('published', 'cancelled', 'failed') OR p.at >= (SELECT s FROM since)))""")
     for c in copies:
         try:
-            destroy_copy(c, "posted, before yesterday")
+            destroy_copy(c, "final, before yesterday")
         except Exception as exc:  # one copy failing never stops the others
             say(f"archive copy {c['id']} not destroyed: {exc}")
 
