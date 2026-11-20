@@ -18,6 +18,7 @@
 #        HQ_MEDIA=on|off        the media render worker (opt-in profile "media"; else .env)
 #        HQ_OCR=on|off          the archive's OCR (opt-in profile "ocr"; else .env)
 #        HQ_NEWSLETTER=on|off   the newsletter (opt-in profile "newsletter"; else .env)
+#        HQ_WEB=off             the web panel stays off even with apps/web/Dockerfile (else .env; 2026-11-20)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -116,8 +117,11 @@ HQ_HUB_ADDRESSES="${HQ_HUB_ADDRESSES:-$(hub_addresses || true)}"
 export HQ_HUB_ADDRESSES
 # The web panel (prompt 05 §10) runs once apps/web/Dockerfile exists: profile
 # "web", and Caddy sends every path but /api to it (HQ_WEB).
+# ⟨2026-11-20⟩ the owner shut the web and the app down («خاموشی»): HQ_WEB=off in .env (or the
+# environment) keeps it off even with the Dockerfile there; Caddy then serves the static page.
 profile_args=(--profile "$profile")
-if [[ -f "$COMPOSE_DIR/../../apps/web/Dockerfile" ]]; then
+web_switch="${HQ_WEB:-$(sed -n 's/^HQ_WEB=//p' "$ENV_FILE" 2>/dev/null | tail -n1)}"
+if [[ "$web_switch" != off && -f "$COMPOSE_DIR/../../apps/web/Dockerfile" ]]; then
   export HQ_WEB=on
   profile_args+=(--profile web)
 else
