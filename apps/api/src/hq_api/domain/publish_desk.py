@@ -8,7 +8,8 @@ Nothing new is stored: an output's files are the package, the `publish` jobs are
 - `ready`: an output of the last READY_DAYS that carries a video or a picture and has no
   publication that stands (none at all, or only failed and cancelled ones);
 - `queue`: a publication IG-Hub holds for its time, or that is on its way, soonest first;
-- `done`: what went out, failed or was cancelled in the last DONE_DAYS, newest first.
+- `done`: what went out, failed or was cancelled yesterday or today (Tehran; publications.shown_from,
+  ⟨2026-11-20⟩ the owner; was the last 7 days), newest first.
 
 A report, an analysis or a text has no card: it is nothing to publish, which is no fault.
 
@@ -38,7 +39,6 @@ from hq_api.domain import session_publish as SPB
 from hq_api.domain.gov_common import owner_tz
 
 READY_DAYS = 14
-DONE_DAYS = 7
 OUTPUTS = 80
 JOBS = 400
 SECTION = 30
@@ -167,6 +167,7 @@ def package(files: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 async def desk(tx: Tx, hub: Any, company_id: UUID | None = None) -> PublishDesk:
     now = datetime.now(UTC)
+    since = await PB.shown_from(tx)  # ⟨2026-11-20⟩ «منتشرشده»: yesterday and today only (Tehran)
     jobs = await tx.all(
         f"""SELECT {SPB.JOB_COLS} FROM infra.server_jobs j
             WHERE j.kind = 'publish' AND j.args -> 'session' ->> 'output' IS NOT NULL
@@ -257,7 +258,7 @@ async def desk(tx: Tx, hub: Any, company_id: UUID | None = None) -> PublishDesk:
             at=d["created_at"],
         )
         if live is None:
-            if shown is not None and (shown.at or now) > now - timedelta(days=DONE_DAYS):
+            if shown is not None and (shown.at or now) >= since:
                 # tried and it did not go out (or he took it back): said in «منتشرشده», and the
                 # same output is ready again
                 out.done.append(
@@ -275,7 +276,7 @@ async def desk(tx: Tx, hub: Any, company_id: UUID | None = None) -> PublishDesk:
                 out.held.append(card.model_copy(update={"state": "held", "at": when}))
             else:
                 out.queue.append(card.model_copy(update={"state": live.state, "at": when}))
-        elif (live.published_at or live.at or now) > now - timedelta(days=DONE_DAYS):
+        elif (live.published_at or live.at or now) >= since:
             when = live.published_at or live.at or now
             out.done.append(card.model_copy(update={"state": live.state, "at": when}))
     out.ready = out.ready[:SECTION]

@@ -13,7 +13,11 @@ POST /publications/waiting/{id}/{key}                    its action (a tap; a ca
                                                          envelope: 🔏 automation.budget)
 GET  /publications/{ref}                                 one row, with its set
 
-`404` for an unknown company or account. The fixed paths are declared before `/{ref}`."""
+`404` for an unknown company or account. The fixed paths are declared before `/{ref}`.
+
+⟨2026-11-20⟩ the owner: every read shows a publication only while its time is yesterday or today
+(Tehran) or while it still has to go out (scheduled, publishing, held); older ones answer as if
+absent (`/{ref}`: 404). Their media have left the disk (infra/maintenance/disk_guard.py)."""
 
 from __future__ import annotations
 

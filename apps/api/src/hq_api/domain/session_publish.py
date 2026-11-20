@@ -1925,7 +1925,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             except Exception:  # noqa: BLE001 - the story is out whatever its rule does
                 log.warning("the story's reply rule was not queued", extra={"job": str(job_id)})
         if ok:
-            # ⟨1.36⟩ §58.4 confirmed: its package is kept (filed below), the rest swept in 72 h
+            # ⟨1.36⟩ §58.4 confirmed: its package is kept (filed below), the rest swept in 24 h (72 until 2026-11-20)
             try:
                 async with tx.conn.begin_nested():
                     kept = await PK.on_published(tx, j)

@@ -215,21 +215,7 @@ def posted_videos() -> None:
         elif f["id"] in busy:
             why = "a publish job still carries it"
         else:
-            for p in pubs:
-                if (
-                    p["state"] == "published"
-                    and p["kind"] == "reel"
-                    and p["account"] in SHORTS
-                    and ts(p["published_at"]) > NOW - timedelta(days=SHORTS_DAYS)
-                ):
-                    ups = shorts[p["account"]].values()
-                    if not any(
-                        u.get("status") == "done"
-                        and (u.get("source") == f"instagram:{p['work']}" or u.get("sha") == f["sha"])
-                        for u in ups
-                    ):
-                        why = f"its YouTube Short ({p['account']}) is not uploaded yet"
-                        break
+            why = short_waits(pubs, f["sha"], shorts)
         if why:
             if "--verbose" in sys.argv[1:]:
                 say(
@@ -240,6 +226,36 @@ def posted_videos() -> None:
             purge(f, path, pubs, holds)
         except Exception as exc:  # one file failing never stops the others
             say(f"video {f['id']} not purged: {exc}")
+
+
+def short_waits(pubs: list[dict], sha: str, shorts: dict[str, dict]) -> str | None:
+    """A reel of a page that mirrors its reels to YouTube Shorts whose Short is not uploaded yet."""
+    for p in pubs:
+        at = ts(p.get("published_at") or p.get("at"))
+        if p["state"] == "published" and p["kind"] == "reel" and p["account"] in SHORTS and at \
+                and at > NOW - timedelta(days=SHORTS_DAYS):  # fmt: skip
+            if not any(u.get("status") == "done" and (u.get("source") == f"instagram:{p['work']}" or u.get("sha") == sha)
+                       for u in shorts[p["account"]].values()):  # fmt: skip
+                return f"its YouTube Short ({p['account']}) is not uploaded yet"
+    return None
+
+
+def destroy_copy(c: dict, why: str, **extra: object) -> None:
+    """One archive copy, the archive's way: destroyed_at with the hashes kept, storage_key / wrapped_dek /
+    text cleared (record_files_check1), then the bytes."""
+    if not UUID.fullmatch(c["id"]):
+        return
+    cpath = FILES / c["key"][:2] / c["key"] if KEY.fullmatch(str(c["key"] or "")) else None
+    size = cpath.stat().st_size if cpath and cpath.exists() else 0
+    if not DRY:
+        sql(
+            "UPDATE archive.record_files SET destroyed_at = now(), storage_key = NULL, wrapped_dek = NULL,"
+            f" text = NULL WHERE id = {lit(c['id'])} AND destroyed_at IS NULL",
+            write=True,
+        )
+        if cpath:
+            rm(cpath)
+    note("archive copy", str(cpath), size, why, record=c["record"], **extra)
 
 
 def purge(f: dict, path: Path, pubs: list[dict], holds: int) -> None:
@@ -259,19 +275,81 @@ def purge(f: dict, path: Path, pubs: list[dict], holds: int) -> None:
          WHERE r.sha256 = {lit(f["sha"])} AND r.mime LIKE 'video/%' AND r.destroyed_at IS NULL
            AND a.ref IN (SELECT record_ref FROM files.publish_keep WHERE record_ref IS NOT NULL)""")
     for c in copies:
-        if not UUID.fullmatch(c["id"]):
+        destroy_copy(c, "posted", file_id=f["id"], posts=posts)
+
+
+# ------------------------------------------------------------------ 1b. everything else of a past day
+# Whose time is past the owner's yesterday (Tehran): what the app still shows (publications.SHOWN_DAYS)
+SINCE_SQL = """(SELECT ((date_trunc('day', now() AT TIME ZONE z) - interval '1 day') AT TIME ZONE z)
+                  FROM (SELECT coalesce((SELECT timezone FROM owner.settings WHERE id = 1), 'Asia/Tehran') AS z) t)"""
+
+
+def posted_days_ago() -> None:
+    """Every other file of a publication (a story's picture, a cover, a set's frame, the thumbnail, the
+    kept caption, their thumb/poster/frame children) and its archive copies leave the disk once every
+    publication using it is posted (with its post's URL/id) or cancelled, at least one is posted, every
+    one's time is before the owner's yesterday, no publish job still carries it, and a reel's Short is
+    uploaded. The app no longer shows these (publications.SHOWN_SQL)."""
+    rows = sql(f"""
+        WITH since AS (SELECT {SINCE_SQL} AS s),
+        refs AS (
+          SELECT p.id AS pid, x.fid FROM media.publications p, LATERAL (
+              SELECT unnest(p.file_ids) AS fid
+              UNION SELECT p.thumb_file_id WHERE p.thumb_file_id IS NOT NULL
+              UNION SELECT (e ->> 'file_id')::uuid FROM jsonb_array_elements(
+                       CASE WHEN jsonb_typeof(p.files) = 'array' THEN p.files ELSE '[]'::jsonb END) e
+                     WHERE e ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$'
+              UNION SELECT unnest(k.kept) FROM files.publish_keep k WHERE p.chain @> ARRAY[k.job_id]) x)
+        SELECT f.id::text AS id, f.storage_key AS key, f.sha256 AS sha,
+               bool_and(p.state IN ('published', 'cancelled') AND p.at < (SELECT s FROM since)) AS past,
+               bool_or(p.state = 'published') AS posted,
+               bool_and(p.state <> 'published' OR coalesce(p.url, p.external_id) IS NOT NULL) AS confirmed,
+               json_agg(json_build_object('ref', p.ref, 'state', p.state, 'account', p.account, 'kind', p.kind,
+                        'published_at', p.published_at, 'at', p.at, 'work', p.source ->> 'work',
+                        'url', coalesce(p.url, p.external_id))) AS pubs,
+               (SELECT coalesce(json_agg(c.storage_key), '[]'::json) FROM files.files c WHERE c.parent_id = f.id) AS kids
+          FROM refs r JOIN files.files f ON f.id = r.fid JOIN media.publications p ON p.id = r.pid
+         GROUP BY f.id""")
+    busy = " ".join(
+        r["a"]
+        for r in sql("SELECT args::text AS a FROM infra.server_jobs WHERE state NOT IN ('done', 'failed', 'cancelled')")
+    )
+    shorts = {acc: load(p).get("uploads") or {} for acc, p in SHORTS.items()}
+    for f in rows:
+        if not (f["past"] and f["posted"] and f["confirmed"]) or f["id"] in busy:
             continue
-        cpath = FILES / c["key"][:2] / c["key"] if KEY.fullmatch(str(c["key"] or "")) else None
-        size = cpath.stat().st_size if cpath and cpath.exists() else 0
-        if not DRY:
-            sql(
-                "UPDATE archive.record_files SET destroyed_at = now(), storage_key = NULL, wrapped_dek = NULL,"
-                f" text = NULL WHERE id = {lit(c['id'])} AND destroyed_at IS NULL",
-                write=True,
-            )
-            if cpath:
-                rm(cpath)
-        note("archive copy", str(cpath), size, "posted", record=c["record"], file_id=f["id"], posts=posts)
+        if short_waits(f["pubs"], f["sha"], shorts):
+            continue
+        size, gone = 0, []
+        for key in [f["key"], *f["kids"]]:
+            if not KEY.fullmatch(str(key or "")):
+                continue
+            path = FILES / key[:2] / key
+            if path.exists():
+                size += path.stat().st_size
+                rm(path)
+                gone.append(key)
+        if gone:
+            note("posted media", str(FILES / f["key"][:2] / f["key"]), size, "posted, before yesterday",
+                 file_id=f["id"], files=len(gone), publications=[p["ref"] for p in f["pubs"]],
+                 posts=[p["url"] for p in f["pubs"] if p["state"] == "published"])  # fmt: skip
+    # the §58.4 archive records of those publications: every copy (the video, the cover, caption.txt)
+    if sql("SELECT count(*) AS n FROM archive.holds")[0]["n"]:
+        return
+    copies = sql(f"""
+        WITH since AS (SELECT {SINCE_SQL} AS s)
+        SELECT r.id::text AS id, r.storage_key AS key, a.ref AS record
+          FROM files.publish_keep k JOIN archive.records a ON a.ref = k.record_ref
+          JOIN archive.record_files r ON r.record_id = a.id
+         WHERE r.destroyed_at IS NULL
+           AND EXISTS (SELECT 1 FROM media.publications p WHERE p.chain @> ARRAY[k.job_id])
+           AND NOT EXISTS (SELECT 1 FROM media.publications p WHERE p.chain @> ARRAY[k.job_id]
+                            AND (p.state NOT IN ('published', 'cancelled') OR p.at >= (SELECT s FROM since)))""")
+    for c in copies:
+        try:
+            destroy_copy(c, "posted, before yesterday")
+        except Exception as exc:  # one copy failing never stops the others
+            say(f"archive copy {c['id']} not destroyed: {exc}")
 
 
 # ------------------------------------------------------------------ 2-3. the workshop
@@ -364,7 +442,7 @@ def emergency() -> None:
 
 def main() -> int:
     before = used_pct()
-    for step in (posted_videos, workshop, long_tmps, emergency):
+    for step in (posted_videos, posted_days_ago, workshop, long_tmps, emergency):
         try:
             step()
         except Exception as exc:  # one step failing never stops the others

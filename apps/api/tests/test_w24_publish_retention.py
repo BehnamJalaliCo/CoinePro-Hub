@@ -5,7 +5,7 @@ The owner: «میز انتشار … حجمش زیاد میشه … کاور ا�
 
 A. IG-Hub's confirmed publication keeps its package (the reel, its cover, caption.txt) and files it
    to the archive as the publication's record; the desk's `published` card says so;
-B. 72 hours after, the daily sweep deletes every other file of that output and of the earlier
+B. 24 hours after (72 until 2026-11-20), the daily sweep deletes every other file of that output and of the earlier
    versions of its revision chain (rows, variants and their stored objects queued for
    destruction), except what the owner opened since, what another output or a session uses; one
    audit row per output with the count and the bytes; a second pass does nothing; an output with
@@ -129,9 +129,9 @@ async def test_a_confirmed_publication_keeps_its_package_in_the_archive(
     card = next(c for c in desk["done"] if c["output"] == made["output"])
     assert card["state"] == "published" and card["archived"] is True
     assert card["freed_bytes"] is None
-    # 72 hours later the sweep runs: the other picture goes, the package stays, the card says it
+    # 24 hours later the sweep runs: the other picture goes, the package stays, the card says it
     ids = await hub.companies.ids()
-    got = await PK.sweep(hub, lambda: hub.db.tx(ids), now=datetime.now(UTC) + timedelta(hours=73))
+    got = await PK.sweep(hub, lambda: hub.db.tx(ids), now=datetime.now(UTC) + timedelta(hours=25))
     assert got["outputs"] >= 1
     assert not await exists(su, other)
     assert await exists(su, reel) and await exists(su, cover)
@@ -211,8 +211,8 @@ async def test_the_sweep_takes_the_rest_of_the_chain_and_keeps_what_is_used(
     def txf() -> Any:
         return hub.db.tx(ids)
 
-    # within the 72 hours nothing goes
-    got = await PK.sweep(hub, txf, now=datetime.now(UTC) + timedelta(hours=70))
+    # within the 24 hours nothing goes
+    got = await PK.sweep(hub, txf, now=datetime.now(UTC) + timedelta(hours=22))
     assert await exists(su, notes_v2) and await exists(su, draft)
     assert await su.fetchval(
         "SELECT swept_at FROM files.publish_keep WHERE output = $1", second["ref"]
@@ -228,7 +228,7 @@ async def test_the_sweep_takes_the_rest_of_the_chain_and_keeps_what_is_used(
     keys = []
     for x in (notes_v2, draft, poster):
         keys.append(str(await su.fetchval("SELECT storage_key FROM files.files WHERE id = $1", x)))
-    got = await PK.sweep(hub, txf, now=datetime.now(UTC) + timedelta(hours=73))
+    got = await PK.sweep(hub, txf, now=datetime.now(UTC) + timedelta(hours=25))
     assert got["outputs"] >= 1
     for x in (notes_v2, topic, notes_v1, draft, poster):
         assert not await exists(su, x), x

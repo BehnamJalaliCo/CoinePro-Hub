@@ -1,6 +1,6 @@
 """⟨1.39⟩ Prompt 39 §11 (P1, the publications half; contract §60): every publication is one
 permanent row of media.publications, made where every publication passes and following IG-Hub's
-answers; the backfill (also after a fresh start); the 72-hour sweep keeps a row's files; the desk
+answers; the backfill (also after a fresh start); the 24-hour sweep keeps a row's files; the desk
 tidied; the Persian search; «منتظر شما»; owner only and RLS."""
 
 from __future__ import annotations
@@ -181,6 +181,41 @@ async def test_a_reel_is_one_row_from_its_tap_to_its_link_and_held_then_publishe
     async with hub.db.tx([pc["id"]]) as tx:
         assert await tx.scalar("SELECT count(*) FROM media.publications WHERE ref = :r", r=ref) == 1
 
+    # ⟨2026-11-20⟩ the owner's views show only yesterday and today (Tehran) and what still has to
+    # go out: three days back, the published row leaves every view; the row itself stays
+    old = datetime.now(UTC) - timedelta(days=3)
+    await su.execute(
+        "UPDATE media.publications SET scheduled_at = $2, published_at = $2 WHERE ref = $1",
+        ref,
+        old,
+    )
+    assert (await client.get(f"/api/v1/publications/{ref}", headers=owner)).status_code == 404
+    page = (await client.get("/api/v1/publications", headers=owner, params={"company": co})).json()
+    assert page["items"] == []
+    far = {"from": (old.date() - timedelta(days=1)).isoformat(),
+           "to": (date.today() + timedelta(days=1)).isoformat()}  # fmt: skip
+    tree = (await client.get("/api/v1/publications/tree", headers=owner, params=far)).json()
+    assert all(c["code"] != co for c in tree["companies"])
+    cal = (await client.get("/api/v1/publications/calendar", headers=owner,
+                            params={**far, "company": co})).json()  # fmt: skip
+    assert sum(d["published"] for d in cal["days"]) == 0
+    # still to go out, however old its time: shown
+    await su.execute("UPDATE media.publications SET state = 'held' WHERE ref = $1", ref)
+    assert (await client.get(f"/api/v1/publications/{ref}", headers=owner)).status_code == 200
+    page = (await client.get("/api/v1/publications", headers=owner, params={"company": co})).json()
+    assert [c["ref"] for c in page["items"]] == [ref]
+    # yesterday's: shown
+    async with hub.db.tx([pc["id"]]) as tx:
+        since = await PB.shown_from(tx)
+    assert timedelta(hours=24) <= datetime.now(UTC) - since < timedelta(hours=48)
+    await su.execute(
+        "UPDATE media.publications SET state = 'published', published_at = $2 WHERE ref = $1",
+        ref,
+        since,
+    )
+    assert (await client.get(f"/api/v1/publications/{ref}", headers=owner)).status_code == 200
+    assert await su.fetchval("SELECT count(*) FROM media.publications WHERE ref = $1", ref) == 1
+
 
 # ------------------------------------------------------------- a set --
 def a_slide(i: int) -> bytes:
@@ -304,7 +339,7 @@ async def test_twelve_story_slides_are_one_set_scheduled_then_published(
     assert "pro.chart" in {a for d in cal["days"] for a in d["accounts"]}
 
 
-# ---------------------------------------------------- the 72-hour sweep --
+# ---------------------------------------------------- the 24-hour sweep --
 async def test_the_sweep_never_takes_a_file_a_publication_row_refers_to(
     client: httpx.AsyncClient,
     hub: Hub,

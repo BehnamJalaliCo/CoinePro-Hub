@@ -41,7 +41,7 @@ from hq_api.principal import Principal
 log = logging.getLogger("hq_api.publish_keep")
 
 SERVICE = Principal(kind="service", code="publish_sweep", role="service")
-SWEEP_HOURS = 72
+SWEEP_HOURS = 24  # ⟨2026-11-20⟩ the owner: only yesterday and today stay on the disk (was 72)
 SWEEP_LIMIT = 50  # outputs a pass
 FILE_DAYS = 14  # a package not filed by then is not tried again (its files may be gone)
 CHAIN_MAX = 20  # earlier versions followed back

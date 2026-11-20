@@ -66,6 +66,14 @@ LIST_MAX = 100
 CALENDAR_DEFAULT = 14
 CALENDAR_MAX = 62
 COUNTED = ("published", "scheduled", "held", "failed")
+# ⟨2026-11-20⟩ the owner: «فقط اون مواردی که در همون روز یا دیروزش قرار انتشار داشته باشه اونجا
+# باشه». The owner's views (list, tree, calendar, one row) show a publication only while its time is
+# yesterday or today (Tehran) or while it still has to go out (PENDING); the rest has left the disk
+# (infra/maintenance/disk_guard.py). The rows stay: the no-repeat rule reads them (flows.published_topics).
+SHOWN_DAYS = 2  # today and yesterday
+PENDING = ("scheduled", "publishing", "held")
+# tree() writes the same clause out in its own SQL
+SHOWN_SQL = " AND (p.at >= :shown OR p.state IN ('scheduled', 'publishing', 'held'))"
 DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 ARABIC = str.maketrans({"ي": "ی", "ى": "ی", "ك": "ک"})
 
@@ -1112,6 +1120,15 @@ async def _check_account(tx: Tx, account: str | None) -> str | None:
     return a
 
 
+async def shown_from(tx: Tx) -> datetime:
+    """The start (UTC) of the owner's yesterday: the first moment the app still shows."""
+    from hq_api.domain.gov_common import owner_tz
+    from hq_api.domain.gov_common import today as today_of
+
+    tz = await owner_tz(tx)
+    return day_bounds(today_of(tz) - timedelta(days=SHOWN_DAYS - 1), tz)[0]
+
+
 def day_bounds(day: date, tz: str) -> tuple[datetime, datetime]:
     from hq_api.domain.gov_common import zone
 
@@ -1172,6 +1189,8 @@ async def page(
     co = await _company_id(tx, company)
     acc = await _check_account(tx, account)
     where, args = _filters(co, acc, channel, kind, state, automation)
+    where += SHOWN_SQL
+    args["shown"] = await shown_from(tx)
     tz = await owner_tz(tx)
     if from_ is not None:
         where += " AND p.at >= :lo"
@@ -1198,7 +1217,9 @@ async def page(
 
 
 async def get(tx: Tx, ref: str) -> Publication:
-    row = await tx.first(ROW_SQL + " WHERE p.ref = :r", r=ref)
+    row = await tx.first(
+        ROW_SQL + " WHERE p.ref = :r" + SHOWN_SQL, r=ref, shown=await shown_from(tx)
+    )
     if row is None:
         raise ApiError(404, "not_found", f"publication {ref}")
     r = dict(row)
@@ -1339,25 +1360,31 @@ async def tree(tx: Tx, from_: date | None, to: date | None) -> PublishTree:
     if start > end:
         raise ApiError(422, "validation_failed", fields={"from": "after to"})
     lo, hi = day_bounds(start, tz)[0], day_bounds(end, tz)[1]
+    shown = await shown_from(tx)
     rows = await tx.all(
         """SELECT c.code, coalesce(c.name_fa, c.code) AS name_fa, p.channel, p.account, p.kind,
                   count(*) AS n,
                   count(DISTINCT p.source ->> 'automation') AS automations
            FROM media.publications p JOIN core.companies c ON c.id = p.company_id
            WHERE p.at >= :lo AND p.at < :hi
+             AND (p.at >= :shown OR p.state IN ('scheduled', 'publishing', 'held'))
            GROUP BY c.code, c.name_fa, p.channel, p.account, p.kind
            ORDER BY c.code, p.account, p.kind""",
         lo=lo,
         hi=hi,
+        shown=shown,
     )
     autos = {
         (str(r["code"]), str(r["account"])): int(r["n"])
         for r in await tx.all(
             """SELECT c.code, p.account, count(DISTINCT p.source ->> 'automation') AS n
                FROM media.publications p JOIN core.companies c ON c.id = p.company_id
-               WHERE p.at >= :lo AND p.at < :hi GROUP BY c.code, p.account""",
+               WHERE p.at >= :lo AND p.at < :hi
+                 AND (p.at >= :shown OR p.state IN ('scheduled', 'publishing', 'held'))
+               GROUP BY c.code, p.account""",
             lo=lo,
             hi=hi,
+            shown=shown,
         )
     }
     out: dict[str, TreeCompany] = {}
@@ -1400,11 +1427,12 @@ async def calendar(
     lo, hi = day_bounds(start, tz)[0], day_bounds(end, tz)[1]
     rows = await tx.all(
         f"""SELECT (p.at AT TIME ZONE :tz)::date AS day, p.state, p.account, count(*) AS n
-            FROM media.publications p WHERE p.at >= :lo AND p.at < :hi{where}
+            FROM media.publications p WHERE p.at >= :lo AND p.at < :hi{where}{SHOWN_SQL}
             GROUP BY 1, 2, 3""",  # noqa: S608 - the filters are constants with bound values
         tz=tz,
         lo=lo,
         hi=hi,
+        shown=await shown_from(tx),
         **args,
     )
     days: dict[date, CalendarDay] = {}
