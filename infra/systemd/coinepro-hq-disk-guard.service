@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: disk guard (posted videos, finished workshop folders; emergency at 90%)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /home/Hub/CoinePro-Hub/infra/maintenance/disk_guard.py
+TimeoutStartSec=900
+Nice=15
+IOSchedulingClass=idle

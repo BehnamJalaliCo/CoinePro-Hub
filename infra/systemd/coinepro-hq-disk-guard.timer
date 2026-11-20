@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: disk guard every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=60
+Unit=coinepro-hq-disk-guard.service
+
+[Install]
+WantedBy=timers.target

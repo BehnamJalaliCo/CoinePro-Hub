@@ -4,6 +4,9 @@ Requires=docker.service
 After=docker.service
 
 [Service]
+# 2026-11-20: 3 daily WAL-G base backups on the disk (local PITR over ~2 days, ~4G instead of ~12G);
+# older points in time are in the restic snapshots on Drive (hourly 168, daily 90, weekly 52, monthly 36).
+Environment=HQ_WAL_KEEP_FULL=3
 Type=oneshot
 User=Hub
 Group=Hub

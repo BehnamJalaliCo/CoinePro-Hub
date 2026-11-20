@@ -15,7 +15,7 @@ UNITS=(coinepro-hq-backup.service coinepro-hq-backup.timer
   coinepro-hq-media.service coinepro-hq-media.timer
   coinepro-hq-stt.service coinepro-hq-stt.path
   coinepro-hq-disk-hygiene.service coinepro-hq-disk-hygiene.timer
-  coinepro-hq-workshop-clean.service coinepro-hq-workshop-clean.timer
+  coinepro-hq-disk-guard.service coinepro-hq-disk-guard.timer
   coinepro-hq-hubops.service coinepro-hq-hubops.timer
   dotcoin-site-sync.service dotcoin-site-sync.timer)
 
@@ -35,8 +35,8 @@ sudo systemctl enable --now coinepro-hq-backup.timer coinepro-hq-openbao-unseal.
   coinepro-hq-substitutes.timer
 # 2026-10-29: the weekly disk clean-up of test and build leftovers.
 sudo systemctl enable --now coinepro-hq-disk-hygiene.timer
-# 2026-11-20: the hourly workshop clean-up and disk guard (the disk filled twice in two days).
-sudo systemctl enable --now coinepro-hq-workshop-clean.timer
+# 2026-11-20: the disk guard: posted videos and finished workshop folders leave the disk (filled twice in two days).
+sudo systemctl enable --now coinepro-hq-disk-guard.timer
 # 2026-11-17: DotCoin.me's daily lessons to the site (automations/sites/dotcoin/sync.py).
 sudo systemctl enable --now dotcoin-site-sync.timer
 # Prompt 12 §14.6: CodeCortex's index (does nothing while HQ_MCP is off).

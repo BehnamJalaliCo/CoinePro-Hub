@@ -4,6 +4,9 @@ Requires=docker.service
 After=docker.service
 
 [Service]
+# 2026-11-20: one local pg_dump set (~7.5G with files.tar.gz); the old set goes only after the new one
+# is complete. Every set is also in the hourly restic snapshots on Drive. (default in backup.sh: 7)
+Environment=HQ_BACKUP_RETENTION_DAYS=1
 Type=oneshot
 User=Hub
 Group=Hub
