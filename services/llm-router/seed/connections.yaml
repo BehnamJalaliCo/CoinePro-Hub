@@ -10,11 +10,8 @@ x-anthropic-models: &anthropic_models
   - claude-opus-5-5
   - claude-sonnet-5-5
   - claude-haiku-5-5
-  - claude-fable-5-1
+# ⟨2026-11-20⟩ the owner: «نباید مدلی از فیبل استفاده بکنه»: claude-fable-5-1 removed (no assignment used it)
 x-anthropic-pricing: &anthropic_pricing
-  claude-fable-5-1:
-    {input: 10.00, output: 50.00, cache_read: 0.25, cache_write: 12.50, cache_write_1h: 20.00,
-     source_url: "https://platform.claude.com/docs/en/about-claude/pricing", as_of: "2026-10-17"}
   claude-opus-5-5:
     {input: 4.00, output: 20.00, cache_read: 0.20, cache_write: 5.00, cache_write_1h: 8.00,
      source_url: "https://platform.claude.com/docs/en/about-claude/pricing", as_of: "2026-10-17"}

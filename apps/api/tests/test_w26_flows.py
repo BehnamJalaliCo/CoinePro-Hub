@@ -327,7 +327,9 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
     """⟨2026-11-15⟩ the owner: «مدل فیبل … رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز» (Fable 5.2): a flow
     that names a model runs its workshop turns on it (only a model of the workshop's list); every
     other flow keeps the workshop's own (Opus 5.5). The owner's choice for @zaribsad: «از فردا»: a
-    model with a first day leaves the days before it on the workshop's own."""
+    model with a first day leaves the days before it on the workshop's own. ⟨2026-11-20⟩ the owner:
+    «نباید مدلی از فیبل استفاده بکنه»: Fable left the workshop's list, so a flow that still names it
+    runs on the workshop's own model whatever its first day."""
     from dataclasses import replace
 
     from hq_api.domain import hands as HANDS
@@ -341,10 +343,11 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
         assert (f.model, f.effort, f.model_from) == ("claude-opus-5-5", "xhigh", None), key
         assert FL.model_on(f, date(2026, 11, 18)) == "claude-opus-5-5"
     for model, since, want in (
-        (fable, None, fable),
+        (fable, None, HANDS.MODEL),
         ("", None, HANDS.MODEL),
         (fable, day + timedelta(days=1), HANDS.MODEL),
-        (fable, day, fable),
+        (fable, day, HANDS.MODEL),
+        ("claude-opus-5-5", day, "claude-opus-5-5"),
     ):
         fk = f"m{uuid.uuid4().hex[:8]}"
         flow = replace(a_flow(co["code"], fk), model=model, model_from=since)

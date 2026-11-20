@@ -396,7 +396,8 @@ async def load(tx: Tx, ref: str, *, lock: bool = False) -> FL.Flow:
 
 async def allowed_models(tx: Tx) -> list[str]:
     """§61.3 (39.1) the models a flow's workshop turn CAN run on: the workshop runner's own list
-    (domain/hands.MODELS, Fable 5.2 too), not the LLM router's (the flows run on the workshop). The
+    (domain/hands.MODELS; ⟨2026-11-20⟩ Opus 5.5 only, never Fable), not the LLM router's (the flows
+    run on the workshop). The
     owner's «every flow on Opus 5.5 at xhigh» is the rows' value, not this list."""
     del tx
     from hq_api.domain import hands as HANDS

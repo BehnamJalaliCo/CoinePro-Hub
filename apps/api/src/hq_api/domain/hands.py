@@ -39,9 +39,10 @@ from hq_api.workshop import server_sessions as SS
 RUNNER_MIN = "0.3.2"  # the runner that sends `out/` back
 INPUTS_RUNNER_MIN = "0.3.3"  # the runner that takes the hub's files into `in/`
 MODEL = "claude-opus-5-5"
-# ⟨2026-11-15⟩ the models a workshop turn may run on (an automation names its own; the owner:
-# «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»)
-MODELS = ("claude-opus-5-5", "claude-fable-5-2")
+# ⟨2026-11-15⟩ the models a workshop turn may run on (an automation names its own). ⟨2026-11-20⟩ the
+# owner: «نباید مدلی از فیبل استفاده بکنه»: Fable is out (it was here for the 11-15 test); a flow
+# that still names it runs on MODEL (model_of), and a save that names it is refused (422).
+MODELS = ("claude-opus-5-5",)
 # ⟨1.31⟩ §53 the owner's order: «حتماً Opus 5.5 با بیشترین effort». Every turn of the workshop
 # thinks as hard as the model can unless the caller asks for less; the runner (>= 0.3.5) passes it
 # to Claude Code, an older one runs the turn as before

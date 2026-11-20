@@ -779,7 +779,7 @@ async def test_the_p2_pages_kits_a_new_automation_and_the_week(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """§61.3, §61.5, §61.7: runs, graph, kits (and a kit's map), «بساز و روشن کن», «کیت تازه», the
-    week; the options name the workshop runner's models, Fable 5.2 too."""
+    week; the options name the workshop runner's models (⟨2026-11-20⟩ Opus 5.5 only: never Fable)."""
     from .test_w19_publish_time import connected
 
     ig, co = await new_company(), await new_company()
@@ -797,8 +797,7 @@ async def test_the_p2_pages_kits_a_new_automation_and_the_week(
         g = (await client.get(f"/api/v1/automations/flows/{ref}/graph", headers=owner)).json()
         assert g["nodes"] and g["lanes"][0] == "n8n"
         opts = (await client.get("/api/v1/automations/flows/options", headers=owner)).json()
-        assert {m["id"]: m["name_fa"] for m in opts["models"]} == {
-            "claude-opus-5-5": "Opus 5.5", "claude-fable-5-2": "Fable 5.2"}  # fmt: skip
+        assert {m["id"]: m["name_fa"] for m in opts["models"]} == {"claude-opus-5-5": "Opus 5.5"}
         kits = (await client.get("/api/v1/automations/kits", headers=owner)).json()
         assert any(k["key"] == "p39-test" for k in kits)
         r = await client.get("/api/v1/automations/kits/p39-test/graph", headers=owner)
@@ -809,11 +808,15 @@ async def test_the_p2_pages_kits_a_new_automation_and_the_week(
         body = {"account": "pro.chart", "kit": "p39-test", "title_fa": "ریلز تازه‌ی آزمایشی",
                 "schedule": {"hours": ["18:10"], "trigger_at": "11:00", "same_day": True},
                 "model": "claude-fable-5-2", "effort": "xhigh", "usd_cap": 15}  # fmt: skip
+        # ⟨2026-11-20⟩ the owner: no Fable, ever
+        r = await client.post("/api/v1/automations/flows", headers={**owner, **idem()}, json=body)
+        assert r.status_code == 422 and r.json()["code"] == "invalid_flow", r.text
+        body["model"] = "claude-opus-5-5"
         r = await client.post("/api/v1/automations/flows", headers={**owner, **idem()}, json=body)
         assert r.status_code == 201, r.text
         new = r.json()
         made.append(new["key"])
-        assert new["state"] == "on" and new["version"] == 1 and new["model_fa"] == "Fable 5.2"
+        assert new["state"] == "on" and new["version"] == 1 and new["model_fa"] == "Opus 5.5"
         assert new["account"] == "pro.chart" and new["kind"] == "reel"
         v1 = (
             await client.get(f"/api/v1/automations/flows/{new['ref']}/versions", headers=owner)
