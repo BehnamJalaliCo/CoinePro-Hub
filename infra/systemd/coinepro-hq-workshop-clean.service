@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: hourly clean-up of finished workshop folders (disk guard; never a volume, restic or wal)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/Hub/CoinePro-Hub/infra/maintenance/workshop-clean.sh
+TimeoutStartSec=900
+Nice=15
+IOSchedulingClass=idle
