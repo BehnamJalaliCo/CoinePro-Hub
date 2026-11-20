@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-15.7"
+version: "2026-11-20.2"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -40,6 +40,10 @@ hosts:
   # 2026-11-14.1 (owner's yes, story images by Gemini's «Argon»): the made image is served from
   # here; refused until now, it stayed grey and its download failed (host_not_allowed).
   - work.fife.usercontent.google.com
+  # 2026-11-20: Google rotates the sign-in cookies through accounts.google.com while a page is open;
+  # refused in the jobs (it was a login host only), the session died on 11-18 (Gemini opened signed
+  # out, every image failed). youtube-bj, chatgpt-web and deepseek-web allow it and stayed signed in.
+  - accounts.google.com
 login_hosts:
   - accounts.google.com
   # Google's consent pages after sign-in (the EU consent, the account bar)
@@ -84,7 +88,9 @@ tasks:
       - {do: pause, ms: 2000}
       - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10}
       - {do: pause, ms: 1500}
-      - {do: click, selector: "[role=menuitem]:has-text('Argon'), [role=menuitemradio]:has-text('Argon'), button:has-text('Argon')", timeout_s: 10}
+      # 2026-11-20: «Argon» is gone from the menu (seen live: خودکار, 4 Hydrogen, 4 Neon «جدید», 4 Carbon);
+      # 4 Neon is the new deep model in its place. Argon stays as the fallback should it come back.
+      - {do: click, selector: "[role=menuitem]:has-text('Neon'), [role=menuitemradio]:has-text('Neon'), [role=menuitem]:has-text('Argon'), [role=menuitemradio]:has-text('Argon')", timeout_s: 10}
       - {do: pause, ms: 1500}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
