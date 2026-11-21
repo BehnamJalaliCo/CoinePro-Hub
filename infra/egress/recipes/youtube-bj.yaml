@@ -14,8 +14,13 @@
 #   details      an uploaded video's tags and language (Persian); `subtitles` its Persian .srt;
 #   thumbnail    its custom thumbnail (the channel must be phone-verified)
 # Driven by automations/sites/bjtech/youtube_long.py (a host timer), never by an agent.
+# 2026-11-21: every task runs behind browser_web.ProxyRelay (intercept: false). From 13:44Z this profile's
+# Chrome stopped answering the egress proxy's 407 with the job's credential (tcpdump: CONNECTs with no
+# Proxy-Authorization, «HTTP ERROR 407» on every page; youtube-web's same jobs answer it), which hid the
+# real state (the Google account signed out). The relay adds the credential itself; egress still allows
+# only the recipe's hosts and its byte budget.
 key: youtube-bj
-version: "2026-11-19.1"
+version: "2026-11-21.1"
 site: studio.youtube.com
 start_url: "https://studio.youtube.com/"
 hosts:
@@ -57,6 +62,7 @@ tasks:
     # channel this Google account may act as, brand accounts too; kept as notes.channels), then the active
     # channel's name in Studio (the answer; a page that is not Studio answers its own text)
     timeout_s: 110
+    intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/channel_switcher"}
       - {do: wait, selector: "ytd-channel-switcher-page-renderer, ytd-browse, ytd-app", state: attached, timeout_s: 40, optional: true}
@@ -69,6 +75,7 @@ tasks:
   titles:
     # the channel's public Shorts (a duplicate check before an upload): their titles as text
     timeout_s: 90
+    intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/@behnamjalali-tech/shorts"}
       - {do: wait, selector: "ytd-rich-grid-renderer, ytd-browse", state: attached, timeout_s: 45}
@@ -116,6 +123,7 @@ tasks:
     # NOT yet run on the live page (2026-11-17): the video's details page, its visibility menu,
     # Public, the menu's Done, the page's Save
     timeout_s: 150
+    intercept: false
     steps:
       - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit?hl=en"}
       - {do: wait, selector: "ytcp-video-metadata-visibility, #visibility-select", state: attached, timeout_s: 60}
@@ -194,6 +202,7 @@ tasks:
   features:
     # read only: Studio's Settings -> Channel -> Feature eligibility (youtube.com/features opens it)
     timeout_s: 120
+    intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/features?hl=en"}
       - {do: wait, selector: "ytcp-settings-dialog, ytcp-feature-eligibility, ytcp-navigation-drawer", state: attached, timeout_s: 60, optional: true}
@@ -203,6 +212,7 @@ tasks:
     # read only: Studio's content list, long videos (youtube.com/my_videos opens it); no fallback to
     # the page's body: a page that is not the list fails the job (never a silent "no duplicate")
     timeout_s: 120
+    intercept: false
     steps:
       - {do: goto, url: "https://www.youtube.com/my_videos?hl=en"}
       - {do: wait, selector: "ytcp-video-section-content, ytcp-video-list", state: attached, timeout_s: 60}
@@ -212,6 +222,7 @@ tasks:
     # an uploaded video's Studio page (the job's video_id): its tags (the job's `tags`) and its
     # language (Persian: subtitles are added in it), then Save; the answer is the tags box as saved
     timeout_s: 240
+    intercept: false
     steps:
       - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit?hl=en"}
       - {do: wait, selector: "#title-textarea #textbox", timeout_s: 60}
@@ -236,6 +247,7 @@ tasks:
     # edit icon -> «Overwrite track» Continue -> the editor's ⋮ -> «Upload file». The file goes into
     # the dialog's file input (never the native chooser), then Publish; the answer is the row.
     timeout_s: 300
+    intercept: false
     steps:
       - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations?hl=en"}
       - {do: wait, selector: "ytgn-video-translation-row", state: attached, timeout_s: 60}
@@ -268,6 +280,7 @@ tasks:
     # details page's own thumbnail input (no file chooser), then Save; the answer is the thumbnail
     # area as saved
     timeout_s: 180
+    intercept: false
     steps:
       - {do: goto, url: "https://studio.youtube.com/video/{video_id}/edit?hl=en"}
       - {do: wait, selector: "#title-textarea #textbox", timeout_s: 60}
