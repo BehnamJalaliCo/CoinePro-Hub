@@ -20,9 +20,9 @@
 # real state (the Google account signed out). The relay adds the credential itself; egress still allows
 # only the recipe's hosts and its byte budget.
 key: youtube-bj
-version: "2026-11-21.1"
+version: "2026-11-21.3"
 site: studio.youtube.com
-start_url: "https://studio.youtube.com/"
+start_url: "https://studio.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg"
 hosts:
   - studio.youtube.com
   - youtube.com
@@ -63,12 +63,16 @@ tasks:
     # channel's name in Studio (the answer; a page that is not Studio answers its own text)
     timeout_s: 110
     intercept: false
+    # ⟨2026-11-21.3⟩ the profile is the stable account dotcoin.me, an EDITOR of the channel (the owner's
+    # account behnamjalali88 was signed out by Google on every automated use): an editor's channel is not
+    # in youtube.com's switcher, so the guard reads the pinned channel's own public page (its handle, as
+    # notes.channels) and then Studio OF THAT ID (its name: Studio shows it only to an account with access)
     steps:
-      - {do: goto, url: "https://www.youtube.com/channel_switcher"}
-      - {do: wait, selector: "ytd-channel-switcher-page-renderer, ytd-browse, ytd-app", state: attached, timeout_s: 40, optional: true}
-      - {do: pause, ms: 5000}
-      - {do: read, selector: "ytd-channel-switcher-page-renderer", alt: ["ytd-browse", "ytd-page-manager", "body"], note: channels, optional: true, timeout_s: 15}
-      - {do: goto, url: "{start_url}"}
+      - {do: goto, url: "https://www.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg"}
+      - {do: wait, selector: "yt-page-header-renderer, ytd-c4-tabbed-header-renderer, ytd-browse, ytd-app", state: attached, timeout_s: 40, optional: true}
+      - {do: pause, ms: 4000}
+      - {do: read, selector: "yt-page-header-renderer, ytd-c4-tabbed-header-renderer", alt: ["ytd-browse", "ytd-page-manager", "body"], note: channels, optional: true, timeout_s: 15}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg"}
       - {do: wait, selector: "ytcp-navigation-drawer, #entity-name, ytd-app", state: attached, timeout_s: 45, optional: true}
       - {do: pause, ms: 3000}
       - {do: read, selector: "ytcp-navigation-drawer #entity-name", alt: ["ytcp-navigation-drawer", "body"]}
@@ -89,7 +93,7 @@ tasks:
     intercept: false
     steps:
       # the upload dialog of the active channel (Studio's own route)
-      - {do: goto, url: "https://www.youtube.com/upload?hl=en"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg/videos/upload?d=ud&hl=en"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
       - {do: attach, selector: "input[type=file]", timeout_s: 60}
       # the details step: title (the job's prompt) and description, both rich text boxes
@@ -147,7 +151,7 @@ tasks:
     # proxy still keeps the job to the hosts above.
     intercept: false
     steps:
-      - {do: goto, url: "https://www.youtube.com/upload?hl=en"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg/videos/upload?d=ud&hl=en"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
       - {do: attach, selector: "input[type=file]", file: 0, timeout_s: 120}
       # the details step: title (the job's prompt) and description, both rich text boxes
@@ -204,7 +208,7 @@ tasks:
     timeout_s: 120
     intercept: false
     steps:
-      - {do: goto, url: "https://www.youtube.com/features?hl=en"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg/editing/details?hl=en"}
       - {do: wait, selector: "ytcp-settings-dialog, ytcp-feature-eligibility, ytcp-navigation-drawer", state: attached, timeout_s: 60, optional: true}
       - {do: pause, ms: 5000}
       - {do: read, selector: "ytcp-settings-dialog tp-yt-paper-dialog, ytcp-settings-dialog", alt: ["tp-yt-paper-dialog", "ytcp-navigation-drawer", "body"]}
@@ -214,7 +218,7 @@ tasks:
     timeout_s: 120
     intercept: false
     steps:
-      - {do: goto, url: "https://www.youtube.com/my_videos?hl=en"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCM6vlhPvok-WkZnTMmqQbRg/videos/upload?hl=en"}
       - {do: wait, selector: "ytcp-video-section-content, ytcp-video-list", state: attached, timeout_s: 60}
       - {do: pause, ms: 4000}
       - {do: read, selector: "ytcp-video-section-content, ytcp-video-list"}

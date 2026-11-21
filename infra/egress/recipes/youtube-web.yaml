@@ -42,9 +42,11 @@
 # Driven by automations/sites/dotcoin/youtube.py, youtube_long.py and seo.py (host timers), never
 # by an agent.
 key: youtube-web
-version: "2026-11-19.1"
+version: "2026-11-21.1"
 site: studio.youtube.com
-start_url: "https://studio.youtube.com/"
+# ⟨2026-11-21⟩ every Studio route names the channel by its id: this profile's account (dotcoin.me) is also an
+# EDITOR of @behnamjalali-tech, whose jobs (youtube-bj) now run in this same profile
+start_url: "https://studio.youtube.com/channel/UCOGlmvdGd3Yc2uOSyeX_Z0g"
 hosts:
   - studio.youtube.com
   - youtube.com
@@ -102,7 +104,7 @@ tasks:
     intercept: false
     steps:
       # the upload dialog of the active channel (Studio's own route)
-      - {do: goto, url: "https://www.youtube.com/upload"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCOGlmvdGd3Yc2uOSyeX_Z0g/videos/upload?d=ud"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
       - {do: attach, selector: "input[type=file]", timeout_s: 60}
       # the details step: title (the job's prompt) and description, both rich text boxes
@@ -159,7 +161,7 @@ tasks:
     # proxy still keeps the job to the hosts above. (Shorts' `upload` too, from 2026-11-18.3.)
     intercept: false
     steps:
-      - {do: goto, url: "https://www.youtube.com/upload"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCOGlmvdGd3Yc2uOSyeX_Z0g/videos/upload?d=ud"}
       - {do: wait, selector: "ytcp-uploads-file-picker input[type=file], input[type=file]", state: attached, timeout_s: 60}
       - {do: attach, selector: "input[type=file]", file: 0, timeout_s: 120}
       # the details step: title (the job's prompt) and description, both rich text boxes
@@ -215,7 +217,7 @@ tasks:
     # read only: Studio's Settings -> Channel -> Feature eligibility (youtube.com/features opens it)
     timeout_s: 120
     steps:
-      - {do: goto, url: "https://www.youtube.com/features"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCOGlmvdGd3Yc2uOSyeX_Z0g/editing/details"}
       - {do: wait, selector: "ytcp-settings-dialog, ytcp-feature-eligibility, ytcp-navigation-drawer", state: attached, timeout_s: 60, optional: true}
       - {do: pause, ms: 5000}
       - {do: read, selector: "ytcp-settings-dialog tp-yt-paper-dialog, ytcp-settings-dialog", alt: ["tp-yt-paper-dialog", "ytcp-navigation-drawer", "body"]}
@@ -224,7 +226,7 @@ tasks:
     # the page's body: a page that is not the list fails the job (never a silent "no duplicate")
     timeout_s: 120
     steps:
-      - {do: goto, url: "https://www.youtube.com/my_videos"}
+      - {do: goto, url: "https://studio.youtube.com/channel/UCOGlmvdGd3Yc2uOSyeX_Z0g/videos/upload"}
       - {do: wait, selector: "ytcp-video-section-content, ytcp-video-list", state: attached, timeout_s: 60}
       - {do: pause, ms: 4000}
       - {do: read, selector: "ytcp-video-section-content, ytcp-video-list"}
