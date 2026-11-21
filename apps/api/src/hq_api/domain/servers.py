@@ -1513,6 +1513,18 @@ _LIMIT_NOTICE = re.compile(
     re.IGNORECASE,
 )
 NOTICE_CHARS = 400
+# ⟨2026-11-21⟩ the account itself refused the turn (11-20 14:00Z on, 103 turns on claude-max: «API Error:
+# Your account can't receive replies from Claude right now … verification_required»). Not the usage
+# notice, so nothing moved: the turn failed and the next one took the same account again. A refusal of
+# the account is now taken like its limit: the account rests REFUSED_HOLD, the turn runs again on the
+# other one (the owner: «اگر اولی کار نکرد از دومی استفاده بکنه»), and after the rest it is tried again.
+_REFUSED = re.compile(
+    r"^api error\b.{0,80}(?:your account can(?:'|\u2019)?t receive replies|verification_required"
+    r"|permission_error|authentication_error|billing_error|account (?:is )?(?:suspended|disabled))"
+    r"|^(?:invalid api key|oauth token (?:has )?expired|please run /login)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+REFUSED_HOLD = timedelta(hours=1)
 _RESET_MARK = re.compile(r"\|\d{10}\b|[\u2219\u00b7\u2022]\s*resets?\b", re.IGNORECASE)
 _EPOCH = re.compile(r"\|(\d{10})\b")
 USAGE_LIMIT = "usage_limit"
@@ -1542,6 +1554,12 @@ def limit_notice(text: str | None) -> bool:
         and _LIMIT_NOTICE.search(t) is not None
         and _RESET_MARK.search(t) is not None
     )
+
+
+def account_refused(text: str | None) -> bool:
+    """The CLI's own short line that the account was refused (not an answer that mentions one)."""
+    t = (text or "").strip()
+    return 0 < len(t) <= NOTICE_CHARS and _REFUSED.search(t) is not None
 
 
 def flagged_usage_limit(j: dict[str, Any]) -> bool:
@@ -1998,7 +2016,7 @@ async def usage_limited(tx: Tx, j: dict[str, Any], ok: bool, data: dict[str, Any
     if j["kind"] != "claude":
         return False
     final = str(data.get("result_fa") or "")
-    if limit_notice(final):
+    if limit_notice(final) or account_refused(final):
         return True
     if ok:
         return False
@@ -2026,6 +2044,8 @@ async def _record_limit(tx: Tx, j: dict[str, Any], account: str, data: dict[str,
     )
     if seen is not None and float(seen) > 0:
         resets = datetime.fromtimestamp(float(seen), UTC)
+    if resets is None and account_refused(str(data.get("result_fa") or "")):
+        resets = now + REFUSED_HOLD  # a refusal has no reset of its own: tried again after the rest
     await observe_quota(tx, account, *_state("limited", None, None, resets, "quota_guard", now))
 
 

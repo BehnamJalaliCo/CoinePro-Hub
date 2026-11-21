@@ -941,3 +941,59 @@ def test_a_quota_refusal_carries_its_wait() -> None:
     assert (call.ok, call.code, call.retry_after) == (False, "usage_limit", 1200)
     assert _model_call(200, {**body, "retry_after": True}).retry_after is None
     assert _model_call(503, {"error": "quota_throttled"}, "300").retry_after == 300
+
+
+REFUSED = (
+    "API Error: Your account can't receive replies from Claude right now. You can find the next step"
+    " in the Anthropic Verification Portal: https://portal.anthropic.com/verify?org=x verification_required"
+)
+
+
+def test_an_account_refusal_is_told_from_an_answer() -> None:
+    """⟨2026-11-21⟩ the account itself refused (claude-max, 11-20 14:00Z on): taken like its limit."""
+    assert SV.account_refused(REFUSED)
+    assert SV.account_refused('API Error: 403 {"type":"error","error":{"type":"permission_error"}}')
+    assert SV.account_refused("Invalid API key · Please run /login")
+    assert SV.account_refused("OAuth token has expired. Please run /login")
+    for text in (
+        "## ساخته شد\nکاور و متن آماده است.",
+        "The site's API error page now says: your account can't receive replies; fixed the template.",
+        REFUSED + " " + "x" * 500,  # an answer
+        "verification_required",
+    ):
+        assert not SV.account_refused(text), text
+
+
+async def test_an_account_the_provider_refuses_rests_and_the_turn_runs_on_the_other(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+) -> None:
+    """⟨2026-11-21⟩ the owner: «اگر اولی کار نکرد از دومی استفاده بکنه». A turn the provider refuses on
+    the main account (no usage notice, no rate-limit event) runs again on the other one at once, and
+    the main one rests an hour before it is tried again."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    first = await _claude_job(hub, rn["server"]["id"])
+    job = await take(client, rn)
+    assert job["id"] == first and job["claude_oauth"] == MAIN
+    r = await client.post(
+        f"{API}/runners/jobs/{first}/result",
+        json={"exit_code": 1, "summary_fa": "نشست Claude با کد خروج 1 تمام شد.",
+              "data": {"result_fa": REFUSED}},
+        headers=rn["h"],
+    )  # fmt: skip
+    assert r.status_code == 200 and r.json()["state"] == "failed", r.text
+    old = await _job(su, first)
+    assert (old["state"], old["error_code"], old["summary_fa"]) == (
+        "failed", SV.USAGE_LIMIT, SV.MOVED_FA,
+    )  # fmt: skip
+    q = await _quota(su, "claude-max")
+    assert q is not None and q["status"] == "limited"
+    pick = await _pick(hub)
+    assert (pick.key, pick.token, pick.hold) == ("claude-max-2", SECOND, False)
+    again = await take(client, rn)
+    assert again["id"] != first and again["claude_oauth"] == SECOND
