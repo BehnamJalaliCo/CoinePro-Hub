@@ -9,6 +9,9 @@ colours, fonts, voice-over voice (except Arlo, the owner's choice), covers, musi
 
 The bar is `KIT/example/` of bjtech-reels (Claude Fable 5.2, 62 s): read its NOTES.md and contact_sheet.jpg.
 
+## 0. The hard rule
+⟨2026-11-21⟩ the owner: «اینجوری به همه لو میدی ما داریم چیکار میکنیم». **Never about ourselves:** no topic, line, card, caption or example about our holding, its companies or agents, our automations, workshop, accounts, tools or how this page's content is made. The `behind` lane is retired (every row `taken`); the page talks about AI and tech in the world, never about its own kitchen.
+
 ## 1. The five things a viewer must feel
 1. **It is live.** Something is always being computed: a caret blinks, a number counts, a bar grows, code types,
    the camera breathes. Never a still slide.

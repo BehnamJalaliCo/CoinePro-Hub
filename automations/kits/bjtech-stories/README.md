@@ -26,7 +26,7 @@ PLAYWRIGHT_BROWSERS_PATH=/home/studio/kits/prochart-reels/ms-playwright.
 | 6 | **خبر دوم** (another real news item of the last 24 h) | sources.md |
 | 7 | **ساده بگم**: one concept in 3 short lines | `--lane explain` |
 | 8 | **ریپوی روز** (hero: the repo's social preview; stars today) | `--lane repo` |
-| 9 | **پشت صحنه**: one real moment of running companies with AI agents (general terms) | `--lane behind` |
+| 9 | **ساده بگم ۲**: a second concept in 3 short lines (⟨2026-11-21⟩ «پشت صحنه» retired: COMMON/DIRECTION.md §0) | `--lane explain` |
 | 10 | **عدد روز** (layout stat: one striking, sourced number) | today's news or a checked fact |
 | 11 | **teaser of reel 2** (tonight's news, 22:00) | today's top news (not the one of card 1 if reel 2 will cover it) |
 | 12 | **جمع‌بندی امروز** (layout list: today's 3 things + the Telegram line) | cards 1–11 |

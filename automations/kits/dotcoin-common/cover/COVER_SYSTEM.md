@@ -90,6 +90,8 @@ for craft, not one fixed template.
   photoreal or 3D, cut out; or drawn by you in the two colours.
 
 ## How to make it (the reel's cover step) — ChatGPT makes the WHOLE cover (owner, 2026-11-16)
+**⟨2026-11-21⟩ HARD (the owner: «کاورهاشون خیلی مبتدی و کپی همدیگه هستند و از پکیجی که دادم ساخته نشدن»):** the 11-20 covers (bitcoin, tether) were a cut-out of his photo pasted on the mustard layout of the cover before, the same suit, no 2026 accessory, no element: made while ChatGPT's image quota was used up and Gemini was down. **Only ChatGPT (or Gemini) draws a cover, from his pack (the eight files), every time.** No image maker answers (limit, down, refused): `order.progress` «کاور منتظر ChatGPT» and end the turn; the next turn (30 min or more later) asks again. NEVER a cut-out of his photo, never `cutout.py` or `cover_compose.py` with his photo as the cover, never the last cover's layout with a new title: a new suit, a 2026 accessory, a pose and ONE element of the topic, different from the four in COMMON/cover/family/. The reel waits for its cover (the hub holds a reel without one).
+
 The owner, after the first sample: «کاور جالب نشده؛ باید فولدر رو به چت جی پی تی بدی و دقیقا مدل و
 استایل رو توضیح بدی، خودش میسازه؛ به شخصیت من توی فولدر اشاره کن و بگو چه شکلی و چه استایلی داشته
 باشه.» So the cover is made the way he made his two samples: ChatGPT gets his folder (his photos and

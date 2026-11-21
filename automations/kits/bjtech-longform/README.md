@@ -53,7 +53,7 @@ video (the chapters back to back).
 
 ## Turn 1 — topic, script, voice
 1. **Topic:** the day's lane by the Tehran weekday: Saturday `deep` · Sunday `build` · Monday `compare` · Tuesday
-   `explain` · Wednesday `story` · Thursday `career` · Friday `behind`. `python3 -I KIT/tools/topic.py next --lane
+   `explain` · Wednesday `story` · Thursday `career` · Friday `deep` (⟨2026-11-21⟩ `behind` retired: COMMON/DIRECTION.md §0). `python3 -I KIT/tools/topic.py next --lane
    <lane>` → `topic.claim` «bjtech-long: <topic>» → `topic.py mark <#> --slot long --publish "<the order's day>"`.
    A model or product of the last 48 hours (your order's no-repeat list has no long video of it) may replace the
    lane's row: a `deep` on it, from the vendor's own pages. → `out/topic.txt` (line 1 the title; line 2 «سبک: …»).

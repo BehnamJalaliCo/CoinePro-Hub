@@ -53,7 +53,7 @@ ten shots on the stage), `example/contact_sheet.jpg` (a frame every 2 s of the f
 0. **Setup:** `mkdir -p script qc direction/inspo build out in assets/use motion tools`;
    `cp PCKIT/tools/{asr_words,qc_compare,word_times,assemble_voice,audio_qc,voice_seams,word_probe}.py tools/`;
    `ln -sfn PCKIT/asr build/asr && ln -sfn PCKIT/venv-render build/.venv`.
-1. **Topic.** The day's kind → lane: ریپو `repo`, معرفی مدل `model`, ابزار `tool`, ترفند `trick`, پشت صحنه `behind`.
+1. **Topic.** The day's kind → lane: ریپو `repo`, معرفی مدل `model`, ابزار `tool`, ترفند `trick` (⟨2026-11-21⟩ پشت صحنه `behind` retired: a «پشت صحنه» day takes `explain`; COMMON/DIRECTION.md §0).
    `python3 -I KIT/tools/topic.py next --lane <lane>` → check it against your order's no-repeat list and
    `topic.py find <name>` → `topic.claim` «bjtech: <topic>» (refused: `topic.py mark <#> taken`, next) →
    `topic.py mark <#> --slot r1 --publish "<the day and month of your order's «انتشار خودکار …»>"`.
