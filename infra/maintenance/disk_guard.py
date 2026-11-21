@@ -370,6 +370,7 @@ def workshop() -> None:
         r["ref"]: r
         for r in sql(f"""
         SELECT w.ref, w.status, w.run_meta -> 'flow' ->> 'youtube' AS yt,
+               w.run_meta -> 'flow' ->> 'kind' AS fkind,
                (SELECT json_agg(p.state) FROM media.publications p WHERE p.source ->> 'work' = w.ref) AS pubs
           FROM work.work w WHERE w.ref IN ({",".join(lit(r) for r in refs)})""")
     }
@@ -383,10 +384,16 @@ def workshop() -> None:
         if any(s not in ("published", "cancelled") for s in pubs):
             continue
         url = long_done(ref)
-        if w and w["yt"] == "queued" and not url:
+        # ⟨2026-11-21⟩ W-000752 was removed here (11-21 08:00Z, 745 MB): the hub had never marked its day
+        # `youtube: queued` (a bug, 475e02db), so it read as «nothing to post». A long video's folder (a
+        # `video` flow, or any out/video.mp4 not uploaded) now stays until its upload is done, whatever
+        # the flags say; only its drafts go.
+        big_out = (d / "out" / "video.mp4").is_file()
+        long_kind = bool(w and w.get("fkind") == "video")
+        if not url and (long_kind or (w and w["yt"] == "queued") or (big_out and not pubs)):
             for sub in ("build", "ch"):
                 if (d / sub).is_dir():
-                    note("workshop drafts", str(d / sub), du(d / sub), "long video waits for YouTube: out/ kept")
+                    note("workshop drafts", str(d / sub), du(d / sub), "long video not uploaded yet: out/ kept")
                     rm(d / sub)
             continue
         if not pubs and not url and not quiet_for(d, NOPUB_QUIET_H * 60):
