@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """DotCoin.me: each reel published on Instagram -> ONE public YouTube Short on @DotCoin-me (stdlib + ffmpeg).
+⟨2026-11-21⟩ the owner, the page disabled by Instagram: «اگر ریلزی ساخته میشه فقط در شورت گذاشته بشه و
+اینستاگرامش ذخیره بشه». A reel Instagram holds (IG-Hub's closed-page hold: the publication still scheduled,
+publishing or held) HELD_AFTER_MIN past its hour goes to Shorts alone, its description without the Instagram
+link; IG-Hub keeps the post and sends it once the page is back (the Short is never made twice: one per work).
 
 The YouTube API keeps an unaudited app's uploads private, so the upload runs in the hub's signed-in
 browser profile `youtube-web` (YouTube Studio; egress recipe infra/egress/recipes/youtube-web.yaml).
@@ -82,6 +86,7 @@ WS_RE = re.compile(r"W-\d{3,9}")
 KEY_RE = re.compile(r"[0-9a-f]{16,64}")
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 IG_URL = re.compile(r"https://www\.instagram\.com/\S{3,200}")
+HELD_AFTER_MIN = 20  # a reel still not on Instagram this long after its hour: its page is closed
 YT_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 YT_URL = re.compile(r"https://(?:www\.)?(?:youtube\.com/shorts/|youtu\.be/|youtube\.com/watch\?v=)([A-Za-z0-9_-]{11})")
 SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+){0,5}")
@@ -130,7 +135,9 @@ REELS_SQL = f"""
            (SELECT c.args ->> 'caption' FROM infra.server_jobs c
              WHERE c.kind = 'publish' AND c.args -> 'session' ->> 'work' = j.args -> 'session' ->> 'work'
                AND coalesce(c.args ->> 'caption', '') <> '' ORDER BY c.created_at DESC LIMIT 1) AS caption,
-           j.result ->> 'url' AS url, f.storage_key AS key, f.sha256 AS sha, f.size AS size,
+           CASE WHEN j.result ->> 'url' LIKE 'https://www.instagram.com/%' THEN j.result ->> 'url' END AS url,
+           (j.result ->> 'url' IS NULL OR j.result ->> 'url' NOT LIKE 'https://www.instagram.com/%') AS held,
+           f.storage_key AS key, f.sha256 AS sha, f.size AS size,
            cover.storage_key AS cover_key, cover.sha256 AS cover_sha, cover.size AS cover_size,
            cover.mime AS cover_mime
       FROM infra.server_jobs j
@@ -150,7 +157,12 @@ REELS_SQL = f"""
                       AND x ->> 'role' = 'cover' AND x ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$'
                     ORDER BY c.created_at DESC LIMIT 1))) cover ON true
      WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
-       AND j.state = 'done' AND j.result ->> 'url' LIKE 'https://www.instagram.com/%'
+       AND ((j.state = 'done' AND j.result ->> 'url' LIKE 'https://www.instagram.com/%')
+            -- ⟨2026-11-21⟩ held by Instagram (a closed page) past its hour: to Shorts alone
+            OR EXISTS (SELECT 1 FROM media.publications p
+                        WHERE p.kind = 'reel' AND p.account = '{ACCOUNT}' AND p.chain @> ARRAY[j.id]
+                          AND p.state IN ('scheduled', 'publishing', 'held')
+                          AND p.at < now() - interval '{HELD_AFTER_MIN} minutes'))
        AND j.created_at > now() - interval '30 days'
      ORDER BY j.args -> 'session' ->> 'work', j.created_at DESC"""
 
@@ -225,7 +237,8 @@ def refresh_family() -> str:
 
 def published_reels() -> list[dict]:
     return [r for r in sql(REELS_SQL) if WS_RE.fullmatch(str(r.get("w") or ""))
-            and UUID_RE.fullmatch(str(r.get("video") or "")) and IG_URL.fullmatch(str(r.get("url") or ""))]
+            and UUID_RE.fullmatch(str(r.get("video") or ""))
+            and (IG_URL.fullmatch(str(r.get("url") or "")) or (r.get("held") is True and not r.get("url")))]
 
 
 def read_file(key: str, sha: str | None, size: int, cap: int, dest: Path) -> None:
@@ -339,7 +352,7 @@ def make_title(caption: str, art: dict) -> str:
     return f"{base} #Shorts"
 
 
-def make_description(caption: str, slug: str | None) -> str:
+def make_description(caption: str, slug: str | None, ig: bool = True) -> str:
     lines: list[str] = []
     for ln in caption.splitlines():
         s = ln.strip()
@@ -348,7 +361,8 @@ def make_description(caption: str, slug: str | None) -> str:
         lines.append(HASHTAG.sub("", s).strip())
         if len(lines) == 6:
             break
-    links = ([f"مقاله‌ی کامل: {ARTICLE_URL.format(slug=slug)}"] if slug else []) + [f"اینستاگرام: {INSTAGRAM}"]
+    links = ([f"مقاله‌ی کامل: {ARTICLE_URL.format(slug=slug)}"] if slug else []) + \
+        ([f"اینستاگرام: {INSTAGRAM}"] if ig else [])  # ⟨2026-11-21⟩ not while the page is closed
     tags: list[str] = []
     for t in HASHTAG.findall(caption) + BASE_TAGS:
         if t not in tags and t.lower() not in ("#shorts", "#reels"):
@@ -528,9 +542,10 @@ def one(state: dict, row: dict, slugs: dict[str, str], dry: bool, unlisted: bool
     slug = slugs.get(source)
     art = lesson(slug) if slug else {}
     title = make_title(row.get("caption") or "", art)
-    desc = make_description(row.get("caption") or "", slug if art else None)
-    up.update(job=row["job"], chain=row.get("chain"), sha=row["sha"], instagram=row["url"], slug=slug if art else None,
-              title=title)
+    held = bool(row.get("held")) and not row.get("url")
+    desc = make_description(row.get("caption") or "", slug if art else None, ig=not held)
+    up.update(job=row["job"], chain=row.get("chain"), sha=row["sha"], instagram=row.get("url"), slug=slug if art else None,
+              title=title, **({"held_on_instagram": True} if held else {}))
     if dry:
         log(f"--- {key}\n{title}\n\n{desc}\n")
         return
