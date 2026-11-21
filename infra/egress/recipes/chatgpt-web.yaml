@@ -48,7 +48,7 @@
 # and an unnamed twin of the same blob; the site's file addresses (estuary, oaiusercontent) stay
 # as a last fallback. The last such image is the made one (a cover's attached files come first).
 key: chatgpt-web
-version: "2026-11-17.2"
+version: "2026-11-21.2"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -134,7 +134,10 @@ tasks:
           img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
         attr: src
   cover:
-    timeout_s: 270
+    # 2026-11-21: GPT-6.2 Sol thinks before it draws: CR-0656 (DotCoin, 8 files) was still «در حال فکر کردن» when
+    # the 200 s wait ended, and the finished cover (BITCOIN UNDER 60K) stayed in ChatGPT, never downloaded.
+    # The wait is 240 s now, inside egress's cap for a cover (TASK_CAP_S 300)
+    timeout_s: 300
     steps:
       - {do: goto, url: "https://chatgpt.com/"}
       - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
@@ -143,7 +146,14 @@ tasks:
       - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
-      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 200}
+      # 2026-11-21: the thinking phase shows no stop button, so the wait_gone above it ended at once and
+      # download_image found «no image» (3 covers, 18:43Z): the picture itself is now what is waited for
+      - do: wait
+        selector: >-
+          img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
+          img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
+        timeout_s: 230
+      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 40, optional: true}
       - do: wait
         selector: >-
           [data-testid=copy-turn-action-button], [data-testid=good-response-turn-action-button],
