@@ -472,10 +472,14 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 else:  # the holder tells the owner what is ready and asks «تأیید یا اصلاح؟»
                     await _wake_or_say(tx, w, f"{DONE_REASON}{w['ref']}")
             # ⟨2026-11-13⟩ a flow's day (domain/flows.py): a turn of its own work that left files
-            # (the whole package, checked there) sends it out by itself, after the commit
+            # (the whole package, checked there) sends it out by itself, after the commit.
+            # ⟨2026-11-21⟩ W-000752: a turn that left only a long video in out/ (over the file limit,
+            # `files_skipped`, no file to deliver) completes the day too: checked the same way
+            skipped = (j.get("result") or {}).get("files_skipped") or []
+            left_video = any(isinstance(s, dict) and s.get("name") == "video.mp4" for s in skipped)
             if (
                 hands
-                and files
+                and (files or left_video)
                 and w["parent_id"] is None
                 and await tx.scalar(
                     "SELECT run_meta ? 'flow' FROM work.work WHERE id = :w", w=w["id"]

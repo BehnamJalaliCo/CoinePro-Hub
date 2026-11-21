@@ -1293,7 +1293,7 @@ async def package(tx: Tx, w: dict[str, Any], *, need_cover: bool = True) -> dict
             (flow is not None and flow.kind == "video")
             or (w.get("flow") or {}).get("kind") == "video"
         )
-        and await _video_left_in_out(tx, caption[1])
+        and await _video_left_in_out(tx, caption[1], str(w.get("ref") or ""))
     ):
         # ⟨2026-11-18⟩ W-000636: a 10-minute 1080p60 video (710 MB) is over the hub's file limit, so
         # the runner leaves it in out/ (files_skipped); the host uploader reads out/ itself
@@ -1356,18 +1356,25 @@ async def _ask_for_cover(tx: Tx, w: dict[str, Any]) -> bool:
 
 VIDEO_LEFT_SQL = """SELECT 1 FROM infra.server_jobs j,
         jsonb_array_elements(coalesce(j.result -> 'files_skipped', '[]'::jsonb)) s
-    WHERE j.id = CAST(:j AS uuid) AND j.state = 'done' AND s ->> 'name' = 'video.mp4' LIMIT 1"""
+    WHERE j.state = 'done' AND s ->> 'name' = 'video.mp4'
+      AND (j.id = CAST(:j AS uuid) OR (:ref <> '' AND j.kind = 'claude' AND j.args ->> 'workspace' = :ref))
+    LIMIT 1"""
+NO_JOB = "00000000-0000-0000-0000-000000000000"
 
 
-async def _video_left_in_out(tx: Tx, d: dict[str, Any]) -> bool:
+async def _video_left_in_out(tx: Tx, d: dict[str, Any], ref: str = "") -> bool:
     """Whether the turn that delivered this output finished with its `video.mp4` left in out/ (over
-    the file limit): a long video's package is complete without the video among the outputs."""
+    the file limit): a long video's package is complete without the video among the outputs.
+    ⟨2026-11-21⟩ W-000752: the caption came a turn before the video (00:33Z, the video 00:45Z), so
+    any finished turn of the same work (`ref`) that left `video.mp4` counts too."""
     job = (OR._j(d.get("produced_with")) or {}).get("job")
     try:
-        UUID(str(job))
+        jid = str(UUID(str(job)))
     except ValueError:  # (none, or not a job's id: not such a turn)
+        jid = ""
+    if not jid and not ref:
         return False
-    return bool(await tx.scalar(VIDEO_LEFT_SQL, j=str(job)))
+    return bool(await tx.scalar(VIDEO_LEFT_SQL, j=jid or NO_JOB, ref=ref))
 
 
 PICTURE_EXT = (".jpg", ".jpeg", ".png", ".webp")

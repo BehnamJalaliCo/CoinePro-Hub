@@ -286,3 +286,85 @@ async def test_a_long_video_over_the_file_limit_left_in_out_still_makes_its_day(
             assert not await FL._video_left_in_out(tx, {"produced_with": {"job": "x"}})
     finally:
         await su.execute("UPDATE automations.flows SET state = 'off' WHERE key = $1", key)
+
+
+async def test_a_long_video_left_in_out_a_turn_after_its_caption_still_makes_its_day(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    su: Any,
+    new_company: Callable[..., Any],
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-21⟩ W-000752: the caption and the topic came in one turn (00:33Z), the video (745 MB,
+    over the file limit) only in the next (00:45Z), which left nothing to deliver. The day stayed
+    open and never went to YouTube. Any finished turn of the work that left `video.mp4` in out/
+    completes it, and such a turn checks the day even with no file of its own."""
+    ig, co = await new_company(), await new_company()
+    await connected(client, hub, owner_session, ig, co["code"])
+    key = f"lw{uuid.uuid4().hex[:8]}"
+    day = tomorrow()
+    sch = {"hours": ["20:00"], "trigger_at": "01:30", "same_day": True, "days": list(range(7)),
+           "start": day.isoformat(), "stories": [], "best_week": False}  # fmt: skip
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await FD.create_by_hub(
+                tx, hub, key=key, account="pro.chart", kit="/home/studio/kits/bjtech-longform",
+                title_fa="ویدیوی بلند آزمایشی ۲", kind="video", schedule=sch, model=OPUS,
+                effort="xhigh", usd_cap=150, budget_tokens=10_000_000,
+            )  # fmt: skip
+        r = await client.post(
+            f"/api/v1/flows/{key}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+        )
+        assert r.status_code == 201, r.text
+        work_ref = r.json()["work"]
+        w = await su.fetchrow("SELECT id FROM work.work WHERE ref = $1", work_ref)
+        ws = await workshop(client, hub, owner_session, su)
+        holder = await su.fetchval(
+            "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id"
+            " WHERE w.ref = $1",
+            work_ref,
+        )
+
+        async def meta() -> dict[str, Any]:
+            raw = await su.fetchval(
+                "SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", w["id"]
+            )
+            return raw if isinstance(raw, dict) else json.loads(raw)
+
+        # turn 1: the texts, no video yet
+        await refuse_queued(su, str(w["id"]))
+        r = await run_ask(client, holder, {"work": work_ref, "brief": "ویدیوی بلند امروز"})
+        assert r.status_code == 201, r.text
+        job = await take(client, ws)
+        files = []
+        for name, data in (("topic.txt", "چاه کولا".encode()), ("caption.txt", "توضیحات".encode())):
+            r = await send_file(client, ws, job["id"], name, "text/plain", data)
+            assert r.status_code == 201, r.text
+            files.append(r.json()["id"])
+        r = await client.post(
+            f"/api/v1/runners/jobs/{job['id']}/result",
+            json={"exit_code": 0, "summary_fa": "متن‌ها آماده است.",
+                  "data": {"session_id": "cs-lw-1", "result_fa": "متن‌ها آماده.", "files": files}},
+            headers=ws["h"],
+        )  # fmt: skip
+        assert r.status_code == 200, r.text
+        assert not (await meta()).get("sent")
+        # turn 2: only the video, left in out/ (nothing to deliver)
+        await refuse_queued(su, str(w["id"]))
+        r = await run_ask(client, holder, {"work": work_ref, "brief": "رندر ویدیو"})
+        assert r.status_code == 201, r.text
+        job = await take(client, ws)
+        r = await client.post(
+            f"/api/v1/runners/jobs/{job['id']}/result",
+            json={"exit_code": 0, "summary_fa": "ویدیو آماده است.",
+                  "data": {"session_id": "cs-lw-1", "result_fa": "ویدیو در out/ است.", "files": [],
+                           "files_skipped": [{"name": "video.mp4", "why": "بزرگ‌تر از سقف"}]}},
+            headers=ws["h"],
+        )  # fmt: skip
+        assert r.status_code == 200, r.text
+        m = await meta()
+        assert m.get("youtube") == "queued" and m.get("sent") and m.get("topic_fa") == "چاه کولا"
+    finally:
+        await su.execute("UPDATE automations.flows SET state = 'off' WHERE key = $1", key)
