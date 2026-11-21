@@ -755,3 +755,55 @@ async def test_a_dead_page_says_so_instead_of_a_bare_error(world: Any) -> None:
     assert (got["ok"], got["error"], got["step"]) == (False, "recipe_failed", "0:goto"), got
     assert "the page crashed or the browser was closed" in got["detail"], got
     assert "Error: " in got["detail"] and "screenshot" not in got
+
+
+# ⟨2026-11-21⟩ The owner's sign-in window (another container) holds the profile with a live open
+# mark: a job answers «busy» and never opens the same profile beside it (two Chromiums on one
+# profile broke youtube-bj, and Google dropped the owner's fresh sign-in).
+def test_a_profile_held_by_the_sign_in_window_is_busy(tmp_path: Path) -> None:
+    from hq_egress.browser_web import held_elsewhere, mark_open, unmark_open
+
+    assert not held_elsewhere(tmp_path, now=1000.0, host="here")  # no lock at all
+    (tmp_path / "SingletonLock").symlink_to("signinbox-77")
+    assert not held_elsewhere(tmp_path, now=1000.0, host="here")  # no open mark: a dead window
+    mark_open(tmp_path, 900, now=1000.0)
+    assert held_elsewhere(tmp_path, now=1500.0, host="here")
+    assert not held_elsewhere(tmp_path, now=2000.0, host="here")  # its mark ran out
+    assert not held_elsewhere(tmp_path, now=1500.0, host="signinbox")  # our own lock
+    unmark_open(tmp_path)
+    assert not held_elsewhere(tmp_path, now=1500.0, host="here")
+
+
+async def test_a_job_on_a_profile_held_by_the_sign_in_window_is_busy(tmp_path: Path) -> None:
+    from hq_egress.browser_web import JobIn, Webd, mark_open
+
+    d = Webd(profiles=tmp_path)
+    prof = d.profile_dir("youtube-bj")
+    (prof / "SingletonLock").symlink_to("signinbox-77")
+    mark_open(prof, 900)
+    j = JobIn.model_validate(
+        {"account": "youtube-bj", "recipe": {"hosts": ["youtube.com"], "steps": []},
+         "prompt": "x", "timeout_s": 30, "proxy": {"server": "http://egress:3133"}}
+    )  # fmt: skip
+    got = await d.job(j)
+    assert got["ok"] is False and got["error"] == "busy"
+
+
+# ⟨2026-11-21⟩ youtube-bj runs in youtube-web's profile (dotcoin.me, an editor of the channel): the
+# same directory and the SAME lock (never two Chromiums on one profile), and its logout never wipes it.
+async def test_an_account_sharing_a_profile_shares_its_lock_and_never_wipes_it(
+    tmp_path: Path,
+) -> None:
+    from hq_egress.browser_web import PROFILE_OF, Webd
+
+    assert PROFILE_OF == {"youtube-bj": "youtube-web"}
+    d = Webd(profiles=tmp_path)
+    assert d.profile_dir("youtube-bj") == d.profile_dir("youtube-web") == tmp_path / "youtube-web"
+    assert d.locks["youtube-bj"] is d.locks["youtube-web"]
+    assert d.locks["chatgpt-web"] is not d.locks["youtube-web"]
+    (tmp_path / "youtube-web" / "Cookies").write_text("signed in")
+    got = await d.logout("youtube-bj")
+    assert got["ok"] is False and (tmp_path / "youtube-web" / "Cookies").is_file()
+    async with d.locks["youtube-web"]:
+        j_busy = d.locks["youtube-bj"].locked()
+    assert j_busy

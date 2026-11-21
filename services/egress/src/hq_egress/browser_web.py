@@ -215,6 +215,13 @@ def fail(error: str, detail: str, step: str | None = None) -> dict[str, Any]:
     return {"ok": False, "error": error, "detail": detail[:300], "step": step}
 
 
+# ⟨2026-11-21⟩ an account whose jobs run in another account's profile, under that profile's
+# one lock. youtube-bj (@behnamjalali-tech): Google signed its fresh sign-ins out on the first
+# automated use (3 times on 11-21); dotcoin.me, signed in since 11-17 in youtube-web and never
+# signed out, is now an EDITOR of that channel (owner's choice, 11-21). Both recipes name their
+# channel by its id in every Studio route: one job can never reach the other channel.
+PROFILE_OF = {"youtube-bj": "youtube-web"}
+
 STALE_LOCK_S = 20 * 60
 # ⟨2026-11-17⟩ until when the profile is open (epoch seconds), written by whoever opens it (a job
 # here, the owner's sign-in window in its own container): another container's lock is live only
@@ -266,6 +273,16 @@ def unmark_open(profile: Path) -> None:
         (profile / OPEN_MARK).unlink()
 
 
+def held_elsewhere(profile: Path, now: float | None = None, host: str | None = None) -> bool:
+    """⟨2026-11-21⟩ Another container (the owner's sign-in window) holds the profile and its open
+    mark says it is still open: a job waits («busy»), never opens the same profile beside it (two
+    Chromiums on one profile broke it and Google dropped the owner's fresh sign-in)."""
+    now = time.time() if now is None else now
+    host = socket.gethostname() if host is None else host
+    owner = _lock_owner(profile)
+    return owner is not None and owner[0] != host and _open_until(profile) >= now
+
+
 def clear_stale_lock(profile: Path, now: float | None = None, host: str | None = None) -> None:
     """A window or job that died leaves Chromium's Singleton* lock behind (it
     names the dead container), and Chromium then refuses the profile. The lock
@@ -304,7 +321,11 @@ class Webd:
         self.sandbox = sandbox
         self.insecure_tls = insecure_tls
         self.headed = headed
-        self.locks = {a: asyncio.Lock() for a in ACCOUNTS}
+        # (one lock per PROFILE: accounts that share one never open it twice at a time)
+        by_profile: dict[str, asyncio.Lock] = {}
+        self.locks = {
+            a: by_profile.setdefault(PROFILE_OF.get(a, a), asyncio.Lock()) for a in ACCOUNTS
+        }
         self._pw: Any = None
         self._xvfb: asyncio.subprocess.Process | None = None
 
@@ -332,7 +353,7 @@ class Webd:
     def profile_dir(self, account: str) -> Path:
         if account not in ACCOUNTS:
             raise ValueError("unknown account")
-        d = self.profiles / account
+        d = self.profiles / PROFILE_OF.get(account, account)
         d.mkdir(mode=0o700, parents=True, exist_ok=True)
         return d
 
@@ -365,6 +386,8 @@ class Webd:
         lock = self.locks[j.account]
         if lock.locked():
             return fail("busy", "one job per account at a time")
+        if held_elsewhere(self.profile_dir(j.account)):
+            return fail("busy", "the owner's sign-in window has this profile open")
         async with lock:
             try:
                 return await asyncio.wait_for(self._job(j), timeout=j.timeout_s + 5)
@@ -406,7 +429,7 @@ class Webd:
     # -------------------------------------------------- a web.browse call --
     async def run(self, a: RunIn) -> dict[str, Any]:
         lock = self.locks[a.profile]
-        if lock.locked():
+        if lock.locked() or held_elsewhere(self.profile_dir(a.profile)):
             return {"code": "busy"}
         async with lock:
             hosts = frozenset(h.lower() for h in a.allowed_hosts)
@@ -423,6 +446,9 @@ class Webd:
                 await self.close(ctx, a.profile)
 
     async def logout(self, account: str) -> dict[str, Any]:
+        if account in PROFILE_OF:  # never wipes the profile it borrows (another account's sign-in)
+            shared = PROFILE_OF[account]
+            return {"ok": False, "error": "shared_profile", "detail": f"{account} runs in {shared}"}
         async with self.locks[account]:
             d = self.profile_dir(account)
             shutil.rmtree(d, ignore_errors=True)

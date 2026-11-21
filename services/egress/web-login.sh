@@ -60,8 +60,16 @@ umask 077
 export DISPLAY=:99 HOME=/tmp
 work="$(mktemp -d)"
 pids=()
+# ⟨2026-11-21⟩ the profile's open mark (browser_web.OPEN_MARK): while it is in the future, the
+# hub's own browser treats this window's Chromium lock as live and answers its jobs «busy». Without
+# it the hub took the lock as a dead container's, removed it and opened the SAME profile beside the
+# owner's window (bjtech uploads every 10 minutes): «Something went wrong when opening your
+# profile», and Google dropped the owner's fresh sign-in (youtube-bj, gemini-web, 11-21).
+mark="$profile/.hq-open-until"
+echo "$(( $(date +%s) + seconds + 60 ))" >"$mark"
 stop() {
   for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
+  rm -f "$mark"
   rm -rf "$work"
 }
 trap stop EXIT
