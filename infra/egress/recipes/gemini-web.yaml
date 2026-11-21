@@ -21,7 +21,7 @@
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
 key: gemini-web
-version: "2026-11-20.2"
+version: "2026-11-21.1"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -67,6 +67,17 @@ tasks:
       - {do: goto, url: "{start_url}"}
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
+      # 2026-11-20.3 (the owner: «جمنای رو روی مدل نئون پرو و high بذار»): the thinking level «بالا» / High
+      # first (optional: a menu without it never stops the job), then 4 Neon
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "[role=menuitem]:has-text('بالا'), [role=menuitemradio]:has-text('بالا'), [role=menuitem]:has-text('High'), [role=menuitemradio]:has-text('High')", timeout_s: 8, optional: true}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "[role=menuitem]:has-text('Neon'), [role=menuitemradio]:has-text('Neon')", timeout_s: 8, optional: true}
+      - {do: pause, ms: 1500}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "button[aria-label='Stop response'], button[aria-label*='توقف']", timeout_s: 20, optional: true}
@@ -85,7 +96,13 @@ tasks:
       # 2026-11-14.2: .1 failed at the download (TargetClosedError): the steps of the test that
       # worked the same day: short pauses for the menu and before the download (the full-size file
       # is still being fetched when the image shows), and the button by any of its names
+      # 2026-11-20.3 (the owner: «جمنای رو روی مدل نئون پرو و high بذار»): the thinking level «بالا» / High
+      # first (optional: a menu without it never stops the job), then 4 Neon
       - {do: pause, ms: 2000}
+      - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
+      - {do: pause, ms: 1500}
+      - {do: click, selector: "[role=menuitem]:has-text('بالا'), [role=menuitemradio]:has-text('بالا'), [role=menuitem]:has-text('High'), [role=menuitemradio]:has-text('High')", timeout_s: 8, optional: true}
+      - {do: pause, ms: 1500}
       - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10}
       - {do: pause, ms: 1500}
       # 2026-11-20: «Argon» is gone from the menu (seen live: خودکار, 4 Hydrogen, 4 Neon «جدید», 4 Carbon);
