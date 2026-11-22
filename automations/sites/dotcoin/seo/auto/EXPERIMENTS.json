@@ -1,1 +1,75 @@
-[]
+[
+ {
+  "id": "exp-2026-11-22-01",
+  "page": "/learn/referral-code/",
+  "query": "کد رفرال چیست",
+  "change": "new page (TOPIC_MAP #36) + links in from the 3 exchange pages",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": null,
+   "position": null,
+   "window": "28d to 2026-11-21",
+   "note": "page did not exist"
+  },
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-02",
+  "page": "/learn/bitcoin-mining/",
+  "query": null,
+  "change": "contextual link from /learn/bitcoin/ (anchor «استخراج یا ماینینگ بیت‌کوین»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
+  },
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-03",
+  "page": "/learn/metamask-guide/",
+  "query": null,
+  "change": "contextual link from /learn/crypto-wallet/ (anchor «راهنمای کیف‌پول متامسک»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
+  },
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-04",
+  "page": "/learn/coin-vs-token/",
+  "query": null,
+  "change": "contextual link from /learn/cryptocurrency/ (anchor «فرق کوین و توکن»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
+  },
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-05",
+  "page": "/learn/tether-reserves-sp-warning/",
+  "query": null,
+  "change": "contextual link from /learn/stablecoin/ (anchor «هشدار اس‌اندپی درباره‌ی پشتوانه‌ی تتر»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
+  },
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ }
+]

@@ -1,2 +1,131 @@
-{"_note": "query -> {page, cluster, suggest, gsc: {impressions, clicks, ctr, position, window}, updated}. Filled by the daily session from Search Console and Google suggest; never a guessed volume.",
- "queries": {}}
+{
+ "_note": "query -> {page, cluster, suggest, gsc: {impressions, clicks, ctr, position, window}, updated}. Filled by the daily session from Search Console and Google suggest; never a guessed volume.",
+ "queries": {
+  "کد رفرال چیست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال» #1 (2026-11-22)",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال صرافی چیست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال چیست»",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "چگونه کد رفرال بگیریم": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال» --deep",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال کجاست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال» --deep",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال بروکر چیست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال»",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال lbank": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": "suggest: کد رفرال ال بانک / کجاست",
+   "gsc": {
+    "impressions": 5,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 63,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  },
+  "کد رفرال اوربیت": {
+   "page": "/exchanges/ourbit/",
+   "cluster": "exchange-ourbit",
+   "suggest": "suggest «کد رفرال» #3",
+   "gsc": {
+    "impressions": 4,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 48.75,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  },
+  "صرافی weex": {
+   "page": "/exchanges/weex/",
+   "cluster": "exchange-weex",
+   "suggest": null,
+   "gsc": {
+    "impressions": 2,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 63.5,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  },
+  "ال بانک ثبت نام": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": null,
+   "gsc": {
+    "impressions": 2,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 74,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  },
+  "ثبت نام در lbank": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": null,
+   "gsc": {
+    "impressions": 1,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 52,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  },
+  "صرافی ویکس": {
+   "page": "/exchanges/weex/",
+   "cluster": "exchange-weex",
+   "suggest": null,
+   "gsc": {
+    "impressions": 1,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 65,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  },
+  "دپوزیت چیست": {
+   "page": null,
+   "cluster": "deposit (longform exchange-withdrawal-guide owns واریز و برداشت)",
+   "suggest": null,
+   "gsc": {
+    "impressions": 1,
+    "clicks": 0,
+    "ctr": 0.0,
+    "position": 88,
+    "window": "28d to 2026-11-21"
+   },
+   "updated": "2026-11-22"
+  }
+ }
+}

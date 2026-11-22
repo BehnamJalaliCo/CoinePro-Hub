@@ -52,7 +52,7 @@ instead of writing a second one.
 | 33 | `testnet` | تست نت چیست | تست نت و مین نت | info | basics | ethereum | P3 | candidate |
 | 34 | `crypto-glossary-beginner` | اصطلاحات ارز دیجیتال | واژه های ارز دیجیتال برای مبتدی | hub | terms | /glossary/ | P3 | candidate |
 | 35 | `crypto-exchange-guide` | صرافی ارز دیجیتال چیست | صرافی ارز دیجیتال چطور کار می کند | info | exchange | cex-vs-dex, /exchanges/ | P2 | candidate |
-| 36 | `referral-code` | کد رفرال چیست | کد دعوت صرافی، رفرال | info | exchange | /exchanges/, /vip/ | P2 | candidate |
+| 36 | `referral-code` | کد رفرال چیست | کد دعوت صرافی، رفرال | info | exchange | /exchanges/, /vip/ | P2 | live:2026-11-22 |
 | 37 | `limit-stop-order` | سفارش استاپ لیمیت چیست | stop limit، تفاوت استاپ مارکت و استاپ لیمیت | info | market | market-vs-limit-order, stop-loss | P2 | candidate |
 | 38 | `oco-order` | سفارش oco چیست | سفارش او سی او | info | market | limit-stop-order, take-profit (video) | P3 | candidate |
 | 39 | `liquidation-price` | قیمت لیکوئید شدن | محاسبه قیمت لیکوئید | info | market | leverage, margin-trading | P2 | candidate |
