@@ -823,3 +823,55 @@ async def test_the_keeper_wakes_an_idle_day_only_while_an_account_has_room(
         w["id"],
     )
     assert work_ref not in await FL.keep(hub, later + timedelta(hours=1), force=True)
+
+
+async def test_a_page_never_says_one_topic_twice_across_its_days_and_its_twin_flows(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-24⟩ each flow's day is a session with a ledger of its own, so @theprochart's two
+    daily reels (prochart_reels, prochart_reels_2) both said «۴۴ الگو، دو خانواده» and the next
+    day's was set to say it a third time. A day's topic is checked against every other day of the
+    same page and family (the key without its trailing number); another family is its own."""
+    from .conftest import agent_headers
+
+    pc = await new_company()
+    fk = f"t{uuid.uuid4().hex[:8]}"
+    flows = {k: a_flow(pc["code"], k) for k in (fk, f"{fk}_2", f"{fk}x")}
+    monkeypatch.setattr(FL, "FLOWS", flows)
+    base = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=5)
+    works = {}
+    for i, k in enumerate(flows):
+        r = await client.post(
+            f"/api/v1/flows/{k}/run", headers={**owner, **idem()},
+            json={"day": (base + timedelta(days=i)).isoformat()},
+        )  # fmt: skip
+        assert r.status_code == 201, r.text
+        works[k] = r.json()["work"]
+    holder = await su.fetchval(
+        "SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id"
+        " WHERE w.ref = $1",
+        works[fk],
+    )
+
+    async def claim(k: str, title: str) -> httpx.Response:
+        return await client.post(
+            "/internal/v1/topics/claim", headers=await agent_headers(holder),
+            json={"work": works[k], "title_fa": title},
+        )  # fmt: skip
+
+    r = await claim(fk, "۴۴ الگو، دو خانواده")
+    assert r.status_code == 201, r.text
+    # its twin flow on the same page, another day: the same topic is taken, the page's list said
+    r = await claim(f"{fk}_2", "دو خانواده، ۴۴ الگو")
+    assert r.status_code == 409 and r.json()["code"] == "topic_taken", r.text
+    assert "۴۴ الگو" in r.json()["fields"]["recent"]
+    r = await claim(f"{fk}_2", "دوئل با گذشته")
+    assert r.status_code == 201, r.text
+    # another family of the same page is its own (a story of the day's news is not a repeat)
+    r = await claim(f"{fk}x", "۴۴ الگو، دو خانواده")
+    assert r.status_code == 201, r.text

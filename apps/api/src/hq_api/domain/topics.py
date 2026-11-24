@@ -198,8 +198,38 @@ async def scope_of_work(tx: Tx, w: dict[str, Any]) -> dict[str, Any]:
     if run is not None:
         return {"company_id": run["company_id"], "group_id": run["group_id"],
                 "group_key": run["group_key"], "run_id": run["run_id"], "order_ref": None}  # fmt: skip
-    return {"company_id": w["company_id"], "group_id": None, "group_key": None, "run_id": None,
-            "order_ref": await OR.order_of_work(tx, w["id"])}  # fmt: skip
+    order_ref = await OR.order_of_work(tx, w["id"])
+    scope = {"company_id": w["company_id"], "group_id": None, "group_key": None, "run_id": None,
+             "order_ref": order_ref}  # fmt: skip
+    page = await tx.first(PAGE_SQL, w=str(w["id"]), o=order_ref)
+    if page is not None and page["account"] and page["family"]:
+        scope["page"] = {"account": page["account"], "family": page["family"]}
+    return scope
+
+
+# ⟨2026-11-24⟩ the page of a flow's day: its account and its family (the flow's key without a
+# trailing number: prochart_reels and prochart_reels_2 are one family)
+PAGE_SQL = """SELECT w.run_meta -> 'flow' ->> 'account' AS account,
+       regexp_replace(w.run_meta -> 'flow' ->> 'key', '_[0-9]+$', '') AS family
+FROM work.work w
+WHERE w.run_meta ? 'flow'
+  AND (w.id = CAST(:w AS uuid)
+       OR w.ref = ANY(SELECT unnest(r.work_refs) FROM owner.order_reports r
+                       WHERE r.ref = CAST(:o AS text)))
+ORDER BY w.created_at LIMIT 1"""
+# what the other days of the same page and family named (each day is a session of its own, so
+# its own ledger is empty: on 11-24 @theprochart's two daily reels both said «۴۴ الگو، دو
+# خانواده» and the next day's was set to say it a third time)
+PAGE_SCAN_SQL = """SELECT DISTINCT ON (t.id) t.id, t.title_fa, t.url, t.norm, t.tokens, t.run_id,
+       t.created_at
+FROM growth.topics t
+JOIN owner.order_reports r ON r.ref = t.order_ref
+JOIN work.work w ON w.ref = ANY(r.work_refs) AND w.run_meta ? 'flow'
+WHERE t.company_id = :co AND t.kind = :k AND t.state = 'said' AND t.group_id IS NULL
+  AND t.order_ref <> CAST(:o AS text)
+  AND w.run_meta -> 'flow' ->> 'account' = :acct
+  AND regexp_replace(w.run_meta -> 'flow' ->> 'key', '_[0-9]+$', '') = :fam
+ORDER BY t.id LIMIT :n"""
 
 
 WHERE = """company_id = :co AND kind = :k AND state = 'said'
@@ -227,6 +257,12 @@ async def taken_by(
         SCAN_SQL,
         co=scope["company_id"], k=kind, g=scope.get("group_id"), o=scope.get("order_ref"), n=SCAN,
     )  # fmt: skip
+    page = scope.get("page")
+    if kind == "topic" and page and scope.get("order_ref"):
+        rows = [*rows, *await tx.all(
+            PAGE_SCAN_SQL, co=scope["company_id"], k=kind, o=scope["order_ref"],
+            acct=page["account"], fam=page["family"], n=SCAN,
+        )]  # fmt: skip
     for r in rows:
         if but_run is not None and r["run_id"] == but_run:
             continue
@@ -311,7 +347,15 @@ async def claim(
             return dict(mine), False
     hit = await taken_by(tx, scope, kind, tokens, norm, but_run=run_id, exact=exact)
     if hit is not None:
-        raise taken_error(hit, [str(r["title_fa"]) for r in await recent(tx, scope, kind, 12)])
+        said = [str(r["title_fa"]) for r in await recent(tx, scope, kind, 12)]
+        page = scope.get("page")
+        if kind == "topic" and page and scope.get("order_ref"):
+            said += [str(r["title_fa"]) for r in await tx.all(
+                f"SELECT title_fa FROM ({PAGE_SCAN_SQL}) x ORDER BY created_at DESC LIMIT 12",  # noqa: S608
+                co=scope["company_id"], k=kind, o=scope["order_ref"], acct=page["account"],
+                fam=page["family"], n=SCAN,
+            )]  # fmt: skip
+        raise taken_error(hit, said)
     try:
         async with tx.conn.begin_nested():
             if mine is not None:
