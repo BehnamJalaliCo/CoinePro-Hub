@@ -1139,6 +1139,11 @@ async def clock(
         await later()
         if got.get("order"):
             made.append(str(got["order"]))
+    # ⟨2026-11-24⟩ the keeper, with the same clock (never stops it)
+    try:
+        await keep(hub, now)
+    except Exception:  # (the clock goes on)
+        log.exception("the automations' keeper did not run")
     # ⟨1.39⟩ §61.6 the alerts, with the same clock (never stops it)
     from hq_api.domain import flow_alerts as AL
     from hq_api.domain import notify
@@ -1150,6 +1155,86 @@ async def clock(
     except Exception:  # (the clock goes on)
         log.exception("the automations' alerts were not swept")
     return made
+
+
+# ⟨2026-11-24⟩ THE KEEPER. The owner: «نباید سیستم قطع باشد و هیچ کاری نکند بجز مواقعی که حساب
+# مسدود یا لیمیت خورده باشد». 11-22..24 every day's session failed its turns (the Claude account was
+# disabled), spent its FLOW_CONTINUE_MAX continues in a minute and then sat open with nothing queued:
+# nothing ever woke it again, and no automation made anything for three days. Every KEEP_EVERY_MIN
+# minutes the clock wakes the open sessions of today's (and tomorrow's) flow days that have nothing
+# queued or running and were quiet for KEEP_IDLE, while a Claude account has room (all of them
+# disabled or full: nothing to do, the only wait the owner accepts); at most KEEP_MAX wakes a session
+# in 24 hours and KEEP_BATCH a pass (the workshop takes two turns at a time).
+KEEP_EVERY_MIN = 10
+KEEP_IDLE = timedelta(minutes=20)
+KEEP_MAX = 24
+KEEP_BATCH = 8
+KEPT = "flow_kept"
+KEEP_SQL = """SELECT w.id, w.ref, w.company_id, w.run_meta -> 'flow' ->> 'order' AS "order"
+  FROM work.work w
+ WHERE w.parent_id IS NULL AND w.run_meta ? 'flow' AND w.status = ANY(:open)
+   AND w.assignee_id IS NOT NULL
+   AND w.run_meta -> 'flow' ->> 'day' >= :today
+   AND coalesce(w.run_meta -> 'flow' ->> 'order', '') <> ''
+   AND EXISTS (SELECT 1 FROM owner.order_reports r
+                WHERE r.ref = w.run_meta -> 'flow' ->> 'order' AND r.closed_at IS NULL)
+   AND NOT EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.kind = 'claude' AND j.work_ref = w.ref
+                     AND j.state IN ('queued', 'dispatched', 'running'))
+   AND NOT EXISTS (SELECT 1 FROM agents.runs r WHERE r.work_id = w.id
+                     AND r.state IN ('queued', 'claimed', 'running'))
+   AND coalesce((SELECT max(e.at) FROM work.work_events e WHERE e.work_id = w.id), w.created_at)
+       < :quiet_before
+   AND (SELECT count(*) FROM work.work_events e WHERE e.work_id = w.id AND e.kind = :kept
+          AND e.at > :since) < :keep_max
+ ORDER BY w.run_meta -> 'flow' ->> 'day', w.created_at
+ LIMIT :batch"""
+
+
+async def claude_room(tx: Tx) -> bool:
+    """A Claude account the workshop may use has room now (switched on, not full)."""
+    from hq_api.domain import servers as SV
+
+    keys = [k for k, _ in SV.RUNNER_ACCOUNTS]
+    on = await tx.scalar(
+        "SELECT count(*) FROM llm.connections WHERE key = ANY(:k) AND status IN ('enabled', 'ready')",
+        k=keys,
+    )
+    return bool(on) and await SV.accounts_room_at(tx) is None
+
+
+async def keep(hub: Any, now: datetime, *, force: bool = False) -> list[str]:
+    """The keeper's pass (see KEEP_EVERY_MIN): the sessions it woke."""
+    from hq_api.domain import direct as DR
+    from hq_api.domain import work as W
+
+    if not force and now.minute % KEEP_EVERY_MIN:
+        return []
+    today = now.astimezone(ZoneInfo(TEHRAN)).date().isoformat()
+    woke: list[str] = []
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        if not await claude_room(tx):
+            return []
+        rows = await tx.all(
+            KEEP_SQL, open=list(W.OPEN), today=today, quiet_before=now - KEEP_IDLE,
+            kept=KEPT, since=now - timedelta(hours=24), keep_max=KEEP_MAX, batch=KEEP_BATCH,
+        )  # fmt: skip
+        for r in rows:
+            if await over_cap(tx, r["id"]):
+                continue
+            run = await tx.scalar(
+                "SELECT work.wake_assignee(:w, :r)",
+                w=r["id"],
+                r=f"{DR.CONTINUE_REASON}{r['order']}",
+            )
+            if run is None:
+                continue
+            await W.event(
+                tx, dict(r), KEPT, FLOW, {"run": str(run), "why": "idle, an account has room"}
+            )
+            woke.append(str(r["ref"]))
+    if woke:
+        log.info("the keeper woke idle flow sessions", extra={"works": woke})
+    return woke
 
 
 STORY_WORDS_SQL = """SELECT DISTINCT kw FROM infra.server_jobs j,

@@ -762,3 +762,64 @@ def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
     assert all(s.effort == "xhigh" for s in slides if s.model)
     # ⟨2026-11-17⟩ every flow's map shows its own effort (all xhigh now)
     assert all(s.effort == "xhigh" for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"]) if s.model)
+
+
+async def test_the_keeper_wakes_an_idle_day_only_while_an_account_has_room(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-24⟩ the owner: «نباید سیستم قطع باشد و هیچ کاری نکند بجز مواقعی که حساب مسدود یا
+    لیمیت خورده باشد». A day's session with nothing queued or running, quiet for KEEP_IDLE, is woken
+    by the clock's keeper while an account has room; never while none has, never twice at once, and
+    at most KEEP_MAX times in 24 hours."""
+    pc = await new_company()
+    fk = f"t{uuid.uuid4().hex[:8]}"
+    monkeypatch.setattr(FL, "FLOWS", {fk: a_flow(pc["code"], fk)})
+    day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=3)
+    r = await client.post(
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert r.status_code == 201, r.text
+    work_ref = r.json()["work"]
+    w = await su.fetchrow("SELECT id FROM work.work WHERE ref = $1", work_ref)
+    # the day's turns all failed and its continues are spent: nothing queued, nothing running
+    await su.execute(
+        "UPDATE agents.runs SET state = 'failed', finished_at = now() WHERE work_id = $1"
+        " AND state IN ('queued', 'claimed', 'running')",
+        w["id"],
+    )
+    await su.execute(
+        "UPDATE infra.server_jobs SET state = 'failed' WHERE work_ref = $1 AND state IN ('queued', 'dispatched', 'running')",
+        work_ref,
+    )
+    later = datetime.now(UTC) + timedelta(hours=1)  # quiet for an hour
+
+    async def no_room(tx: Any) -> bool:
+        return False
+
+    async def room(tx: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(FL, "claude_room", no_room)
+    assert work_ref not in await FL.keep(hub, later, force=True)  # every account blocked or full
+    monkeypatch.setattr(FL, "claude_room", room)
+    assert work_ref in await FL.keep(hub, later, force=True)
+    kept = await su.fetchval(
+        "SELECT count(*) FROM work.work_events WHERE work_id = $1 AND kind = 'flow_kept'", w["id"]
+    )
+    assert kept == 1
+    assert work_ref not in await FL.keep(hub, later, force=True)  # its run is queued now
+    assert await FL.keep(hub, later.replace(minute=7), force=False) == []  # not the keeper's minute
+    # at most KEEP_MAX wakes in 24 hours
+    monkeypatch.setattr(FL, "KEEP_MAX", 1)
+    await su.execute(
+        "UPDATE agents.runs SET state = 'failed', finished_at = now() WHERE work_id = $1"
+        " AND state IN ('queued', 'claimed', 'running')",
+        w["id"],
+    )
+    assert work_ref not in await FL.keep(hub, later + timedelta(hours=1), force=True)
