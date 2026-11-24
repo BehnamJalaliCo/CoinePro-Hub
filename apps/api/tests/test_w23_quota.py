@@ -997,3 +997,59 @@ async def test_an_account_the_provider_refuses_rests_and_the_turn_runs_on_the_ot
     assert (pick.key, pick.token, pick.hold) == ("claude-max-2", SECOND, False)
     again = await take(client, rn)
     assert again["id"] != first and again["claude_oauth"] == SECOND
+
+
+DISABLED = (
+    "API Error: 400 This organization has been disabled. An organization admin can appeal at"
+    " https://console.anthropic.com/appeal (Reference: TS-01a206cb)"
+)
+
+
+def test_an_account_the_provider_disabled_is_told_apart() -> None:
+    """⟨2026-11-24⟩ «This organization has been disabled» (claude-max, 11-22 on): a refusal, and
+    one for good."""
+    assert SV.account_refused(DISABLED) and SV.account_disabled(DISABLED)
+    assert SV.account_disabled("API Error: 403 Your account has been suspended")
+    assert not SV.account_disabled(REFUSED)  # verification: a while, not for good
+    for text in (
+        "## ساخته شد\nThis organization has been disabled در متن مقاله آمده.",
+        DISABLED + " " + "x" * 500,
+    ):
+        assert not SV.account_disabled(text), text
+
+
+async def test_an_account_the_provider_disabled_is_switched_off_for_good(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+) -> None:
+    """⟨2026-11-24⟩ 820 turns failed on claude-max in 3 days and no flow made anything: the disabled
+    account is switched off on the hub (with an Audit row), the turn runs on the other one at once,
+    and no later pick ever returns to it (no hour of rest that sends it turns again)."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    first = await _claude_job(hub, rn["server"]["id"])
+    job = await take(client, rn)
+    assert job["id"] == first and job["claude_oauth"] == MAIN
+    r = await client.post(
+        f"{API}/runners/jobs/{first}/result",
+        json={"exit_code": 1, "summary_fa": "نشست Claude با کد خروج 1 تمام شد.",
+              "data": {"result_fa": DISABLED}},
+        headers=rn["h"],
+    )  # fmt: skip
+    assert r.status_code == 200 and r.json()["state"] == "failed", r.text
+    row = await su.fetchrow(
+        "SELECT status, status_reason FROM llm.connections WHERE key = 'claude-max'"
+    )
+    assert row["status"] == "disabled" and "organization has been disabled" in row["status_reason"]
+    audited = await su.fetchval(
+        "SELECT count(*) FROM audit.entries WHERE action = 'llm.connection.update' AND target_ref = 'claude-max'"
+    )
+    assert audited >= 1
+    again = await take(client, rn)
+    assert again["id"] != first and again["claude_oauth"] == SECOND
+    pick = await _pick(hub)  # and never back to it: no rest that ends
+    assert (pick.key, pick.token) == ("claude-max-2", SECOND)

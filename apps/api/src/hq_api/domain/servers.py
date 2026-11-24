@@ -1520,11 +1520,23 @@ NOTICE_CHARS = 400
 # other one (the owner: «اگر اولی کار نکرد از دومی استفاده بکنه»), and after the rest it is tried again.
 _REFUSED = re.compile(
     r"^api error\b.{0,80}(?:your account can(?:'|\u2019)?t receive replies|verification_required"
-    r"|permission_error|authentication_error|billing_error|account (?:is )?(?:suspended|disabled))"
+    r"|permission_error|authentication_error|billing_error|account (?:is )?(?:suspended|disabled)"
+    r"|organization (?:has been |is )?disabled)"
     r"|^(?:invalid api key|oauth token (?:has )?expired|please run /login)\b",
     re.IGNORECASE | re.DOTALL,
 )
 REFUSED_HOLD = timedelta(hours=1)
+# ⟨2026-11-24⟩ refused for good, not for a while: «API Error: 400 This organization has been
+# disabled» answered every claude-max turn from 11-22 to 11-24 (820 failed turns, no flow made
+# anything). Not in _REFUSED then, so the main account kept taking every turn; and a one-hour rest
+# would have sent a turn back to it each hour. Such an account is switched off on the hub
+# (llm.connections `disabled`, Audit) and stays off until the owner puts it, or another, back.
+_DISABLED = re.compile(
+    r"^api error\b.{0,80}(?:organization (?:has been |is )?disabled"
+    r"|account (?:has been |is )?(?:suspended|disabled|banned))",
+    re.IGNORECASE | re.DOTALL,
+)
+DISABLED_WHY = "Anthropic: {line}"
 _RESET_MARK = re.compile(r"\|\d{10}\b|[\u2219\u00b7\u2022]\s*resets?\b", re.IGNORECASE)
 _EPOCH = re.compile(r"\|(\d{10})\b")
 USAGE_LIMIT = "usage_limit"
@@ -1554,6 +1566,12 @@ def limit_notice(text: str | None) -> bool:
         and _LIMIT_NOTICE.search(t) is not None
         and _RESET_MARK.search(t) is not None
     )
+
+
+def account_disabled(text: str | None) -> bool:
+    """The CLI's own short line that the provider disabled the account (for good)."""
+    t = (text or "").strip()
+    return 0 < len(t) <= NOTICE_CHARS and _DISABLED.search(t) is not None
 
 
 def account_refused(text: str | None) -> bool:
@@ -2044,9 +2062,31 @@ async def _record_limit(tx: Tx, j: dict[str, Any], account: str, data: dict[str,
     )
     if seen is not None and float(seen) > 0:
         resets = datetime.fromtimestamp(float(seen), UTC)
-    if resets is None and account_refused(str(data.get("result_fa") or "")):
+    final = str(data.get("result_fa") or "").strip()
+    if account_disabled(final):
+        await _switch_off(tx, j, account, final)
+        return
+    if resets is None and account_refused(final):
         resets = now + REFUSED_HOLD  # a refusal has no reset of its own: tried again after the rest
     await observe_quota(tx, account, *_state("limited", None, None, resets, "quota_guard", now))
+
+
+async def _switch_off(tx: Tx, j: dict[str, Any], account: str, line: str) -> None:
+    """The provider disabled the account: off on the hub until the owner says otherwise."""
+    why = DISABLED_WHY.format(line=" ".join(line.split())[:200])
+    n = await tx.exec(
+        """UPDATE llm.connections SET status = 'disabled', status_reason = :why,
+                  status_changed_at = now(), updated_at = now()
+           WHERE key = :k AND status <> 'disabled'""",
+        k=account,
+        why=why,
+    )
+    if n:
+        await audit.record(
+            tx, SERVICE, company_id=j["company_id"], action="llm.connection.update",
+            action_class="A2", target_kind="connection", target_ref=account,
+            summary=f"switched off: the provider disabled it ({why[:240]}); every turn goes to the other account",
+        )  # fmt: skip
 
 
 async def _other_account(
