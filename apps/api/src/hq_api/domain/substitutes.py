@@ -3025,8 +3025,13 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
             return
         p = await _player(tx, c["player"], lock=True)
         if ok:
+            # ⟨2026-11-24⟩ an answer the recipe made shows the recipe works: a failure's hold ends
+            # here (on 11-24 two slow images held ChatGPT 6 hours while the calls queued before the
+            # hold all came back made, and no cover could be asked for). A limit's hold stays.
             await tx.exec(
                 """UPDATE substitutes.players SET web_last_ok_at = now(), web_last_failure = NULL,
+                       web_error_until = CASE WHEN web_last_failure = 'limited'
+                                              THEN web_error_until END,
                        recipe_version = COALESCE(:v, recipe_version), updated_at = now() WHERE id = :id""",
                 v=str(answer.get("recipe_version") or "")[:40] or None,
                 id=p["id"],

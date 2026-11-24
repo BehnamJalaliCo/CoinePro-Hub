@@ -647,6 +647,44 @@ async def test_the_web_path_makes_a_creative_with_the_hubs_overlay_and_never_pub
         assert wipe.logouts == ["chatgpt-web"]
 
 
+async def test_an_answer_the_recipe_made_ends_a_failures_hold_but_not_a_limits(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-24⟩ two slow images held ChatGPT for 6 hours while the calls queued before the hold
+    all came back made, and no cover could be asked for. An answer the recipe made ends a
+    failure's hold; a limit's hold stays."""
+    co = (await new_company())["code"]
+    ok = {"ok": True, "file": {"name": "image.png", "mime": "image/png", "b64": png()},
+          "recipe_version": "2"}  # fmt: skip
+    async with bench(su, hub, web=("gpt",)):
+        await per_day(su, "gpt", "creative", 5)
+        for failure, kept in ((None, False), ("limited", True)):
+            r = await client.post(
+                "/api/v1/creatives", headers={**owner, **idem()},
+                json={"company": co, "kind": "image", "brief_md": "پست", "placement": "telegram_post"},
+            )  # fmt: skip
+            assert r.status_code == 201 and r.json()["state"] == "queued", r.text
+            # the hold came after this call was queued (a recipe that failed twice, or a limit)
+            await su.execute(
+                """UPDATE substitutes.players SET web_error_until = now() + interval '6 hours',
+                       web_last_failure = $1, web_last_job_at = NULL WHERE player = 'gpt'""",
+                failure,
+            )
+            out = await S.web_jobs(hub, FakeEgress(ok))
+            assert out["ran"] == 1, out
+            held = await su.fetchval(
+                "SELECT web_error_until IS NOT NULL FROM substitutes.players WHERE player = 'gpt'"
+            )
+            assert held is kept, failure
+        await su.execute(
+            "UPDATE substitutes.players SET web_error_until = NULL WHERE player = 'gpt'"
+        )
+
+
 async def test_the_web_path_does_nothing_while_the_holding_is_locked(hub: Hub, su: Any) -> None:
     async with bench(su, hub, web=("deepseek",)):
         async with hub.db.tx(await hub.companies.ids()) as tx:
