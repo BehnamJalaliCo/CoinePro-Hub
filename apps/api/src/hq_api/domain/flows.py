@@ -1213,13 +1213,22 @@ async def keep(hub: Any, now: datetime, *, force: bool = False) -> list[str]:
     today = now.astimezone(ZoneInfo(TEHRAN)).date().isoformat()
     woke: list[str] = []
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        if not await claude_room(tx):
-            return []
         rows = await tx.all(
             KEEP_SQL, open=list(W.OPEN), today=today, quiet_before=now - KEEP_IDLE,
             kept=KEPT, since=now - timedelta(hours=24), keep_max=KEEP_MAX, batch=KEEP_BATCH,
         )  # fmt: skip
-        for r in rows:
+    # ⟨2026-11-24⟩ a day whose whole package is in but was never sent (its last turn broke after
+    # it wrote out/, so no deliver came): sent now, not woken (no account needed for that)
+    left = []
+    for r in rows:
+        if await after_delivered(hub, r["id"]) in (None, "open"):
+            left.append(r)
+    if not left:
+        return []
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        if not await claude_room(tx):
+            return []
+        for r in left:
             if await over_cap(tx, r["id"]):
                 continue
             run = await tx.scalar(
@@ -1440,6 +1449,91 @@ async def _ask_for_cover(tx: Tx, w: dict[str, Any]) -> bool:
     return True
 
 
+# ⟨2026-11-24⟩ THE LAST GATE. The owner: «از تکراری بودن ریلز های پروچارت جلوگیری بشه». @theprochart
+# said «۴۴ الگو، دو خانواده» twice on 11-24 (its two flows, each with its own empty ledger) and
+# «میله‌ای OHLC» on 11-21 and 11-22. The topic ledger now spans the page (topics.scope_of_work);
+# this is the gate behind it: a reel whose topic (topic.txt, its first line) the page already has
+# out or set, by any flow or day, is not sent. Its session is woken to make the day again on a new
+# topic, REPEAT_WAKES times at most; past that the day waits (a step on its report says why).
+REPEAT_WAKES = 2
+REPEAT_SCAN = 500
+REPEAT_SQL = """SELECT topic_fa, coalesce(published_at, scheduled_at, created_at) AS at,
+       coalesce(source ->> 'work', '') AS work
+  FROM media.publications
+ WHERE account = :a AND kind = 'reel' AND state NOT IN ('cancelled', 'failed')
+   AND coalesce(topic_fa, '') <> '' AND coalesce(source ->> 'work', '') <> :w
+ ORDER BY created_at DESC LIMIT :n"""
+TOPIC_REPEAT_FA = (
+    "موضوع این ریلز («{topic}») پیش از این در همین پیج رفته است ({at}). تکرار ممنوع است (دستور "
+    "مالک): منتشر نشد. یک موضوع تازه بردار (ثبت موضوع) و ریلز، کپشن، کاور و فایل موضوعِ تازه را "
+    "دوباره بساز و تحویل بده."
+)
+TOPIC_REPEAT_HELD_FA = (
+    "موضوع این ریلز («{topic}») باز هم تکراری بود؛ این روز منتشر نمیشود تا موضوع تازه برسد."
+)
+_TOPIC_CHARS = str.maketrans(
+    {"ي": "ی", "ى": "ی", "ك": "ک", "ة": "ه", "أ": "ا", "إ": "ا", "آ": "ا", "‌": " "}
+    | {c: str(i) for i, c in enumerate("۰۱۲۳۴۵۶۷۸۹")}
+    | {c: str(i) for i, c in enumerate("٠١٢٣٤٥٦٧٨٩")}
+)
+
+
+def topic_key(text: str) -> str:
+    """A topic as compared: Arabic letters and Persian/Arabic digits as Persian/ASCII, no
+    half-space, punctuation, diacritics or case."""
+    t = str(text or "").translate(_TOPIC_CHARS).casefold()
+    return "".join(ch for ch in t if ch.isalnum())
+
+
+async def repeat_of(tx: Tx, account: str, topic: str, work_ref: str) -> dict[str, Any] | None:
+    """The page's reel (another work's, out or set) on the same topic, if any."""
+    key = topic_key(topic)
+    if not key:
+        return None
+    rows = await tx.all(REPEAT_SQL, a=account, w=work_ref, n=REPEAT_SCAN)
+    return next((dict(r) for r in rows if topic_key(r["topic_fa"]) == key), None)
+
+
+async def _hold_repeat(
+    tx: Tx, w: dict[str, Any], meta: dict[str, Any], topic: str, seen: dict[str, Any]
+) -> str:
+    """A reel day on a topic its page already has: not sent; its session woken to make it again
+    on a new topic (REPEAT_WAKES times at most)."""
+    asked = int(meta.get("repeats") or 0)
+    meta["repeats"] = asked + 1
+    meta["repeat_of"] = str(seen.get("work") or "")
+    await tx.exec(
+        "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))"
+        " WHERE id = :w",
+        w=w["id"],
+        m=_json(meta),
+    )
+    order = str(meta.get("order") or "")
+    at = seen.get("at")
+    said = (
+        TOPIC_REPEAT_FA.format(topic=topic[:120], at=at_fa(at) if at else "—")
+        if asked < REPEAT_WAKES
+        else TOPIC_REPEAT_HELD_FA.format(topic=topic[:120])
+    )
+    rep = await OR.ensure(tx, order) if order else None
+    if rep is not None:
+        await OR._append_steps(tx, rep["id"], [OR._step("سامانه", said)])
+    await audit.record(
+        tx, FLOW, company_id=w["company_id"], action="flow.topic_repeat", action_class="A1",
+        target_kind="work", target_ref=str(w["ref"]),
+        summary=f"{meta.get('account')}: «{topic[:120]}» again (first {seen.get('work')})",
+    )  # fmt: skip
+    if asked < REPEAT_WAKES:
+        await tx.scalar(
+            "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"topic_repeat:{order or w['ref']}"
+        )
+    log.warning(
+        "flow reel topic repeated: not sent",
+        extra={"work": str(w["ref"]), "account": meta.get("account"), "of": seen.get("work")},
+    )
+    return "repeat"
+
+
 VIDEO_LEFT_SQL = """SELECT 1 FROM infra.server_jobs j,
         jsonb_array_elements(coalesce(j.result -> 'files_skipped', '[]'::jsonb)) s
     WHERE j.state = 'done' AND s ->> 'name' = 'video.mp4'
@@ -1585,6 +1679,8 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
         if topic_d
         else []
     )
+    if topic and (seen := await repeat_of(tx, account, topic[0], str(w["ref"]))) is not None:
+        return await _hold_repeat(tx, w, meta, topic[0], seen)
     at = datetime.fromisoformat(str(meta["publish_at"]))
     when = at if at > datetime.now(UTC) + timedelta(minutes=2) else None
     order = str(meta.get("order") or "") or None

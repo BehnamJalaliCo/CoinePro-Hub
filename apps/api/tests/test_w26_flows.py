@@ -166,7 +166,7 @@ async def test_n8n_starts_the_day_and_the_package_goes_out_at_its_hour(
     turns = (
         (("caption.txt", "text/plain", "کپشن #پرو_چارت".encode()),
          ("comment.txt", "text/plain", COMMENT.encode()),
-         ("topic.txt", "text/plain", "بازپخش".encode())),
+         ("topic.txt", "text/plain", f"بازپخش {fk}".encode())),
         (("video.mp4", "video/mp4", mp4(2)), ("story.mp4", "video/mp4", mp4(1))),
         (("cover.png", "image/png", a_png(1)),),
     )  # fmt: skip
@@ -875,3 +875,175 @@ async def test_a_page_never_says_one_topic_twice_across_its_days_and_its_twin_fl
     # another family of the same page is its own (a story of the day's news is not a repeat)
     r = await claim(f"{fk}x", "۴۴ الگو، دو خانواده")
     assert r.status_code == 201, r.text
+
+
+def test_a_topic_is_compared_without_its_spelling() -> None:
+    """⟨2026-11-24⟩ the last gate's key: Arabic letters, Persian digits, half-spaces and
+    punctuation do not make a topic new."""
+    k = FL.topic_key
+    assert k("۴۴ الگو، دو خانواده") == k("44 الگو دو  خانواده!") == k("٤٤ الگو - دو خانواده")
+    assert k("میله‌ای OHLC") == k("میله ای ohlc") and k("كيف پول") == k("کیف پول")
+    assert k("۴۴ الگو، دو خانواده") != k("دوئل با گذشته") and k("  ،، ") == ""
+
+
+async def test_a_reel_on_a_topic_its_page_already_has_is_not_sent(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-24⟩ the owner: «از تکراری بودن ریلز های پروچارت جلوگیری بشه». A reel whose topic
+    its page already has out or set (another flow's, another day's) is not sent: its session is
+    woken to make it on a new topic, REPEAT_WAKES times, then the day waits; its own earlier
+    send, or a cancelled one, is no repeat."""
+    import dataclasses
+
+    from hq_api.domain import session_publish as SPB
+
+    pc = await new_company()
+    fk = f"t{uuid.uuid4().hex[:8]}"
+    page = f"rp.{fk}"
+    monkeypatch.setattr(
+        FL, "FLOWS", {fk: dataclasses.replace(a_flow(pc["code"], fk), account=page)}
+    )
+    day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=4)
+    r = await client.post(
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert r.status_code == 201, r.text
+    order, work_ref = r.json()["order"], r.json()["work"]
+    wid = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", work_ref)
+    pub = """INSERT INTO media.publications (company_id, account, kind, state, title_fa, topic_fa,
+                 chain, source) VALUES ($1, $2, 'reel', $3, $4, $4, ARRAY[gen_random_uuid()], $5)"""
+    await su.execute(pub, pc["id"], page, "cancelled", "دوئل با گذشته", '{"work": "W-0"}')
+    await su.execute(pub, pc["id"], page, "published", "۴۴ الگو، دو خانواده", '{"work": "W-1"}')
+    said = {"topic": "44 الگو؛ دو خانواده\n"}
+    sent: list[str] = []
+
+    async def package(tx: Any, w: Any, need_cover: bool = True) -> dict[str, Any]:
+        return {"d": {"ref": "O-1"}, "reel": {"id": "f1"}, "story": None, "cover": {"id": "c"},
+                "caption_d": None, "comment_d": None, "topic_d": {"ref": "O-1"}}  # fmt: skip
+
+    async def route(tx: Any, co: Any) -> dict[str, Any]:
+        return {"ready": True, "accounts": [page]}
+
+    async def text_of(tx: Any, hub: Any, d: Any, names: Any) -> str:
+        return said["topic"]
+
+    async def send(*a: Any, **k: Any) -> dict[str, Any]:
+        sent.append(k["what"])
+        return {"id": uuid.uuid4()}
+
+    async def nothing(*a: Any, **k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(FL, "package", package)
+    monkeypatch.setattr(SPB, "_route", route)
+    monkeypatch.setattr(SPB, "_text_of", text_of)
+    monkeypatch.setattr(SPB, "_send", send)
+    monkeypatch.setattr(SPB, "lock_publication", nothing)
+    monkeypatch.setattr(SPB, "last_of", nothing)
+
+    async def queued() -> int:
+        return int(await su.fetchval(
+            "SELECT count(*) FROM agents.runs WHERE work_id = $1 AND state = 'queued'"
+            " AND reason LIKE 'topic_repeat:%'", wid,
+        ))  # fmt: skip
+
+    await su.execute(
+        "UPDATE agents.runs SET state = 'failed', finished_at = now() WHERE work_id = $1"
+        " AND state IN ('queued', 'claimed', 'running')",
+        wid,
+    )
+    assert await FL.after_delivered(hub, wid) == "repeat"
+    assert sent == [] and await queued() == 1
+    steps = await su.fetchval("SELECT steps::text FROM owner.order_reports WHERE ref = $1", order)
+    assert "تکرار ممنوع است" in steps and "44 الگو" in steps and "فایل موضوع" in steps
+    meta = await su.fetchval("SELECT run_meta -> 'flow' FROM work.work WHERE id = $1", wid)
+    meta = meta if isinstance(meta, dict) else __import__("json").loads(meta)
+    assert meta["repeats"] == 1 and meta["repeat_of"] == "W-1" and "sent" not in meta
+    for n in range(2, FL.REPEAT_WAKES + 2):  # made again on the same topic: woken, then held
+        await su.execute(
+            "UPDATE agents.runs SET state = 'failed', finished_at = now() WHERE work_id = $1"
+            " AND state = 'queued'",
+            wid,
+        )
+        assert await FL.after_delivered(hub, wid) == "repeat"
+        assert await queued() == (1 if n <= FL.REPEAT_WAKES else 0)
+    assert "باز هم تکراری بود" in await su.fetchval(
+        "SELECT steps::text FROM owner.order_reports WHERE ref = $1", order
+    )
+    assert sent == []
+    # a new topic (a cancelled one is free again): it goes out
+    said["topic"] = "دوئل با گذشته"
+    assert await FL.after_delivered(hub, wid) != "repeat"
+    assert sent == ["reel"]
+
+
+async def test_a_days_plan_never_closes_it_unsent_and_the_keeper_sends_a_whole_package(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-24⟩ W-001137 (ipoxxo's second reel of 11-24): its last turn broke, the session's
+    plan was marked done and the day delivered with no video; nothing woke it again. A flow's day
+    is done when it is sent: the plan never delivers it unsent, and the keeper sends a day whose
+    whole package is in (no deliver came) instead of waking it."""
+    from hq_api.domain import session_activity as SA
+
+    pc = await new_company()
+    fk = f"t{uuid.uuid4().hex[:8]}"
+    monkeypatch.setattr(FL, "FLOWS", {fk: a_flow(pc["code"], fk)})
+    day = datetime.now(ZoneInfo(FL.TEHRAN)).date() + timedelta(days=6)
+    r = await client.post(
+        f"/api/v1/flows/{fk}/run", headers={**owner, **idem()}, json={"day": day.isoformat()}
+    )
+    assert r.status_code == 201, r.text
+    work_ref = r.json()["work"]
+    w = await su.fetchrow(
+        "SELECT id, company_id, assignee_id, status FROM work.work WHERE ref = $1", work_ref
+    )
+    await su.execute(
+        "INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, category)"
+        " VALUES ($1, $2, $3, 'بسته‌ی امروز', 'work')",
+        w["company_id"], w["id"], w["assignee_id"],
+    )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        works = [{"id": w["id"], "ref": work_ref, "is_root": True, "status": w["status"]}]
+        assert await SA.finish_plan(tx, works) == []
+    assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", w["id"]) == w["status"]
+
+    await su.execute(
+        "UPDATE agents.runs SET state = 'failed', finished_at = now() WHERE work_id = $1"
+        " AND state IN ('queued', 'claimed', 'running')",
+        w["id"],
+    )
+    await su.execute(
+        "UPDATE infra.server_jobs SET state = 'failed' WHERE work_ref = $1"
+        " AND state IN ('queued', 'dispatched', 'running')",
+        work_ref,
+    )
+    later = datetime.now(UTC) + timedelta(hours=1)
+    tried: list[Any] = []
+
+    async def whole(tx: Any, hub: Any, work_id: Any) -> str:
+        tried.append(work_id)
+        return "sent"
+
+    async def room(tx: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(FL, "_publish", whole)
+    monkeypatch.setattr(FL, "claude_room", room)
+    assert work_ref not in await FL.keep(hub, later, force=True)
+    assert w["id"] in tried
+    assert not await su.fetchval(
+        "SELECT count(*) FROM work.work_events WHERE work_id = $1 AND kind = 'flow_kept'", w["id"]
+    )
