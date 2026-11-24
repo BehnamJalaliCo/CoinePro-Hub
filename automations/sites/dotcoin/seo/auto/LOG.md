@@ -43,3 +43,41 @@ the next day's input pack (applied.json); the session copies the outcome here th
   - /learn/stablecoin/ (fiat-backed) → /learn/tether-reserves-sp-warning/ (not on Google).
 - **Measure:** the four unindexed targets' URL inspection on 2026-12-06 (exp-2026-11-22-02…05);
   /learn/referral-code/ indexed and its queries from 2026-12-06 (exp-2026-11-22-01).
+
+## 2026-11-24 — the daily session (F-0182)
+- **Earlier days (applied.json):** 2026-11-22 (W-001021) done: every file applied, deployed, IndexNow 200,
+  sitemap submitted, /learn/referral-code/ live; «Request indexing» refused («We had a problem submitting
+  your indexing request»). 2026-11-23 (F-0167): no package reached the hub (the session stalled before
+  packing), nothing published that day.
+- **Data (Search Console, 28 days to 2026-11-23):** 35 impressions, 1 click (CTR 2.9%), position 42.7.
+  Pages: /exchanges/lbank/ 14 (59.3), /learn/usdt-networks/ 7 impr, 1 click (6.4), /exchanges/ourbit/ 6
+  (46.3), /exchanges/weex/ 3, /learn/bitcoin-halving/ 2 (26), /glossary/ 2, /learn/hash/ 1 (2).
+  Queries: کد رفرال lbank 7 (60.1), کد رفرال اوربیت 6 (46.3), ال بانک ثبت نام 4 (65.3), صرافی weex 2,
+  هاوینگ بعدی بیت کوین 1 (8), دپوزیت چیست 1 (88). No striking-distance query and no CTR gap (all under
+  50 impressions: too little data). Indexing phase: 25 of 32 sitemap URLs on Google. Not on Google: /
+  (never crawled), referral-code, coin-vs-token, smart-contract, bitcoin-mining, ethereum,
+  blackrock-ibit-outflows-end-2026-11. metamask-guide and tether-reserves-sp-warning are now on Google
+  (targets of 2026-11-22's links; judged 2026-12-06). Experiments due: 0.
+- **Health:** build + audit 0 errors / 0 warnings (32 pages); live_check all ok (/vip/, every /go/vip-*
+  hop, robots keeps /go/ out); Lighthouse mobile on /exchanges/lbank/, /learn/referral-code/, /vip/:
+  performance 99, accessibility 100, best practices 100, SEO 92 (robots Content-Signal, known, §8).
+- **New page:** /learn/crypto-signal/ «سیگنال ارز دیجیتال چیست و چطور درست از آن استفاده کنیم؟»
+  (TOPIC_MAP #1, DIRECTION §7: the VIP cluster). Evidence: suggest «سیگنال ارز دیجیتال» --deep, 148
+  completions (چیست، یعنی چی، چگونه استفاده کنیم، رایگان، پولی، فیوچرز، با هوش مصنوعی، پامپ، کانال …).
+  Top results (arzdigital, updated 2024-04) give no numbers: our page adds position sizing from the
+  stop-loss, leverage vs risk, win rate × average win/loss and profit factor with a worked table, why a
+  follower's result differs. Sources: LBank's TP/SL help article, CFTC's pump-and-dump advisory (a fact
+  only). Links out: glossary stop-loss, take-profit, futures, leverage; /vip/; how-to-buy-crypto;
+  /exchanges/; blackrock-ibit-outflows-end-2026-11. Glossary: + signal, take-profit, deposit.
+- **Changes (link additions and glossary lines: no `updated:` change):**
+  - /vip/, FAQ «کارنامه‌ی سیگنال‌ها را کجا ببینم؟»: + one sentence → /learn/crypto-signal/ (links in).
+  - /learn/referral-code/, VIP paragraph: + one sentence → /learn/crypto-signal/ (links in).
+  - /learn/blockchain/, «بلاک‌چین به چه کاری می‌آید»: + one sentence on smart contracts →
+    /learn/smart-contract/ (not on Google; its only links in were coin-vs-token, itself unindexed, and solana).
+  - /learn/crypto-signal/ → /learn/blackrock-ibit-outflows-end-2026-11/ (its first contextual link in).
+  - /glossary/: + deposit «واریز (دپوزیت)» for the query «دپوزیت چیست» (1 impression, too little data).
+- **Index requests first:** /learn/crypto-signal/, / (the home page has never been crawled),
+  /learn/smart-contract/.
+- **Measure (2026-12-08):** exp-2026-11-24-01…04: crypto-signal indexed and its queries; smart-contract
+  and blackrock-ibit-outflows-end-2026-11 URL inspection; «دپوزیت چیست» position. The home page's
+  inspection tomorrow.

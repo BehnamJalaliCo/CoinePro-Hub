@@ -17,7 +17,7 @@ instead of writing a second one.
 
 | # | Slug | Primary query | Secondary queries | Intent | Pillar | Links (to / from) | Priority | Status |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `crypto-signal` | سیگنال ارز دیجیتال چیست | کانال سیگنال ارز دیجیتال، سیگنال فیوچرز، سیگنال رایگان | info → VIP | market | /vip/, futures-trading (when live), stop-loss | P1 | candidate |
+| 1 | `crypto-signal` | سیگنال ارز دیجیتال چیست | کانال سیگنال ارز دیجیتال، سیگنال فیوچرز، سیگنال رایگان | info → VIP | market | /vip/, futures-trading (when live), stop-loss | P1 | live:2026-11-24 |
 | 2 | `tether` | تتر چیست | تتر چیست به زبان ساده، تتر usdt، پشتوانه تتر | info | basics | stablecoin, usdt-networks, how-to-buy-crypto | P1 | candidate |
 | 3 | `crypto-for-beginners` | آموزش ارز دیجیتال از صفر | شروع ارز دیجیتال، ارز دیجیتال برای مبتدی ها | hub / path | basics | every cornerstone lesson | P1 | candidate |
 | 4 | `price-action` | پرایس اکشن چیست | آموزش پرایس اکشن، پرایس اکشن ارز دیجیتال | info | market | technical-analysis (video), support-resistance | P1 | candidate |
@@ -57,3 +57,4 @@ instead of writing a second one.
 | 38 | `oco-order` | سفارش oco چیست | سفارش او سی او | info | market | limit-stop-order, take-profit (video) | P3 | candidate |
 | 39 | `liquidation-price` | قیمت لیکوئید شدن | محاسبه قیمت لیکوئید | info | market | leverage, margin-trading | P2 | candidate |
 | 40 | `crypto-signal-checklist` | بهترین کانال سیگنال ارز دیجیتال | چطور کانال سیگنال معتبر را بشناسیم | info → VIP | market | crypto-signal, /vip/ | P1 | candidate |
+| 41 | `crypto-deposit` | دپوزیت چیست | واریز به صرافی، deposit یعنی چه | info / how-to | exchange | usdt-networks, how-to-buy-crypto | P3 | candidate (evidence: Search Console 1 impr, pos 88, 28d to 2026-11-23; glossary line first) |

@@ -71,5 +71,67 @@
   "opened": "2026-11-22",
   "judge_on": "2026-12-06",
   "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-01",
+  "page": "/learn/crypto-signal/",
+  "query": "سیگنال ارز دیجیتال چیست",
+  "change": "new page (TOPIC_MAP #1) + links in from /vip/ (FAQ «کارنامه‌ی سیگنال‌ها را کجا ببینم؟») and /learn/referral-code/ (VIP paragraph)",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": null,
+   "position": null,
+   "window": "28d to 2026-11-23",
+   "note": "page did not exist"
+  },
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-02",
+  "page": "/learn/smart-contract/",
+  "query": null,
+  "change": "contextual link from /learn/blockchain/ (section «بلاک‌چین به چه کاری می‌آید»; anchor «قرارداد هوشمند»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-23; last crawl 2026-11-20)",
+   "impressions": 0,
+   "window": "28d to 2026-11-23"
+  },
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-03",
+  "page": "/learn/blackrock-ibit-outflows-end-2026-11/",
+  "query": null,
+  "change": "first contextual link in, from /learn/crypto-signal/ (anchor «ای‌تی‌اف‌های بیت‌کوین»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-23; last crawl 2026-11-19)",
+   "impressions": 0,
+   "window": "28d to 2026-11-23"
+  },
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-04",
+  "page": "/glossary/",
+  "query": "دپوزیت چیست",
+  "change": "+ glossary terms deposit (واریز/دپوزیت), signal, take-profit",
+  "baseline": {
+   "impressions": 1,
+   "clicks": 0,
+   "ctr": 0,
+   "position": 88,
+   "window": "28d to 2026-11-23",
+   "note": "too little data; page that showed is not in the export by query"
+  },
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
  }
 ]
