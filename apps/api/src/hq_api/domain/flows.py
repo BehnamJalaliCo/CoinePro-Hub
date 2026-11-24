@@ -19,6 +19,7 @@ out, one more notification says so with its link.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import logging
 from dataclasses import dataclass
@@ -1789,6 +1790,31 @@ async def seo_week_lines(tx: Tx, now: datetime) -> list[str]:
 
 
 LATE = timedelta(minutes=30)
+# ⟨2026-11-24⟩ the owner: «استوری های جا مانده هم انجام بده … همه کار ها از فردا روی اصول اجرا بشوند».
+# A story whose hour went by (the day was made late) goes out later the same day, in the middle of
+# the widest gap left between the day's own hours, never closer than LATE_GAP to another and never
+# after LATE_DAY_END (Tehran); one with no room left that day is left out.
+LATE_START = timedelta(minutes=10)
+LATE_GAP = timedelta(minutes=10)
+LATE_DAY_END = time(23, 45)
+
+
+def fill_late(slots: list[datetime], n: int, start: datetime, end: datetime) -> list[datetime]:
+    """Up to `n` times between `start` and `end`, each in the middle of the widest gap left
+    between the day's own hours (`slots`) and the ones already placed; sorted. Fewer when the
+    day has no more room."""
+    marks = sorted({start, end, *(t for t in slots if start < t < end)})
+    out: list[datetime] = []
+    while len(out) < n and start < end:
+        width, a = max((b - a, a) for a, b in itertools.pairwise(marks))
+        if width / 2 < LATE_GAP:
+            break
+        t = a + width / 2
+        out.append(t)
+        marks = sorted([*marks, t])
+    return sorted(out)
+
+
 STORIES_READY_TITLE_FA = "{title} آماده شد"
 STORIES_READY_BODY_FA = (
     "{n} استوری امروز زمان‌بندی شد (اولی {at} به وقت تهران). کلمه‌ی جواب دایرکت: «{word}». "
@@ -1801,7 +1827,9 @@ async def _publish_stories(
     route: dict[str, Any], account: str,
 ) -> str:  # fmt: skip
     """⟨2026-11-15⟩ Each picture of a stories flow at its own hour, with the day's reply rule (made
-    when the first of them is out); an hour already gone by more than half an hour is left out."""
+    when the first of them is out); an hour already gone by more than half an hour goes out later
+    the same day, in a gap between its hours (⟨2026-11-24⟩; left out only when the day has no
+    room). Sent again, it sends only what is not out or set yet."""
     flow = await flow_by_key(tx, str(meta["key"]))
     if flow is None:  # (package() read it already)
         return "open"
@@ -1821,12 +1849,23 @@ async def _publish_stories(
     )
     order = str(meta.get("order") or "") or None
     sent, late = [], []
+    todo = []
     for i, ((f, d), at) in enumerate(zip(pkg["stories"], times, strict=False), 1):
-        if at < now - LATE:
-            late.append(i)
-            continue
         await SPB.lock_publication(tx, d["ref"], str(f["id"]), account, "story")
         if await SPB.last_of(tx, d["ref"], str(f["id"]), account, "story") is not None:
+            continue  # out or set already (a day sent again sends only what is left)
+        todo.append((i, f, d, at))
+    # ⟨2026-11-24⟩ an hour gone by: later the same day, in the gaps between its own hours
+    gone = [k for k, (_, _, _, at) in enumerate(todo) if at < now - LATE]
+    day_end = datetime.combine(
+        date.fromisoformat(str(meta["day"])), LATE_DAY_END, ZoneInfo(TEHRAN)
+    ).astimezone(UTC)
+    moved = fill_late([t for t in times if t >= now], len(gone), now + LATE_START, day_end)
+    for k, at in zip(gone, moved, strict=False):
+        todo[k] = (*todo[k][:3], at)
+    late = [todo[k][0] for k in gone[len(moved) :]]
+    for i, f, d, at in todo:
+        if i in late:
             continue
         j = await SPB._send(
             tx, FLOW, d, f, None, hub=hub, what="story", account=account, caption="",

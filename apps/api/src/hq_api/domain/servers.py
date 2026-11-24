@@ -1226,6 +1226,10 @@ async def cancel_locked(tx: Tx) -> list[dict[str, Any]]:
     return [await cancel(tx, j, "company_locked", "کلید توقف شرکت: کار لغو شد") for j in rows]
 
 
+# a flow day whose hour went by longer ago than this waits behind the current ones (dispatch)
+STALE_AFTER = timedelta(hours=12)
+
+
 async def dispatch(
     tx: Tx, runner: dict[str, Any], *, hold_claude: bool = False
 ) -> dict[str, Any] | None:
@@ -1242,6 +1246,8 @@ async def dispatch(
         # two turns at a time: a reel due at 13:00 waited behind the next day's builds); anything
         # that is not a flow's day (the owner's word, a command) goes before them, oldest first.
         # The times are one ISO form (+00:00), so they sort as text and a bad one never fails here.
+        # A day whose hour is more than STALE_AFTER gone (a long limit: the owner, 11-24, «فقط امروز»)
+        # goes after the ones still current, so after a limit today's work is made first.
         """SELECT j.id FROM infra.server_jobs j
              LEFT JOIN work.work w ON w.ref = j.work_ref
             WHERE j.server_id = :s AND j.state = 'queued'
@@ -1249,10 +1255,12 @@ async def dispatch(
              AND NOT EXISTS (SELECT 1 FROM work.workspaces ws WHERE ws.last_job_id = j.id
                                AND control.lock_state(ws.company_id) IN ('holding', 'company'))
            ORDER BY (w.run_meta -> 'flow' ->> 'publish_at') IS NOT NULL,
+                    COALESCE(w.run_meta -> 'flow' ->> 'publish_at' < :stale, false),
                     w.run_meta -> 'flow' ->> 'publish_at', j.created_at
            LIMIT 1 FOR UPDATE OF j SKIP LOCKED""",
         s=runner["server_id"],
         hold=hold_claude,
+        stale=(datetime.now(UTC) - STALE_AFTER).strftime("%Y-%m-%dT%H:%M:%S+00:00"),
     )
     if row is None:
         return None

@@ -257,6 +257,90 @@ async def slides_output(
             "work_ref": work_ref, "work_id": wid}  # fmt: skip
 
 
+def test_late_stories_go_in_the_widest_gaps_of_the_same_day() -> None:
+    """⟨2026-11-24⟩ the owner: «استوری های جا مانده هم انجام بده». A story whose hour went by goes
+    out later the same day, in the middle of the widest gap; none when the day has no room."""
+    t = datetime(2026, 11, 24, 10, 0, tzinfo=UTC)
+    m = timedelta(minutes=1)
+    slots = [t + 60 * m, t + 120 * m]
+    got = FL.fill_late(slots, 3, t, t + 180 * m)
+    assert got == [t + 30 * m, t + 90 * m, t + 150 * m]
+    # the widest gap first, then the next widest
+    assert FL.fill_late([t + 20 * m], 1, t, t + 120 * m) == [t + 70 * m]
+    # never closer than LATE_GAP: a crowded evening takes fewer, a day that is over takes none
+    assert FL.fill_late([], 9, t, t + 60 * m) == [t + 15 * m, t + 30 * m, t + 45 * m]
+    assert FL.fill_late(slots, 2, t + 200 * m, t + 180 * m) == []
+    assert FL.fill_late(slots, 0, t, t + 180 * m) == []
+
+
+async def test_a_late_days_stories_all_go_out_the_same_day(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-24⟩ the day's stories were made at 14:00 (Tehran) instead of before 09:15: the five
+    whose hours went by go out in the afternoon's gaps, the seven others at their own hours; sent
+    again, nothing goes twice."""
+    ig, pc = await new_company(), await new_company()
+    co = pc["code"]
+    names = tuple(f"story_{i}.png" for i in range(1, 13))
+    made = await slides_output(client, hub, owner, owner_session, su, co, 12)
+    await connected(client, hub, owner_session, ig, co)
+    fk = f"s{uuid.uuid4().hex[:8]}"
+    hours = tuple(f"{h:02d}:15" for h in range(9, 21))
+    flow = FL.Flow(key=fk, company=co, account="pro.chart", title_fa="استوری روزانه‌ی آزمایشی",
+                   kit="/kit", start=date(2026, 11, 14), hours=("09:00",), stories=hours)  # fmt: skip
+    monkeypatch.setattr(FL, "FLOWS", {fk: flow})
+
+    async def rule(tx: Tx, hub_: Any, d: Any) -> dict[str, Any]:
+        return {"keywords": ["قله"], "reply": "لینک VIP"}
+
+    monkeypatch.setattr(SPB, "comment_of", rule)
+    tz = ZoneInfo(FL.TEHRAN)
+    day = datetime.now(tz).date() + timedelta(days=1)
+    at_two = datetime.combine(day, datetime.min.time().replace(hour=14), tz).astimezone(UTC)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz_: Any = None) -> Any:  # type: ignore[override]
+            return at_two if tz_ is not None else at_two.replace(tzinfo=None)
+
+    monkeypatch.setattr(FL, "datetime", Clock)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        d = dict(await tx.one(SPB.OUTPUT_SQL + " WHERE d.ref = :r", r=made["output"]))
+        files = {str(f["name"]): dict(f) for f in await SPB._files(tx, d)}
+        pkg = {"d": d, "stories": [(files[n], d) for n in names], "comment_d": d, "topic_d": None}
+        route = await SPB._route(tx, pc["id"])
+        w = {"id": made["work_id"], "ref": made["work_ref"], "company_id": pc["id"], "company": co}
+        meta = {"key": fk, "day": day.isoformat()}
+        assert await FL._publish_stories(tx, hub, w, meta, pkg, route, "pro.chart") == "scheduled"
+    set_key = f"pro.chart:{day.isoformat()}:{made['output']}"
+    rows = await su.fetch(
+        "SELECT set_n, scheduled_at FROM media.publications WHERE set_key = $1 ORDER BY set_n",
+        set_key,
+    )
+    assert [r["set_n"] for r in rows] == list(range(1, 13))
+    at = {r["set_n"]: r["scheduled_at"].astimezone(tz) for r in rows}
+    end = datetime.combine(day, FL.LATE_DAY_END, tz)
+    for n in range(1, 6):  # its hour went by: later today, after 14:00, before the day's end
+        assert at_two < at[n] <= end and at[n].strftime("%M") != "15", (n, at[n])
+    for n in range(6, 13):  # its own hour
+        assert at[n].strftime("%H:%M") == hours[n - 1]
+    assert len(set(at.values())) == 12
+    # sent again: nothing goes twice
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await FL._publish_stories(tx, hub, w, meta, pkg, route, "pro.chart") == "scheduled"
+    assert (
+        await su.fetchval("SELECT count(*) FROM media.publications WHERE set_key = $1", set_key)
+        == 12
+    )
+
+
 async def test_twelve_story_slides_are_one_set_scheduled_then_published(
     client: httpx.AsyncClient,
     hub: Hub,

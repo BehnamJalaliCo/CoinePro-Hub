@@ -1065,13 +1065,17 @@ async def test_the_workshop_takes_the_turn_due_first(
 ) -> None:
     """⟨2026-11-24⟩ one Claude account, two turns at a time: a reel due at 13:00 waited behind the
     next day's builds. A flow's turn goes by its publish time, earliest first; what is no flow's
-    day (the owner's word, a command) goes before them, oldest first."""
+    day (the owner's word, a command) goes before them, oldest first; a day whose hour is long
+    gone (after a long limit) goes last."""
     co = await new_company()
     rn = await pair(client, hub, owner_session, co)
     order = {}
-    for name, at in (("tomorrow", "2026-11-25T13:30:00+00:00"),
-                     ("late", "2026-11-24T09:30:00.032365+00:00"),
-                     ("tonight", "2026-11-24T16:30:00+00:00")):  # fmt: skip
+    now = datetime.now(UTC)
+    iso = "%Y-%m-%dT%H:%M:%S+00:00"
+    for name, at in (("tomorrow", (now + timedelta(hours=20)).strftime(iso)),
+                     ("late", (now - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S.032365+00:00")),
+                     ("old", (now - timedelta(days=2)).strftime(iso)),
+                     ("tonight", (now + timedelta(hours=2)).strftime(iso))):  # fmt: skip
         ref = await su.fetchval(
             """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, run_meta)
                VALUES ($1, 'one_off', $2, 'owner', 'owner', $3::jsonb) RETURNING ref""",
@@ -1083,7 +1087,8 @@ async def test_the_workshop_takes_the_turn_due_first(
     word = await _claude_job(hub, rn["server"]["id"])  # the owner's own word: no flow
     order[word] = "word"
     taken = []
-    for _ in range(4):
+    for _ in range(5):
         job = await take(client, rn)
         taken.append(order[job["id"]])
-    assert taken == ["word", "late", "tonight", "tomorrow"]
+    # a day long gone (a long limit) waits behind the current ones
+    assert taken == ["word", "late", "tonight", "tomorrow", "old"]
