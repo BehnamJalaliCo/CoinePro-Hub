@@ -73,6 +73,8 @@ RETRY_AFTER = timedelta(minutes=5)
 QUOTA_UNKNOWN_GAP = timedelta(minutes=30)  # a quota refusal whose reset is unknown
 RECENT = timedelta(hours=24)  # every other requeue looks back this far
 QUOTA_REQUEUES = 12
+# a direct turn's run token lives this long after its last hub call (the turn has its hour)
+DIRECT_TOKEN_RENEW_S = 900
 REQUEUE, RETRY = "requeue:", "retry:"
 # A run comes back only when nothing of it took effect: a new run has a new token and does not
 # see the old one's actions, so a message, a server job or an owner's card would happen twice.
@@ -1321,6 +1323,19 @@ class Activities:
             return {"outcome": "error", "class": None, "code": "gateway_unreachable", "ref": None}
         if req.get("op") == "catalog":
             return {"tools": await self.gateway.catalog([str(t) for t in req.get("tools") or []])}
+        # ⟨2026-11-24⟩ the run's hour began when the turn was handed over, but the turn may wait
+        # in the workshop's queue longer than that (one Claude account, two turns at a time): on
+        # 11-24 every hub call of such turns came back 401 and whole turns were lost. A live turn
+        # that calls keeps its run's token alive (the run still closes when the turn ends).
+        async with self._tx() as tx:
+            await tx.exec(
+                """UPDATE agents.runs
+                      SET token_expires_at = GREATEST(token_expires_at,
+                                                      now() + make_interval(secs => :ttl))
+                    WHERE id = CAST(:r AS uuid) AND state = 'running' AND trigger = 'direct'""",
+                r=str(req["run"]),
+                ttl=DIRECT_TOKEN_RENEW_S,
+            )
         token = agent_tokens.mint(
             self.hub.secrets.agent_token_key, str(req["employee"]), str(req["run"]), ttl_s=300
         )

@@ -1238,11 +1238,19 @@ async def dispatch(
         return None
     row = await tx.first(
         # ⟨2026-11-10⟩ a workshop turn of a locked company's work does not start either
-        """SELECT j.id FROM infra.server_jobs j WHERE j.server_id = :s AND j.state = 'queued'
+        # ⟨2026-11-24⟩ a flow's turn goes by its publish time, earliest first (one Claude account,
+        # two turns at a time: a reel due at 13:00 waited behind the next day's builds); anything
+        # that is not a flow's day (the owner's word, a command) goes before them, oldest first.
+        # The times are one ISO form (+00:00), so they sort as text and a bad one never fails here.
+        """SELECT j.id FROM infra.server_jobs j
+             LEFT JOIN work.work w ON w.ref = j.work_ref
+            WHERE j.server_id = :s AND j.state = 'queued'
              AND (NOT CAST(:hold AS boolean) OR j.kind <> 'claude')
              AND NOT EXISTS (SELECT 1 FROM work.workspaces ws WHERE ws.last_job_id = j.id
                                AND control.lock_state(ws.company_id) IN ('holding', 'company'))
-           ORDER BY j.created_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED""",
+           ORDER BY (w.run_meta -> 'flow' ->> 'publish_at') IS NOT NULL,
+                    w.run_meta -> 'flow' ->> 'publish_at', j.created_at
+           LIMIT 1 FOR UPDATE OF j SKIP LOCKED""",
         s=runner["server_id"],
         hold=hold_claude,
     )

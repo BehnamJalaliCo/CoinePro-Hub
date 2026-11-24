@@ -1053,3 +1053,37 @@ async def test_an_account_the_provider_disabled_is_switched_off_for_good(
     assert again["id"] != first and again["claude_oauth"] == SECOND
     pick = await _pick(hub)  # and never back to it: no rest that ends
     assert (pick.key, pick.token) == ("claude-max-2", SECOND)
+
+
+async def test_the_workshop_takes_the_turn_due_first(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: asyncpg.Connection,
+    accounts: Any,
+) -> None:
+    """⟨2026-11-24⟩ one Claude account, two turns at a time: a reel due at 13:00 waited behind the
+    next day's builds. A flow's turn goes by its publish time, earliest first; what is no flow's
+    day (the owner's word, a command) goes before them, oldest first."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    order = {}
+    for name, at in (("tomorrow", "2026-11-25T13:30:00+00:00"),
+                     ("late", "2026-11-24T09:30:00.032365+00:00"),
+                     ("tonight", "2026-11-24T16:30:00+00:00")):  # fmt: skip
+        ref = await su.fetchval(
+            """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, run_meta)
+               VALUES ($1, 'one_off', $2, 'owner', 'owner', $3::jsonb) RETURNING ref""",
+            co["id"], name, json.dumps({"flow": {"day": at[:10], "publish_at": at}}),
+        )  # fmt: skip
+        jid = await _claude_job(hub, rn["server"]["id"])
+        await su.execute("UPDATE infra.server_jobs SET work_ref = $2 WHERE id = $1::uuid", jid, ref)
+        order[jid] = name
+    word = await _claude_job(hub, rn["server"]["id"])  # the owner's own word: no flow
+    order[word] = "word"
+    taken = []
+    for _ in range(4):
+        job = await take(client, rn)
+        taken.append(order[job["id"]])
+    assert taken == ["word", "late", "tonight", "tomorrow"]

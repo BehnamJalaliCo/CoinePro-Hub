@@ -1010,3 +1010,63 @@ async def test_a_flow_runs_voice_is_always_its_pages_own_narrator(
         other = Principal(kind="agent", code=o["holder"], role="agent", company=co,
                           company_id=cid, employee_id=o["emp"]["id"], run_id=None)  # fmt: skip
         assert await NR.page_voice(tx, other) is None
+
+
+async def test_a_turn_that_waited_in_the_queue_still_reaches_the_hub(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+    wk: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """⟨2026-11-24⟩ the run's hour began at the hand-over, but the turn waited longer than that
+    in the workshop's queue (one Claude account, two turns at a time) and every hub call it made
+    came back 401: whole turns were lost. A live turn's call keeps its run's token alive; a run
+    that ended is never brought back."""
+    from hq_api.security.deps import agent_principal
+
+    co = (await new_company())["code"]
+    o = await an_order(client, owner, su, co)
+    rid = str(await su.fetchval(
+        "SELECT agents.open_direct_run($1, $2, $3, 60)", o["emp"]["id"], o["work_id"],
+        f"direct:{o['ref']}",
+    ))  # fmt: skip
+    # handed over long ago: its hour is gone before the workshop took it
+    await su.execute(
+        "UPDATE agents.runs SET token_expires_at = now() - interval '1 minute' WHERE id = $1::uuid",
+        rid,
+    )
+    with pytest.raises(Exception, match="unauthenticated"):
+        await agent_principal(hub, o["holder"], run=rid)
+    acts = wk["acts"]
+    called: list[tuple[str, str]] = []
+
+    class Gate:
+        async def call(self, token: str, step: int, index: int, tool: str, args: Any) -> Any:
+            called.append((token, tool))
+            return {"outcome": "ok", "class": "A1", "code": None, "ref": None}
+
+    monkeypatch.setattr(acts, "gateway", Gate())
+    got = await acts.direct_tool({"op": "call", "employee": o["holder"], "run": rid,
+                                  "step": 1, "index": 0, "tool": "order.progress", "args": {}})  # fmt: skip
+    assert got["outcome"] == "ok" and len(called) == 1
+    left = await su.fetchval(
+        "SELECT extract(epoch FROM token_expires_at - now()) FROM agents.runs WHERE id = $1::uuid",
+        rid,
+    )
+    assert 800 < left <= 900
+    assert (await agent_principal(hub, o["holder"], run=rid)).run_id == rid
+    # a run that ended stays ended: its token is not renewed
+    await su.execute(
+        "UPDATE agents.runs SET state = 'done', finished_at = now(),"
+        " token_expires_at = now() - interval '1 minute' WHERE id = $1::uuid",
+        rid,
+    )
+    await acts.direct_tool({"op": "call", "employee": o["holder"], "run": rid,
+                            "step": 1, "index": 1, "tool": "order.progress", "args": {}})  # fmt: skip
+    assert await su.fetchval(
+        "SELECT token_expires_at < now() FROM agents.runs WHERE id = $1::uuid", rid
+    )
