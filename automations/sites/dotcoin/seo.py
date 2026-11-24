@@ -575,8 +575,21 @@ def build_check() -> tuple[bool, str, Path | None]:
 
 
 def review(dist_parent: Path, urls: list[str], ref: str) -> tuple[int, str]:
+    """The phone review, once more when it did not run at all (2026-11-24: Chromium closed its
+    page in the middle of W-001134's shots, «Target page, context or browser has been closed»,
+    and the day's package was blocked with -1 findings; 11-21's W-000780 the same way). A real
+    finding is never retried away: only a review that wrote no answer runs again."""
+    n, out = review_once(dist_parent, urls, ref)
+    if n == -1:
+        log(f"  {ref}: the phone review did not run; once more")
+        n, out = review_once(dist_parent, urls, ref)
+    return n, out
+
+
+def review_once(dist_parent: Path, urls: list[str], ref: str) -> tuple[int, str]:
     """tools/review.py as the studio user (the studio's Chromium): (findings, where the shots are)."""
     out = DATA / "reviews" / ref
+    (out / "review.json").unlink(missing_ok=True)  # (an earlier pass's answer is never read as this one's)
     stmp = Path("/home/studio/tmp-seo-gate") / ref  # (its own folder: never another review's)
     as_studio(["rm", "-rf", str(stmp)])
     as_studio(["mkdir", "-p", str(stmp)])
