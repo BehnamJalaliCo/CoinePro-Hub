@@ -1,0 +1,437 @@
+{
+ "note": "DotCoin story lessons, intermediate/advanced (owner 2026-11-26: «مطالب خیلی مبتدی هستند»). Take in file order, skipping the pillar of yesterday's stories; claim with topic.claim «دات‌کوین استوری: <title>» (refused = next). Used up: invent one at the same level.",
+ "lessons": [
+  {
+   "id": 1,
+   "pillar": "بازار و داده",
+   "level": "میانی",
+   "title": "دامیننس بیت‌کوین رو بخون، نه حدس بزن",
+   "angle": "دامیننس بالا/پایین در دوره‌های قبل چه معنایی داشت و امروز کجاست",
+   "data": "BTC dominance today + 2021/2024 levels",
+   "used": null
+  },
+  {
+   "id": 2,
+   "pillar": "بازار و داده",
+   "level": "حرفه‌ای",
+   "title": "فاندینگ ریت: بازار چقدر داغه؟",
+   "angle": "فاندینگ مثبت/منفی یعنی چه، چرا افراطش قبل از ریزش‌ها دیده شد",
+   "data": "funding rate BTC/ETH today",
+   "used": null
+  },
+  {
+   "id": 3,
+   "pillar": "بازار و داده",
+   "level": "حرفه‌ای",
+   "title": "اوپن اینترست و لیکوئید شدن‌های زنجیره‌ای",
+   "angle": "OI بالا + اهرم = سوخت حرکت تند؛ نمونه‌ی یک روز لیکوئیدیشن بزرگ",
+   "data": "OI today, a recent liquidation day total",
+   "used": null
+  },
+  {
+   "id": 4,
+   "pillar": "بازار و داده",
+   "level": "میانی",
+   "title": "مارکت‌کپ در برابر FDV: دام توکن‌های ارزون",
+   "angle": "چرا قیمت پایین یعنی ارزون نیست؛ مثال واقعی FDV چند برابر مارکت‌کپ",
+   "data": "MC vs FDV of 2 real tokens today",
+   "used": null
+  },
+  {
+   "id": 5,
+   "pillar": "بازار و داده",
+   "level": "حرفه‌ای",
+   "title": "آنلاک توکن‌ها: فشار فروشی که از قبل معلومه",
+   "angle": "برنامه‌ی آزادسازی توکن تیم و سرمایه‌گذار و اثرش روی قیمت",
+   "data": "an upcoming unlock (size vs float)",
+   "used": null
+  },
+  {
+   "id": 6,
+   "pillar": "بازار و داده",
+   "level": "میانی",
+   "title": "حجم معاملات واقعی یا ساختگی؟",
+   "angle": "wash trading، حجم صرافی‌های معتبر در برابر بقیه",
+   "data": "volume of a pair across exchanges",
+   "used": null
+  },
+  {
+   "id": 7,
+   "pillar": "بازار و داده",
+   "level": "حرفه‌ای",
+   "title": "جریان ETFهای بیت‌کوین: پول بزرگ کجا میره",
+   "angle": "ورودی/خروجی روزانه‌ی ETFها و ربطش به قیمت",
+   "data": "ETF net flows last days",
+   "used": null
+  },
+  {
+   "id": 8,
+   "pillar": "بازار و داده",
+   "level": "میانی",
+   "title": "عرضه‌ی استیبل‌کوین‌ها: نقدینگی منتظر",
+   "angle": "رشد/کاهش عرضه‌ی USDT/USDC به‌عنوان نشانه‌ی پول آماده‌ی ورود",
+   "data": "stablecoin total supply trend",
+   "used": null
+  },
+  {
+   "id": 9,
+   "pillar": "بازار و داده",
+   "level": "حرفه‌ای",
+   "title": "MVRV: بیت‌کوین گرونه یا ارزون؟",
+   "angle": "ارزش بازار به ارزش تحقق‌یافته؛ سقف‌ها و کف‌های تاریخی",
+   "data": "MVRV today + past extremes",
+   "used": null
+  },
+  {
+   "id": 10,
+   "pillar": "بازار و داده",
+   "level": "میانی",
+   "title": "ترس و طمع: شاخص رو چطور استفاده کنیم",
+   "angle": "شاخص چطور ساخته میشه و کجا گمراه می‌کنه",
+   "data": "fear & greed today and its inputs",
+   "used": null
+  },
+  {
+   "id": 11,
+   "pillar": "مدیریت ریسک",
+   "level": "میانی",
+   "title": "حجم پوزیشن با قانون ۱ درصد",
+   "angle": "فرمول ساده‌ی اندازه‌ی پوزیشن با حد ضرر، یک مثال عددی کامل",
+   "data": "worked example",
+   "used": null
+  },
+  {
+   "id": 12,
+   "pillar": "مدیریت ریسک",
+   "level": "حرفه‌ای",
+   "title": "اهرم ۱۰ برابر یعنی چند درصد تا لیکوئید؟",
+   "angle": "حساب قیمت لیکوئیدیشن، مارجین ایزوله و کراس",
+   "data": "worked example with numbers",
+   "used": null
+  },
+  {
+   "id": 13,
+   "pillar": "مدیریت ریسک",
+   "level": "میانی",
+   "title": "DCA واقعاً جواب میده؟ با عدد",
+   "angle": "مقایسه‌ی خرید یکجا و پله‌ای روی داده‌ی واقعی یک سال",
+   "data": "BTC monthly closes past year",
+   "used": null
+  },
+  {
+   "id": 14,
+   "pillar": "مدیریت ریسک",
+   "level": "میانی",
+   "title": "نسبت ریسک به ریوارد و نرخ برد",
+   "angle": "چرا با ۴۰ درصد برد هم میشه سود داشت",
+   "data": "worked expectancy example",
+   "used": null
+  },
+  {
+   "id": 15,
+   "pillar": "مدیریت ریسک",
+   "level": "حرفه‌ای",
+   "title": "همبستگی: چرا پنج آلت‌کوین یعنی یک پوزیشن",
+   "angle": "همبستگی آلت‌ها با بیت‌کوین در ریزش‌ها",
+   "data": "30d correlation of 3 alts to BTC",
+   "used": null
+  },
+  {
+   "id": 16,
+   "pillar": "مدیریت ریسک",
+   "level": "میانی",
+   "title": "حد ضرر کجا بذاریم که شکار نشه",
+   "angle": "حد ضرر ساختاری در برابر درصدی، نقدینگی زیر کف‌ها",
+   "data": "chart example",
+   "used": null
+  },
+  {
+   "id": 17,
+   "pillar": "امنیت",
+   "level": "میانی",
+   "title": "approve نامحدود: دری که باز گذاشتی",
+   "angle": "مجوزهای توکن در دیفای، چطور ببینی و لغو کنی",
+   "data": "revoke tools, a real drainer case",
+   "used": null
+  },
+  {
+   "id": 18,
+   "pillar": "امنیت",
+   "level": "حرفه‌ای",
+   "title": "کلاهبرداری address poisoning",
+   "angle": "آدرس مشابه در تاریخچه، یک پرونده‌ی واقعی با مبلغ",
+   "data": "a real case amount",
+   "used": null
+  },
+  {
+   "id": 19,
+   "pillar": "امنیت",
+   "level": "میانی",
+   "title": "مولتی‌سیگ و تقسیم کلید برای دارایی جدی",
+   "angle": "کی لازمه، مزایا و ریسک‌ها",
+   "data": "—",
+   "used": null
+  },
+  {
+   "id": 20,
+   "pillar": "امنیت",
+   "level": "حرفه‌ای",
+   "title": "هک‌های پل‌ها: چرا بریج‌ها هدف اولن",
+   "angle": "چند هک بزرگ پل و درس هر کدوم",
+   "data": "bridge hacks totals",
+   "used": null
+  },
+  {
+   "id": 21,
+   "pillar": "دیفای",
+   "level": "میانی",
+   "title": "استخر نقدینگی و ضرر ناپایدار با عدد",
+   "angle": "AMM چطور قیمت میده و ضرر ناپایدار در یک مثال عددی",
+   "data": "worked IL example",
+   "used": null
+  },
+  {
+   "id": 22,
+   "pillar": "دیفای",
+   "level": "حرفه‌ای",
+   "title": "وام در دیفای و لیکوئیدیشن خودکار",
+   "angle": "health factor، وثیقه‌ی اضافه و یک مثال",
+   "data": "Aave/compound parameters",
+   "used": null
+  },
+  {
+   "id": 23,
+   "pillar": "دیفای",
+   "level": "میانی",
+   "title": "APY بالا از کجا میاد؟",
+   "angle": "سود واقعی در برابر توکن تورمی؛ چطور منبع بازده رو پیدا کنیم",
+   "data": "real yields of 2 protocols",
+   "used": null
+  },
+  {
+   "id": 24,
+   "pillar": "دیفای",
+   "level": "حرفه‌ای",
+   "title": "TVL رو درست بخون",
+   "angle": "TVL چی رو نشون میده و چی رو نه، دوبار شماری",
+   "data": "DefiLlama TVL today",
+   "used": null
+  },
+  {
+   "id": 25,
+   "pillar": "دیفای",
+   "level": "حرفه‌ای",
+   "title": "ری‌استیکینگ: بازده بیشتر، ریسک لایه‌لایه",
+   "angle": "ری‌استیک چیه و ریسک اسلشینگ چندلایه",
+   "data": "restaking TVL",
+   "used": null
+  },
+  {
+   "id": 26,
+   "pillar": "زیرساخت",
+   "level": "میانی",
+   "title": "لایه ۲ها: کارمزد ارزون از کجا میاد",
+   "angle": "رول‌آپ‌ها، مقایسه‌ی کارمزد L1/L2 امروز",
+   "data": "fees today L1 vs L2",
+   "used": null
+  },
+  {
+   "id": 27,
+   "pillar": "زیرساخت",
+   "level": "حرفه‌ای",
+   "title": "MEV: چه کسی جلوی تراکنشت می‌زنه",
+   "angle": "ساندویچ اتک با یک مثال و راه‌های محافظت",
+   "data": "—",
+   "used": null
+  },
+  {
+   "id": 28,
+   "pillar": "زیرساخت",
+   "level": "میانی",
+   "title": "کارمزد شبکه چرا یهو بالا میره",
+   "angle": "mempool، رقابت بلاک‌اسپیس، مثال روزهای شلوغ",
+   "data": "mempool/fees today",
+   "used": null
+  },
+  {
+   "id": 29,
+   "pillar": "زیرساخت",
+   "level": "حرفه‌ای",
+   "title": "هش‌ریت و درآمد ماینرها بعد از هاوینگ",
+   "angle": "فشار فروش ماینرها و hash price",
+   "data": "hashrate & hashprice today",
+   "used": null
+  },
+  {
+   "id": 30,
+   "pillar": "پرونده",
+   "level": "میانی",
+   "title": "سقوط لونا: ۴۰ میلیارد دلار در یک هفته",
+   "angle": "مکانیزم استیبل الگوریتمی و لحظه‌ی شکستن",
+   "data": "UST/LUNA numbers",
+   "used": null
+  },
+  {
+   "id": 31,
+   "pillar": "پرونده",
+   "level": "میانی",
+   "title": "FTX: وقتی صرافی پول تو رو قرض میده",
+   "angle": "چه شد، نشانه‌ها، اثبات ذخایر",
+   "data": "FTX numbers",
+   "used": null
+  },
+  {
+   "id": 32,
+   "pillar": "پرونده",
+   "level": "حرفه‌ای",
+   "title": "دی‌پگ USDC در مارس ۲۰۲۳",
+   "angle": "SVB و ۸۷ سنت؛ ریسک استیبل‌های پشتوانه‌دار",
+   "data": "USDC low price",
+   "used": null
+  },
+  {
+   "id": 33,
+   "pillar": "پرونده",
+   "level": "میانی",
+   "title": "مت‌گاکس: بیت‌کوین‌هایی که ده سال بعد برگشتن",
+   "angle": "اثر بازپرداخت‌ها روی بازار",
+   "data": "Mt.Gox repayment size",
+   "used": null
+  },
+  {
+   "id": 34,
+   "pillar": "پرونده",
+   "level": "حرفه‌ای",
+   "title": "هک رونین: ۶۲۰ میلیون با پنج کلید",
+   "angle": "امنیت ولیدیتورها و پل",
+   "data": "Ronin numbers",
+   "used": null
+  },
+  {
+   "id": 35,
+   "pillar": "تحلیل پروژه",
+   "level": "میانی",
+   "title": "وایت‌پیپر رو در ۱۰ دقیقه بخون",
+   "angle": "چک‌لیست: مسئله، توکن، تیم، رقبا، نقشه‌ی راه",
+   "data": "a checklist",
+   "used": null
+  },
+  {
+   "id": 36,
+   "pillar": "تحلیل پروژه",
+   "level": "حرفه‌ای",
+   "title": "توکنومیکس خوب و بد",
+   "angle": "توزیع، تورم، کاربرد توکن، مثال مقایسه‌ای",
+   "data": "2 real tokenomics",
+   "used": null
+  },
+  {
+   "id": 37,
+   "pillar": "تحلیل پروژه",
+   "level": "میانی",
+   "title": "درآمد واقعی پروتکل‌ها",
+   "angle": "کدوم پروتکل‌ها واقعاً درآمد دارن و P/F",
+   "data": "protocol revenues",
+   "used": null
+  },
+  {
+   "id": 38,
+   "pillar": "تحلیل پروژه",
+   "level": "حرفه‌ای",
+   "title": "فعالیت توسعه‌دهنده‌ها به‌عنوان سیگنال",
+   "angle": "گیت‌هاب، تعداد توسعه‌دهنده، کجا گمراه می‌کنه",
+   "data": "dev activity data",
+   "used": null
+  },
+  {
+   "id": 39,
+   "pillar": "صرافی و معامله",
+   "level": "میانی",
+   "title": "اوردر بوک رو بخون",
+   "angle": "عمق بازار، دیوار سفارش، اسپرد",
+   "data": "order book example",
+   "used": null
+  },
+  {
+   "id": 40,
+   "pillar": "صرافی و معامله",
+   "level": "میانی",
+   "title": "میکر و تیکر: کارمزدی که نمی‌بینی",
+   "angle": "تفاوت کارمزدها و اثرش در سال",
+   "data": "fee example",
+   "used": null
+  },
+  {
+   "id": 41,
+   "pillar": "صرافی و معامله",
+   "level": "حرفه‌ای",
+   "title": "اسلیپیج در معاملات بزرگ و توکن‌های کم‌نقد",
+   "angle": "چرا قیمت اجرا با قیمت صفحه فرق داره",
+   "data": "example",
+   "used": null
+  },
+  {
+   "id": 42,
+   "pillar": "صرافی و معامله",
+   "level": "میانی",
+   "title": "اثبات ذخایر صرافی‌ها رو چک کن",
+   "angle": "Proof of Reserves چیه و چه چیزی رو ثابت نمی‌کنه",
+   "data": "PoR of an exchange",
+   "used": null
+  },
+  {
+   "id": 43,
+   "pillar": "صرافی و معامله",
+   "level": "حرفه‌ای",
+   "title": "بیسیس و آربیتراژ اسپات-فیوچرز",
+   "angle": "کری ترید و نرخ بیسیس",
+   "data": "basis today",
+   "used": null
+  },
+  {
+   "id": 44,
+   "pillar": "چرخه‌ی بازار",
+   "level": "میانی",
+   "title": "چرخه‌های چهارساله: الگو یا افسانه؟",
+   "angle": "هاوینگ‌ها و سقف‌ها با تاریخ و درصد",
+   "data": "halving dates & cycle peaks",
+   "used": null
+  },
+  {
+   "id": 45,
+   "pillar": "چرخه‌ی بازار",
+   "level": "حرفه‌ای",
+   "title": "آلت‌سیزن رو با داده بسنج",
+   "angle": "شاخص آلت‌سیزن و نسبت ETH/BTC",
+   "data": "ETH/BTC today",
+   "used": null
+  },
+  {
+   "id": 46,
+   "pillar": "چرخه‌ی بازار",
+   "level": "میانی",
+   "title": "نرخ بهره‌ی فدرال و کریپتو",
+   "angle": "ربط سیاست پولی و نقدینگی به ریسک",
+   "data": "rate decisions & BTC",
+   "used": null
+  },
+  {
+   "id": 47,
+   "pillar": "روانشناسی",
+   "level": "میانی",
+   "title": "FOMO با عدد: خرید روی سقف",
+   "angle": "دیتای ورود خرده‌فروش‌ها نزدیک سقف‌ها",
+   "data": "—",
+   "used": null
+  },
+  {
+   "id": 48,
+   "pillar": "روانشناسی",
+   "level": "میانی",
+   "title": "ژورنال معاملاتی: ابزاری که حرفه‌ای‌ها دارن",
+   "angle": "چه چیزی ثبت کنیم و چطور مرور کنیم",
+   "data": "template",
+   "used": null
+  }
+ ]
+}
