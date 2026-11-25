@@ -961,3 +961,17 @@ async def test_a_days_plan_never_closes_it_unsent_and_the_keeper_sends_a_whole_p
     assert not await su.fetchval(
         "SELECT count(*) FROM work.work_events WHERE work_id = $1 AND kind = 'flow_kept'", w["id"]
     )
+    # ⟨2026-11-26⟩ W-001216: a DELIVERED day that was never sent is not open, yet the keeper
+    # runs it through the publish path again; a sent day is left alone
+    await su.execute("UPDATE work.work SET status = 'delivered' WHERE id = $1", w["id"])
+    tried.clear()
+    await FL.keep(hub, later, force=True)
+    assert w["id"] in tried
+    await su.execute(
+        """UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow,sent}', '"x"')
+           WHERE id = $1""",
+        w["id"],
+    )
+    tried.clear()
+    await FL.keep(hub, later, force=True)
+    assert w["id"] not in tried

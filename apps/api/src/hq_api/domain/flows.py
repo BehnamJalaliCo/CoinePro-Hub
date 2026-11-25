@@ -1068,6 +1068,20 @@ KEEP_SQL = """SELECT w.id, w.ref, w.company_id, w.run_meta -> 'flow' ->> 'order'
  LIMIT :batch"""
 
 
+UNSENT_BATCH = 20
+UNSENT_SQL = """SELECT w.id, w.ref FROM work.work w
+ WHERE w.parent_id IS NULL AND w.run_meta ? 'flow' AND w.status = 'delivered'
+   AND NOT (w.run_meta -> 'flow' ? 'sent')
+   AND w.run_meta -> 'flow' ->> 'day' >= :since
+   AND w.run_meta -> 'flow' ->> 'day' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+ ORDER BY w.run_meta -> 'flow' ->> 'publish_at' NULLS LAST, w.created_at
+ LIMIT :batch"""
+
+
+def _day_before(day: str) -> str:
+    return (date.fromisoformat(day) - timedelta(days=1)).isoformat()
+
+
 async def claude_room(tx: Tx) -> bool:
     """A Claude account the workshop may use has room now (switched on, not full)."""
     from hq_api.domain import servers as SV
@@ -1094,6 +1108,16 @@ async def keep(hub: Any, now: datetime, *, force: bool = False) -> list[str]:
             KEEP_SQL, open=list(W.OPEN), today=today, quiet_before=now - KEEP_IDLE,
             kept=KEPT, since=now - timedelta(hours=24), keep_max=KEEP_MAX, batch=KEEP_BATCH,
         )  # fmt: skip
+        # ⟨2026-11-26⟩ the owner: «هیچ ریلزی هیچ اتوماسیونی جا بمونه، هیچ وقت قابل بخشش نیست».
+        # bjtech_reels_2 of 11-25 (W-001216) was delivered but never sent (a wipe took its first
+        # turn's texts), and a delivered day is not open, so the pass above never saw it: every
+        # delivered day of today and yesterday that is not sent goes through the publish path again
+        unsent = await tx.all(UNSENT_SQL, since=_day_before(today), batch=UNSENT_BATCH)
+    for u in unsent:
+        got = await after_delivered(hub, u["id"])
+        if got != "sent":
+            log.warning("the keeper ran a delivered day that was never sent",
+                        extra={"work": str(u["ref"]), "got": got})  # fmt: skip
     # ⟨2026-11-24⟩ a day whose whole package is in but was never sent (its last turn broke after
     # it wrote out/, so no deliver came): sent now, not woken (no account needed for that)
     left = []
