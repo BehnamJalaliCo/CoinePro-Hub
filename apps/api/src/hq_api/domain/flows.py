@@ -94,7 +94,7 @@ class Flow:
     # ⟨2026-11-16⟩ the effort of its workshop turns ("" = the build's own, max); the owner for
     # DotCoin.me: «سازنده ویدیو مدل فیبل ۵.۲ افورت اکسترا» (xhigh)
     effort: str = ""
-    # ⟨2026-11-16⟩ a line of its own at the end of the order (a pilot's size, say)
+    # ⟨2026-11-16⟩ a line of its own at the end of the order (a size limit, say)
     note_fa: str = ""
     # ⟨1.39⟩ §61.1 what its row (automations.flows) holds besides; a flow of FLOWS with no row (the
     # migration's seed, a test's flow) has no ref, is on unless owner.settings.flows_off names it
@@ -220,50 +220,7 @@ FLOWS = {
         stories=("08:30", "10:30", "13:30", "15:30", "17:30", "20:30", "22:30"),
         same_day=True,
     ),
-    # ⟨2026-11-15⟩ the owner: «مدل فیبل ۵.۲ رو هم یکبار امتحان کنیم برای ساخت ویدیو ریلز»: the ZEC
-    # reel once more on Claude Fable 5.2, to set beside the Opus 5.5 one. No account: nothing is
-    # published; no n8n: started by hand, never on the board
-    "zaribsad_fabletest": Flow(
-        key="zaribsad_fabletest",
-        company="TY",
-        account="",
-        title_fa="آزمایش فیبل ۵.۲: ریلز زی‌کش (منتشر نمی‌شود)",
-        kit="/home/studio/kits/zaribsad-fabletest",
-        start=date(2026, 11, 15),
-        hours=("12:00",),
-        story=False,
-        budget_tokens=10_000_000,
-        usd_cap=Decimal("100"),
-        model="claude-opus-5-5",
-        effort=XHIGH,
-    ),
-    # ⟨2026-11-16⟩ the owner: the fourth page, DotCoin.me (@dotcoin.me, «Dot Coin | بهنام جلالی»),
-    # designed anew, unlike the other three: two educational / informational reels a day at fixed
-    # hours, each with its own look from its own Pinterest search (the references downloaded and
-    # given to the maker), the maker Fable 5.2 at extra-high effort, the narrator Arlo (Cruz's
-    # settings), IRANYekanX Pro, mustard #F3C242 and black, the page's round photo as its mark, and
-    # a cover from the owner's cover system (the owner himself, a new suit and accessories every
-    # time). First a 10-second sample and its cover for the owner's eyes (nothing is published).
-    "dotcoin_pilot": Flow(
-        key="dotcoin_pilot",
-        company="IG",
-        account="",
-        title_fa="نمونه‌ی ۱۰ ثانیه‌ای دات‌کوین برای مدیر کل (منتشر نمی‌شود)",
-        kit="/home/studio/kits/dotcoin-reels",
-        start=date(2026, 11, 16),
-        hours=("12:00",),
-        story=False,
-        budget_tokens=10_000_000,
-        usd_cap=Decimal("100"),
-        model="claude-opus-5-5",
-        effort=XHIGH,
-        note_fa=(
-            "این نوبت فقط نمونه‌ی ۱۰ ثانیه‌ای برای دیدن مدیر کل است و منتشر نمیشود: ویدیو ۹ تا ۱۱ ثانیه، "
-            "با همه‌ی قدم‌های کیت در همان اندازه (جستجو و دانلود نمونه‌های پینترست، صدای Arlo، کاور طبق "
-            "سیستم کاور مدیر کل). comment.txt لازم نیست."
-        ),
-    ),
-    # ⟨2026-11-17⟩ the owner, after the pilot («هم کاور و هم ریلز عالی بود»): the daily DotCoin.me
+    # ⟨2026-11-17⟩ the owner («هم کاور و هم ریلز عالی بود»): the daily DotCoin.me
     # package, phase one. Two reels a day at fixed hours, «ساعت دو ریلز عالیه»: 13:00 educational,
     # 20:30 informational, each built the same day (the news cannot wait; the educational one has
     # the night for its Pinterest search, the owner: «باید توی n8n تایم داده بشه بهش»). Every comment

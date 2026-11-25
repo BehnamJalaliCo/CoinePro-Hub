@@ -605,22 +605,10 @@ def test_a_fixed_story_word_and_a_reel_without_its_story_in_the_brief() -> None:
     assert "story.mp4" in FL.brief_of(a_flow("PC"), START, at)
 
 
-async def test_dotcoins_pilot_is_a_ten_second_sample_at_extra_high_effort() -> None:
-    """⟨2026-11-16⟩ The owner, for the fourth page DotCoin.me (the maker Fable 5.2 at extra-high
-    effort; first a 10-second sample and a sample cover): the pilot publishes nothing, runs on
-    Fable 5.2 at xhigh, and its order says its size."""
+async def test_a_flows_effort_is_its_own_and_never_below_the_build_effort() -> None:
+    """A flow's session runs at the flow's own effort (xhigh), never below the build effort; a
+    direct turn keeps the direct effort."""
     from hq_api.domain import direct as DR
-
-    pilot = FL.FLOWS["dotcoin_pilot"]
-    assert pilot.company == "IG" and pilot.account == "" and not pilot.n8n and not pilot.story
-    assert (pilot.model, pilot.effort) == ("claude-opus-5-5", "xhigh")  # (⟨11-17⟩ Opus 5.5)
-    assert pilot.kit == "/home/studio/kits/dotcoin-reels"
-    text = FL.brief_of(pilot, date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC))
-    assert text.endswith(pilot.note_fa) and "۱۰ ثانیه" in text and "Arlo" in text
-    # the others keep their order as it was
-    assert "۱۰ ثانیه" not in FL.brief_of(
-        FL.FLOWS["dotcoin_reels"], date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC)
-    )
 
     class Tx:
         def __init__(self, row: dict[str, Any] | None) -> None:
@@ -637,7 +625,7 @@ async def test_dotcoins_pilot_is_a_ten_second_sample_at_extra_high_effort() -> N
 
 
 def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
-    """⟨2026-11-17⟩ The owner, after the pilot («هم کاور و هم ریلز عالی بود»; «ساعت دو ریلز عالیه»):
+    """⟨2026-11-17⟩ The owner («هم کاور و هم ریلز عالی بود»; «ساعت دو ریلز عالیه»):
     an educational reel at 13:00 and an informational one at 20:30 every day, each built the same
     day on Opus 5.5 at extra-high effort (⟨11-17⟩, was Fable 5.2); the day's educational stories are twelve slides from one
     ChatGPT chat, with a fresh reply word a day. Each has its n8n workflow file, and the map shows

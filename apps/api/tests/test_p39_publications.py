@@ -498,10 +498,10 @@ async def test_the_desk_shows_only_complete_packages_titled_by_their_topic(
     cards = await ready()
     assert [c["output"] for c in cards] == [full["output"]]  # a cover alone has no card
     assert cards[0]["title_fa"] == "هاوینگ بعدی کی است؟" and cards[0]["group_fa"]
-    # a pilot without an account is no card
+    # a flow without an account is no card
     await su.execute(
         """UPDATE work.work SET run_meta = coalesce(run_meta, '{}'::jsonb)
-               || '{"flow": {"key": "dotcoin_pilot", "account": ""}}'::jsonb WHERE id = $1""",
+               || '{"flow": {"key": "a_test_flow", "account": ""}}'::jsonb WHERE id = $1""",
         full["work_id"],
     )
     assert await ready() == []
