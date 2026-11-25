@@ -1,4 +1,4 @@
-# DotCoin.me (@dotcoin.me) — the day's educational stories (owner, 2026-11-17)
+# DotCoin.me (Instagram @DotCoinMe since 2026-11-26) — the day's educational stories (owner, 2026-11-17)
 
 The owner: «ریلز عکس نداریم اصلا، منظورم تعدادی عکس برای استوری که هم آموزشی باشه و در آینده هر وقت
 گفتم تبلیغاتی باشه» and «چت جی پی تی میتونه ۱۰ الی ۱۵ عکس رو یکجا طراحی بکنه و تحویل بده در اسلاید
@@ -124,7 +124,7 @@ You are the day's session, started by n8n at 04:00 Tehran. Opus 5.5, extra-high 
    keyword: <the day's word>
    reply: <a warm one-line hello tied to the lesson>
    reply: <the lesson's summary in 4–6 short lines, numbered with emoji 1️⃣ 2️⃣ 3️⃣ …>
-   reply: <one line: «برای درس‌های بیشتر @dotcoin.me رو فالو کن»>
+   reply: <one line: «برای درس‌های بیشتر @DotCoinMe رو فالو کن»>
    ```
    - ≤ 900 characters, no hashtags.
    - No link yet (the site joins later).

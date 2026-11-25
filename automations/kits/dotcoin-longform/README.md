@@ -1,4 +1,4 @@
-# DotCoin.me (@dotcoin.me) — the long YouTube videos — the kit, v2 (owner 2026-11-17)
+# DotCoin.me (Instagram @DotCoinMe since 2026-11-26) — the long YouTube videos — the kit, v2 (owner 2026-11-17)
 
 The owner: «ویدیو بلند … پرمیوم و سطح بالا ، ۸ الی ۱۰ دقیقه … کپشن و کاور و همه چیزش کامله کامل»; then, the
 same evening: «از فردا هر روز منتشر بشه … ساخت موشنگرافیشو خیلی قویتر از اینی که است بکن … جذابیت ویدیو باید

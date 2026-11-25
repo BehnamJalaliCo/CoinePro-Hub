@@ -157,7 +157,7 @@ FLOWS = {
         model="claude-opus-5-5",
         effort=XHIGH,
     ),
-    # ⟨2026-11-14⟩ the owner: TradeYar's page @zaribsad, a coin-profile reel at 19:00 every day
+    # ⟨2026-11-14⟩ the owner: TradeYar's page (@zarib100x since 11-26), a coin-profile reel at 19:00 every day
     # (what the coin is, how it was built, its advantages, today's price, its year), the video made
     # by Claude alone in code, the end inviting to buy on WEEX or LBank; cost has no limit
     # ⟨2026-11-14⟩ the owner: @zaribsad's 12:00 reel turns every day: education, an exchange's
@@ -166,7 +166,7 @@ FLOWS = {
     "zaribsad_noon": Flow(
         key="zaribsad_noon",
         company="TY",
-        account="zaribsad",
+        account="zarib100x",
         title_fa="ریلز چرخشی ضریب صد",
         kit="/home/studio/kits/zaribsad-noon",
         # (2026-11-15 is the owner's ZEC remake, the page's first reel: the round starts the day after)
@@ -186,7 +186,7 @@ FLOWS = {
     "zaribsad_coin": Flow(
         key="zaribsad_coin",
         company="TY",
-        account="zaribsad",
+        account="zarib100x",
         title_fa="ریلز معرفی ارز ضریب صد",
         kit="/home/studio/kits/zaribsad-coin",
         start=date(2026, 11, 15),
@@ -205,7 +205,7 @@ FLOWS = {
     "zaribsad_stories": Flow(
         key="zaribsad_stories",
         company="TY",
-        account="zaribsad",
+        account="zarib100x",
         title_fa="استوری‌های روزانه‌ی ضریب صد",
         kit="/home/studio/kits/zaribsad-stories",
         start=date(2026, 11, 16),
@@ -229,7 +229,7 @@ FLOWS = {
     "dotcoin_reels": Flow(
         key="dotcoin_reels",
         company="IG",
-        account="dotcoin.me",
+        account="dotcoinme",
         title_fa="ریلز آموزشی دات‌کوین",
         kit="/home/studio/kits/dotcoin-reels",
         start=date(2026, 11, 17),
@@ -252,7 +252,7 @@ FLOWS = {
     "dotcoin_reels_2": Flow(
         key="dotcoin_reels_2",  # gitleaks:allow (a flow's name, not a key)
         company="IG",
-        account="dotcoin.me",
+        account="dotcoinme",
         title_fa="ریلز اطلاع‌رسانی دات‌کوین",
         kit="/home/studio/kits/dotcoin-reels",
         start=date(2026, 11, 17),
@@ -281,7 +281,7 @@ FLOWS = {
     "dotcoin_stories": Flow(
         key="dotcoin_stories",
         company="IG",
-        account="dotcoin.me",
+        account="dotcoinme",
         title_fa="استوری‌های آموزشی دات‌کوین",
         kit="/home/studio/kits/dotcoin-stories",
         start=date(2026, 11, 17),

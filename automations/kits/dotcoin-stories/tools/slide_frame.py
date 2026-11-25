@@ -1,5 +1,5 @@
-"""One DotCoin.me (@dotcoin.me) story slide (1080×1920 JPEG): ChatGPT's designed slide with the
-page's frame on top — the round mark with «dotcoin.me», the slide's number and the day's reply word —
+"""One DotCoin.me (@DotCoinMe) story slide (1080×1920 JPEG): ChatGPT's designed slide with the
+page's frame on top — the round mark with «DotCoinMe», the slide's number and the day's reply word —
 in IRANYekanX Pro, rendered by Chromium (Persian shaped right). (2026-11-17, the owner: the day's
 educational stories designed by ChatGPT in one chat, «اسلاید های مجزا».)
 
@@ -10,7 +10,7 @@ spec = {
   "n": 3, "of": 12,                 # the slide's number (shown «۳ از ۱۲»); 0 = none
   "word": "کیف‌پول",                 # the day's reply word (the CTA bar), "" = no bar
   "cta": "رو دایرکت کن تا خلاصه‌ی درس برات بیاد",   # optional, after the word
-  "mark": true,                     # the round mark + «dotcoin.me» (false: the slide has it)
+  "mark": true,                     # the round mark + «DotCoinMe» (false: the slide has it)
   # the FALLBACK only (a slide whose Persian ChatGPT got wrong, made again without text):
   "headline": "کیف‌پول [سرد] چیه؟",   # [..] = the key word on a mustard chip
   "lines": ["کلید تو، بیرون از اینترنت"], # 0–4 short lines
@@ -55,7 +55,7 @@ def page(s: dict) -> str:
         else ""
     )
     mark = (
-        f'<div class="mark"><img src="file://{BRAND}/logo_round.png"><b>dotcoin<span class="k2">.me</span></b></div>'
+        f'<div class="mark"><img src="file://{BRAND}/logo_round.png"><b>DotCoin<span class="k2">Me</span></b></div>'
         if s.get("mark", True)
         else ""
     )

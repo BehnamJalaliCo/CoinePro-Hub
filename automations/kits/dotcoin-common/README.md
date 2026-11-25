@@ -1,4 +1,4 @@
-# DotCoin.me (@dotcoin.me, «Dot Coin | بهنام جلالی») — what every DotCoin kit shares
+# DotCoin.me (Instagram @DotCoinMe since 2026-11-26 — username dotcoinme, was @dotcoin.me; site dotcoin.me; «Dot Coin | بهنام جلالی») — what every DotCoin kit shares
 
 The owner's fourth page (2026-11-16), under IG-Hub (company IG), designed anew: nothing of its look,
 voice or cover is taken from Pro-Chart or Zarib×100.

@@ -88,7 +88,7 @@ Before any design, for THIS reel only:
   and the bottom 380 px free of key text. Latin only for names that are Latin on screen
   (Bitcoin, BTC, a ticker) and the giant English words.
 - **The mark:** the page's round photo small in a corner during the reel (≤ 90 px, 70 % opacity) or
-  only at the end, as the look allows; the end card always shows it with **dotcoin.me** and the call
+  only at the end, as the look allows; the end card always shows it with **@DotCoinMe** (the Instagram page since 2026-11-26) and the call
   to action (follow, save; the comment ask when the reel has one).
 - **Sound:** a music bed matched to the look (`motion/audio4.py`, your own cue list), ducked under
   the voice, about −14 LUFS; soft, designed transitions; no booms or hits under the voice.

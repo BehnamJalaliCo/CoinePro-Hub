@@ -30,5 +30,7 @@ smooth gradients an invisible dither (noise of ±1 level) so they do not band. N
 The page's Instagram photo — the owner in a suit on a mustard disc — is the page's logo:
 `/home/studio/kits/dotcoin-common/brand/logo_round.png` (round, transparent outside) and
 `profile_ig.jpg` (the original 1080²). Use it as is (never redrawn, never recoloured), with the
-handle **dotcoin.me** beside it on the end card. No other brand as the page's mark; a coin's or an
+handle **@DotCoinMe** beside it on the end card (the owner, 2026-11-26: the Instagram page is now
+@DotCoinMe, username `dotcoinme`; the old @dotcoin.me is gone — never write it as the Instagram handle;
+the site stays **dotcoin.me**, and a link or a mention of the site keeps that name). No other brand as the page's mark; a coin's or an
 exchange's real logo only when the reel is about it.

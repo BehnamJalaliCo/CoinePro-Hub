@@ -146,7 +146,7 @@ new ids here. The originals: cover/refs/ and cover/samples/.)
 I attach my cover folder. Photos 1-6 are ME, the page owner (Behnam), who asks for this cover of
 himself. Images 7 and 8 are two covers I already made: follow THEIR style exactly, with a new design.
 
-Make ONE new vertical 9:16 Instagram reel cover (1080x1920) for my page DotCoin (dotcoin.me).
+Make ONE new vertical 9:16 Instagram reel cover (1080x1920) for my Instagram page DotCoin (@DotCoinMe).
 
 THE STYLE (as in images 7 and 8, but with the colours swapped): a flat MUSTARD #F3C242 background;
 GIANT ultra-bold condensed UPPERCASE English words in pure BLACK #000000, edge to edge, at the TOP;

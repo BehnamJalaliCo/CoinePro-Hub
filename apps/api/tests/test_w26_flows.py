@@ -639,7 +639,7 @@ def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
     st = FL.FLOWS["dotcoin_stories"]
     for f in (one, two, st):
         assert (f.company, f.account, f.model, f.effort) == (
-            "IG", "dotcoin.me", "claude-opus-5-5", "xhigh",
+            "IG", "dotcoinme", "claude-opus-5-5", "xhigh",
         )  # fmt: skip
         assert f.same_day and not f.story and f.recipe == "dotcoin"
     assert set(one.hours) == {"13:00"} and set(two.hours) == {"20:30"}

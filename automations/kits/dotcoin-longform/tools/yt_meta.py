@@ -69,7 +69,7 @@ def main():
         "📖 مقاله‌ی کامل این درس، با جدول مقایسه و پرسش‌های پرتکرار:", url, "",
         "در این ویدیو:", *[f"• {x}" for x in yt["learn"]], "",
         "فصل‌ها:", *chap_lines, "",
-        "دات‌کوین: آموزش ارز دیجیتال به زبان ساده", "سایت: https://dotcoin.me", "اینستاگرام: https://www.instagram.com/dotcoin.me", "",
+        "دات‌کوین: آموزش ارز دیجیتال به زبان ساده", "سایت: https://dotcoin.me", "اینستاگرام: https://www.instagram.com/dotcoinme", "",
         " ".join(yt["hashtags"][:3]),
     ])
     desc = desc.replace("<", "").replace(">", "")

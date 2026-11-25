@@ -1,4 +1,4 @@
-# DotCoin.me (@dotcoin.me) — the daily reels — the kit (IG-Hub, owner 2026-11-16)
+# DotCoin.me (Instagram @DotCoinMe since 2026-11-26) — the daily reels — the kit (IG-Hub, owner 2026-11-16)
 
 You are the day's session for the page **DotCoin.me** («Dot Coin | بهنام جلالی»), started by n8n
 long before the hour (so the Pinterest search has time), on **Opus 5.5 at extra-high effort** (the owner, 2026-11-17). Work
@@ -33,7 +33,7 @@ cover. If anything you make could pass for a Pro-Chart or Zarib×100 reel, redo 
   - Every reel has ONE Persian word tied to its topic («بلاک‌چین», «کیف‌پول», «هاوینگ» …; a news reel:
     «خبر» plus a word of the story, e.g. «ای‌تی‌اف»), never the word of the page's last reel.
   - Arlo's last line asks for it: «کلمه‌ی «…» رو کامنت کن تا خلاصه‌ش رو برات دایرکت کنم». The end
-    card shows it, together with follow @dotcoin.me. The cover's pill says «کلمه‌ی «…» رو کامنت کن».
+    card shows it, together with follow @DotCoinMe (the Instagram page; the site stays dotcoin.me). The cover's pill says «کلمه‌ی «…» رو کامنت کن».
   - Every comment with the word gets the summary in a DM (comment.txt); the DM ends with a button
     to the reel's article on dotcoin.me (step 12b), both kinds.
 
@@ -70,7 +70,7 @@ mark each step done with `order.progress`.
    ChatGPT and Gemini (no text in them), each checked by looking; cut-outs with COMMON/tools/cutout.py.
 6. **Contract:** finish `direction/CONTRACT.md` — the shot list on the word times, camera,
    transitions, type, sound cues, the mark and the end card (COMMON/brand: the round photo +
-   «dotcoin.me» + the call to action).
+   «@DotCoinMe» + the call to action).
 7. **Build** the scene as `motion/engine5_template.html` (engine6 loads it from your folder; the page
    sets `window.READY=true` and answers `frame(t)`); fonts from /home/studio/kits/fonts-pro
    (IRANYekanX Pro FaNum files for Persian, Anton / Bebas Neue for giant English). Every frame a
@@ -125,7 +125,7 @@ mark each step done with `order.progress`.
     keyword: <the reel's word>
     reply: <a warm one-line hello tied to the reel>
     reply: <the lesson (or the news and what it means) in 4–6 short lines, 1️⃣ 2️⃣ 3️⃣ …>
-    reply: <«برای درس‌های بیشتر @dotcoin.me رو فالو کن»>
+    reply: <«برای درس‌های بیشتر @DotCoinMe رو فالو کن»>
     reply: <the last line points to the button, e.g. «مقاله‌ی کامل این درس، با ویدیو و پرسش‌های پرتکرار، روی سایت دات‌کوین 👇» (news: «… این خبر …»)>
     public: <a short public answer, e.g. «دایرکتت رو ببین 📩»>   (ten different ones)
     link: https://dotcoin.me/learn/<slug>/     (the article's slug, or the attached lesson's, with the slash)
