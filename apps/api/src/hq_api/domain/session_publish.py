@@ -685,7 +685,14 @@ async def _send(
     rules}); its rules are made when the hub hears it is out (`d` is then the run: its ref, no
     work). ⟨1.39⟩ §60.1 the publication's permanent row is made with the job, in this transaction
     (`publication`: what the caller knows beyond the job: a flow's key, day and topic, a set's key
-    and place)."""
+    and place).
+    ⟨2026-11-26⟩ the owner: nothing goes out between 00:00 and 08:00 Tehran (quiet_hours): a
+    time in the night, or «now» in the night, waits for the morning."""
+    from hq_api.domain import quiet_hours as QH
+
+    asked = scheduled_at or datetime.now(UTC)
+    if QH.is_quiet(asked):
+        scheduled_at = QH.out_of_night(asked)
 
     def item(x: dict[str, Any], role: str | None = None) -> dict[str, Any]:
         mime = str(x["mime"])

@@ -90,10 +90,11 @@ def event_brief(
 
 
 def publish_at(flow: FL.Flow, now: datetime, lead_min: int) -> datetime:
-    """A reel's hour: `lead_min` after the news, moved out of the night (01:00–08:00 Tehran → 08:30)."""
+    """A reel's hour: `lead_min` after the news, moved out of the night (⟨2026-11-26⟩ the owner:
+    nothing between 00:00 and 08:00 Tehran → 08:30)."""
     at = now + timedelta(minutes=lead_min)
     local = at.astimezone(ZoneInfo(FL.TEHRAN))
-    if 1 <= local.hour < 8:
+    if local.hour < 8:
         local = local.replace(hour=8, minute=30, second=0, microsecond=0)
         at = local.astimezone(UTC)
     return at

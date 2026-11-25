@@ -41,6 +41,7 @@ from zoneinfo import ZoneInfo
 
 from hq_api import audit
 from hq_api.db import Tx
+from hq_api.domain import quiet_hours as QH
 from hq_api.principal import Principal
 
 log = logging.getLogger("hq_api.tg_posts")
@@ -660,6 +661,7 @@ async def queue(
     made = []
     for post in posts:
         at = now if post.at is None else post.at.astimezone(UTC)
+        at = QH.out_of_night(at)  # ⟨2026-11-26⟩ never between 00:00 and 08:00 Tehran
         stored = {"type": post.type, "parts": post.parts}
         files = [{**f, "role": "attachment"} for f in post.files()]
         thumb = next((f["file_id"] for f in post.files() if f["mime"].startswith("image/")), None)
@@ -922,9 +924,13 @@ def stale_after(row: dict[str, Any]) -> timedelta:
 
 
 async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
-    """The worker's minute: what is due goes out, after the bot's rights are read."""
+    """The worker's minute: what is due goes out, after the bot's rights are read. ⟨2026-11-26⟩
+    Nothing goes out between 00:00 and 08:00 Tehran (quiet_hours); a post the night held is not
+    late for those hours."""
     now = now or datetime.now(UTC)
     out: dict[str, Any] = {"sent": [], "waiting": 0, "stale": [], "failed": []}
+    if QH.is_quiet(now):
+        return out
     async with hub.db.tx(await hub.companies.ids()) as tx:
         for r in await tx.all(STUCK_SQL, t=now - STUCK):
             await tx.exec(
@@ -947,7 +953,8 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                 out["waiting"] += 1
                 continue
             src["chat"] = chat
-        if now - row["scheduled_at"] > stale_after(row):
+        late = now - row["scheduled_at"] - QH.night_between(row["scheduled_at"], now)
+        if late > stale_after(row):
             why = row.get("state_note_fa") or "دیر رسید"
             await _finish(hub, row, "cancelled", STALE_FA.format(why=why)[:500])
             out["stale"].append(str(row["ref"]))

@@ -606,6 +606,10 @@ def _min(hm: str) -> int:
     return hh * 60 + mm
 
 
+QUIET_END_MIN = 8 * 60
+NIGHT_FA = "هیچ انتشاری بین ساعت ۰۰:۰۰ تا ۰۸:۰۰ به وقت تهران نیست؛ ساعتی از ۰۸:۰۰ به بعد بگذار."
+
+
 async def errors_of(tx: Tx, flow: FL.Flow, body: dict[str, Any]) -> list[dict[str, str]]:
     """§61.4 what a save may hold: one Persian line per field (the first fault of each)."""
     errs: dict[str, str] = {}
@@ -629,6 +633,10 @@ async def errors_of(tx: Tx, flow: FL.Flow, body: dict[str, Any]) -> list[dict[st
         bad("schedule.stories", STORIES_MIN_FA)
     if len(stories) > STORIES_MAX:
         bad("schedule.stories", STORIES_MAX_FA)
+    # ⟨2026-11-26⟩ the owner: nothing goes out between 00:00 and 08:00 Tehran (making is fine)
+    for field, hs in (("schedule.hours", hours), ("schedule.stories", stories)):
+        if any(h is not None and _hm_ok(h) and _min(h) < QUIET_END_MIN for h in hs):
+            bad(field, NIGHT_FA)
     seen: set[str] = set()
     for h in stories:
         if not _hm_ok(h):

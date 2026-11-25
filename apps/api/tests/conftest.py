@@ -449,3 +449,15 @@ async def agents(app: Any, wk: dict[str, Any]) -> AsyncIterator[Any]:
     env = await build(app, wk["hub"], HOST, ROUTER_TOKEN, GATEWAY_TOKEN)
     yield env
     await env.close()
+
+
+@pytest.fixture(autouse=True)
+def _daytime(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨2026-11-26⟩ The owner's night (nothing goes out 00:00 to 08:00 Tehran, quiet_hours) would make
+    every «out at once» test depend on the hour it runs at: the tests run in the day, except
+    test_quiet_hours, which checks the night itself."""
+    if request.module.__name__.endswith("test_quiet_hours"):
+        return
+    from hq_api.domain import quiet_hours as QH
+
+    monkeypatch.setattr(QH, "is_quiet", lambda at: False)
