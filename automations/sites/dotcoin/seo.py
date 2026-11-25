@@ -763,6 +763,9 @@ def due_pass(force_day: date | None = None) -> int:
                 except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
                     log(f"input pack {day}: not made ({str(e)[:200]})")
                 save_state(state)
+        if quiet_now():  # the input pack is made in the night too; the site waits for 08:10
+            log("night (00:00 to 08:10 Tehran): nothing goes out now")
+            return 0
         for row in Y.sql(DUE_SQL):
             ref = str(row.get("ref") or "")
             if not REF_RE.fullmatch(ref) or state["runs"].get(ref, {}).get("status") in ("done", "blocked", "committed"):
@@ -774,6 +777,16 @@ def due_pass(force_day: date | None = None) -> int:
                 log(f"{ref}: error {str(e)[:300]}")
             save_state(state)
     return 0
+
+
+def quiet_now() -> bool:
+    """⟨2026-11-26⟩ The owner: nothing goes out between 00:00 and 08:00 Tehran (any channel); the
+    morning opens at 08:10, like the hub's quiet_hours. Making things in the night is fine."""
+    from datetime import datetime as _dt
+    from datetime import time as _time
+    from zoneinfo import ZoneInfo as _Z
+
+    return _dt.now(_Z("Asia/Tehran")).time() < _time(8, 10)
 
 
 def main() -> int:

@@ -685,6 +685,16 @@ def one_pass(args) -> int:
     return 0
 
 
+def quiet_now() -> bool:
+    """⟨2026-11-26⟩ The owner: nothing goes out between 00:00 and 08:00 Tehran (any channel); the
+    morning opens at 08:10, like the hub's quiet_hours. Making things in the night is fine."""
+    from datetime import datetime as _dt
+    from datetime import time as _time
+    from zoneinfo import ZoneInfo as _Z
+
+    return _dt.now(_Z("Asia/Tehran")).time() < _time(8, 10)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--dry-run", action="store_true")
@@ -692,6 +702,9 @@ def main() -> int:
     ap.add_argument("--workspace")
     ap.add_argument("--check")
     args = ap.parse_args()
+    if quiet_now() and not (args.dry_run or args.import_file or args.workspace or args.check):
+        log("night (00:00 to 08:10 Tehran): nothing goes out now")
+        return 0
     if args.check:
         text = Path(args.check).read_text("utf-8").replace("\r\n", "\n").lstrip("﻿")
         try:
