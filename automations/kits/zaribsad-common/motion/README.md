@@ -19,7 +19,10 @@ four transitions ARE the brand; a reel adds its own shots on top.
 - World: `ground(t,{lx,ly,light,horizon,grid})`, `plate(src,{x,y,w,h,p,push,pan,grade})`, `cutout(src,cx,cy,h)`.
 - Panels: `panel(key,t,x,y,w,h,{t0,from,ry,tab,title},(g,w,h)=>{…})` docks a glass panel on the 3D wall; draw
   inside with `g` (pass `{g}` to the instruments); `persp` for any card in perspective.
-- Instruments: `odometer(t,value,x,y,t0,dur,{px,kind:'C'|'F',prefix,suffix,dec,col,align})`,
+- Colours: `Z.gr` wine-black ground, `Z.pn`/`Z.pn2` panels, `Z.ac` Zarib Mint, `Z.ox`/`Z.oxL` oxblood, `Z.tx` ivory,
+  `Z.mu` warm grey, `Z.up`/`Z.dn` meaning — ONLY with ▲/▼ (brand/README.md); mint never on a value.
+- Instruments: `odometer(t,value,x,y,t0,dur,{px,kind:'C'|'F',prefix,suffix,dec,col,align,change})` (`change: true`
+  for any up/down value: ▲/▼, the sign and the meaning colour),
   `changeChip(t,pct,x,y,t0)`, `lineChart(t,series,x,y,w,h,t0,dur,{g,levels,smooth})`,
   `returnBars(t,rows,x,y,w,h,t0,{g})`, `gauge(t,value,cx,cy,r,t0,{g})`.
 - Type: `txt(s,x,y,{px,w,kind:'F'|'M'|'C',col,align,maxW,track})` (Persian digits and Latin isolation done for

@@ -6,10 +6,10 @@ usage: PY -I COMMON/tools/cover_sheet.py NEW_COVER qc/cover_sheet.jpg [--family 
   the row = the newest N of: DIR if given; else the covers earlier Zarib100x sessions kept as qc/z100x_cover.jpg
   (/home/studio/hq-workspace/*/qc/, newest by time, this folder excluded); fewer than N found → the family's
   samples (COMMON/cover/samples/) fill the row. Every session copies its delivered cover to qc/z100x_cover.jpg.
-prints, and exits 1 on any WRONG:
-  ground ok|WRONG    the frame's outer ring is obsidian (#0A0814 ± a little), never a light or another colour
-  zline ok|WRONG     the violet Zarib Line is under the title (y ≈ 1488 at 1080×1920)
-  ticks ok|WRONG     the four violet corner ticks of the frame are there
+prints, and exits 1 on any WRONG (cover/COVER_SYSTEM.md «ONE FAMILY»):
+  ground ok|WRONG    the top corners are the dark wine ground (#160A0E…#461A23), never mint, light or another colour
+  arch ok|WRONG      the mint arch (#83CAAD) stands behind him in the upper middle of the frame
+  chip ok|WRONG      the mint key-word chip is in the title zone (y ≈ 1280–1700 at 1080×1920)
 """
 import glob
 import os
@@ -21,8 +21,7 @@ from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
 SAMPLES = HERE.parent / "cover" / "samples"
-OB = np.array([10, 8, 20])
-VI = np.array([138, 63, 252])
+MINT = np.array([131, 202, 173])
 H = 800
 
 
@@ -49,19 +48,19 @@ def row(new: Path, n: int) -> list:
     return got
 
 
+def mint_frac(region: np.ndarray) -> float:
+    return float((np.abs(region.reshape(-1, 3) - MINT).sum(1) < 75).mean())
+
+
 def checks(a: np.ndarray) -> dict:
     h, w, _ = a.shape
     sy, sx = h / 1920, w / 1080
-    b = max(4, round(min(h, w) * 0.015))
-    ring = np.concatenate([a[:b].reshape(-1, 3), a[-b:].reshape(-1, 3)])
-    ground = float(np.abs(np.median(ring, 0) - OB).sum()) <= 45
-    band = a[int(1478 * sy):int(1500 * sy), int(100 * sx):int(980 * sx)].reshape(-1, 3)
-    zline = float((np.abs(band - VI).sum(1) < 120).mean()) > 0.15
-    ticks = 0
-    for (x0, y0) in ((30, 230), (1006, 230), (30, 1646), (1006, 1646)):
-        patch = a[int(y0 * sy):int((y0 + 44) * sy), int(x0 * sx):int((x0 + 44) * sx)].reshape(-1, 3)
-        ticks += float((np.abs(patch - VI).sum(1) < 120).mean()) > 0.08
-    return {"ground": ground, "zline": zline, "ticks": ticks == 4}
+    corners = np.concatenate([a[:int(200 * sy), :int(150 * sx)].reshape(-1, 3), a[:int(200 * sy), -int(150 * sx):].reshape(-1, 3)])
+    m = np.median(corners, 0)
+    ground = float(m.mean()) < 60 and m[0] >= m[1] + 2 and mint_frac(corners) < 0.05
+    arch = mint_frac(a[int(380 * sy):int(1100 * sy), int(170 * sx):int(910 * sx)]) > 0.12
+    chip = mint_frac(a[int(1280 * sy):int(1700 * sy), int(60 * sx):int(1020 * sx)]) > 0.006
+    return {"ground": ground, "arch": arch, "chip": chip}
 
 
 def main() -> int:
@@ -83,7 +82,7 @@ def main() -> int:
     sheet.save(out, quality=90)
     for k, v in res.items():
         print(f"{k} {'ok' if v else 'WRONG'}")
-    print("sheet", out, "— read it: the new cover (red) must sit in the row; a different title, plate and tag than the 4 beside it")
+    print("sheet", out, "— read it: the new cover (red) must sit in the row; a different suit, pose, element and title than the 4 beside it")
     return 0 if all(res.values()) else 1
 
 

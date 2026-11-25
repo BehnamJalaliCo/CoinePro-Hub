@@ -7,7 +7,7 @@ const SHOTS = [
     ground(t, {light: 0.26, horizon: 1250});
     X.save(); rig(p, {s0: 1.0, s1: 1.06, cy: 900});
     txt('SOL / USDT · 1Y', 60, 640, {kind: 'M', w: 500, px: 34, col: Z.mu, track: 4});
-    odometer(t, ch['1y'], 540, 900, -1.2, 1.4, {px: 260, kind: 'C', col: Z.dn, suffix: '%', dec: 1});
+    odometer(t, ch['1y'], 540, 900, -1.2, 1.4, {px: 220, kind: 'C', change: true, suffix: '%', dec: 1});
     zline(t, 980, -0.6, {label: 'ONE YEAR'});
     headline(t, ['سولانا [نصف] شد', 'حالا چی؟'], 1020, 1170, -0.7, {px: 112});
     X.restore();

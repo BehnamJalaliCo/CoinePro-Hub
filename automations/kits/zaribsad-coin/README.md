@@ -38,8 +38,8 @@ rules, not suggestions.
   with «تو». No fixed slogan, no fixed sentence: every reel has its own words.
 - Caption: catchy and gripping (a strong first line), SEO-aware, **exactly 3 hashtags** (one broad, one about the
   coin, and **#Zarib100x**). Comment/DM texts: no hashtags.
-- Brand: Zarib Violet #8A3FFC + Obsidian #0A0814, three colour layers (COMMON/brand/README.md); the coin appears in
-  its own colours where it is the subject. Fonts: IRANYekanX Pro + IBM Plex (THE DESK's). Video 1080×1920, 60–80 s.
+- Brand: Zarib Mint #83CAAD + Oxblood #461A23 on Wine Black #160A0E, three colour layers (COMMON/brand/README.md);
+  every up/down value with ▲/▼ (mint is never on a value); the coin appears in its own colours where it is the subject. Fonts: IRANYekanX Pro + IBM Plex (THE DESK's). Video 1080×1920, 60–80 s.
 
 ## Spend wisely, render safely
 - Keep command output short (`| tail -5`, `-q`, `-v error`). Record the plan with `order.ack` (the steps below) at
@@ -83,10 +83,11 @@ rules, not suggestions.
    reel) and its 3–6 references (direction/inspo/), the chapters, a shot list tied to the word times (no frame still
    for more than ~2.5 s; every sentence becomes an image or motion), the numbers table (every number → its key in
    qc/facts.json), the transitions, `direction/sound.json`, and the plate briefs (subject, framing 9:16 or a subject
-   on a flat background for a cut-out, light: obsidian + violet key, style anchors, "no text, no letters, no logos").
+   on a flat background for a cut-out, light: wine-black ground + an oxblood key light, style anchors, "no text, no letters, no logos").
 6. **Plates (mandatory):** ≥ 6 AI stills (DIRECTION §2): the SAME brief to player gpt AND player gemini
-   (`substitute.call` seat creative, kind image, placement other), the better kept — and the cover plate
-   (COMMON/cover/COVER_SYSTEM.md) in the same batch. Look at every image (Read); regenerate a bad one (≤ 2 more) or
+   (`substitute.call` seat creative, kind image, placement other), the better kept — and the cover call
+   (COMMON/cover/COVER_SYSTEM.md: ChatGPT draws the whole cover with the owner, the eight files attached) in the
+   same batch. Look at every image (Read); regenerate a bad one (≤ 2 more) or
    redesign the shot. The coin's REAL logo (facts `logo`, curl) as its own layer, never AI-drawn. Save the chosen
    files under `assets/`.
 7. **Build** `motion/scene.js` on THE DESK (COMMON/motion/README.md; the sample COMMON/motion/sample/ is a SOL
@@ -102,9 +103,12 @@ rules, not suggestions.
     not finish in ~40 min), then `--encode --audio build/mix.wav --out out/video.mp4`; the tail check, 12 random
     frames and every transition of the final file; remove build/segd.
 11. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -crf 17 -c:a aac out/story.mp4`
-12. **Cover — COMMON/cover/COVER_SYSTEM.md:** the plate + `COMMON/tools/cover_compose.py` (kind `COIN`, tag
-    `<SYMBOL>/USDT`, the title 2–5 words with its key word, the reel's real number with its meaning, brief = NNN) →
-    `out/cover.jpg`; `COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg` → ok ×3, read the row;
+12. **Cover — the cover package, COMMON/cover/COVER_SYSTEM.md (the owner, 2026-11-26):** ChatGPT draws the WHOLE
+    cover — the owner in a new suit and 2026 accessories in front of the mint arch, the tag `COIN · <SYMBOL>/USDT`,
+    the Persian title with its mint chip, the pill with the comment word, the coin itself as the element (its real
+    logo on it) — from the eight files (`file_ids`) and the package's brief. Check every letter and his face; the
+    fallback (`COMMON/tools/cover_compose.py`) only after 3 wrong titles.
+    `COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg` → ground/arch/chip ok, read the row;
     `cp out/cover.jpg qc/z100x_cover.jpg`. Never a video frame; no TradeYar logo.
 13. **Texts:** `out/caption.txt` (exactly 3 hashtags, #Zarib100x among them; ends with the comment-word ask).
     `out/comment.txt`, one `label: value` a line: `keyword: <the word said in the video>` · `match: any` ·

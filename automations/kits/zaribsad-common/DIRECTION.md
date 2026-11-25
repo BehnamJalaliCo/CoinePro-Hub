@@ -11,7 +11,7 @@ their voice, their covers, their music.
 that briefs a Persian futures trader. Real data on screen (the day's prices, the real one-year series, the
 returns, the fear & greed, the VIP's real record), instruments that count and draw live, glass panels on a
 3D-feeling wall, photoreal establishing plates of a trading desk at night — and one signature: **the Zarib
-Line**, the violet hairline that marks the one number that matters. Think the world's most premium finance
+Line**, the mint hairline that marks the one number that matters. Think the world's most premium finance
 channel: a Bloomberg-terminal precision with a film's light. DotCoin is a Pinterest-inspired Swiss poster
 that teaches; Zarib100x is a live desk that briefs.
 
@@ -42,24 +42,26 @@ that teaches; Zarib100x is a live desk that briefs.
 8. **Never TradeYar's logo** (trade-future.ir / coinepro.com, the «TY» mark) or any logo but the page's own
    mark, a coin's real logo (CoinGecko) or an exchange's real logo (its own site) when the reel is about it.
 9. **Never the same topic twice on the page** (`topic.claim` refuses a repeat; take the next).
-10. **A dedicated cover every reel** — cover/COVER_SYSTEM.md, ONE family, checked beside the last 4.
+10. **A dedicated cover every reel** — cover/COVER_SYSTEM.md: ChatGPT draws the WHOLE cover with the owner on it (a new
+    suit each time), ONE family (the mint arch), checked beside the last 4.
 11. **Fonts: IRANYekanX Pro** (the owner's licence, /home/studio/kits/fonts-pro) for Persian, **IBM Plex Mono**
     and **IBM Plex Sans Condensed** (OFL, COMMON/fonts) for data and the wordmark. Nothing else.
 
 ## 1. The brand in one screen (COMMON/brand/README.md is the full sheet)
-- **Two corporate colours: Zarib Violet `#8A3FFC` + Obsidian `#0A0814`.** Support: Platinum `#EEEAF8` (text),
-  Violet Light `#B28CFF` (key words on dark), Panel `#141022`, Muted `#9A95B3`.
+- **Two corporate colours, sampled from the page's profile photo** (owner, 2026-11-26): **Zarib Mint `#83CAAD`**
+  (the backdrop) + **Oxblood `#461A23`** (the suit). Ground: Wine Black `#160A0E`; Oxblood Light `#6B2A37` (the key
+  light); Ivory `#F4EFE6` (text); Panel `#241016`; Warm Grey `#A8979B`.
 - **Three colour layers** (as on DotCoin, with its own colours):
-  1. **brand** — violet + obsidian (+ platinum): the HUD, the wordmark, the Zarib Line, chips, kickers, the
-     cover, the first and the last frame. Visible in EVERY frame.
-  2. **content** — the plates, scenes, a coin's own colours, light; free, but graded to obsidian with violet
-     light, and never another purple, magenta, teal/navy (the old page) or mustard/gold (DotCoin, Pro-Chart)
-     as a dominant colour.
-  3. **meaning** — up/gain `#19C37D`, down/loss `#F2445A`, flat `#9A95B3`; only on numbers, candles, arrows
-     and chips, never swapped, never decoration. Violet NEVER means up or down; a price line is platinum, the
-     change chip carries the meaning colour.
-- **The mark:** the page's round profile photo with a violet ring + the wordmark **Zarib**`100x` (IBM Plex Sans
-  Condensed Bold, «100x» in Violet Light) + «بهنام جلالی». desk.js draws it (`lockup`, the HUD, the end slate).
+  1. **brand** — mint + oxblood on the wine-black ground (+ ivory): the HUD, the wordmark, the Zarib Line, chips,
+     kickers, the cover, the first and the last frame. Visible in EVERY frame.
+  2. **content** — the plates, scenes, a coin's own colours, light; free, but graded to wine-black with oxblood
+     light, and never another dominant green/teal, mustard/gold (DotCoin, Pro-Chart) or violet.
+  3. **meaning — the hard rule (mint is a green):** up/gain `▲ +` vivid green `#35E06E`, down/loss `▼ −` red
+     `#FF4D57`, flat `■` warm grey — ALWAYS the glyph and the sign with the colour, never colour alone. **Mint is
+     never on a value or a direction** (no mint number, candle, bar, price line or change chip; mint is for words and
+     brand marks). A chart's line is ivory. Oxblood is never a «down».
+- **The mark:** the page's round profile photo with a mint ring + the wordmark **Zarib**`100x` (IBM Plex Sans
+  Condensed Bold, «100x» in mint) + «بهنام جلالی». desk.js draws it (`lockup`, the HUD, the end slate).
 
 ## 2. The format — the grammar of a BRIEF (55–80 s)
 | beat | time | what |
@@ -69,30 +71,30 @@ that teaches; Zarib100x is a live desk that briefs.
 | **Chapters 01–04** | | Each chapter opens with its `kicker` tab («۰۱ ماجرا»…): one idea, ≥ 2 shots, each shot a new visual idea every 2–2.5 s. |
 | **Data moments** | ≥ 2 a reel | Real numbers in a DESK instrument: `lineChart` (the real series), `returnBars`, `gauge`, `odometer` wall, a supply/progress bar of your own in the same style. Every number from today's JSON; hold a landed number ≥ 1.2 s. |
 | **The Play** | | The takeaway as a panel of 3 numbered lines (education: the rule · coin: how to buy · campaign: 3 steps · market: what to watch). |
-| **End slate** | last ≥ 3 s | `endSlate`: the lockup, the comment word in the violet chip, `@Zarib100x`; the voice says the ask; the sonic logo once more (≥ 2.5 s before the end). |
+| **End slate** | last ≥ 3 s | `endSlate`: the lockup, the comment word in the mint chip, `@Zarib100x`; the voice says the ask; the sonic logo once more (≥ 2.5 s before the end). |
 
 **Plates (photoreal establishing shots):** ≥ 6 AI stills a reel, each the hero of its shot or the world behind
 a panel — never a flat icon as a shot's main visual. The DESK world: a premium trading desk at night (monitors as
 soft light sources with NO readable UI), macro of hardware and metal, glass towers at blue hour, the coin as a
 precious object in a studio, architectural light (concrete, glass, shadow), anonymous hands on a keyboard or a
-phone. Graded by `plate()` (obsidian from below, violet from the key side). Never cyberpunk clutter, holograms
+phone. Graded by `plate()` (wine-black from below, oxblood light from the key side). Never cyberpunk clutter, holograms
 with text, neon signs, rain, smoke or particles.
 
 **Real logos** as their own layer: the coin's (facts `logo`), the exchange's (its site). Never AI-drawn.
 
 ## 3. Motion language — precision instruments
 - **Everything is an instrument.** Panels DOCK (fast arrival, a 2 % settle — `E.dock`), never bounce or wobble;
-  numbers ROLL and land exactly; lines DRAW with the violet cursor riding their head; the live dot breathes.
+  numbers ROLL and land exactly; lines DRAW with the cursor riding their head; the live dot breathes.
 - **Depth:** panels on a 3D wall (`panel` / `persp`: rotY/rotX, turning toward the camera as they dock), the
   floor grid in perspective, ≥ 3 planes per shot moving at their own rates (plate, panels, captions/HUD).
 - **Camera:** `rig` on every shot — a slow push, a lateral dolly, a crane or an orbit swing of the wall; eased
   (in-out cubic), never linear, never static, never shaky.
-- **Transitions — the brand's four** (desk.js `transit`, 0.42 s): **blade** (a violet blade sweeps diagonally),
+- **Transitions — the brand's four** (desk.js `transit`, 0.42 s): **blade** (a mint blade sweeps diagonally),
   **slats** (a split-flap board flips the next shot in), **aperture** (a rounded window opens from the key
-  number, violet rim), **slide** (panels slide with a violet seam). ONE family per reel (§5) + `cut` only as a
+  number, mint rim), **slide** (panels slide with a mint seam). ONE family per reel (§5) + `cut` only as a
   deliberate beat. The incoming shot's first element arrives within 0.25 s of its start (no empty frame).
 - **Type on screen:** Persian in IRANYekanX Pro — headlines ExtraBlack 950 (96–130 px), captions ExtraBold 800
-  (60–68 px), panel titles 800, labels 400–500; the key word in the violet chip (headlines) or Violet Light
+  (60–68 px), panel titles 800, labels 400–500; the key word in the mint chip with dark letters (headlines) or in mint
   (captions). Data and tickers in IBM Plex Mono (Latin, upper case, tracked); big Latin numbers in IBM Plex Sans
   Condensed Bold. **Digits:** inside Persian text always Persian digits (desk.js converts); prices, tickers and
   percentages on the instruments in Latin digits (as an exchange shows them); NEVER both in one run.
@@ -134,7 +136,7 @@ and direct it yourself at the same bar.
    end, every transition's midpoint, the last frame). Read `build/desk_sheet.jpg` AND `build/desk_phone.jpg`
    (each frame at 360 px, a phone's real width): every caption, number and label must read there.
    **Score every shot /10 on seven lines:** plate/key art · depth and light · the motion idea · typography ·
-   data truth and clarity · brand (violet + obsidian present, the HUD, nothing off-palette) · polish (alignment,
+   data truth and clarity · brand (mint + oxblood present, the HUD, nothing off-palette, every up/down with ▲/▼, no mint on a value) · polish (alignment,
    spacing, nothing touching an edge). **Ship only if every shot averages ≥ 8.5 and no line is under 8.**
    Redo what fails; **round 2** on a fresh sheet; at least two rounds, honest, against a top studio's reel.
 3. **Text safety:** `python3 -I COMMON/tools/textlint.py qc/texts.json` (the strings the page drew; desk_engine
@@ -149,7 +151,7 @@ and direct it yourself at the same bar.
 6. **The final file:** after the one render (1080×1920, 60 fps; 30 fps only if 60 cannot finish in time) look at
    12 random frames of out/video.mp4 (`ffmpeg -ss <t> -i out/video.mp4 -frames:v 1 …`) and every transition's
    midpoint: no broken frame, no cut word, no blank incoming shot.
-7. **The cover:** COMMON/cover/COVER_SYSTEM.md — `cover_sheet.py` prints `ground ok`, `zline ok`, `ticks ok` and
-   the row reads as one family.
+7. **The cover:** COMMON/cover/COVER_SYSTEM.md — ChatGPT's whole cover with the owner; `cover_sheet.py` prints
+   `ground ok`, `arch ok`, `chip ok` and the row reads as one family.
 8. **The last line to the hub** (one short Persian line): the topic, the day's look (§5), the shot scores (min and
    average) and the two rounds.

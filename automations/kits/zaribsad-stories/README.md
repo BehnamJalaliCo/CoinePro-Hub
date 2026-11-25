@@ -7,8 +7,9 @@ Gemini; the page's own mark, never TradeYar's logo. The owner, 2026-11-15, on th
 جدید استفاده کن و دیگه انیمه نباشه و جدید باشه و از طریق چت جی پی تی با کیفیت 4k»: every picture is
 NEW (made today for that story), photoreal (never anime, never an earlier reel's art), by ChatGPT and Gemini (the better of the two; the owner, 2026-11-17).
 
-**2026-11-26:** the page is now **@Zarib100x** (was @zaribsad) and wears THE DESK identity (COMMON/brand/README.md):
-Zarib Violet #8A3FFC + Obsidian #0A0814, IRANYekanX Pro + IBM Plex, the round mark with «Zarib100x». The story tool
+**2026-11-26:** the page is now **@Zarib100x** (was @zaribsad) and wears its own identity (COMMON/brand/README.md):
+Zarib Mint #83CAAD + Oxblood #461A23 on Wine Black #160A0E (the colours of its profile photo), IRANYekanX Pro + IBM
+Plex, the round mark with «Zarib100x». The story tool
 already draws all of it; the pictures are graded to it (below). On the pictures, in the DM and anywhere a viewer
 reads the page's name: «Zarib100x» / «@Zarib100x», never «Zarib×100» or «zaribsad».
 
@@ -30,13 +31,13 @@ real (the day's data) and nothing promises a sure profit.
   باید با چت جی پی تی و جمنای باشند … تمامشون»): the same brief to both, the better one kept.
 - Photoreal key art (cinematic, real light, real people/places/objects), made today, never
   anime or illustration, never a picture of an earlier day or reel; crisp: no blur, no grain,
-  no particles or bokeh (COMMON/DIRECTION.md §0.5). Lit and graded to the page: a near-black obsidian ground
-  (#0A0814) with a violet key / rim light (#8A3FFC), the subject in its natural colours; never navy/teal (the old
-  page) or mustard/gold as a dominant colour (COMMON/brand/README.md).
+  no particles or bokeh (COMMON/DIRECTION.md §0.5). Lit and graded to the page: a dark wine ground (#160A0E)
+  with a warm oxblood key light (#461A23 / #6B2A37), a touch of mint (#83CAAD) only as a rim or a small accent, the
+  subject in its natural colours; never navy/teal, violet or mustard/gold as a dominant colour (COMMON/brand/README.md).
 - Persian text ONLY by our tool (KIT/tools/story_card.py, IRANYekanX Pro + IBM Plex): never let ChatGPT/Gemini
   write words into a picture. No full stop at the end of a line. Casual, warm Persian with «تو».
 - Every number comes from the tools' JSON of THIS morning (with its window/date), never from memory.
-- The page's mark is in the tool (the top bar: the round profile photo with a violet ring + «Zarib100x», and an
+- The page's mark is in the tool (the top bar: the round profile photo with a mint ring + «Zarib100x», and an
   optional mono `tab` such as «MARKET · 08:30» or «VIP · RECORD 30D»). Never TradeYar's logo.
 - Numbers: Persian digits inside Persian lines (the tool converts); a Latin run (LBank, VIP, UID, 50 USDT) stays
   Latin and is isolated by the tool; never Persian and Latin digits in one run.
@@ -73,10 +74,10 @@ real (the day's data) and nothing promises a sure profit.
    one job at a time): for each story the SAME brief twice, `substitute.call` seat **creative**, kind
    **image**, placement **other**, once with player **gpt** and once with player **gemini** (the
    owner, 2026-11-17; his «ChatGPT only» of 11-15 is replaced). Each brief: "Photorealistic, 4K ultra-detailed, razor-sharp, shot on a full-frame
-   cinema camera" + one 9:16 scene for that story's idea, cinematic light, the obsidian/violet grade, a calm
+   cinema camera" + one 9:16 scene for that story's idea, cinematic light, the wine/oxblood grade, a calm
    empty area where the text sits (the lower half for a bottom layout), and "no text, no letters, no
-   numbers, no logos, no watermark, no UI, not anime, not illustration"; the light: "near-black background with a
-   violet tint (#0A0814), a violet (#8A3FFC) key and rim light, the subject in natural colours". ChatGPT returns about
+   numbers, no logos, no watermark, no UI, not anime, not illustration"; the light: "a dark wine background (#160A0E), a
+   warm oxblood (#461A23) key light, a faint mint (#83CAAD) rim, the subject in natural colours". ChatGPT returns about
    941×1672: upscale to 1080×1920 with Lanczos (Instagram shows a story at 1080×1920 at most). Real people only as
    anonymous traders (no celebrity, no real person's face). Then end the turn with `order.progress`
    («تصویرها در راه است»): pictures made during a turn reach `in/` at your next turn.
@@ -91,8 +92,9 @@ real (the day's data) and nothing promises a sure profit.
    lines, a data card only where there are numbers. A `tab` for each (Latin, upper case: «MARKET · 08:30»,
    «VIP · RECORD 30D», «LESSON», «SIGNAL · SAMPLE», «BTC · ANALYSIS», «QUESTION», «VIP · 3 STEPS»).
 6. **QC:** Read every out/story_N.jpg: every letter and digit right, the numbers equal the JSON, the
-   key word in the violet chip, the CTA bar readable with the day's word, nothing under the top bar or the reply box,
-   no full stop at a line's end, no two stories alike, the seven side by side one family (obsidian + violet).
+   key word in the mint chip, the CTA bar readable with the day's word, nothing under the top bar or the reply box,
+   no full stop at a line's end, no two stories alike, the seven side by side one family (wine + mint), every
+   signed change in the data card with ▲/▼ (the tool does it for «+…» / «−…» values; mint is never on a number).
    `python3 -I COMMON/tools/textlint.py build/s1.json … build/s7.json out/comment.txt out/topic.txt` → clean.
    Fix and re-render what is wrong.
 7. **comment.txt** (the DM every reply with the word gets; the hub makes the rule):

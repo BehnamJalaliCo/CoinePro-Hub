@@ -96,7 +96,7 @@ def build_html() -> str:
         imgs["__mark"] = "data:image/png;base64," + b64(mark)
     desk = open(os.path.join(HERE, "desk.js"), encoding="utf-8").read()
     scene = open(os.path.join(ROOT, "motion", "scene.js"), encoding="utf-8").read()
-    html = ("<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;background:#0A0814;overflow:hidden}"
+    html = ("<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;background:#160A0E;overflow:hidden}"
             "canvas{display:block}</style></head><body><canvas id='c' width='1080' height='1920'></canvas><script>\n"
             f"const DATA={json.dumps(data, ensure_ascii=False)};\nconst __FONTS={json.dumps(fonts)};\n"
             f"const __IMGS={json.dumps(imgs)};\nwindow.READY=false;\n{desk}\n"

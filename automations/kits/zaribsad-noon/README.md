@@ -41,19 +41,19 @@ title, and use its exchange. Otherwise, today's kind below.
   it: a hook, the idea through a scene or a metaphor, one concrete example with numbers (drawn as a DESK
   instrument), the common mistake, the takeaway (The Play). Its call to action: a comment word → the DM sends a
   short step-by-step guide + a fitting link (a TradeYar guide on trade-future.ir with utm, or the free VIP path
-  https://trade-future.ir/guides/tradeyar-free-vip). Cover kind `LESSON`.
+  https://trade-future.ir/guides/tradeyar-free-vip). Cover tag `LESSON · <IDEA>`.
 - **کمپین صرافی (an exchange's campaign):** KIT/bank/campaigns.json — WEEX first (its campaign runs until
   1405-08-30), then LBank, then Ourbit, turning; open its `info` and `official` pages (curl) for today's real
   terms (amounts, dates, conditions; never invent). After its end date, the referral sign-up itself is the offer.
   `topic.claim` «کمپین: <exchange> <date>». Make the offer clear, honest and exciting; how to join in 3 steps (The
   Play). Call to action: a comment word → the DM sends the steps + the referral button (the bank's `link` and
-  `button`). Cover kind `CAMPAIGN`, the exchange's real logo may be the plate's subject.
+  `button`). Cover tag `CAMPAIGN · <EXCHANGE>`, a gift box or the exchange's real logo as the cover's element.
 - **خبر و بازار (news and the market):** `python3 -I KIT/tools/news_today.py qc/news.json` (BTC, ETH, total
   market, dominance, fear & greed, Cointelegraph's headlines, TradeYar's own Persian news channel). Pick the ONE
   story of the day that matters to a Persian crypto trader (or the market's mood itself), explain what happened,
   why, and what to watch — facts only from the file, said as «در لحظه‌ی ساخت این ویدیو». `topic.claim` «خبر:
   <headline> <date>». Call to action: a comment word → the DM sends a short read + a fitting link (a guide, or the
-  free VIP path). Cover kind `MARKET` or `NEWS`. For a coin's real series: `KIT/tools/coin_facts.py`.
+  free VIP path). Cover tag `MARKET · …` or `NEWS · …`. For a coin's real series: `KIT/tools/coin_facts.py`.
 
 ## Render safely
 At most 2 Chromium workers (the workshop has 4 GB); desk_engine.py closes its browsers itself. Keep command
@@ -69,7 +69,7 @@ output short. `order.ack` the plan at the start (the steps below); mark each don
    150–200 word casual script (55–80 s) with a 1.5-second hook built on ONE striking true number or claim (the
    cold open); the comment word (one new word); the caption (exactly 3 hashtags, #Zarib100x the third); the DM reply
    (≤600 chars, warm, emoji, numbered steps); 10 short public replies, all different. While it is queued: the
-   contract (step 5), the plate briefs and the cover plate brief. Then fix every fact and the Persian yourself →
+   contract (step 5), the plate briefs and the cover brief. Then fix every fact and the Persian yourself →
    `script/voice.txt` (brand names as spoken: ویکس، ال‌بنک، اوربیت، تریدیار…).
 3. **Voice:** `speech.make` (**Charon**), the WHOLE script in one call. QC chain: (pauses only with
    `tools/voice_seams.py pauses`) → `tools/asr_words.py` → `tools/qc_compare.py` (a wrong word: `speech.make` the
@@ -79,8 +79,8 @@ output short. `order.ack` the plan at the start (the steps below); mark each don
    commands as the Pro-Chart kit's step 3–4); probe every brand word (DIRECTION §0.2).
 4. **Inspiration, then plates:** DIRECTION §5 (the day's look; 3–6 top references → direction/inspo/), then ≥ 6
    plates (DIRECTION §2): the SAME brief to player gpt AND player gemini (`substitute.call` seat creative, kind
-   image, placement other), the better kept; send them all at once, with the cover plate (COMMON/cover/
-   COVER_SYSTEM.md). Look at each (Read); cut-outs where a subject moves on its own plane; save the chosen ones
+   image, placement other), the better kept; send them all at once, with the cover call (COMMON/cover/
+   COVER_SYSTEM.md: the whole cover by ChatGPT with the owner on it). Look at each (Read); cut-outs where a subject moves on its own plane; save the chosen ones
    under `assets/` (upscaled cleanly to their size with Lanczos, never softened).
 5. **Direction:** `direction/CONTRACT.md` — DIRECTION §6.1: the day's look and its references, the chapters, the
    shot list on the word times, the numbers table (every number → its JSON key), `direction/sound.json`.
@@ -96,9 +96,12 @@ output short. `order.ack` the plan at the start (the steps below); mark each don
    `PY -I COMMON/motion/desk_engine.py --encode --audio build/mix.wav --out out/video.mp4`; the tail check, 12 random
    frames and every transition of the final file (DIRECTION §6.6); remove build/segd.
 10. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -crf 17 -c:a aac out/story.mp4`
-11. **Cover — COMMON/cover/COVER_SYSTEM.md:** ChatGPT's (or Gemini's) plate + `COMMON/tools/cover_compose.py`
-    (kind by today's kind; the title 2–5 words with its key word; the reel's real number if it has one; brief =
-    NNN) → `out/cover.jpg`; `COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg` → ok ×3, read the row;
+11. **Cover — the cover package, COMMON/cover/COVER_SYSTEM.md (the owner, 2026-11-26):** ChatGPT draws the WHOLE
+    cover — the owner in a new suit and 2026 accessories in front of the mint arch, the tag (`LESSON · …`,
+    `CAMPAIGN · <EXCHANGE>`, `MARKET · …` / `NEWS · …` by today's kind), the Persian title with its mint chip, the
+    pill with the comment word, ONE element of the topic — from the eight files (`file_ids`) and the package's brief.
+    Check every letter and his face; the fallback (`COMMON/tools/cover_compose.py`) only after 3 wrong titles.
+    `COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg` → ground/arch/chip ok, read the row;
     `cp out/cover.jpg qc/z100x_cover.jpg`. Never a video frame; no TradeYar logo.
 12. **Texts:** `out/caption.txt` (exactly 3 hashtags, #Zarib100x among them; the comment-word ask).
     `out/comment.txt`, one `label: value` a line: `keyword: <the word said in the video>` · `match: any` ·

@@ -1,5 +1,5 @@
 """One Zarib100x story picture (1080×1920 JPEG): a photoreal key-art background with the page's
-brand layer on top (THE DESK: obsidian + Zarib violet, IRANYekanX Pro + IBM Plex; COMMON/brand/README.md),
+brand layer on top (the page's colours: wine-black, Zarib Mint, oxblood, ivory; IRANYekanX Pro + IBM Plex; COMMON/brand/README.md),
 rendered by Chromium (Persian shaped right, Latin runs isolated).
 
 Usage: VENV/bin/python -I tools/story_card.py spec.json
@@ -7,10 +7,10 @@ spec = {
   "bg": "in/CR-0061.png",            # the AI picture (any size; cropped to fill 9:16)
   "focus": "50% 35%",                # optional: the picture's point kept in the crop
   "tab": "VIP · RECORD 30D",         # optional: the mono tab in the top bar (Latin, upper case)
-  "kicker": "کارنامه‌ی سیگنال",       # the small label with the violet bar
-  "headline": "۸۱ برد از [۱۳۳] سیگنال", # big title; [..] = the key word in the violet chip
+  "kicker": "کارنامه‌ی سیگنال",       # the small label with the mint bar
+  "headline": "۸۱ برد از [۱۳۳] سیگنال", # big title; [..] = the key word in the mint chip
   "lines": ["۳۰ روز گذشته، همه در کانال VIP"],   # 0–3 short lines
-  "rows": [["نرخ برد", "۶۱٪"], ["ضریب سود", "۲٫۱"]], # optional data card, 0–4 rows
+  "rows": [["نرخ برد", "۶۱٪"], ["ضریب سود", "۲٫۱"]], # optional data card, 0–4 rows; a signed change («+2.1%», «−3.4%») gets ▲/▼ and its meaning colour
   "foot": "آمار از سایت تریدیار، ۲۳ آبان",   # optional small line (a source, a date)
   "cta_word": "الماس",               # the day's reply word (the CTA bar), or "" for none
   "cta": "رو ریپلای کن تا لینک VIP رایگان برات بیاد",  # optional, after the word
@@ -33,8 +33,8 @@ PRO = Path("/home/studio/kits/fonts-pro")
 COMMON = Path(os.environ.get("ZARIB_COMMON") or "/home/studio/kits/zaribsad-common")
 OWN = COMMON / "fonts"
 BRAND = COMMON / "brand"
-# Zarib100x — THE DESK (COMMON/brand/README.md): obsidian + Zarib violet, platinum text; meaning colours only for numbers
-OB, OB2, VI, VIL, PT, MU = "#0A0814", "#141022", "#8A3FFC", "#B28CFF", "#EEEAF8", "#9A95B3"
+# Zarib100x (COMMON/brand/README.md, 2026-11-26): wine-black ground, Zarib Mint accent, oxblood light, ivory text
+GR, PN, MINT, OX, OXL, TX, MU = "#160A0E", "#241016", "#83CAAD", "#461A23", "#6B2A37", "#F4EFE6", "#A8979B"
 
 
 def esc(t: str) -> str:
@@ -63,6 +63,20 @@ def key(t: str) -> str:  # never a full stop at the end; escaped; digits/Latin r
     return re.sub(r"\[(.+?)\]", lambda m: f'<span class="k">{m.group(1)}</span>', iso(t))
 
 
+UP, DN = "#35E06E", "#FF4D57"
+
+
+def value(v: str) -> str:
+    """A data-card value. A signed change («+2.1%», «−3.4%», «-۵٪») is a MEANING: ▲ + green or ▼ − red, the
+    glyph always with the colour (COMMON/brand/README.md: mint is close to green, so colour alone never says it)."""
+    t = str(v).strip()
+    if re.match(r"^[+▲]", t):
+        return f'<bdi dir="ltr" style="color:{UP}">▲ +{key(t.lstrip("+▲ "))}</bdi>'
+    if re.match(r"^[-−▼]", t):
+        return f'<bdi dir="ltr" style="color:{DN}">▼ −{key(t.lstrip("-−▼ "))}</bdi>'
+    return key(t)
+
+
 def faces() -> str:
     rows = [("ZF", PRO / "IRANYekanX-ExtraBlack.ttf", 950), ("ZF", PRO / "IRANYekanX-ExtraBold.ttf", 800),
             ("ZF", PRO / "IRANYekanX-Bold.ttf", 700), ("ZF", PRO / "IRANYekanX-Regular.ttf", 400),
@@ -72,7 +86,7 @@ def faces() -> str:
 
 
 def page(s: dict) -> str:
-    rows = "".join(f'<div class="row"><span>{key(a)}</span><b>{key(b)}</b></div>' for a, b in s.get("rows") or [])
+    rows = "".join(f'<div class="row"><span>{key(a)}</span><b>{value(b)}</b></div>' for a, b in s.get("rows") or [])
     lines = "".join(f"<p>{key(x)}</p>" for x in (s.get("lines") or [])[:3])
     word = str(s.get("cta_word") or "").strip()
     cta = (f'<div class="cta"><span class="w">{esc(word)}</span><span>{key(s.get("cta") or "رو ریپلای کن تا لینک VIP رایگان برات بیاد")}</span></div>'
@@ -84,34 +98,34 @@ def page(s: dict) -> str:
     tab = esc(s.get("tab") or "")  # optional mono tab (Latin): «VIP · RECORD 30D», «MARKET · 08:30»
     return f"""<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>{faces()}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-html, body {{ width: 1080px; height: 1920px; background: {OB}; font-family: ZF; color: {PT}; overflow: hidden; }}
+html, body {{ width: 1080px; height: 1920px; background: {GR}; font-family: ZF; color: {TX}; overflow: hidden; }}
 .bg {{ position: absolute; inset: 0; background: url("file://{Path(s['bg']).resolve()}") center/cover no-repeat;
       background-position: {esc(s.get('focus') or '50% 40%')}; }}
-.scrim {{ position: absolute; inset: 0; background: linear-gradient({scrim}, rgba(10,8,20,.95) 0%, rgba(10,8,20,.84) 36%, rgba(10,8,20,0) 68%); }}
-.glow {{ position: absolute; inset: 0; background: radial-gradient(900px 600px at 85% 10%, rgba(138,63,252,.22), rgba(10,8,20,0) 70%); }}
+.scrim {{ position: absolute; inset: 0; background: linear-gradient({scrim}, rgba(22,10,14,.95) 0%, rgba(22,10,14,.84) 36%, rgba(22,10,14,0) 68%); }}
+.glow {{ position: absolute; inset: 0; background: radial-gradient(900px 600px at 85% 10%, rgba(107,42,55,.55), rgba(22,10,14,0) 70%); }}
 .bar {{ position: absolute; top: 246px; left: 56px; right: 56px; height: 76px; display: flex; align-items: center; justify-content: space-between;
-       direction: ltr; background: rgba(10,8,20,.74); border: 2px solid rgba(238,234,248,.14); border-radius: 18px; padding: 0 22px 0 12px; }}
+       direction: ltr; background: rgba(22,10,14,.74); border: 2px solid rgba(244,239,230,.14); border-radius: 18px; padding: 0 22px 0 12px; }}
 .bar .lk {{ display: flex; align-items: center; gap: 14px; font-family: ZC; font-weight: 700; font-size: 36px; }}
-.bar img {{ width: 54px; height: 54px; border-radius: 50%; border: 3px solid {VI}; }}
-.bar .x {{ color: {VIL}; }}
+.bar img {{ width: 54px; height: 54px; border-radius: 50%; border: 3px solid {MINT}; }}
+.bar .x {{ color: {MINT}; }}
 .bar .tb {{ font-family: ZM; font-weight: 500; font-size: 24px; letter-spacing: 2px; color: {MU}; }}
-.bar .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: {VI}; margin-left: 12px; vertical-align: middle; }}
+.bar .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: {MINT}; margin-left: 12px; vertical-align: middle; }}
 .box {{ position: absolute; left: 64px; right: 64px; top: 380px; bottom: 330px; display: flex; flex-direction: column;
        justify-content: {place}; gap: 26px; }}
 .kick {{ align-self: flex-start; display: flex; align-items: center; gap: 14px; font-weight: 800; font-size: 38px; }}
-.kick::before {{ content: ""; width: 10px; height: 44px; background: {VI}; border-radius: 3px; }}
+.kick::before {{ content: ""; width: 10px; height: 44px; background: {MINT}; border-radius: 3px; }}
 h1 {{ font-size: 96px; line-height: 1.22; font-weight: 950; }}
-.k {{ background: {VI}; color: {PT}; border-radius: 18px; padding: 0 14px; }}
+.k {{ background: {MINT}; color: {GR}; border-radius: 18px; padding: 0 14px; }}
 p {{ font-size: 46px; line-height: 1.5; font-weight: 400; }}
-p .k {{ background: none; color: {VIL}; padding: 0; font-weight: 700; }}
-.card {{ background: rgba(20,16,34,.88); border: 2px solid rgba(238,234,248,.14); border-top: 5px solid {VI}; border-radius: 26px; padding: 14px 36px; }}
+p .k {{ background: none; color: {MINT}; padding: 0; font-weight: 700; }}
+.card {{ background: rgba(36,16,22,.88); border: 2px solid rgba(244,239,230,.14); border-top: 5px solid {MINT}; border-radius: 26px; padding: 14px 36px; }}
 .row {{ display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0; font-size: 42px;
-       border-bottom: 1px solid rgba(238,234,248,.12); }}
+       border-bottom: 1px solid rgba(244,239,230,.12); }}
 .row:last-child {{ border-bottom: 0; }}
-.row b {{ font-size: 56px; font-weight: 950; color: {PT}; }}
-.cta {{ display: flex; align-items: center; gap: 22px; background: {PT}; color: {OB}; font-size: 40px; font-weight: 800; border-radius: 26px;
+.row b {{ font-size: 56px; font-weight: 950; color: {TX}; }}
+.cta {{ display: flex; align-items: center; gap: 22px; background: {TX}; color: {GR}; font-size: 40px; font-weight: 800; border-radius: 26px;
        padding: 22px 28px; line-height: 1.4; }}
-.cta .w {{ flex: none; color: {PT}; background: {VI}; border-radius: 16px; padding: 6px 22px; font-weight: 950; font-size: 48px; }}
+.cta .w {{ flex: none; color: {GR}; background: {MINT}; border-radius: 16px; padding: 6px 22px; font-weight: 950; font-size: 48px; }}
 .foot {{ font-size: 30px; color: {MU}; }}
 </style></head><body><div class="bg"></div><div class="scrim"></div><div class="glow"></div>
 <div class="bar"><div class="lk"><img src="file://{BRAND}/profile_round.png"><span>Zarib<span class="x">100x</span></span></div>
