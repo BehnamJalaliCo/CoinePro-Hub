@@ -1,12 +1,14 @@
-"""One Zarib×100 story picture (1080×1920 JPEG): a photoreal key-art background with the page's
-brand layer on top, in IRANYekanX Eco, rendered by Chromium (Persian shaped right).
+"""One Zarib100x story picture (1080×1920 JPEG): a photoreal key-art background with the page's
+brand layer on top (THE DESK: obsidian + Zarib violet, IRANYekanX Pro + IBM Plex; COMMON/brand/README.md),
+rendered by Chromium (Persian shaped right, Latin runs isolated).
 
 Usage: VENV/bin/python -I tools/story_card.py spec.json
 spec = {
   "bg": "in/CR-0061.png",            # the AI picture (any size; cropped to fill 9:16)
   "focus": "50% 35%",                # optional: the picture's point kept in the crop
-  "kicker": "کارنامه‌ی سیگنال",       # the small teal label
-  "headline": "۸۱ برد از [۱۳۳] سیگنال", # big title; [..] = the key word in teal
+  "tab": "VIP · RECORD 30D",         # optional: the mono tab in the top bar (Latin, upper case)
+  "kicker": "کارنامه‌ی سیگنال",       # the small label with the violet bar
+  "headline": "۸۱ برد از [۱۳۳] سیگنال", # big title; [..] = the key word in the violet chip
   "lines": ["۳۰ روز گذشته، همه در کانال VIP"],   # 0–3 short lines
   "rows": [["نرخ برد", "۶۱٪"], ["ضریب سود", "۲٫۱"]], # optional data card, 0–4 rows
   "foot": "آمار از سایت تریدیار، ۲۳ آبان",   # optional small line (a source, a date)
@@ -16,70 +18,105 @@ spec = {
   "out": "out/story_1.jpg"
 }
 No full stop at the end of any line, and no warning or disclaimer line (the owner). Instagram covers the top ~230 px (the bar) and
-the bottom ~300 px (the reply box): the text stays between them."""
+the bottom ~300 px (the reply box): the text stays between them. The top bar (the mark + «Zarib100x») sits at y 246–322."""
 
 import html
 import json
+import os
 import re
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
-FONTS = Path("/home/studio/kits/fonts-eco")
-BRAND = Path("/home/studio/kits/zaribsad-common/brand")
-NAVY, TEAL, WHITE = "#030B26", "#0FB5AE", "#F4F7FF"
+PRO = Path("/home/studio/kits/fonts-pro")
+COMMON = Path(os.environ.get("ZARIB_COMMON") or "/home/studio/kits/zaribsad-common")
+OWN = COMMON / "fonts"
+BRAND = COMMON / "brand"
+# Zarib100x — THE DESK (COMMON/brand/README.md): obsidian + Zarib violet, platinum text; meaning colours only for numbers
+OB, OB2, VI, VIL, PT, MU = "#0A0814", "#141022", "#8A3FFC", "#B28CFF", "#EEEAF8", "#9A95B3"
 
 
 def esc(t: str) -> str:
-    t = re.sub(r"[.。]\s*$", "", str(t).strip())  # never a full stop at the end
+    t = re.sub(r"[.。،؛]\s*$", "", str(t).strip())  # never a full stop at the end
     return html.escape(t)
 
 
-def key(t: str) -> str:
-    return re.sub(r"\[(.+?)\]", lambda m: f'<span class="k">{m.group(1)}</span>', esc(t))
+FA_DIG = str.maketrans("0123456789.,%", "۰۱۲۳۴۵۶۷۸۹٫٬٪")
+
+
+def iso(t: str) -> str:
+    """Digits and Latin runs inside Persian (the font has Latin digits): a run with a Latin letter or $
+    (Zarib100x, SOL/USDT, 50 USDT) stays Latin, isolated LTR; a run of digits alone becomes Persian digits."""
+    out, last = [], 0
+    for m in re.finditer(r"[A-Za-z0-9$][A-Za-z0-9$%.,/:+\-×#@_ ]*[A-Za-z0-9%$]|[A-Za-z0-9$]", t):
+        out.append(html.escape(t[last:m.start()]))
+        r = m.group(0)
+        out.append(f'<bdi dir="ltr">{html.escape(r)}</bdi>' if re.search(r"[A-Za-z$]", r) else r.translate(FA_DIG))
+        last = m.end()
+    out.append(html.escape(t[last:]))
+    return "".join(out)  # the text, html-escaped, with its runs set
+
+
+def key(t: str) -> str:  # never a full stop at the end; escaped; digits/Latin runs set; [..] = the key word
+    t = re.sub(r"[.。،؛]\s*$", "", str(t).strip())
+    return re.sub(r"\[(.+?)\]", lambda m: f'<span class="k">{m.group(1)}</span>', iso(t))
+
+
+def faces() -> str:
+    rows = [("ZF", PRO / "IRANYekanX-ExtraBlack.ttf", 950), ("ZF", PRO / "IRANYekanX-ExtraBold.ttf", 800),
+            ("ZF", PRO / "IRANYekanX-Bold.ttf", 700), ("ZF", PRO / "IRANYekanX-Regular.ttf", 400),
+            ("ZM", OWN / "IBMPlexMono-Medium.ttf", 500), ("ZM", OWN / "IBMPlexMono-SemiBold.ttf", 600),
+            ("ZC", OWN / "IBMPlexSansCondensed-Bold.ttf", 700)]
+    return "".join(f'@font-face{{font-family:{f};font-weight:{w};src:url("file://{p}");}}' for f, p, w in rows)
 
 
 def page(s: dict) -> str:
-    rows = "".join(f'<div class="row"><span>{esc(a)}</span><b>{esc(b)}</b></div>' for a, b in s.get("rows") or [])
+    rows = "".join(f'<div class="row"><span>{key(a)}</span><b>{key(b)}</b></div>' for a, b in s.get("rows") or [])
     lines = "".join(f"<p>{key(x)}</p>" for x in (s.get("lines") or [])[:3])
     word = str(s.get("cta_word") or "").strip()
-    cta = (f'<div class="cta"><span class="w">«{esc(word)}»</span> {esc(s.get("cta") or "رو ریپلای کن تا لینک VIP رایگان برات بیاد")}</div>'
+    cta = (f'<div class="cta"><span class="w">{esc(word)}</span><span>{key(s.get("cta") or "رو ریپلای کن تا لینک VIP رایگان برات بیاد")}</span></div>'
            if word else "")
-    foot = f'<div class="foot">{esc(s["foot"])}</div>' if s.get("foot") else ""
-    place = {"top": "flex-start", "center": "center"}.get(str(s.get("layout") or "bottom"), "flex-end")
-    scrim = {"top": "180deg", "center": "180deg"}.get(str(s.get("layout") or "bottom"), "0deg")
-    return f"""<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>
-@font-face {{ font-family: Eco; font-weight: 400; src: url("file://{FONTS}/IRANYekanXFaNum-Regular.ttf"); }}
-@font-face {{ font-family: Eco; font-weight: 700; src: url("file://{FONTS}/IRANYekanXFaNum-Bold.ttf"); }}
-@font-face {{ font-family: EcoEn; font-weight: 700; src: url("file://{FONTS}/IRANYekanX-Bold.ttf"); }}
+    foot = f'<div class="foot">{key(s["foot"])}</div>' if s.get("foot") else ""
+    lay = str(s.get("layout") or "bottom")
+    place = {"top": "flex-start", "center": "center"}.get(lay, "flex-end")
+    scrim = {"top": "180deg", "center": "180deg"}.get(lay, "0deg")
+    tab = esc(s.get("tab") or "")  # optional mono tab (Latin): «VIP · RECORD 30D», «MARKET · 08:30»
+    return f"""<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>{faces()}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-html, body {{ width: 1080px; height: 1920px; background: {NAVY}; font-family: Eco; color: {WHITE}; overflow: hidden; }}
+html, body {{ width: 1080px; height: 1920px; background: {OB}; font-family: ZF; color: {PT}; overflow: hidden; }}
 .bg {{ position: absolute; inset: 0; background: url("file://{Path(s['bg']).resolve()}") center/cover no-repeat;
       background-position: {esc(s.get('focus') or '50% 40%')}; }}
-.scrim {{ position: absolute; inset: 0; background: linear-gradient({scrim}, rgba(3,11,38,.94) 0%, rgba(3,11,38,.82) 34%, rgba(3,11,38,.0) 66%); }}
-.mark {{ position: absolute; top: 250px; right: 64px; display: flex; align-items: center; gap: 18px;
-        background: rgba(3,11,38,.72); border: 2px solid {TEAL}; border-radius: 60px; padding: 10px 26px 10px 12px; }}
-.mark img {{ width: 72px; height: 72px; border-radius: 50%; border: 3px solid {TEAL}; }}
-.mark b {{ font-family: EcoEn; font-size: 34px; font-weight: 700; direction: ltr; }}
+.scrim {{ position: absolute; inset: 0; background: linear-gradient({scrim}, rgba(10,8,20,.95) 0%, rgba(10,8,20,.84) 36%, rgba(10,8,20,0) 68%); }}
+.glow {{ position: absolute; inset: 0; background: radial-gradient(900px 600px at 85% 10%, rgba(138,63,252,.22), rgba(10,8,20,0) 70%); }}
+.bar {{ position: absolute; top: 246px; left: 56px; right: 56px; height: 76px; display: flex; align-items: center; justify-content: space-between;
+       direction: ltr; background: rgba(10,8,20,.74); border: 2px solid rgba(238,234,248,.14); border-radius: 18px; padding: 0 22px 0 12px; }}
+.bar .lk {{ display: flex; align-items: center; gap: 14px; font-family: ZC; font-weight: 700; font-size: 36px; }}
+.bar img {{ width: 54px; height: 54px; border-radius: 50%; border: 3px solid {VI}; }}
+.bar .x {{ color: {VIL}; }}
+.bar .tb {{ font-family: ZM; font-weight: 500; font-size: 24px; letter-spacing: 2px; color: {MU}; }}
+.bar .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: {VI}; margin-left: 12px; vertical-align: middle; }}
 .box {{ position: absolute; left: 64px; right: 64px; top: 380px; bottom: 330px; display: flex; flex-direction: column;
        justify-content: {place}; gap: 26px; }}
-.kick {{ align-self: flex-start; background: {TEAL}; color: {NAVY}; font-weight: 700; font-size: 38px; padding: 8px 28px; border-radius: 40px; }}
-h1 {{ font-size: 92px; line-height: 1.22; font-weight: 700; }}
-.k {{ color: {TEAL}; }}
+.kick {{ align-self: flex-start; display: flex; align-items: center; gap: 14px; font-weight: 800; font-size: 38px; }}
+.kick::before {{ content: ""; width: 10px; height: 44px; background: {VI}; border-radius: 3px; }}
+h1 {{ font-size: 96px; line-height: 1.22; font-weight: 950; }}
+.k {{ background: {VI}; color: {PT}; border-radius: 18px; padding: 0 14px; }}
 p {{ font-size: 46px; line-height: 1.5; font-weight: 400; }}
-.card {{ background: rgba(3,11,38,.86); border: 2px solid {TEAL}; border-radius: 34px; padding: 18px 36px; }}
-.row {{ display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0; font-size: 44px;
-       border-bottom: 1px solid rgba(15,181,174,.35); }}
+p .k {{ background: none; color: {VIL}; padding: 0; font-weight: 700; }}
+.card {{ background: rgba(20,16,34,.88); border: 2px solid rgba(238,234,248,.14); border-top: 5px solid {VI}; border-radius: 26px; padding: 14px 36px; }}
+.row {{ display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0; font-size: 42px;
+       border-bottom: 1px solid rgba(238,234,248,.12); }}
 .row:last-child {{ border-bottom: 0; }}
-.row b {{ color: {TEAL}; font-size: 54px; }}
-.cta {{ background: {WHITE}; color: {NAVY}; font-size: 42px; font-weight: 700; border-radius: 30px; padding: 24px 34px; line-height: 1.45; }}
-.cta .w {{ color: {TEAL}; background: {NAVY}; border-radius: 16px; padding: 2px 16px; }}
-.foot {{ font-size: 30px; opacity: .78; }}
-</style></head><body><div class="bg"></div><div class="scrim"></div>
-<div class="mark"><img src="file://{BRAND}/profile_round.png"><b>Zarib×100</b></div>
-<div class="box">{f'<div class="kick">{esc(s["kicker"])}</div>' if s.get("kicker") else ""}
+.row b {{ font-size: 56px; font-weight: 950; color: {PT}; }}
+.cta {{ display: flex; align-items: center; gap: 22px; background: {PT}; color: {OB}; font-size: 40px; font-weight: 800; border-radius: 26px;
+       padding: 22px 28px; line-height: 1.4; }}
+.cta .w {{ flex: none; color: {PT}; background: {VI}; border-radius: 16px; padding: 6px 22px; font-weight: 950; font-size: 48px; }}
+.foot {{ font-size: 30px; color: {MU}; }}
+</style></head><body><div class="bg"></div><div class="scrim"></div><div class="glow"></div>
+<div class="bar"><div class="lk"><img src="file://{BRAND}/profile_round.png"><span>Zarib<span class="x">100x</span></span></div>
+<div class="tb">{tab}<span class="dot"></span></div></div>
+<div class="box">{f'<div class="kick">{key(s["kicker"])}</div>' if s.get("kicker") else ""}
 <h1>{key(s.get("headline") or "")}</h1>{lines}{f'<div class="card">{rows}</div>' if rows else ""}{cta}{foot}</div>
 </body></html>"""
 
@@ -99,6 +136,7 @@ def main(spec_path: str) -> None:
             try:
                 pg = b.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=1)
                 pg.goto(page_file.as_uri())
+                pg.evaluate("document.fonts.ready")
                 pg.wait_for_timeout(400)
                 pg.evaluate("document.fonts.ready")
                 pg.screenshot(path=str(png), full_page=False)
@@ -107,7 +145,6 @@ def main(spec_path: str) -> None:
         from PIL import Image
 
         Image.open(png).convert("RGB").save(out, "JPEG", quality=92, optimize=True)
-    subprocess.run(["pkill", "-f", "[c]hromium-1243/chrome-linux64/chrome"], check=False)
     print(out)
 
 

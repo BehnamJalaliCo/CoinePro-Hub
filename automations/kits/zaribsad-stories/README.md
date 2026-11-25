@@ -1,4 +1,4 @@
-# Zarib×100 (@zaribsad) — the day's seven stories (owner, 2026-11-15)
+# Zarib100x (@Zarib100x) — the day's seven stories (owner, 2026-11-15; THE DESK look 2026-11-26)
 
 The owner: «اتوماسیون استوری ضریب صد روزانه ۷ عدد که مطالبی باشه که برای کاربر جذاب باشه که وارد کانال
 سیگنال بشه و جواب‌های دایرکت استوری طوری باشه که کاربر رو ترغیب بکنه برای ورود به کانال سیگنال vip».
@@ -6,6 +6,11 @@ Earlier: stories are PICTURES (no video), very REALISTIC (photoreal, not anime),
 Gemini; the page's own mark, never TradeYar's logo. The owner, 2026-11-15, on the first test: «از عکس‌های
 جدید استفاده کن و دیگه انیمه نباشه و جدید باشه و از طریق چت جی پی تی با کیفیت 4k»: every picture is
 NEW (made today for that story), photoreal (never anime, never an earlier reel's art), by ChatGPT and Gemini (the better of the two; the owner, 2026-11-17).
+
+**2026-11-26:** the page is now **@Zarib100x** (was @zaribsad) and wears THE DESK identity (COMMON/brand/README.md):
+Zarib Violet #8A3FFC + Obsidian #0A0814, IRANYekanX Pro + IBM Plex, the round mark with «Zarib100x». The story tool
+already draws all of it; the pictures are graded to it (below). On the pictures, in the DM and anywhere a viewer
+reads the page's name: «Zarib100x» / «@Zarib100x», never «Zarib×100» or «zaribsad».
 
 You are the day's session, started by n8n at 06:00 Tehran. Work alone: never `order.ask`, never wait
 for an approval. NEVER call `workshop.run`. KIT = /home/studio/kits/zaribsad-stories (read only).
@@ -25,12 +30,16 @@ real (the day's data) and nothing promises a sure profit.
   باید با چت جی پی تی و جمنای باشند … تمامشون»): the same brief to both, the better one kept.
 - Photoreal key art (cinematic, real light, real people/places/objects), made today, never
   anime or illustration, never a picture of an earlier day or reel; crisp: no blur, no grain,
-  no particles or bokeh (COMMON/DIRECTION.md §0.7). Graded to the page: navy #030B26, teal #0FB5AE,
-  off-white #F4F7FF (COMMON/cover/COVER_PACK.md).
-- Persian text ONLY by our tool (KIT/tools/story_card.py, IRANYekanX Eco): never let ChatGPT/Gemini
+  no particles or bokeh (COMMON/DIRECTION.md §0.5). Lit and graded to the page: a near-black obsidian ground
+  (#0A0814) with a violet key / rim light (#8A3FFC), the subject in its natural colours; never navy/teal (the old
+  page) or mustard/gold as a dominant colour (COMMON/brand/README.md).
+- Persian text ONLY by our tool (KIT/tools/story_card.py, IRANYekanX Pro + IBM Plex): never let ChatGPT/Gemini
   write words into a picture. No full stop at the end of a line. Casual, warm Persian with «تو».
 - Every number comes from the tools' JSON of THIS morning (with its window/date), never from memory.
-- The page's mark is in the tool (round profile photo + «Zarib×100»). Never TradeYar's logo.
+- The page's mark is in the tool (the top bar: the round profile photo with a violet ring + «Zarib100x», and an
+  optional mono `tab` such as «MARKET · 08:30» or «VIP · RECORD 30D»). Never TradeYar's logo.
+- Numbers: Persian digits inside Persian lines (the tool converts); a Latin run (LBank, VIP, UID, 50 USDT) stays
+  Latin and is isolated by the tool; never Persian and Latin digits in one run.
 - Instagram covers the top ~230 px and the bottom ~300 px: the tool keeps text between them.
 - The CTA bar with the day's word on EVERY story.
 
@@ -64,9 +73,10 @@ real (the day's data) and nothing promises a sure profit.
    one job at a time): for each story the SAME brief twice, `substitute.call` seat **creative**, kind
    **image**, placement **other**, once with player **gpt** and once with player **gemini** (the
    owner, 2026-11-17; his «ChatGPT only» of 11-15 is replaced). Each brief: "Photorealistic, 4K ultra-detailed, razor-sharp, shot on a full-frame
-   cinema camera" + one 9:16 scene for that story's idea, cinematic light, the navy/teal grade, a calm
+   cinema camera" + one 9:16 scene for that story's idea, cinematic light, the obsidian/violet grade, a calm
    empty area where the text sits (the lower half for a bottom layout), and "no text, no letters, no
-   numbers, no logos, no watermark, no UI, not anime, not illustration". ChatGPT returns about
+   numbers, no logos, no watermark, no UI, not anime, not illustration"; the light: "near-black background with a
+   violet tint (#0A0814), a violet (#8A3FFC) key and rim light, the subject in natural colours". ChatGPT returns about
    941×1672: upscale to 1080×1920 with Lanczos (Instagram shows a story at 1080×1920 at most). Real people only as
    anonymous traders (no celebrity, no real person's face). Then end the turn with `order.progress`
    («تصویرها در راه است»): pictures made during a turn reach `in/` at your next turn.
@@ -78,10 +88,13 @@ real (the day's data) and nothing promises a sure profit.
 5. **Compose:** one spec per story (see the tool's docstring) → `VENV/bin/python -I KIT/tools/story_card.py
    build/s1.json` … → out/story_1.jpg … out/story_7.jpg, in the hours' order. Layout: `bottom` for
    most; `top` or `center` where the picture's subject sits low. Headline ≤ 7 words, at most 3 short
-   lines, a data card only where there are numbers.
+   lines, a data card only where there are numbers. A `tab` for each (Latin, upper case: «MARKET · 08:30»,
+   «VIP · RECORD 30D», «LESSON», «SIGNAL · SAMPLE», «BTC · ANALYSIS», «QUESTION», «VIP · 3 STEPS»).
 6. **QC:** Read every out/story_N.jpg: every letter and digit right, the numbers equal the JSON, the
-   key word teal, the CTA bar readable with the day's word, nothing under the top bar or the reply box,
-   no full stop at a line's end, no two stories alike. Fix and re-render what is wrong.
+   key word in the violet chip, the CTA bar readable with the day's word, nothing under the top bar or the reply box,
+   no full stop at a line's end, no two stories alike, the seven side by side one family (obsidian + violet).
+   `python3 -I COMMON/tools/textlint.py build/s1.json … build/s7.json out/comment.txt out/topic.txt` → clean.
+   Fix and re-render what is wrong.
 7. **comment.txt** (the DM every reply with the word gets; the hub makes the rule):
    ```
    keyword: <the day's word>

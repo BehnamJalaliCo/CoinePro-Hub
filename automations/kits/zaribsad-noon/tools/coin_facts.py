@@ -1,5 +1,6 @@
 """The coin's facts at the moment of making (CoinGecko + LBank public APIs, no key):
-price, 24h/7d/30d/1y change, rank, ATH, supply, genesis. Usage:
+price, 24h/7d/30d/1y change, rank, ATH, supply, genesis, and the REAL daily price series of the past
+year (`series_1y`: [[YYYY-MM-DD, usd], …], for THE DESK's charts: DESK.lineChart). Usage:
   python3 -I tools/coin_facts.py <coingecko id> <lbank symbol> out.json
 Every number in the reel comes from this file; say «در لحظه‌ی ساخت این ویدیو»."""
 
@@ -34,6 +35,13 @@ def main() -> None:
         # the coin's OFFICIAL logo (never let an AI draw a logo): download it with curl
         "logo": (d.get("image") or {}).get("large"),
     }
+    try:  # the real series for the charts on screen (one point a day, the last year)
+        ch = get(f"https://api.coingecko.com/api/v3/coins/{cg_id}/market_chart?vs_currency=usd&days=365&interval=daily")
+        facts["series_1y"] = [[datetime.fromtimestamp(ms / 1000, UTC).strftime("%Y-%m-%d"), round(v, 8)]
+                              for ms, v in ch.get("prices", [])]
+    except Exception as e:  # noqa: BLE001
+        facts["series_1y"] = []
+        facts["series_error"] = str(e)[:200]
     try:
         t = get(f"https://api.lbkex.com/v2/ticker/24hr.do?symbol={lb_sym}")["data"][0]["ticker"]
         facts["lbank"] = {"last": float(t["latest"]), "change_24h_pct": float(t["change"])}
