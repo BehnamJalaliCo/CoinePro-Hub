@@ -85,11 +85,11 @@ class Flow:
     # ⟨2026-11-15⟩ n8n makes the day it is called on (the page's news cannot wait a day); else
     # the next day
     same_day: bool = False
-    # ⟨2026-11-16⟩ a stories flow whose replies are always answered on ONE word (the owner for
-    # ipoxxo: «لینک رو ریپلای کن»): every day's rule has it; IG-Hub answers with the oldest one,
+    # ⟨2026-11-16⟩ a stories flow whose replies are always answered on ONE word (the owner's
+    # «لینک رو ریپلای کن»): every day's rule has it; IG-Hub answers with the oldest one,
     # whose reply is the same channel link ("" = a fresh word every day)
     story_word: str = ""
-    # ⟨2026-11-16⟩ the steps the automations map shows («zaribsad», «ipoxxo»; "" = by the kit)
+    # ⟨2026-11-16⟩ the steps the automations map shows («zaribsad», «dotcoin»; "" = by the kit)
     recipe: str = ""
     # ⟨2026-11-16⟩ the effort of its workshop turns ("" = the build's own, max); the owner for
     # DotCoin.me: «سازنده ویدیو مدل فیبل ۵.۲ افورت اکسترا» (xhigh)
@@ -237,70 +237,6 @@ FLOWS = {
         model="claude-opus-5-5",
         effort=XHIGH,
     ),
-    # ⟨2026-11-16⟩ the owner: the page @ipoxxo.vpn (on IG-Hub) for the free proxy and VPN channel
-    # t.me/ipoxxo, registered under IG-Hub (the owner: «ثبت زیر ig-hub»; its CEO holds the sessions,
-    # with the voice and the creative tools): two reels a day, each different, at hours of my
-    # choosing, each naming the channel and asking for a comment (every comment gets the link in a
-    # DM); three picture stories a day. «سبک ویدیو هم دقیقا عین ضریب صد»، «ساخت با اوپس ۵.۵». The
-    # first reel is shown to the owner before anything goes out (ipoxxo_pilot): the three daily
-    # flows stay switched off on the board until he says yes.
-    "ipoxxo_reels": Flow(
-        key="ipoxxo_reels",
-        company="IG",
-        account="ipoxxo.vpn",
-        title_fa="ریلز اول آی‌پی‌اکسو",
-        kit="/home/studio/kits/ipoxxo-reels",
-        start=date(2026, 11, 17),
-        # ⟨2026-11-16⟩ the owner, approving the pilot: «اتوماسیونشو بذار برای ساعت ۱۲ ظهر هر روز»:
-        # the first reel at 12:00 Tehran every day, no rotation, no best-hour week
-        hours=("12:00", "12:00", "12:00", "12:00"),
-        story=False,  # (the owner: three stories a day, the picture ones)
-        budget_tokens=10_000_000,
-        n8n="hqFlowIpoxxoReels1",
-        trigger_at="21:00",  # (the evening before: the workshop is free then)
-        usd_cap=Decimal("100"),
-        model="claude-opus-5-5",
-        effort=XHIGH,
-        recipe="ipoxxo",
-    ),
-    "ipoxxo_reels_2": Flow(
-        key="ipoxxo_reels_2",
-        company="IG",
-        account="ipoxxo.vpn",
-        title_fa="ریلز دوم آی‌پی‌اکسو",
-        kit="/home/studio/kits/ipoxxo-reels",
-        start=date(2026, 11, 17),
-        hours=("21:30", "19:30", "23:00", None),
-        story=False,
-        budget_tokens=10_000_000,
-        n8n="hqFlowIpoxxoReels2",
-        trigger_at="23:30",
-        usd_cap=Decimal("100"),
-        model="claude-opus-5-5",
-        effort=XHIGH,
-        pair="ipoxxo_reels",
-        recipe="ipoxxo",
-    ),
-    "ipoxxo_stories": Flow(
-        key="ipoxxo_stories",
-        company="IG",
-        account="ipoxxo.vpn",
-        title_fa="استوری‌های روزانه‌ی آی‌پی‌اکسو",
-        kit="/home/studio/kits/ipoxxo-stories",
-        start=date(2026, 11, 17),
-        hours=("10:00",),
-        story=False,
-        budget_tokens=10_000_000,
-        n8n="hqFlowIpoxxoStories1",
-        trigger_at="02:30",
-        usd_cap=Decimal("40"),
-        model="claude-opus-5-5",
-        effort=XHIGH,
-        stories=("10:00", "16:30", "21:00"),
-        same_day=True,
-        story_word="لینک",
-        recipe="ipoxxo",
-    ),
     # ⟨2026-11-16⟩ the owner: the fourth page, DotCoin.me (@dotcoin.me, «Dot Coin | بهنام جلالی»),
     # designed anew, unlike the other three: two educational / informational reels a day at fixed
     # hours, each with its own look from its own Pinterest search (the references downloaded and
@@ -404,22 +340,6 @@ FLOWS = {
         same_day=True,
         recipe="dotcoin",
     ),
-    # the first reel, for the owner's eyes only: no account (nothing is published), no n8n
-    "ipoxxo_pilot": Flow(
-        key="ipoxxo_pilot",
-        company="IG",
-        account="",
-        title_fa="ریلز نمونه‌ی آی‌پی‌اکسو برای مدیر کل (منتشر نمی‌شود)",
-        kit="/home/studio/kits/ipoxxo-reels",
-        start=date(2026, 11, 16),
-        hours=("21:30",),
-        story=False,
-        budget_tokens=10_000_000,
-        usd_cap=Decimal("100"),
-        model="claude-opus-5-5",
-        effort=XHIGH,
-        recipe="ipoxxo",
-    ),
 }
 
 
@@ -521,7 +441,7 @@ def held_why(flow: Flow, day: date) -> str | None:
     """⟨1.39⟩ §61.2 why the clock (and n8n's call) makes nothing for this day: paused before its
     `paused_until`, the owner's skip, a day not among its `days`. ⟨2026-11-18⟩ A day before its
     `start` too: the clock looks at yesterday and today (or today and tomorrow), and a flow made to
-    start tomorrow was started the same day (ipoxxo_reels_3, W-000625)."""
+    start tomorrow was started the same day (W-000625)."""
     if day < flow.start:
         return NOT_STARTED_FA.format(start=fa_day(flow.start))
     if flow.state == "paused":
@@ -594,7 +514,7 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
         their_hm = theirs.astimezone(tz).strftime("%H:%M")
         if _minutes(their_hm) == _minutes(str(hm)):
             # (both on the best hour) the tried hour farthest from the first one's, of both flows'
-            # hours (⟨2026-11-16⟩ ipoxxo's first reel has one fixed hour)
+            # hours (⟨2026-11-16⟩ a flow may have one fixed hour)
             hm = max(
                 (h for h in (*sibling.hours, *flow.hours) if h),
                 key=lambda h: abs(_minutes(h) - _minutes(their_hm)),

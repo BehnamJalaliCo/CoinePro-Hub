@@ -2,7 +2,7 @@
 """Build the final narration: clean the take, swap its spoken slogan for the fixed, checked slogan clip.
 
 Usage: build/asr/venv/bin/python -I tools/assemble_voice.py MAIN_AUDIO MAIN_ASR.json SLOGAN_AUDIO OUT.wav [OUT.json]
-       SLOGAN_AUDIO "-": a kit without a slogan (DotCoin, ipoxxo, zaribsad): the take alone, cleaned, with
+       SLOGAN_AUDIO "-": a kit without a slogan (DotCoin, zaribsad): the take alone, cleaned, with
        the same lead, tail, loudness and limiter (MAIN_ASR.json is then not read).
 
 Why (QC findings, 2026-11-13): every file from the speech path starts with a ~25 ms click and ends with a ~170 ms

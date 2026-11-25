@@ -11,7 +11,7 @@ You are that maker: Opus 5.5, extra-high effort (the owner, 2026-11-17). Cost ha
    prediction, no signal, no promise of profit; no warning or disclaimer lines either (the owner's
    taste on every page). Every fact true; a number only from a real source you checked today.
 2. **Its own look, from its own Pinterest search, every reel** (§1). Never the look of the page's
-   last reel; never the look of Pro-Chart, Zarib×100 or ipoxxo (no navy/cyan neon, no glassy
+   last reel; never the look of Pro-Chart or Zarib×100 (no navy/cyan neon, no glassy
    crypto-neon, no Eco font).
 3. **The brand: three colour layers** (brand/README.md; the owner, 2026-11-17):
    - **brand:** mustard #F3C242 + black (+ white) on the mark, titles, key-word chips, subtitles,

@@ -4,7 +4,7 @@ The owner: «این پیج باید فوق‌العاده متفاوت از چه
 پریمیوم‌ترین حالت ممکن که کاربر واقعا تفاوت رو حس بکنه». The page is «Behnam Jalali | AI & Tech» (bio: «ساده،
 کاربردی و بدون حرف اضافه»). Its language is **LUMEN**: an AI-native interface on ink — glass panels, live code and
 terminals, real benchmark bars and counters, and ONE signature light, the **spectral edge** (the iridescent glow an
-AI assistant wears when it thinks). Nothing of Pro-Chart, Zarib×100, ipoxxo or DotCoin is ever reused: not their
+AI assistant wears when it thinks). Nothing of Pro-Chart, Zarib×100 or DotCoin is ever reused: not their
 colours, fonts, voice-over voice (except Arlo, the owner's choice), covers, music or layouts.
 
 The bar is `KIT/example/` of bjtech-reels (Claude Fable 5.2, 62 s): read its NOTES.md and contact_sheet.jpg.

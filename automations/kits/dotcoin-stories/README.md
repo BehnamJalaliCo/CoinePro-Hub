@@ -36,7 +36,7 @@ You are the day's session, started by n8n at 04:00 Tehran. Opus 5.5, extra-high 
   - No full stop at the end of a line. Casual, warm Persian with «تو».
 - **Every slide keeps its top 260 px and its bottom 420 px calm** (background only). Instagram's bar
   and reply box sit there, and our frame puts the mark, the number and the word bar there.
-- **Never** the look of Pro-Chart, Zarib×100 or ipoxxo (no navy/cyan neon, no glassy crypto-neon).
+- **Never** the look of Pro-Chart or Zarib×100 (no navy/cyan neon, no glassy crypto-neon).
 
 ## Steps
 0. **Setup:** `mkdir -p build direction/inspo out in`, then `order.ack` with these steps (the hub

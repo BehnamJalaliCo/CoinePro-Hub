@@ -587,96 +587,22 @@ async def test_the_days_stories_go_out_each_at_its_hour_with_the_days_reply_rule
     assert SPB.view  # (the module is the one the hub runs)
 
 
-IPOXXO_COMMENT = (
-    "keyword: لینک\nmatch: any\nreply: سلام 👋 اینم کانال رایگان آی‌پی‌اکسو\n"
-    "reply: پروکسی تلگرام و کانفیگ V2Ray رایگان\nbutton: ورود به کانال | https://t.me/ipoxxo\n"
-    "public: دایرکتت رو ببین 📩"
-)
-
-
-def test_ipoxxos_flows_are_ig_hubs_with_a_fixed_story_word() -> None:
-    """⟨2026-11-16⟩ The owner: @ipoxxo.vpn (the free proxy/VPN channel t.me/ipoxxo), «ثبت زیر
-    ig-hub»: two reels a day at hours of their own, made on Opus 5.5 the evening before, no story cut
-    (three picture stories a day instead, always answered on «لینک»); the first reel publishes
-    nothing (the owner sees it first)."""
-    one, two, st, pilot = (FL.FLOWS[k] for k in
-                           ("ipoxxo_reels", "ipoxxo_reels_2", "ipoxxo_stories", "ipoxxo_pilot"))  # fmt: skip
-    for f in (one, two, st, pilot):
-        assert f.company == "IG" and f.model == "claude-opus-5-5" and not f.story
-        assert f.kit.startswith("/home/studio/kits/ipoxxo-")
-    assert one.account == two.account == st.account == "ipoxxo.vpn" and pilot.account == ""
-    assert two.pair == "ipoxxo_reels" and not one.same_day and st.same_day
-    assert len(st.stories) == 3 and st.story_word == "لینک" and not pilot.n8n
-    assert {one.n8n, two.n8n, st.n8n} == {"hqFlowIpoxxoReels1", "hqFlowIpoxxoReels2",
-                                          "hqFlowIpoxxoStories1"}  # fmt: skip
-    # a week never puts the second reel on the first one's hour
-    assert all(a != b for a, b in zip(one.hours, two.hours, strict=True) if a and b)
-
-
-async def test_ipoxxos_first_reel_is_at_noon_every_day(monkeypatch: pytest.MonkeyPatch) -> None:
-    """⟨2026-11-16⟩ The owner, approving the pilot: «اتوماسیونشو بذار برای ساعت ۱۲ ظهر هر روز»: the
-    first reel at 12:00 Tehran every day; the second never on it, also when the best hour is noon."""
-    from hq_api.domain import best_hour as BH
-
-    async def best(*_: Any, **__: Any) -> Any:
-        return SimpleNamespace(enough=True, hour="12:00")
-
-    monkeypatch.setattr(BH, "best", best)
-    one, two = FL.FLOWS["ipoxxo_reels"], FL.FLOWS["ipoxxo_reels_2"]
-    tz = ZoneInfo(FL.TEHRAN)
-    for offset in range(56):
-        day = one.start + timedelta(days=offset)
-        a, _ = await FL.slot_of(None, one, day, None)  # type: ignore[arg-type]
-        b, _ = await FL.slot_of(None, two, day, None)  # type: ignore[arg-type]
-        assert a.astimezone(tz).strftime("%H:%M") == "12:00", offset
-        assert b.astimezone(tz).strftime("%H:%M") != "12:00", offset
-        if FL.week_of(two, day) == 3:
-            assert b.astimezone(tz).strftime("%H:%M") == "23:00", offset
-
-
 def test_a_fixed_story_word_and_a_reel_without_its_story_in_the_brief() -> None:
-    at = datetime(2026, 11, 17, 9, 0, tzinfo=UTC)
-    st = FL.FLOWS["ipoxxo_stories"]
-    text = FL.brief_of(st, date(2026, 11, 17), at, ["الماس"])
-    assert "«لینک»" in text and "کلمه‌ی تازه نساز" in text and "الماس" not in text
-    assert "story_3.jpg" in text and "@ipoxxo.vpn" in text
-    # the fresh-word flows keep their list of taken words
     from dataclasses import replace
 
+    at = datetime(2026, 11, 17, 9, 0, tzinfo=UTC)
+    st = replace(FL.FLOWS["zaribsad_stories"], story_word="لینک")
+    text = FL.brief_of(st, date(2026, 11, 17), at, ["الماس"])
+    assert "«لینک»" in text and "کلمه‌ی تازه نساز" in text and "الماس" not in text
+    # the fresh-word flows keep their list of taken words
     fresh = replace(st, story_word="")
     assert "«الماس»" in FL.brief_of(fresh, date(2026, 11, 17), at, ["الماس"])
-    reel = FL.brief_of(FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), at)
+    reel = FL.brief_of(replace(FL.FLOWS["dotcoin_reels"], story=False), date(2026, 11, 17), at)
     assert "story.mp4" not in reel and "استوری نه" in reel and "video.mp4" in reel
     assert FL.NEVER_SILENT_FA in reel and FL.NEVER_SILENT_FA not in FL.brief_of(
         st, date(2026, 11, 17), at
     )
     assert "story.mp4" in FL.brief_of(a_flow("PC"), START, at)
-
-
-def test_ipoxxos_map_shows_its_own_steps() -> None:
-    from hq_api.domain import flow_view as FV
-
-    reel = [s.key for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"])]
-    assert FV.recipe(FL.FLOWS["ipoxxo_reels"]) == "zaribsad"
-    assert {"inspire", "keyart", "cover", "render"} <= set(reel) and "story" not in reel
-    assert "story" in [s.key for s in FV.steps_of(FL.FLOWS["zaribsad_noon"])]
-    st = {s.key: s for s in FV.steps_of(FL.FLOWS["ipoxxo_stories"])}
-    assert "«لینک»" in st["word"].title_fa and "s3" in st and "s4" not in st
-    assert "کانال" in st["dm"].title_fa and "VIP" not in st["rule"].output_fa
-    ty = {s.key: s for s in FV.steps_of(FL.FLOWS["zaribsad_stories"])}
-    assert "VIP" in ty["data"].title_fa and ty["word"].title_fa == "کلمه‌ی امروز"
-    FV.graph_of(FL.FLOWS["ipoxxo_stories"])  # (the canvas builds)
-    FV.graph_of(FL.FLOWS["ipoxxo_reels_2"])
-
-
-def test_ipoxxos_dm_opens_the_telegram_channel_on_any_comment() -> None:
-    from hq_api.domain import session_publish as SPB
-
-    got = SPB.parse_comment(IPOXXO_COMMENT)
-    assert got is not None and got["match"] == "any" and got["keywords"][0] == "لینک"
-    assert [b["title"] for b in got["buttons"]] == ["ورود به کانال"]
-    body = SPB.rule_body("comment", got, "ipoxxo.vpn", [], "k")
-    assert body["buttons"][0]["url"].startswith("https://t.me/ipoxxo")
 
 
 async def test_dotcoins_pilot_is_a_ten_second_sample_at_extra_high_effort() -> None:
@@ -693,7 +619,7 @@ async def test_dotcoins_pilot_is_a_ten_second_sample_at_extra_high_effort() -> N
     assert text.endswith(pilot.note_fa) and "۱۰ ثانیه" in text and "Arlo" in text
     # the others keep their order as it was
     assert "۱۰ ثانیه" not in FL.brief_of(
-        FL.FLOWS["ipoxxo_reels"], date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC)
+        FL.FLOWS["dotcoin_reels"], date(2026, 11, 17), datetime(2026, 11, 17, 8, 30, tzinfo=UTC)
     )
 
     class Tx:
@@ -761,7 +687,7 @@ def test_dotcoins_day_is_two_reels_at_fixed_hours_and_twelve_slides() -> None:
     assert any("۱۲ اسلاید" in s.title_fa for s in slides)
     assert all(s.effort == "xhigh" for s in slides if s.model)
     # ⟨2026-11-17⟩ every flow's map shows its own effort (all xhigh now)
-    assert all(s.effort == "xhigh" for s in FV.steps_of(FL.FLOWS["ipoxxo_reels"]) if s.model)
+    assert all(s.effort == "xhigh" for s in FV.steps_of(FL.FLOWS["dotcoin_reels"]) if s.model)
 
 
 async def test_the_keeper_wakes_an_idle_day_only_while_an_account_has_room(
@@ -992,7 +918,7 @@ async def test_a_days_plan_never_closes_it_unsent_and_the_keeper_sends_a_whole_p
     no_model: list[Any],  # noqa: F811
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """⟨2026-11-24⟩ W-001137 (ipoxxo's second reel of 11-24): its last turn broke, the session's
+    """⟨2026-11-24⟩ W-001137 (a second reel of 11-24): its last turn broke, the session's
     plan was marked done and the day delivered with no video; nothing woke it again. A flow's day
     is done when it is sent: the plan never delivers it unsent, and the keeper sends a day whose
     whole package is in (no deliver came) instead of waking it."""

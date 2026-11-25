@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copies a kit's source (this folder) over the workshop's copy, code and texts only: the fonts,
 # environments and browsers there are kept. Run on the hub as the hub user (it uses sudo -u studio).
-# ⟨2026-11-17⟩ A kit with a topic bank (topics.md + tools/topic.py, e.g. ipoxxo-reels) keeps the
+# ⟨2026-11-17⟩ A kit with a topic bank (topics.md + tools/topic.py) keeps the
 # workshop's status column: the sessions mark the topics they take there, so every status that is
 # not «free» survives a sync (new rows from the source arrive as they are).
 set -euo pipefail

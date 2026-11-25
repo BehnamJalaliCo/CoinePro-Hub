@@ -92,8 +92,8 @@ def recipe(flow: FL.Flow) -> str:
         return "stories"
     if getattr(flow, "kind", "") == "tg_post":  # ⟨2026-11-19⟩ a page's own Telegram channel
         return "telegram"
-    if flow.recipe:  # ⟨2026-11-16⟩ ipoxxo: Zarib×100's premium recipe on its own page
-        return "zaribsad" if flow.recipe == "ipoxxo" else flow.recipe  # (⟨11-17⟩ «dotcoin»)
+    if flow.recipe:  # ⟨11-17⟩ «dotcoin»
+        return flow.recipe
     return "zaribsad" if "/zaribsad-" in flow.kit else "reel"
 
 
@@ -114,17 +114,6 @@ STORY_TEXT: dict[str, dict[str, tuple[str, str]]] = {
         "compose": ("نشان پیج، شماره‌ی اسلاید و کلمه‌ی امروز روی هر اسلاید", ""),
         "dm": ("جواب دایرکت با خلاصه‌ی درس", "comment.txt: خلاصه‌ی درس روز در چند خط"),
         "rule": ("جواب دایرکت استوری‌ها", "هر کس کلمه‌ی امروز را بفرستد، خلاصه‌ی درس را میگیرد"),
-    },
-    "ipoxxo": {
-        "data": (
-            "ایده‌های روز از بانک ایده‌ها",
-            "سه ایده‌ی تبلیغی تازه برای جذب از اینستاگرام به کانال",
-        ),
-        "dm": ("جواب دایرکت با دکمه‌ی کانال", "comment.txt: لینک کانال تلگرام t.me/ipoxxo"),
-        "rule": (
-            "جواب دایرکت استوری‌ها",
-            "هر کس «لینک» را ریپلای کند، لینک کانال رایگان را در دایرکت میگیرد",
-        ),
     },
 }
 
@@ -369,8 +358,6 @@ def _steps_of(flow: FL.Flow) -> list[FS.FlowStep]:
         ]  # fmt: skip
     if kind == "zaribsad":
         topic = ("ارز روز و داده‌های واقعی آن" if "coin" in flow.key
-                 else "موضوع سرگرمی یا علمی تازه از topics.md؛ ipoxxo اسپانسر ویدیو"
-                 if flow.recipe == "ipoxxo"
                  else "موضوع روز به نوع روز، با داده‌ی همان لحظه")  # fmt: skip
         return [
             *_head(flow),

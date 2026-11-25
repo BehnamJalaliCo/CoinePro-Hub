@@ -138,7 +138,7 @@ async def for_work(tx: Tx, who: Principal) -> tuple[UUID | None, dict[str, Any] 
 
 
 # ⟨2026-11-18⟩ the page's own narrator. One company may hold several pages with different voices
-# (IG: ipoxxo.vpn Cruz, dotcoin.me and behnamjalali.tech Arlo), so a company narrator cannot say it.
+# (IG: dotcoin.me and behnamjalali.tech Arlo), so a company narrator cannot say it.
 # zaribsad's 11-18 19:00 reel went out with «Kore», a woman's voice, because its session switched
 # voices when «ویکس» was misread. The voice is the page's, set on its company's instagram
 # connection (`config.voices`: {account: voice}); a flow run's speech.make always gets it.

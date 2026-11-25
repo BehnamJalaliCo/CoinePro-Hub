@@ -6,7 +6,7 @@ The owner: «اتوماسیون سئو سایت دات کوین رو راه ان
 with the day's new page and fixes, summary.fa.txt, on Saturdays week.fa.txt); the package is never
 an IG-Hub post: the run is marked `site: queued` for the hub's host publisher (seo.py --due), the
 session closes, nobody is notified (the owner hears of the SEO in the weekly summary only). And the
-clock never makes a day before a flow's start (ipoxxo_reels_3 started the day it was made).
+clock never makes a day before a flow's start (a third reel once started the day it was made).
 """
 
 from __future__ import annotations

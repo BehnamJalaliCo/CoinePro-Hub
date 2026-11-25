@@ -1,7 +1,7 @@
 # DotCoin.me (@dotcoin.me, «Dot Coin | بهنام جلالی») — what every DotCoin kit shares
 
 The owner's fourth page (2026-11-16), under IG-Hub (company IG), designed anew: nothing of its look,
-voice or cover is taken from Pro-Chart, Zarib×100 or ipoxxo.
+voice or cover is taken from Pro-Chart or Zarib×100.
 
 - DIRECTION.md — the direction bible: the owner's rules, the Pinterest-first look, the voice (Arlo).
 - cover/COVER_SYSTEM.md — the owner's own cover system (he is on every cover, a new suit each time;

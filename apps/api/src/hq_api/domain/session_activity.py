@@ -1631,7 +1631,7 @@ async def finish_plan(tx: Tx, works: list[dict[str, Any]]) -> list[str]:
         if last is None or W.is_partial_title(last):
             continue
         # ⟨2026-11-24⟩ a flow's day is done when it is sent, not when its plan says so: W-001137
-        # (ipoxxo's second reel of 11-24) was delivered here with no video after its last turn
+        # (a second reel of 11-24) was delivered here with no video after its last turn
         # broke, and nothing ever woke it again. It stays open: the flows' keeper sends a whole
         # package or wakes the session for what is missing
         if await tx.scalar(

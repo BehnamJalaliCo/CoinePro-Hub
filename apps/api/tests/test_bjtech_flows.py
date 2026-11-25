@@ -1,6 +1,6 @@
 """⟨2026-11-18⟩ @behnamjalali.tech's automations (the owner's last page: tech & AI): what the hub needed.
 
-- A flow is never started for a day before its first day (ipoxxo_reels_3, made on 11-18 for 11-19, ran
+- A flow is never started for a day before its first day (a third reel, made on 11-18 for 11-19, ran
   on 11-18 too).
 - An event's flow (recipe «breaking»: the breaking-news flash story and its full reel) is a row on the
   board that the clock never starts; the hub's watcher starts it once per news item (flow_events), and the
