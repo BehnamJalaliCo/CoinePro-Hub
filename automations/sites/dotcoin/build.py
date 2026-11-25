@@ -900,7 +900,7 @@ def follow_block(page: str) -> str:
       <span class="sec-n" dir="ltr">(06) FOLLOW</span>
       <h2 id="fw-t">درس‌های کوتاه ویدیویی، در اینستاگرام</h2>
       <p>هر درس دات‌کوین اول به‌صورت یک ویدیوی کوتاه در اینستاگرام منتشر می‌شود. دنبال کن تا درس بعدی را از دست ندهی.</p>
-      <div class="hero-cta"><a class="btn btn-solid btn-lg" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>دنبال کردن <bdi>@dotcoin.me</bdi></span></a><a class="btn btn-line btn-lg" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب</span></a></div>
+      <div class="hero-cta"><a class="btn btn-solid btn-lg" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>دنبال کردن <bdi>@DotCoinMe</bdi></span></a><a class="btn btn-line btn-lg" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب</span></a></div>
     </div>
   </div>
   <div class="follow-giant" dir="ltr" aria-hidden="true" style="--fit:{fit("@DOTCOIN.ME")}">@DOTCOIN.ME</div>
@@ -1002,7 +1002,7 @@ def page_article(a, arts):
 <div class="reel-ph" aria-hidden="true"><img src="/assets/img/logo-192.webp{V}" width="96" height="96" alt="" loading="lazy"><span class="reel-play"></span></div>
 <div class="reel-copy"><span class="sec-n" dir="ltr">REEL</span><h2>{'ویدیوی کوتاه این درس' if reel else 'ویدیوی این درس در اینستاگرام'}</h2>
 <p>{'همین درس را در یک ویدیوی کوتاه در اینستاگرام دات‌کوین ببین.' if reel else 'ویدیوی کوتاه این درس در صفحه‌ی اینستاگرام دات‌کوین منتشر می‌شود. دنبال کن تا آن را ببینی.'}</p>
-<a class="btn btn-solid" href="{esc(reel or SITE['instagram'])}" target="_blank" rel="noopener" data-reel="{esc(reel)}">{IG}<span>{'دیدن ویدیو در اینستاگرام' if reel else 'دنبال کردن <bdi>@dotcoin.me</bdi>'}</span></a></div></aside>"""
+<a class="btn btn-solid" href="{esc(reel or SITE['instagram'])}" target="_blank" rel="noopener" data-reel="{esc(reel)}">{IG}<span>{'دیدن ویدیو در اینستاگرام' if reel else 'دنبال کردن <bdi>@DotCoinMe</bdi>'}</span></a></div></aside>"""
     pn = []
     if idx > 0:
         pn.append(f'<a class="pn pn-prev" href="{arts[idx - 1]["url"]}"><span>درس جدیدتر</span><b>{esc(arts[idx - 1]["title"])}</b></a>')
@@ -1268,7 +1268,7 @@ def page_about(arts, terms):
 <div class="wrap about-grid">
   <figure class="about-mark rv"><img src="/assets/img/logo-640.webp{V}" width="640" height="640" alt="بهنام جلالی، سازنده‌ی دات‌کوین" loading="lazy" decoding="async"><figcaption>بهنام جلالی · سازنده‌ی دات‌کوین</figcaption></figure>
   <div class="prose about-prose">{body_html}
-    <div class="about-links"><a class="btn btn-solid" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>اینستاگرام <bdi>@dotcoin.me</bdi></span></a><a class="btn btn-line" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب دات‌کوین</span></a></div>
+    <div class="about-links"><a class="btn btn-solid" href="{SITE['instagram']}" target="_blank" rel="noopener">{IG}<span>اینستاگرام <bdi>@DotCoinMe</bdi></span></a><a class="btn btn-line" href="{SITE['youtube']}" target="_blank" rel="noopener">{YT}<span>یوتیوب دات‌کوین</span></a></div>
   </div>
 </div>
 {follow_block("about")}"""

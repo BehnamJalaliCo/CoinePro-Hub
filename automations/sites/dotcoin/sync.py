@@ -56,6 +56,8 @@ STATE, LOCK = HOME / "dotcoin-sync.json", HOME / "dotcoin-sync.lock"
 BRANCH = "site/dotcoin-content"
 API, PG = "coinepro-hq-api-1", "coinepro-hq-postgres-1"
 ACCOUNT = "dotcoin.me"
+# ⟨2026-11-26⟩ the owner's new Instagram page @DotCoinMe (dotcoinme) replaced @dotcoin.me: reels of both count
+ACCOUNTS_SQL = "'dotcoin.me', 'dotcoinme'"
 SITEMAP = "https://dotcoin.me/sitemap.xml"
 GITLEAKS_IMAGE = "zricethezav/gitleaks:v8.30.1"
 FFMPEG_IMAGE = "jrottenberg/ffmpeg:7.1-alpine"
@@ -110,7 +112,7 @@ JOBS_SQL = f"""
                WHERE x ->> 'role' = 'cover' LIMIT 1)) AS cover,
            j.args -> 'meta' ->> 'scheduled_at' AS at, j.result ->> 'url' AS url
       FROM infra.server_jobs j
-     WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
+     WHERE j.kind = 'publish' AND j.args ->> 'account' IN ({ACCOUNTS_SQL}) AND j.args ->> 'kind' = 'reel'
        AND j.state <> 'cancelled' AND j.created_at > now() - interval '30 days'
      ORDER BY j.args -> 'session' ->> 'work', (j.result ->> 'url' IS NOT NULL) DESC, j.created_at DESC"""
 
@@ -123,7 +125,7 @@ def reel_jobs() -> dict[str, dict]:
 def new_articles(done: set[str]) -> list[dict]:
     rows = sql(f"""
         WITH ws AS (SELECT DISTINCT j.args -> 'session' ->> 'work' AS w FROM infra.server_jobs j
-                     WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
+                     WHERE j.kind = 'publish' AND j.args ->> 'account' IN ({ACCOUNTS_SQL}) AND j.args ->> 'kind' = 'reel'
                        AND j.created_at > now() - interval '30 days')
         SELECT f.id::text AS id, f.storage_key AS key, f.sha256 AS sha, f.size, f.meta ->> 'workspace' AS w
           FROM files.files f JOIN ws ON ws.w = f.meta ->> 'workspace'

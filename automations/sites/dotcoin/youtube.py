@@ -70,10 +70,12 @@ SYNC_STATE, SYNC_LOCK = HOME / "dotcoin-sync.json", HOME / "dotcoin-sync.lock"
 SHOTS = HOME / "dotcoin-youtube-shots"
 API, PG, WORKER = "coinepro-hq-api-1", "coinepro-hq-postgres-1", "coinepro-hq-worker-1"
 ACCOUNT, PROFILE = "dotcoin.me", "youtube-web"
+# ⟨2026-11-26⟩ the owner's new Instagram page @DotCoinMe (dotcoinme) replaced @dotcoin.me: reels of both count
+ACCOUNTS_SQL = "'dotcoin.me', 'dotcoinme'"
 CHANNEL = "youtube:@DotCoin-me"
 RECIPE = Path(os.environ.get("DOTCOIN_YT_RECIPE", "/home/Hub/CoinePro-Hub/infra/egress/recipes/youtube-web.yaml"))
 ARTICLE_URL = "https://dotcoin.me/learn/{slug}/"
-INSTAGRAM = "https://www.instagram.com/dotcoin.me"
+INSTAGRAM = "https://www.instagram.com/dotcoinme"
 FFMPEG_IMAGE = "jrottenberg/ffmpeg:7.1-alpine"
 MAX_VIDEO = 300 * 1024 * 1024  # a reel's original (read limit)
 UPLOAD_CAP = 90 * 1024 * 1024  # under egress's upload cap (recipes.TASK_FILE_BYTES, 96 MB)
@@ -156,11 +158,11 @@ REELS_SQL = f"""
                     WHERE c.kind = 'publish' AND c.args -> 'session' ->> 'work' = j.args -> 'session' ->> 'work'
                       AND x ->> 'role' = 'cover' AND x ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$'
                     ORDER BY c.created_at DESC LIMIT 1))) cover ON true
-     WHERE j.kind = 'publish' AND j.args ->> 'account' = '{ACCOUNT}' AND j.args ->> 'kind' = 'reel'
+     WHERE j.kind = 'publish' AND j.args ->> 'account' IN ({ACCOUNTS_SQL}) AND j.args ->> 'kind' = 'reel'
        AND ((j.state = 'done' AND j.result ->> 'url' LIKE 'https://www.instagram.com/%')
             -- ⟨2026-11-21⟩ held by Instagram (a closed page) past its hour: to Shorts alone
             OR EXISTS (SELECT 1 FROM media.publications p
-                        WHERE p.kind = 'reel' AND p.account = '{ACCOUNT}' AND p.chain @> ARRAY[j.id]
+                        WHERE p.kind = 'reel' AND p.account IN ({ACCOUNTS_SQL}) AND p.chain @> ARRAY[j.id]
                           AND p.state IN ('scheduled', 'publishing', 'held')
                           AND p.at < now() - interval '{HELD_AFTER_MIN} minutes'))
        AND j.created_at > now() - interval '30 days'
@@ -180,7 +182,7 @@ FAMILY_SQL = f"""
                      WHERE x ->> 'role' = 'cover'
                        AND x ->> 'file_id' ~ '^[0-9a-f]{{8}}(-[0-9a-f]{{4}}){{3}}-[0-9a-f]{{12}}$' LIMIT 1) c ON true
       JOIN files.files f ON f.id = c.fid::uuid
-     WHERE p.account = '{ACCOUNT}' AND p.kind = 'reel' AND p.state = 'published' AND p.published_at IS NOT NULL
+     WHERE p.account IN ({ACCOUNTS_SQL}) AND p.kind = 'reel' AND p.state = 'published' AND p.published_at IS NOT NULL
      ORDER BY p.published_at DESC LIMIT {FAMILY_N}"""
 
 
