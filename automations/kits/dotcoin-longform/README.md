@@ -76,11 +76,23 @@ a full-bleed picture or a kinetic-type beat.
   (an isometric object under a push), `define` (a term and its meaning typed out).
   A scene the topic needs and the library lacks: write it in `motion/custom.js` (`SCN.<name> = function(tl,
   d, sh, t){…}`, a pure function of time, the helpers of engine2.html and scenes2.js), never a static slide.
-- **Pictures:** 3–6 AI stills a video, from BOTH ChatGPT and Gemini: `substitute.call` seat creative, kind
-  image, player gpt (and again player gemini), photoreal or 3D as the topic asks, 16:9, ALWAYS "no text, no
-  letters, no numbers, no logos, no watermark"; look at each (Read), wrong = again (≤ 2 more); save in
-  `assets/<name>.png` and use as `still` (`frame: true` when it is under 1600 px wide: never blown up soft).
-  No person's face but the owner's; people only as silhouettes or hands.
+- **REAL pictures, elements and motion (owner 2026-11-26: «بعضی جاها که نیازه از عکس واقعی یا المان واقعی یا
+  موشنگرافی واقعی استفاده بشه تا جذابیت ویدیو رو دو چندان بکنه»):** wherever a sentence names something real,
+  the viewer SEES the real thing — at least 8–12 real moments a video, spread over every chapter:
+  the coin's/project's/company's real logo (official press kit or Wikimedia Commons, SVG/PNG), the real
+  people's real photos (Wikimedia Commons / official pages, credited — Satoshi stays a silhouette), real
+  screenshots of the real sites, wallets, exchanges and block explorers (your own Playwright screenshot of the
+  public page, 1920 wide; no personal data), the real price chart drawn from REAL data (CoinGecko /
+  exchange public API → `chart`/`timeline`), real headlines and documents (the whitepaper's page, the news
+  article's headline as a `zoom` card), real places and objects. Each gets REAL motion: a `still` with parallax
+  and a slow push, a `zoom` into the screenshot's field with a callout, the logo built in with a light sweep,
+  the chart drawing itself. Every real picture's source → `direction/SOURCES.md` (link + licence); never a
+  watermark, never a fake «screenshot» made by AI.
+- **AI stills only where no real picture exists** (an idea, a metaphor): 2–4 a video, from BOTH ChatGPT and
+  Gemini: `substitute.call` seat creative, kind image, player gpt (and again player gemini), photoreal or 3D,
+  16:9, ALWAYS "no text, no letters, no numbers, no logos, no watermark"; look at each (Read), wrong = again
+  (≤ 2 more); save in `assets/<name>.png` and use as `still` (`frame: true` when it is under 1600 px wide:
+  never blown up soft). No invented faces: people only as silhouettes or hands.
 
 ## Turn 2 — build, look, fix (the strictest art director)
 5. `PY -I motion/build2.py` (its RULE lines must be gone) → `PY -I tools/every2.py` → `qc/every2s.jpg` (one
@@ -103,11 +115,16 @@ a full-bleed picture or a kinetic-type beat.
    build/ch/* after.
 
 ## Turn 4 — thumbnail, YouTube text, article, delivery
-9. **Thumbnail (16:9, the owner's cover system):** ONE `substitute.call` seat creative, kind image, player gpt,
-   with all EIGHT file ids of COVER_SYSTEM.md and `example/thumbnail_brief.txt` filled for this video (a new
-   suit, a new layout, the top-left corner empty for the topic's real logo); check his face and every letter;
-   `PY -I tools/thumb.py <picture> <logo or ->` → out/thumbnail.jpg (1280×720). The video's first frame is the
-   hook, fully drawn at t = 0.
+9. **Thumbnail (16:9) — NO FACE (owner 2026-11-26: «کاور های ویدیو بلند دات کوین چهره من همش تکراریه … اصلا از این
+   عکسی که بهتون دادم استفاده نکنید»):** never the owner's photos (none of COVER_SYSTEM.md's photos 1–6), never any
+   person's face. The THUMBNAIL IS THE TOPIC: its real logo / real object / real UI as the hero, big, in 3D or a
+   striking close-up, with ONE giant word and the short Persian title — the DotCoin look (black + mustard
+   #F3C242 + white), a DIFFERENT layout and hero every day (read the last 5 thumbnails in the topics list / out of
+   the past workspaces and change composition, angle and hero: never the same twice). ONE `substitute.call` seat
+   creative, kind image, player gpt (and the same brief to player gemini; keep the better) with
+   `example/thumbnail_brief.txt` filled for this video and ONLY covers 7–8 of COVER_SYSTEM.md as STYLE refs;
+   check every letter (Read at 320 px wide too: it must read on a phone); `PY -I tools/thumb.py <picture>
+   <logo or ->` → out/thumbnail.jpg (1280×720). The video's first frame is the hook, fully drawn at t = 0.
 10. `python3 -I tools/yt_meta.py` → out/meta.json, out/subtitles.fa.srt, out/chapters.txt, out/caption.txt.
 11. **The article** `out/article.md`: a NEW lesson at https://dotcoin.me/learn/<slug>/ (the topic row's slug,
     keyword and links), full ARTICLE_BRIEF quality (REELS/site/ARTICLE_BRIEF.md; model `example/article.md`):
