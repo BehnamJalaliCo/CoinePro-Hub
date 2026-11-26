@@ -154,8 +154,8 @@ def check_video(path: Path) -> tuple[float, list[str]]:
         raise ValueError(f"{path.name}: ffprobe found no MP4 video stream")
     if v.get("codec_name") != "h264":
         raise ValueError(f"{path.name}: video codec {v.get('codec_name')}, not H.264")
-    if (v.get("width"), v.get("height")) != (1920, 1080):
-        raise ValueError(f"{path.name}: {v.get('width')}x{v.get('height')}, not 1920x1080 (16:9)")
+    if (v.get("width"), v.get("height")) not in ((2560, 1440), (1920, 1080)):  # 1440p since 2026-11-26 (owner)
+        raise ValueError(f"{path.name}: {v.get('width')}x{v.get('height')}, not 2560x1440 or 1920x1080 (16:9)")
     if str(v.get("sample_aspect_ratio") or "1:1") not in ("1:1", "0:1", "N/A"):
         raise ValueError(f"{path.name}: pixel aspect {v.get('sample_aspect_ratio')}, not square")
     if a is None or a.get("codec_name") != "aac":

@@ -295,39 +295,71 @@ def tool(args: list[str], work: Path, timeout: int = 900) -> subprocess.Complete
                 "--entrypoint", args[0], FFMPEG_IMAGE, *args[1:]], timeout=timeout)
 
 
-def duration_s(path: Path, work: Path) -> float:
-    r = tool(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)], work)
+def probe(path: Path, work: Path) -> dict:
+    r = tool(["ffprobe", "-v", "error", "-show_entries",
+              "format=duration:stream=codec_type,codec_name,pix_fmt,width,height,r_frame_rate", "-of", "json", str(path)], work)
     try:
-        return float(r.stdout.decode().strip())
+        return json.loads(r.stdout.decode() or "{}")
     except ValueError:
+        return {}
+
+
+def whole_short(info: dict, size: int) -> bool:
+    """YouTube takes the reel's original whole as a Short (owner 2026-11-26: the highest quality, no second
+    encode): H.264 yuv420p, 9:16, 1-180 s, at most UPLOAD_CAP."""
+    v = next((s for s in info.get("streams") or [] if s.get("codec_type") == "video"), {})
+    try:
+        dur = float((info.get("format") or {}).get("duration") or 0)
+        w, h = int(v.get("width") or 0), int(v.get("height") or 0)
+    except (TypeError, ValueError):
+        return False
+    return (v.get("codec_name") == "h264" and v.get("pix_fmt") == "yuv420p" and w > 0 and w * 16 == h * 9
+            and 1 <= dur <= 180 and 0 < size <= UPLOAD_CAP)
+
+
+def frame_rate(v: dict) -> float:
+    try:
+        a, _, b = str(v.get("r_frame_rate") or "30/1").partition("/")
+        return float(a) / float(b or 1)
+    except (ValueError, ZeroDivisionError):
+        return 30.0
+
+
+def make_upload_copy(src: Path, dest: Path, work: Path, info: dict) -> None:
+    """Only when the original is not a Short as it is: 1080x1920 H.264 High CRF 16 at the reel's own frame rate
+    (at most 60), BT.709, the VBV cap that keeps it under UPLOAD_CAP, AAC 192k 48 kHz stereo, faststart."""
+    try:
+        dur = float((info.get("format") or {}).get("duration") or 0)
+    except (TypeError, ValueError):
         raise RuntimeError("ffprobe could not read the video") from None
-
-
-def has_audio(path: Path, work: Path) -> bool:
-    r = tool(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0",
-              str(path)], work)
-    return bool(r.stdout.strip())
-
-
-def make_upload_copy(src: Path, dest: Path, work: Path) -> float:
-    """1080x1920 H.264 High at about 5.5 Mbit/s (less when a long reel would pass the cap), 30 fps,
-    yuv420p, AAC 160k 48 kHz, faststart. Returns the duration."""
-    dur = duration_s(src, work)
     if not 1 <= dur <= 180:
         raise ValueError(f"a Short is 1-180 s, this is {dur:.0f} s")
-    kbps = min(5500, int(UPLOAD_CAP * 8 * 0.9 / dur / 1000) - 160)
-    vf = ("scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,"
-          "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p,setsar=1")
-    audio = ["-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2"] if has_audio(src, work) else ["-an"]
+    streams = info.get("streams") or []
+    v = next((s for s in streams if s.get("codec_type") == "video"), {})
+    audio = any(s.get("codec_type") == "audio" for s in streams)
+    kbps = max(2000, min(16000, int(UPLOAD_CAP * 8 * 0.92 / dur / 1000) - 192))
+    vf = ("scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos+accurate_rnd+full_chroma_int,"
+          "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black," + ("fps=60," if frame_rate(v) > 60.5 else "")
+          + "format=yuv420p,setsar=1")
+    sound = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"] if audio else ["-an"]
     r = tool(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?",
-              "-vf", vf, "-c:v", "libx264", "-preset", "medium", "-profile:v", "high", "-threads", "4",
-              "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.1)}k", "-bufsize", f"{kbps * 2}k", "-g", "60",
-              *audio, "-movflags", "+faststart", str(dest)], work, timeout=1200)
+              "-vf", vf, "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-profile:v", "high", "-threads", "4",
+              "-maxrate", f"{kbps}k", "-bufsize", f"{kbps}k", "-x264-params", "aq-mode=3", "-color_primaries", "bt709",
+              "-color_trc", "bt709", "-colorspace", "bt709", *sound, "-movflags", "+faststart", str(dest)],
+             work, timeout=1500)
     if r.returncode or not dest.is_file():
         raise RuntimeError(f"ffmpeg: {tail(r.stderr)}")
     if dest.stat().st_size > UPLOAD_CAP:
         raise ValueError("the upload copy is over its cap")
-    return dur
+
+
+def upload_file(src: Path, work: Path) -> Path:
+    """The reel's original when YouTube takes it whole as a Short (no second encode), else its upload copy."""
+    info = probe(src, work)
+    if whole_short(info, src.stat().st_size):
+        return src
+    make_upload_copy(src, work / "short.mp4", work, info)
+    return work / "short.mp4"
 
 
 # ------------------------------------------------------------------ title and description
@@ -564,13 +596,13 @@ def one(state: dict, row: dict, slugs: dict[str, str], dry: bool, unlisted: bool
     work = Path(tempfile.mkdtemp(prefix="dotcoin-yt-"))
     try:
         fetch(row, work / "in.mp4")
-        make_upload_copy(work / "in.mp4", work / "short.mp4", work)
-        size = (work / "short.mp4").stat().st_size
+        video = upload_file(work / "in.mp4", work)
+        size = video.stat().st_size
         log(f"{row['w']}: uploading \"{title}\" ({size / 1e6:.1f} MB)")
         up["tries"] = up.get("tries", 0) + 1
         up["tried_at"] = now()
         save_state(state)  # a crash from here on still counts the try
-        ans = egress("upload", title, 600, description=desc, video=work / "short.mp4",
+        ans = egress("upload", title, 600, description=desc, video=video,
                      visibility="unlisted" if unlisted else "public")
     finally:
         shutil.rmtree(work, ignore_errors=True)
