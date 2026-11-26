@@ -18,11 +18,11 @@ instead of writing a second one.
 | # | Slug | Primary query | Secondary queries | Intent | Pillar | Links (to / from) | Priority | Status |
 |---|---|---|---|---|---|---|---|---|
 | 1 | `crypto-signal` | سیگنال ارز دیجیتال چیست | کانال سیگنال ارز دیجیتال، سیگنال فیوچرز، سیگنال رایگان | info → VIP | market | /vip/, futures-trading (when live), stop-loss | P1 | live:2026-11-24 |
-| 2 | `tether` | تتر چیست | تتر چیست به زبان ساده، تتر usdt، پشتوانه تتر | info | basics | stablecoin, usdt-networks, how-to-buy-crypto | P1 | candidate |
+| 2 | `tether` | تتر چیست | تتر چیست به زبان ساده، تتر usdt، پشتوانه تتر | info | basics | stablecoin, usdt-networks, how-to-buy-crypto | P1 | live:2026-11-25 |
 | 3 | `crypto-for-beginners` | آموزش ارز دیجیتال از صفر | شروع ارز دیجیتال، ارز دیجیتال برای مبتدی ها | hub / path | basics | every cornerstone lesson | P1 | candidate |
 | 4 | `price-action` | پرایس اکشن چیست | آموزش پرایس اکشن، پرایس اکشن ارز دیجیتال | info | market | technical-analysis (video), support-resistance | P1 | candidate |
 | 5 | `kyc` | احراز هویت صرافی ارز دیجیتال | kyc چیست، مدارک احراز هویت صرافی | info / how-to | exchange | how-to-buy-crypto, /exchanges/ | P1 | candidate |
-| 6 | `usdc` | usdc چیست | یو اس دی سی، فرق تتر و usdc | info | basics | stablecoin, tether | P1 | candidate |
+| 6 | `usdc` | usdc چیست | یو اس دی سی، فرق تتر و usdc | info | basics | stablecoin, tether, usdt-networks (links in: stablecoin, tether, usdt-networks) | P1 | live:2026-11-26 |
 | 7 | `margin-trading` | معاملات مارجین چیست | مارجین ترید، کراس و ایزوله | info | market | leverage, futures-trading (video) | P1 | candidate |
 | 8 | `altseason` | آلت سیزن چیست | فصل آلت کوین ها، شاخص آلت سیزن | info | market | altcoins (video), bitcoin-dominance | P1 | candidate |
 | 9 | `bitcoin-etf` | ای تی اف بیت کوین چیست | etf بیت کوین، بلک راک بیت کوین | info | market | bitcoin, news lessons | P1 | candidate |
@@ -45,7 +45,7 @@ instead of writing a second one.
 | 26 | `sidechain` | ساید چین چیست | زنجیره جانبی | info | defi | layer-2, crypto-bridge | P3 | candidate |
 | 27 | `blockchain-use-cases` | کاربرد بلاک چین | کاربردهای بلاک چین در زندگی | info | basics | blockchain | P2 | candidate |
 | 28 | `crypto-vs-stocks` | ارز دیجیتال یا بورس | فرق ارز دیجیتال و سهام | comparison | basics | cryptocurrency, bitcoin-vs-gold (video) | P2 | candidate |
-| 29 | `tether-vs-usdc` | فرق تتر و usdc | تتر یا usdc | comparison | basics | tether, usdc | P3 | candidate |
+| 29 | `tether-vs-usdc` | فرق تتر و usdc | تتر یا usdc | comparison | basics | tether, usdc | P3 | merged into usdc (2026-11-26: its H2 «فرق USDC و تتر (USDT) چیست؟» + table; one page per intent) |
 | 30 | `bitcoin-address-types` | انواع آدرس بیت کوین | آدرس سگویت، تپروت، legacy | info | security | wallet-address (video), send-bitcoin-guide (video) | P3 | candidate |
 | 31 | `honeypot-token` | توکن هانی پات چیست | ارز هانی پات، تشخیص هانی پات | safety | security | rug-pull (video), crypto-scams (video) | P2 | candidate |
 | 32 | `crypto-faucet` | فاست ارز دیجیتال چیست | faucet | info | basics | airdrop | P3 | candidate |
@@ -58,3 +58,4 @@ instead of writing a second one.
 | 39 | `liquidation-price` | قیمت لیکوئید شدن | محاسبه قیمت لیکوئید | info | market | leverage, margin-trading | P2 | candidate |
 | 40 | `crypto-signal-checklist` | بهترین کانال سیگنال ارز دیجیتال | چطور کانال سیگنال معتبر را بشناسیم | info → VIP | market | crypto-signal, /vip/ | P1 | candidate |
 | 41 | `crypto-deposit` | دپوزیت چیست | واریز به صرافی، deposit یعنی چه | info / how-to | exchange | usdt-networks, how-to-buy-crypto | P3 | candidate (evidence: Search Console 1 impr, pos 88, 28d to 2026-11-23; glossary line first) |
+| 42 | `usdc-e` | — | usdc e چیست | — | — | — | — | merged into usdc (2026-11-26: H2 «USDC.e چیست» + FAQ; suggest «usdc» --deep) |

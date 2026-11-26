@@ -81,3 +81,43 @@ the next day's input pack (applied.json); the session copies the outcome here th
 - **Measure (2026-12-08):** exp-2026-11-24-01…04: crypto-signal indexed and its queries; smart-contract
   and blackrock-ibit-outflows-end-2026-11 URL inspection; «دپوزیت چیست» position. The home page's
   inspection tomorrow.
+
+## 2026-11-25 — reconstructed by the 2026-11-26 session (that day's memory files were left out)
+- The hub applied 2026-11-25's package (W-001199): /learn/tether/ live («تتر چیست»; TOPIC_MAP #2), links in
+  from how-to-buy-crypto, stablecoin, usdt-networks. Its seo/auto files (EXPERIMENTS, KEYWORDS, LOG,
+  TOPIC_MAP) were LEFT OUT («changed meanwhile and in conflict»): its own block and experiments are lost;
+  TOPIC_MAP #2 is set live:2026-11-25 today. «Request indexing» for /learn/tether/ refused; IndexNow 200.
+- Lesson for the session: package only the seo/auto lines you add (append to LOG, add to JSON) so a
+  3-way merge with the hub's copy does not conflict.
+
+## 2026-11-26 — the daily session (F-0214)
+- **Earlier days (applied.json):** 2026-11-25 as above. 2026-11-24 (W-001134) done, crypto-signal live.
+- **Data (Search Console, 28 days to 2026-11-25):** unchanged from 2026-11-24 (35 impressions, 1 click,
+  position 42.7; 2026-11-22/23 show 0, the GSC lag). Pages: /exchanges/lbank/ 14 (59.3), usdt-networks 7,
+  1 click (6.4), ourbit 6 (46.3), weex 3, bitcoin-halving 2 (26), glossary 2, /exchanges/ 2, hash 1 (2).
+  No striking-distance or CTR row (all under 50 impressions). Experiments due: 0. Index: 26 of 37 seen on
+  Google. Not on Google: /, tether, proof-of-stake, bitcoin-history, south-korea-bank-stablecoin-bill,
+  referral-code, coin-vs-token, smart-contract, bitcoin-mining, ethereum, blackrock-ibit-outflows-end-2026-11.
+  Lesson links in: bitcoin-history 0, proof-of-stake 0, south-korea 0. Indexing phase (§2).
+- **Health:** build + audit 0 errors / 0 warnings (37 pages, 38 after today); live_check all ok; Lighthouse
+  mobile /exchanges/lbank/, /learn/tether/, /vip/: performance 99/99/98, accessibility 100, best practices
+  100, SEO 92 (robots Content-Signal, known §8).
+- **New page:** /learn/usdc/ «USDC چیست؟ یو اس دی سی به زبان ساده و فرقش با تتر» (TOPIC_MAP #6; the
+  stablecoin cluster after tether). Evidence: suggest «usdc» --deep 108 completions (usdc چیست، مخفف،
+  usdc e، روی کدام شبکه، بهتره یا usdt، متمرکز است، تبدیل usdc به usdt). Adds what the cluster lacked:
+  reserves as Circle states them (weekly holdings, monthly Big Four assurance, USDXX), native vs USDC.e
+  table, TRON support ended (Feb 2024), USDC vs USDT table, a worked transfer example. Sources: Circle
+  transparency, Circle's contract-address list, Circle's TRON blog post. #29 tether-vs-usdc and usdc-e
+  merged into it. Glossary: + usdc.
+- **Changes (link additions; no `updated:`):**
+  - /learn/stablecoin/: the USDC mention in «سه نوع اصلی» → /learn/usdc/ (link in).
+  - /learn/tether/, «تتر روی کدام شبکه‌ها هست؟»: +1 sentence → /learn/usdc/ (link in).
+  - /learn/usdt-networks/, after the networks table: +1 sentence → /learn/usdc/ (link in; exp-04).
+  - /learn/bitcoin-halving/: +1 sentence → /learn/bitcoin-mining/, +1 sentence → /learn/bitcoin-history/
+    (both not on Google; halving is indexed with impressions).
+  - /learn/blockchain/, PoS bullet: +1 sentence → /learn/proof-of-stake/ (0 links in, not on Google).
+  - Not done: a link to south-korea-bank-stablecoin-bill (its natural hosts are content/auto news pages
+    and the topic is regulation): left for a news-to-news link by the hub's reel flow.
+- **Index requests first:** /learn/usdc/, / (still not on Google), /learn/tether/, /learn/proof-of-stake/.
+- **Measure (2026-12-10):** exp-2026-11-26-01…04: usdc indexed and its queries; bitcoin-mining,
+  bitcoin-history, proof-of-stake inspections; usdt-networks totals (7 impr, 1 click, 6.4).
