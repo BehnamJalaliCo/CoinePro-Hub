@@ -79,7 +79,11 @@ mark each step done with `order.progress`.
 9. **QC** (DIRECTION §4): stills at 12+ times, score every shot, redo under 8, ≥ 2 rounds; the names
    said right; the audio tail; no full stops on screen.
 10. **Render once** at 1080×1920 60 fps → encode with the mix → `out/video.mp4`; check 8 random
-    frames of the final file; remove build/seg* temp folders.
+    frames of the final file; remove build/seg* temp folders. **Use engine6.py's `--render`/`--encode`** (or, in
+    a render of your own, its exact settings: frames `toDataURL('image/jpeg', 1.0)`, the `-vf` VF709 colour
+    conversion, x264 medium CRF 14 High yuv420p with `vbv()`'s cap and `aq-mode=3`, BT.709 tags, AAC 192k
+    48 kHz stereo, +faststart). Owner 2026-11-26: the highest quality; a file without VF709 shows every
+    colour shifted (the mustard too).
 11. **Cover — the owner's cover system (COMMON/cover/COVER_SYSTEM.md):** ChatGPT makes the WHOLE
     cover from his folder (his six photos + his two covers, the eight files) and your precise brief
     (style, layout, his suit and accessories, the exact text; the pill «کلمه‌ی «<word>» رو کامنت کن»

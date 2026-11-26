@@ -108,7 +108,7 @@ function draw(t){X=MAIN.getContext('2d');X.setTransform(1,0,0,1,0,0);X.globalAlp
   else{X.drawImage(u<0.5?BUF[0]:BUF[1],0,0);}}
  chrome(t,sh);}
 function setChapter(i){CH=i;CHD=D.chapters[i];SHOTS=CHD.shots;}
-window.frame=function(t){draw(t);return MAIN.toDataURL('image/jpeg',0.95);};
+window.frame=function(t){draw(t);return MAIN.toDataURL('image/jpeg',1.0);};
 (async()=>{const ks=Object.keys(A);await Promise.all(ks.map(k=>new Promise(res=>{const im=new Image();im.onload=()=>{IMG[k]=im;res();};im.onerror=()=>res();im.src=A[k];})));
  const fams=['YKE','YKK','YKH','YKX','YKB','YKD','YKM','YKR','YKL','YLB','YLK','ANT','BEB'];await Promise.all(fams.map(f=>document.fonts.load(`40px ${f}`,'اتریوم ETH 0')));
  setChapter(0);window.READY=true;})();

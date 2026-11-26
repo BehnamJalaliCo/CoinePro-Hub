@@ -3,7 +3,8 @@
 The owner: «ویدیو بلند … پرمیوم و سطح بالا ، ۸ الی ۱۰ دقیقه … کپشن و کاور و همه چیزش کامله کامل»; then, the
 same evening: «از فردا هر روز منتشر بشه … ساخت موشنگرافیشو خیلی قویتر از اینی که است بکن … جذابیت ویدیو باید
 تا لحظه آخر برای مخاطب باشه». One video **every day** (flow `dotcoin_long`, AF-0015: build 08:00, YouTube
-18:30 Tehran), 8–10 minutes, 1920×1080, 30 fps, Persian voice-over (Arlo), complete: title, description with
+18:30 Tehran), 8–10 minutes, rendered 1920×1080 30 fps and delivered 2560×1440 (owner 2026-11-26: the highest
+quality; `render.py --concat` lifts it), Persian voice-over (Arlo), complete: title, description with
 chapters, tags, thumbnail, subtitles and its own NEW lesson on dotcoin.me. The bar: `example/` (v2, a 89 s
 sample: `example/contact_every2s.jpg`, one frame every 2 s) — every 2 seconds something new happens.
 
@@ -109,7 +110,8 @@ a full-bleed picture or a kinetic-type beat.
 7. `PY -I motion/audio2.py` → build/mix.wav: the bed with each chapter's `energy` (0.5–1.0: drums from 0.75,
    plucks from 0.55; the cold open builds), a whoosh or a hit on every cut, a heartbeat and a dropped bed under
    each cliffhanger, the voices at their offsets (voice −16 LUFS, mix −14 LUFS, true peak < −1 dBTP).
-8. `PY -I motion/render.py --concat` → out/video.mp4; `ffprobe` 8–10 min; `tools/audio_qc.py` = clicks 0, cuts
+8. `PY -I motion/render.py --concat` (it lifts each chapter to 2560×1440 once, ~2 min a chapter; it prints
+   «AGAIN» after ~7 minutes: run it again until it writes out/video.mp4) → `ffprobe` 2560×1440, 8–10 min; `tools/audio_qc.py` = clicks 0, cuts
    0, bursts 0 on BOTH build/voice_track.wav and the file's own audio; the last 2.5 s free of new sounds; a
    last `every2.py`-style look at the FINAL file (`ffmpeg -vf fps=1/2,scale=320:-2,tile=8x10`). Delete
    build/ch/* after.

@@ -335,8 +335,9 @@ def check_files(work: Path) -> str:
     p = probe(v)
     vs = next((s for s in p.get("streams", []) if s.get("codec_type") == "video"), {})
     dur = float((p.get("format") or {}).get("duration") or 0)
-    if vs.get("codec_name") != "h264" or (vs.get("width"), vs.get("height")) != (1920, 1080):
-        return f"the video is {vs.get('codec_name')} {vs.get('width')}x{vs.get('height')}, not h264 1920x1080"
+    # 2560x1440 since 2026-11-26 (owner: the highest quality; YouTube's better codecs), 1920x1080 before
+    if vs.get("codec_name") != "h264" or (vs.get("width"), vs.get("height")) not in ((2560, 1440), (1920, 1080)):
+        return f"the video is {vs.get('codec_name')} {vs.get('width')}x{vs.get('height')}, not h264 2560x1440/1920x1080"
     if not DURATION_S[0] <= dur <= DURATION_S[1]:
         return f"the video is {dur / 60:.1f} minutes"
     if v.stat().st_size > MAX_VIDEO or t.stat().st_size > MAX_THUMB:

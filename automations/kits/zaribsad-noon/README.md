@@ -95,7 +95,10 @@ output short. `order.ack` the plan at the start (the steps below); mark each don
 9. **Render once:** `PY -I COMMON/motion/desk_engine.py --render --fps 60 --workers 2`, then
    `PY -I COMMON/motion/desk_engine.py --encode --audio build/mix.wav --out out/video.mp4`; the tail check, 12 random
    frames and every transition of the final file (DIRECTION §6.6); remove build/segd.
-10. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -crf 17 -c:a aac out/story.mp4`
+10. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -preset medium -crf 14
+   -profile:v high -pix_fmt yuv420p -maxrate 12M -bufsize 12M -x264-params aq-mode=3 -color_primaries bt709
+   -color_trc bt709 -colorspace bt709 -color_range tv -c:a aac -b:a 192k -ar 48000 -movflags +faststart out/story.mp4`
+   (the highest quality under Instagram's 100 MB for a story)
 11. **Cover — the cover package, COMMON/cover/COVER_SYSTEM.md (the owner, 2026-11-26):** ChatGPT draws the WHOLE
     cover — the owner in a new suit and 2026 accessories in front of the mint arch, the tag (`LESSON · …`,
     `CAMPAIGN · <EXCHANGE>`, `MARKET · …` / `NEWS · …` by today's kind), the Persian title with its mint chip, the

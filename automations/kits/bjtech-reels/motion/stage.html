@@ -799,7 +799,7 @@ function frame(t) {
   grade(t);
   brand(t); chapterChip(t); gapChip(t); captions(t); ctaCard(t); endCard(t); progressLine(t);
   EDGE(edgeAlpha(t), t);
-  return MAIN.toDataURL('image/jpeg', .94);
+  return MAIN.toDataURL('image/jpeg', 1.0);  // 1.0 = 4:4:4 (owner 2026-11-26: the highest quality)
 }
 function timeline() {
   const shots = SH.map((s, k) => ({at: s.at, name: s.name, tr: k === 0 ? 'cut' : (s.tr || TR_FAMILY[CFG.look.tr % TR_FAMILY.length])}));

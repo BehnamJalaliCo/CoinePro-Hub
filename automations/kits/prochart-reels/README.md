@@ -84,7 +84,10 @@ it; copy what you change into your own folder).
 8. **Render once:** `build/.venv/bin/python -I motion/engine6.py --render --fps 60 --workers 2 --chunks 8`
    then `build/.venv/bin/python -I motion/engine6.py --encode --out out/video.mp4 --audio build/mix.wav`.
    A stopped render resumes from its finished chunks. Then `rm -rf build/seg6 build/e6test`.
-9. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -crf 17 -c:a aac out/story.mp4`
+9. **Story cut:** `ffmpeg -v error -y -i out/video.mp4 -t 59.8 -af afade=t=out:st=59.3:d=0.5 -c:v libx264 -preset medium -crf 14
+   -profile:v high -pix_fmt yuv420p -maxrate 12M -bufsize 12M -x264-params aq-mode=3 -color_primaries bt709
+   -color_trc bt709 -colorspace bt709 -color_range tv -c:a aac -b:a 192k -ar 48000 -movflags +faststart out/story.mp4`
+   (the highest quality under Instagram's 100 MB for a story)
    (Instagram's story is 60 s at most).
 10. **Cover:** first draw TODAY'S middle element as `build/element.svg` (owner: «المان وسطش هر روز تغییر کنه
     نسبت به موضوع»): an SVG about the day's topic in a 900×480 box (viewBox="0 0 900 480"), ONLY

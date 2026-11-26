@@ -43,6 +43,23 @@ if not os.path.exists(STAGE):
     STAGE = os.path.join(KIT, "motion", "stage.html")
 PAGE = os.path.join(ROOT, "motion", "reel.html")
 SEG = os.path.join(ROOT, "build", "seg")
+
+# ⟨2026-11-26⟩ the owner: the highest quality on every page. Chrome's canvas JPEG frames are full-range BT.601;
+# VF709 turns them into the BT.709 limited range the file is tagged with (before, every colour drifted: the
+# brand mustard by 7 levels, pure green by 39). CRF 14 + aq-mode 3 (dark grounds without banding); the VBV cap
+# keeps a reel under Instagram's 25 Mbit/s and any length under the 200 MB the hub and IG-Hub take.
+VF709 = ("scale=in_color_matrix=bt601:in_range=full:out_color_matrix=bt709:out_range=tv"
+         ":flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p")
+
+
+def vbv():
+    """-maxrate/-bufsize: at most 16 Mbit/s, and less for a reel so long that 16 would pass ~180 MB."""
+    try:
+        end = float(json.load(open(os.path.join(SEG, "plan.json"))).get("end") or 90)
+    except (OSError, ValueError):
+        end = 90.0
+    k = max(4000, min(16000, int(180e6 * 8 / max(end, 1.0) / 1000) - 256))
+    return ["-maxrate", f"{k}k", "-bufsize", f"{k}k"]
 WIDE = os.path.exists(os.path.join(ROOT, "motion", "WIDE"))
 W, H = (1920, 1080) if WIDE else (1080, 1920)
 FONTS = {"EST:300": "Estedad-Light.ttf", "EST:400": "Estedad-Regular.ttf", "EST:500": "Estedad-Medium.ttf",
@@ -199,10 +216,11 @@ def worker(chunks, fps):
                 if os.path.exists(out + ".done"):
                     continue
                 ff = subprocess.Popen(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg",
-                                       "-framerate", str(fps), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "15",
-                                       "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "5.1", "-threads", "2",
+                                       "-framerate", str(fps), "-i", "-", "-vf", VF709, "-c:v", "libx264", "-preset", "medium",
+                                       "-crf", "14", "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "5.1", "-threads", "2",
+                                       *vbv(), "-x264-params", "rc-lookahead=20:aq-mode=3",
                                        "-r", str(fps), "-color_primaries", "bt709", "-color_trc", "bt709",
-                                       "-colorspace", "bt709", out], stdin=subprocess.PIPE)
+                                       "-colorspace", "bt709", "-color_range", "tv", out], stdin=subprocess.PIPE)
                 t0 = time.time()
                 for i in range(a, z):
                     for attempt in range(4):
@@ -270,8 +288,8 @@ def encode():
     os.makedirs(os.path.dirname(out), exist_ok=True)
     subprocess.run(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-i", audio,
                     "-filter_complex", f"[1:a]apad=whole_dur={end},atrim=0:{end},aformat=channel_layouts=stereo[a]",
-                    "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
-                    "-t", f"{end:.3f}", "-movflags", "+faststart", out], check=True)
+                    "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "384k" if WIDE else "192k",
+                    "-ar", "48000", "-t", f"{end:.3f}", "-movflags", "+faststart", out], check=True)
     print("wrote", out, f"{end:.2f}s")
 
 

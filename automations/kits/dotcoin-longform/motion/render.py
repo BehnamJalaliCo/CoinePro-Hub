@@ -23,6 +23,35 @@ PAGE = os.path.join(ROOT, "motion/engine.html")
 CHD = os.path.join(ROOT, "build/ch")
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 
+# ⟨2026-11-26⟩ the owner: the highest quality. YouTube gives a 1440p upload its better codecs (VP9/AV1) and more
+# bits, at 1440p and at 1080p too. The chapters render at 1080p; --concat lifts each to 2560x1440 (Lanczos) once,
+# resumable (a chapter lifted is kept until it is rendered again), then joins them without another encode. The
+# VBV cap keeps the whole file under ~930 MB (egress's upload_long takes 1 GiB): 16 Mbit/s (YouTube's 1440p30
+# figure) or less for a long video. Chrome's JPEG frames are full-range BT.601: VF709 makes them the BT.709 the
+# file is tagged with (before, the colours drifted: mustard by 7 levels).
+VF709 = ("scale=in_color_matrix=bt601:in_range=full:out_color_matrix=bt709:out_range=tv"
+         ":flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p")
+UP_VF = "scale=2560:1440:flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p,setsar=1"
+UP_BUDGET_S = 420  # one --concat lifts chapters for about 7 minutes, then asks to be run again
+FILE_BYTES = 930e6
+AUDIO_K = 384  # AAC stereo, YouTube's figure
+
+
+def up_kbps(total):
+    return max(6000, min(16000, int(FILE_BYTES * 8 / max(total, 1.0) / 1000) - AUDIO_K))
+
+
+def up_args(kbps, tune):
+    """x264 for the 1440p lift: CRF 15, medium (slow buys ~4 % of size, nothing seen), the VBV cap."""
+    return ["-vf", UP_VF, "-c:v", "libx264", "-preset", "medium", "-crf", "15", *(["-tune", "animation"] if tune else []),
+            "-profile:v", "high", "-level", "5.1", "-maxrate", f"{kbps}k", "-bufsize", f"{kbps * 2}k", "-g", "60",
+            "-bf", "2", "-threads", "4", "-x264-params", "rc-lookahead=30:aq-mode=3", "-color_primaries", "bt709",
+            "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"]
+
+
+def lifted(src, dst):
+    return os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src)
+
 
 def kill():
     subprocess.run(["pkill", "-f", "[c]hrome-linux64/chrome"], check=False)
@@ -113,9 +142,10 @@ def worker(jobs, fps):
                     continue
                 pg.evaluate(f"setChapter({ch})")
                 ff = subprocess.Popen(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg",
-                                       "-framerate", str(fps), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "14",
-                                       "-pix_fmt", "yuv420p", "-profile:v", "high", "-threads", "2", "-r", str(fps), "-g", str(fps * 2),
-                                       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", out],
+                                       "-framerate", str(fps), "-i", "-", "-vf", VF709, "-c:v", "libx264", "-preset", "medium",
+                                       "-crf", "14", "-pix_fmt", "yuv420p", "-profile:v", "high", "-threads", "2", "-r", str(fps),
+                                       "-g", str(fps * 2), "-x264-params", "aq-mode=3", "-color_primaries", "bt709",
+                                       "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv", out],
                                       stdin=subprocess.PIPE)
                 t0 = time.time()
                 for i in range(a, z):
@@ -162,17 +192,38 @@ def render(chs, fps, nw, parts):
 
 
 def concat(audio, out):
+    """Each chapter lifted to 1440p (resumable, ~7 minutes a call: "AGAIN" = run it again), then one file."""
     tl = timeline()
-    lst = os.path.join(CHD, "all.txt")
-    open(lst, "w").write("".join("file '" + os.path.join(CHD, "ch%02d.mp4" % c["id"]) + "'\n" for c in tl))
     total = sum(c["end"] for c in tl)
+    kbps = up_kbps(total)
+    miss = [c["id"] for c in tl if not os.path.exists(os.path.join(CHD, "ch%02d.mp4" % c["id"]))]
+    if miss:
+        sys.exit(f"chapters not rendered: {miss}")
+    t0, left = time.time(), []
+    for c in tl:
+        src, dst = os.path.join(CHD, "ch%02d.mp4" % c["id"]), os.path.join(CHD, "ch%02d_1440.mp4" % c["id"])
+        if lifted(src, dst):
+            continue
+        if time.time() - t0 > UP_BUDGET_S:
+            left.append(c["id"])
+            continue
+        t1 = time.time()
+        subprocess.run(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-i", src, "-map", "0:v:0", "-an",
+                        *up_args(kbps, True), dst + ".part.mp4"], check=True)
+        os.replace(dst + ".part.mp4", dst)
+        print(f"ch{c['id']:02d} lifted to 1440p in {time.time() - t1:.0f} s", flush=True)
+    if left:
+        sys.exit(f"AGAIN: {len(left)} chapters still to lift to 1440p {left}; run --concat again (lifted ones are kept)")
+    lst = os.path.join(CHD, "all.txt")
+    open(lst, "w").write("".join("file '" + os.path.join(CHD, "ch%02d_1440.mp4" % c["id"]) + "'\n" for c in tl))
     cmd = ["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-i", audio,
-           "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "slow", "-crf", "15", "-tune", "animation",
-           "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "4.2", "-r", "30", "-g", "60", "-bf", "2", "-threads", "4",
-           "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-           "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-t", f"{total:.3f}", "-movflags", "+faststart", out]
+           "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", f"{AUDIO_K}k", "-ar", "48000", "-ac", "2",
+           "-t", f"{total:.3f}", "-movflags", "+faststart", out]
     subprocess.run(cmd, check=True)
-    print("wrote", out)
+    size = os.path.getsize(out)
+    print("wrote", out, f"2560x1440, {size / 1e6:.0f} MB, video cap {kbps} kbit/s")
+    if size > 1024 ** 3:
+        sys.exit("the file is over YouTube upload_long's 1 GiB: tell the hub (never cut it by hand)")
 
 
 if __name__ == "__main__":

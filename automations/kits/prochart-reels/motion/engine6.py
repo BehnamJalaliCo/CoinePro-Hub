@@ -14,6 +14,7 @@ usage (build/.venv/bin/python -I motion/engine6.py ...):
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -29,6 +30,23 @@ FD = "/home/studio/kits/fonts-eco/"
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
 VOICE = os.path.join(ROOT, "qc/voice_final.wav")
 SEG = os.path.join(ROOT, "build", "seg6")
+
+# ⟨2026-11-26⟩ the owner: the highest quality on every page. Chrome's canvas JPEG frames are full-range BT.601;
+# VF709 turns them into the BT.709 limited range the file is tagged with (before, every colour drifted: the
+# brand mustard by 7 levels, pure green by 39). CRF 14 + aq-mode 3 (dark grounds without banding); the VBV cap
+# keeps a reel under Instagram's 25 Mbit/s and any length under the 200 MB the hub and IG-Hub take.
+VF709 = ("scale=in_color_matrix=bt601:in_range=full:out_color_matrix=bt709:out_range=tv"
+         ":flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p")
+
+
+def vbv():
+    """-maxrate/-bufsize: at most 16 Mbit/s, and less for a reel so long that 16 would pass ~180 MB."""
+    try:
+        end = float(json.load(open(os.path.join(SEG, "plan.json"))).get("end") or 90)
+    except (OSError, ValueError):
+        end = 90.0
+    k = max(4000, min(16000, int(180e6 * 8 / max(end, 1.0) / 1000) - 256))
+    return ["-maxrate", f"{k}k", "-bufsize", f"{k}k"]
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 FONTS = {"4": "Regular", "6": "Bold", "7": "Bold", "8": "Bold", "9": "Bold", "X": "Bold"}
 
@@ -65,7 +83,8 @@ def build_html() -> str:
     assert "function draw(t){" in html and "  subtitles(t);\n  WIPES.forEach" in html
     html = html.replace("function draw(t){", toon + "\nfunction draw(t){", 1)
     html = html.replace("  subtitles(t);\n  WIPES.forEach", "  toonLayer(t);\n  subtitles(t);\n  WIPES.forEach", 1)
-    html = html.replace("C.toDataURL('image/jpeg',0.93)", "C.toDataURL('image/jpeg',0.95)")
+    # quality 1.0: Chrome then writes 4:4:4 JPEG (0.95 was 4:2:0 twice over with the encode; +3 dB on text edges)
+    html = re.sub(r"C\.toDataURL\('image/jpeg',\s*0?\.\d+\)", "C.toDataURL('image/jpeg',1.0)", html)
     html = html.replace("/*DATA*/", json.dumps(data, ensure_ascii=False))
     html = html.replace("/*FONTS*/", json.dumps(fonts)).replace("/*LOGO*/", json.dumps("data:image/png;base64," + logo))
     out = os.path.join(HERE, "engine6.html")
@@ -105,9 +124,11 @@ def worker(page, chunks, fps):
                 if os.path.exists(out + ".done"):
                     continue
                 ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", str(fps), "-i", "-",
-                                       "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-profile:v", "high",
-                                       "-level", "5.1", "-threads", "2", "-x264-params", "rc-lookahead=20", "-r", str(fps),
-                                       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", out],
+                                       "-vf", VF709, "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-pix_fmt", "yuv420p",
+                                       "-profile:v", "high", "-level", "5.1", "-threads", "2", *vbv(),
+                                       "-x264-params", "rc-lookahead=20:aq-mode=3", "-r", str(fps),
+                                       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+                                       "-color_range", "tv", out],
                                       stdin=subprocess.PIPE)
                 t0 = time.time()
                 for i in range(a, z):
@@ -169,7 +190,7 @@ def main() -> None:
         nc = int(arg("--chunks", "8"))
         k = min(2, int(arg("--workers", "2")))  # HQ rule: never more than 2 browsers
         bounds = [(ci, n * ci // nc, n * (ci + 1) // nc) for ci in range(nc)]
-        json.dump({"fps": fps, "n": n, "chunks": bounds}, open(os.path.join(SEG, "plan.json"), "w"))
+        json.dump({"fps": fps, "n": n, "end": end, "chunks": bounds}, open(os.path.join(SEG, "plan.json"), "w"))
         kill_chrome()
         procs = [Process(target=worker, args=(page, bounds[j::k], fps)) for j in range(k)]
         for pr in procs:

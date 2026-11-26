@@ -526,7 +526,7 @@ function frame(t) {
   if (t < endAt) captions(t, REEL.capOpt || {});
   if (REEL.end) endSlate(t, endAt, REEL.end.word, REEL.end);
   dither();
-  return C.toDataURL('image/jpeg', 0.95);
+  return C.toDataURL('image/jpeg', 1.0);  // 1.0 = 4:4:4 (owner 2026-11-26: the highest quality)
 }
 window.frame = frame;
 window.DESK = {Z, E, P, clamp, lerp, rgba, fa, iso, txt, measure, ground, plate, cutout, persp, panelBody, panel, odometer, changeChip,

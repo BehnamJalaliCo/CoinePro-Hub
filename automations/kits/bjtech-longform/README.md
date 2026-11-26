@@ -1,7 +1,8 @@
 # @behnamjalali.tech — the daily long YouTube video (owner 2026-11-18: «۸ تا ۱۰، ۱۲، ۱۵ دقیقه هر روز»)
 
 One video a day on the channel @behnamjalali-tech (flow `bjtech_long`: built from 01:30 Tehran, out at 20:00
-Tehran), 8–15 minutes, 1920×1080, 30 fps, Persian voice-over (Arlo), complete: title, description with chapters,
+Tehran), 8–15 minutes, rendered 1920×1080 30 fps and delivered 2560×1440 (owner 2026-11-26: the highest quality;
+`long.py concat` lifts it), Persian voice-over (Arlo), complete: title, description with chapters,
 tags, Persian subtitles (srt), a custom thumbnail. YouTube only (the page has no site). The video is made in code
 on the page's own LUMEN engine (KIT = this kit; the engine is REELS/motion in 16:9) — NEVER a video from an AI video
 model. The bar: REELS/example (the reel's look, in a wider frame and a longer story).
@@ -97,7 +98,8 @@ video (the chapters back to back).
     shows what is left.
 10.1 Before the first render and again before concat: `python3 -I KIT/tools/long.py bar` (the progress bar's places)
     and `python3 -I KIT/tools/long.py retention` (the real timelines; fix and re-render a chapter that fails).
-11. `python3 -I KIT/tools/long.py concat` → out/video.mp4 (8–15 minutes) → its own audio: `ffmpeg -v error -i
+11. `python3 -I KIT/tools/long.py concat` (each chapter lifted to 2560×1440 once, ~2 min a chapter; «AGAIN» after
+    ~7 minutes = run it again) → out/video.mp4 (8–15 minutes, 2560×1440) → its own audio: `ffmpeg -v error -i
     out/video.mp4 -vn -ac 1 build/final_audio.wav` → audio_qc 0/0/0 → a last look: `ffmpeg -v error -i
     out/video.mp4 -vf fps=1/8,scale=320:-2,tile=8x10 -frames:v 1 qc/every8s.jpg` (read it whole).
 

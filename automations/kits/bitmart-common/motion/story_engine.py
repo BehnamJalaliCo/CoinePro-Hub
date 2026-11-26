@@ -35,6 +35,23 @@ LIC = os.environ.get("BITMART_FONTS", "/home/studio/kits/fonts-bitmart") + "/"
 OWN = os.path.join(COMMON, "fonts") + "/"
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
 SEG = os.path.join(ROOT, "build", "segs")
+
+# ⟨2026-11-26⟩ the owner: the highest quality on every page. Chrome's canvas JPEG frames are full-range BT.601;
+# VF709 turns them into the BT.709 limited range the file is tagged with (before, every colour drifted: the
+# brand mustard by 7 levels, pure green by 39). CRF 14 + aq-mode 3 (dark grounds without banding); the VBV cap
+# keeps a reel under Instagram's 25 Mbit/s and any length under the 200 MB the hub and IG-Hub take.
+VF709 = ("scale=in_color_matrix=bt601:in_range=full:out_color_matrix=bt709:out_range=tv"
+         ":flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p")
+
+
+def vbv():
+    """-maxrate/-bufsize: at most 16 Mbit/s, and less for a reel so long that 16 would pass ~180 MB."""
+    try:
+        end = float(json.load(open(os.path.join(SEG, "plan.json"))).get("end") or 90)
+    except (OSError, ValueError):
+        end = 90.0
+    k = max(4000, min(16000, int(180e6 * 8 / max(end, 1.0) / 1000) - 256))
+    return ["-maxrate", f"{k}k", "-bufsize", f"{k}k"]
 PAGE = os.path.join(ROOT, "motion", "story_page.html")
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d  # noqa: E731
 FONTS = {  # family name → file (Latin digits in both: story.js converts digits inside Persian text itself)
@@ -147,9 +164,11 @@ def worker(page, chunks, fps):
                 if os.path.exists(out + ".done"):
                     continue
                 ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", str(fps), "-i", "-",
-                                       "-c:v", "libx264", "-preset", "medium", "-crf", "15", "-pix_fmt", "yuv420p", "-profile:v", "high",
-                                       "-level", "5.1", "-threads", "2", "-x264-params", "rc-lookahead=20", "-r", str(fps),
-                                       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", out],
+                                       "-vf", VF709, "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-pix_fmt", "yuv420p",
+                                       "-profile:v", "high", "-level", "5.1", "-threads", "2", *vbv(),
+                                       "-x264-params", "rc-lookahead=20:aq-mode=3", "-r", str(fps),
+                                       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+                                       "-color_range", "tv", out],
                                       stdin=subprocess.PIPE)
                 t0 = time.time()
                 for i in range(a, z):

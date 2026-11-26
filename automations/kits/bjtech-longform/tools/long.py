@@ -8,7 +8,8 @@ direction/word_times.json, motion/scenes.js, its render in out/chapter.mp4).
 
   python3 -I KIT/tools/long.py init <n>        make ch/00 … ch/<n> (motion/WIDE, the shared assets linked)
   python3 -I KIT/tools/long.py status          each chapter: voice, words, scenes, render, its length
-  python3 -I KIT/tools/long.py concat          ch/*/out/chapter.mp4 → out/video.mp4 (stream copy, +faststart)
+  python3 -I KIT/tools/long.py concat          ch/*/out/chapter.mp4 → each lifted to 2560x1440 once (resumable,
+                                               ~7 minutes a call: "AGAIN" = run it again) → out/video.mp4 (+faststart)
   python3 -I KIT/tools/long.py bar             each chapter's direction/videobar.json (its place in the whole video, for
                                                the slim chapter progress bar the stage draws); run it after every voice
                                                is final and again before rendering
@@ -29,10 +30,37 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 ROOT = os.getcwd()
 COMMON = "/home/studio/kits/bjtech-common"
 MAX_CUE = 42  # characters a subtitle line holds; a longer line is split into timed parts
+
+# ⟨2026-11-26⟩ the owner: the highest quality. YouTube gives a 1440p upload its better codecs (VP9/AV1) and more
+# bits, at 1440p and at 1080p too. The chapters render at 1080p; concat lifts each to 2560x1440 (Lanczos) once,
+# resumable (a chapter lifted is kept until it is rendered again), then joins them without another encode. The
+# VBV cap keeps the whole file under ~930 MB (egress's upload_long takes 1 GiB): 16 Mbit/s (YouTube's 1440p30
+# figure) or less for a long video.
+UP_VF = "scale=2560:1440:flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p,setsar=1"
+UP_BUDGET_S = 420  # one --concat lifts chapters for about 7 minutes, then asks to be run again
+FILE_BYTES = 930e6
+AUDIO_K = 384  # AAC stereo, YouTube's figure
+
+
+def up_kbps(total):
+    return max(6000, min(16000, int(FILE_BYTES * 8 / max(total, 1.0) / 1000) - AUDIO_K))
+
+
+def up_args(kbps, tune):
+    """x264 for the 1440p lift: CRF 15, medium (slow buys ~4 % of size, nothing seen), the VBV cap."""
+    return ["-vf", UP_VF, "-c:v", "libx264", "-preset", "medium", "-crf", "15", *(["-tune", "animation"] if tune else []),
+            "-profile:v", "high", "-level", "5.1", "-maxrate", f"{kbps}k", "-bufsize", f"{kbps * 2}k", "-g", "60",
+            "-bf", "2", "-threads", "4", "-x264-params", "rc-lookahead=30:aq-mode=3", "-color_primaries", "bt709",
+            "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv"]
+
+
+def lifted(src, dst):
+    return os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src)
 
 
 def sh(cmd, **kw):
@@ -90,14 +118,36 @@ def concat():
     if miss or not parts:
         sys.exit(f"missing: {miss or 'every chapter'}")
     os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
+    kbps = up_kbps(sum(duration(p) for p in parts))
+    t0, left, ups = time.time(), [], []
+    for p in parts:
+        up = p[:-4] + "_1440.mp4"
+        ups.append(up)
+        if lifted(p, up):
+            continue
+        if time.time() - t0 > UP_BUDGET_S:
+            left.append(p.split(os.sep)[-3])
+            continue
+        t1 = time.time()
+        r = sh(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-i", p, "-map", "0:v:0", "-map", "0:a:0", *up_args(kbps, False),
+                "-c:a", "copy", up + ".part.mp4"])
+        if r.returncode:
+            sys.exit(r.stderr[-400:])
+        os.replace(up + ".part.mp4", up)
+        print(f"ch/{p.split(os.sep)[-3]} lifted to 1440p in {time.time() - t1:.0f} s", flush=True)
+    if left:
+        sys.exit(f"AGAIN: {len(left)} chapters still to lift to 1440p {left}; run concat again (lifted ones are kept)")
     lst = os.path.join(ROOT, "build", "concat.txt")
-    open(lst, "w").write("".join(f"file '{p}'\n" for p in parts))
+    open(lst, "w").write("".join(f"file '{p}'\n" for p in ups))
     out = os.path.join(ROOT, "out", "video.mp4")
     r = sh(["nice", "-n", "12", "ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy",
             "-movflags", "+faststart", out])
     if r.returncode:
         sys.exit(r.stderr[-400:])
-    print(out, f"{duration(out) / 60:.2f} min, {len(parts)} chapters")
+    size = os.path.getsize(out)
+    print(out, f"{duration(out) / 60:.2f} min, {len(parts)} chapters, 2560x1440, {size / 1e6:.0f} MB, cap {kbps} kbit/s")
+    if size > 1024 ** 3:
+        sys.exit("the file is over YouTube upload_long's 1 GiB: tell the hub (never cut it by hand)")
 
 
 def chapter_len(c):
