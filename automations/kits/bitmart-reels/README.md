@@ -62,9 +62,13 @@ short. `order.ack` the plan at the start (the steps below); mark each done with 
    (no slogan: `-`) → `tools/audio_qc.py qc/voice_final.wav`: **0 clicks, 0 cuts, 0 bursts** or the voice is rebuilt;
    word times → `direction/word_times.json` (the same commands as the Pro-Chart kit's step 3–4); probe every
    foreign name (DIRECTION §6.5).
-5. **Inspiration, then plates:** DIRECTION §5 (the day's look; 3–6 top references → direction/inspo/), then ≥ 7
-   plates (DIRECTION §2): the SAME brief to player gpt AND player gemini (`substitute.call` seat creative, kind
-   image, placement other), the better kept; send them all at once, with the cover call (COMMON/cover/COVER_SYSTEM.md).
+5. **The picture of every line, inspiration, then the pictures:** read script/voice.txt sentence by sentence and
+   write what the viewer sees at each (DIRECTION §2 «The pictures — driven by the SCRIPT»); 5–8 top references for
+   THIS story's moments (DIRECTION §5 → direction/inspo/); then gather ≥ 10 pictures: the REAL ones of the story
+   (Wikimedia Commons, the original posts and pages, press kits, archives — each source in SOURCES.md), AI stills
+   for what no real picture shows (the SAME brief to player gpt AND player gemini, `substitute.call` seat creative,
+   kind image, placement other, the better kept; send them all at once, with the cover call,
+   COMMON/cover/COVER_SYSTEM.md), and every element story.js must draw.
    Look at each (Read); cut-outs (`/home/studio/kits/dotcoin-common/tools/cutout.py`) where a subject gets its own
    plane (`parallax`); save the chosen ones under `assets/` (upscaled cleanly with Lanczos, never softened).
 6. **Direction:** `direction/CONTRACT.md` — DIRECTION §6.1: the dilemma, the day's look and its references, the
