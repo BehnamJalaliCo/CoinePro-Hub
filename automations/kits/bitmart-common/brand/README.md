@@ -30,7 +30,9 @@ documents: paper `#EFE6D3`, its shade `#D9CDB4`, ink `#17130E`. `tokens.json` ho
 Digits inside Persian are Persian; `$`-amounts and Latin names stay Latin, isolated; never both in one run.
 
 ## The mark
-- **Profile:** `profile.jpg` (from IG-Hub, 2026-11-26: him in black on black, glasses) → `profile_round.png`.
+- **Profile = THE LOGO (owner, 2026-11-26 evening: «این عکس لوگو بیت مارته»):** the ORANGE photo (orange backdrop, navy
+  pinstripe suit, red tie, gold frames) — `profile.jpg` = its head-and-shoulders square → `profile_round.png` (the
+  end slate's and the lockup's mark). The old black-on-black photo is retired: never use it.
 - **Lockup:** the round photo with an orange ring + **bitmart** (Anjoman Max SuperHeavy, lower case, Latin) +
   «بهنام جلالی» (Ravagh, muted).
 - **Cover photo:** `owner_cover.jpg` (2026-11-26: orange backdrop, navy pinstripe double-breasted suit, red knit tie,
