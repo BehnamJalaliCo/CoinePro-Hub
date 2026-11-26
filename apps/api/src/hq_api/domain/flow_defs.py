@@ -237,11 +237,14 @@ class FlowDefRunNow(BaseModel):
 
 # ------------------------------------------------------------------- bodies --
 def schedule_of(flow: FL.Flow) -> dict[str, Any]:
-    return {
+    out = {
         "hours": list(flow.hours), "best_week": None in flow.hours, "days": list(flow.days),
         "stories": list(flow.stories), "trigger_at": flow.trigger_at, "same_day": flow.same_day,
         "start": flow.start.isoformat(),
     }  # fmt: skip
+    if getattr(flow, "rotate", ""):  # ⟨2026-11-26⟩ a new hour every day (FL.hour_index)
+        out["rotate"] = flow.rotate
+    return out
 
 
 def body_of(flow: FL.Flow) -> dict[str, Any]:
@@ -1219,6 +1222,7 @@ async def create_by_hub(
         note_fa=note_fa, days=tuple(int(d) for d in schedule.get("days") or FL.ALL_DAYS),
         channel=channel, stories=tuple(str(h) for h in schedule.get("stories") or ()),
         story=bool(story), story_word=" ".join(story_word.split()), cycle=tuple(cycle),
+        rotate=str(schedule.get("rotate") or ""),
     )  # fmt: skip
     if getattr(draft, "kind", None) != kind:  # (FL.Flow without `kind`: a hub not yet deployed)
         object.__setattr__(draft, "kind", kind)

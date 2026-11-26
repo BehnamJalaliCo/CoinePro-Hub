@@ -633,7 +633,7 @@ def when_fa(flow: FL.Flow, day: date | None = None) -> str:
     if flow.stories:
         return (f"هر روز {flow.trigger_at} ساخت، {len(flow.stories)} استوری از {flow.stories[0]} "
                 f"تا {flow.stories[-1]}").translate(FA_DIGITS)  # fmt: skip
-    hm = flow.hours[FL.week_of(flow, day)] if day else None
+    hm = flow.hours[FL.hour_index(flow, day)] if day else None
     when = "امروز" if flow.same_day else "فردا"
     publish = f"، انتشار {when} {hm}" if hm else f"، انتشار {when}"
     return f"هر روز {flow.trigger_at} ساخت{publish}".translate(FA_DIGITS)

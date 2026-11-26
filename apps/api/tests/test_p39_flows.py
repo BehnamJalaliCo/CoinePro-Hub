@@ -128,8 +128,7 @@ async def test_the_seed_is_every_code_flow_with_its_behaviour(
             )
             assert v1["note_fa"] == "ساخته شد از روند کدی هاب", key
             assert json.loads(v1["body"]) == FD.body_of(want), key
-        # the pilots are rows too: an empty account publishes nothing, and the board skips them
-        assert any(not FL.from_row(r).account for r in rows.values())
+        # (⟨2026-11-25⟩ the owner removed the two test flows with no account: every seed row has a page)
         off = await su.fetchval("SELECT flows_off FROM owner.settings WHERE id = 1")
         assert not set(off or []) & set(keys)
     finally:
@@ -286,7 +285,8 @@ async def test_a_save_holds_only_what_it_may(
              "این ساعت دو بار آمده است: ۱۰:۰۰"),
             ({"schedule": {"stories": ["13:00", "16:30"]}}, "schedule.stories",
              "این ساعت با ریلز ۱۳:۰۰ همین پیج هم‌دقیقه است"),
-            ({"schedule": {"stories": ["03:00"]}}, "schedule.stories",
+            ({"schedule": {"stories": ["03:00"]}}, "schedule.stories", FD.NIGHT_FA),
+            ({"schedule": {"trigger_at": "08:30", "stories": ["09:00"]}}, "schedule.stories",
              "هر ساعت انتشار باید دست‌کم ۹۰ دقیقه بعد از شروع ساخت باشد"),
             ({"schedule": {"days": []}}, "schedule.days", FD.DAYS_FA),
             ({"model": "gpt-5.5"}, "model", FD.MODEL_FA),

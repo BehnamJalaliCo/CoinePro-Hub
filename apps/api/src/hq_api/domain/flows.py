@@ -110,6 +110,10 @@ class Flow:
     # `article`: a site's SEO day (dotcoin.me: a new long page and the day's fixes as one package;
     # the hub's host publisher checks it and puts it on the site at the hour, never IG-Hub)
     kind: str = "reel"
+    # ⟨2026-11-26⟩ the owner for @bitmart: «ساعتش در روز برای پست متغیر از ۵ ساعت مختلف باشه و انتخاب ساعت‌ها
+    # هم بدون ترتیب باشه»: `day_shuffle` = a new hour of `hours` EVERY day, each hour once in every round of
+    # len(hours) days, the round's order shuffled (never the same hour two days running); "" = by week
+    rotate: str = ""
 
 
 # ⟨2026-11-18⟩ the kinds whose day never goes to IG-Hub (the hub's own host publisher takes it)
@@ -333,6 +337,7 @@ def from_row(r: Any) -> Flow:
         ref=str(r["ref"]), state=str(r["state"]), paused_until=r["paused_until"],
         skips=tuple(r["skips"] or ()), days=tuple(int(d) for d in s.get("days") or ALL_DAYS),
         channel=str(r["channel"]), version=int(r["version"]), kind=str(r["kind"] or "reel"),
+        rotate=str(s.get("rotate") or ""),
     )  # fmt: skip
 
 
@@ -444,6 +449,31 @@ def week_of(flow: Flow, day: date) -> int:
     return max(0, (day - flow.start).days) // 7 % len(flow.hours)
 
 
+def _round_order(key: str, n: int, k: int) -> list[int]:
+    """Round k's order of the n hours: shuffled, the same every time it is asked (seeded by the
+    flow's key and the round)."""
+    import random
+
+    order = list(range(n))
+    random.Random(f"{key}:{k}").shuffle(order)  # noqa: S311 (a schedule, not a secret)
+    return order
+
+
+def hour_index(flow: Flow, day: date) -> int:
+    """⟨2026-11-26⟩ Which of the flow's hours the day posts at: by week (week_of), or, `day_shuffle`,
+    a different hour every day in an unordered round (no hour twice in a round, never the same hour
+    two days running across rounds)."""
+    n = len(flow.hours)
+    if flow.rotate != "day_shuffle" or n < 2:
+        return week_of(flow, day)
+    d = max(0, (day - flow.start).days)
+    k, i = divmod(d, n)
+    order = _round_order(flow.key, n, k)
+    if k > 0 and order[0] == _round_order(flow.key, n, k - 1)[-1]:
+        order[0], order[1] = order[1], order[0]
+    return order[i]
+
+
 def fa_day(day: date) -> str:
     from hq_api.worker.jalali import to_jalali
 
@@ -455,8 +485,12 @@ async def slot_of(tx: Tx, flow: Flow, day: date, company_id: UUID) -> tuple[date
     """When the day's post goes out (UTC) and how it was chosen, in Persian. The fourth week takes
     the hour the account's posts did best at (§49); too little data yet: the first week's hour."""
     tz = ZoneInfo(TEHRAN)
-    hm = flow.stories[0] if flow.stories else flow.hours[week_of(flow, day)]
-    why = "ساعت ثابت این هفته" if not flow.stories else "ساعت اولین استوری روز"
+    hm = flow.stories[0] if flow.stories else flow.hours[hour_index(flow, day)]
+    why = "ساعت ثابت این هفته"
+    if flow.stories:
+        why = "ساعت اولین استوری روز"
+    elif flow.rotate == "day_shuffle":
+        why = "ساعت چرخشی امروز"
     if hm is None:
         from hq_api.domain import best_hour as BH
 
