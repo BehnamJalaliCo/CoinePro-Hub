@@ -1633,6 +1633,8 @@ async def workshop_run(
         if server is None:
             raise ApiError(409, "workshop_unavailable")
         w = await HANDS.the_work(tx, who, body.work)
+        # ⟨2026-11-26⟩ a work whose folder lives on the second workshop goes on there
+        server = await HANDS.workshop_server(tx, w) or server
         # ⟨2026-11-10⟩ «با من»: only the plan's next open task starts, and the caller names it
         nxt = await OT.step_next(tx, w["id"])
         if nxt is not None and body.task != nxt["n"]:

@@ -20,6 +20,7 @@ show the owner and ask «تأیید یا اصلاح؟». A failed turn wakes the
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -76,18 +77,68 @@ def is_hands(j: dict[str, Any]) -> bool:
     return bool((j.get("args") or {}).get("hands"))
 
 
-async def workshop_server(tx: Tx) -> dict[str, Any] | None:
-    """The holding's paired server on runner >= RUNNER_MIN (an online one first), or None."""
+# ⟨2026-11-26⟩ the owner: «کارگاه دوم رو روی سرور تردیار راه بنداز» — the holding may have more than one
+# workshop (the second one on the TradeYar host). A flow's day whose package a script on the HUB host reads
+# straight from the workshop's folder (/home/studio/hq-workspace/W-…: the long videos' and the SEO day's
+# publishers; the cover sheets that compare a page's last covers there) stays on the first workshop.
+HOST_BOUND_FLOWS = frozenset(
+    {
+        "dotcoin_long",
+        "bjtech_long",
+        "dotcoin_seo",
+        "bitmart_reels",
+        "zaribsad_coin",
+        "zaribsad_noon",
+    }
+)
+
+
+def flow_key_of(w: dict[str, Any] | None) -> str | None:
+    meta = (w or {}).get("run_meta")
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except ValueError:
+            return None
+    flow = meta.get("flow") if isinstance(meta, dict) else None
+    key = flow.get("key") if isinstance(flow, dict) else None
+    return str(key) if key else None
+
+
+async def workshop_server(
+    tx: Tx, w: dict[str, Any] | None = None, *, spread: bool = False
+) -> dict[str, Any] | None:
+    """The holding's workshop on runner >= RUNNER_MIN, or None.
+
+    A work whose folder already lives on one of them: that one (a folder never moves). `spread`
+    (a NEW turn of a flow's day not bound to the hub host): the online one with the fewest open
+    jobs, the first one on a tie. Otherwise the first paired one (an online one first)."""
     rows = await tx.all(
-        """SELECT s.id, s.runner_version FROM infra.servers s
+        """SELECT s.id, s.runner_version, s.state,
+                  (SELECT count(*) FROM infra.server_jobs j
+                    WHERE j.server_id = s.id AND j.state = ANY(:open)) AS open_jobs
+           FROM infra.servers s
            JOIN core.companies c ON c.id = s.company_id
            WHERE c.kind = 'holding' AND s.origin = 'attached' AND s.state IN ('online', 'offline')
-           ORDER BY (s.state = 'online') DESC, s.created_at"""
+           ORDER BY (s.state = 'online') DESC, s.created_at""",
+        open=list(SV.OPEN),
     )
-    for r in rows:
-        if WS.version_ok(r["runner_version"], RUNNER_MIN):
-            return await SV.load_server(tx, r["id"])
-    return None
+    rows = [r for r in rows if WS.version_ok(r["runner_version"], RUNNER_MIN)]
+    if not rows:
+        return None
+    if w is not None and w.get("id") is not None:
+        ws = await WS.of_work(tx, w["id"])
+        if ws is not None:
+            for r in rows:
+                if r["id"] == ws["server_id"]:
+                    return await SV.load_server(tx, r["id"])
+    if spread and flow_key_of(w) not in HOST_BOUND_FLOWS:
+        online = [r for r in rows if r["state"] == "online"]
+        if online:
+            # min keeps the first on a tie
+            best = min(online, key=lambda r: int(r["open_jobs"] or 0))
+            return await SV.load_server(tx, best["id"])
+    return await SV.load_server(tx, rows[0]["id"])
 
 
 async def the_work(

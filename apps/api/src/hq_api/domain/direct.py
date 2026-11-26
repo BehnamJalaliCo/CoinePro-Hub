@@ -171,9 +171,11 @@ def mcp_name(tool: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "_", tool)[:64]
 
 
-async def server_for(tx: Tx) -> dict[str, Any] | None:
-    """The workshop when it can hold a direct turn now: online, its runner >= RUNNER_MIN."""
-    server = await HANDS.workshop_server(tx)
+async def server_for(tx: Tx, w: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """The workshop when it can hold a direct turn now: online, its runner >= RUNNER_MIN.
+    ⟨2026-11-26⟩ `w`: the work's own workshop when its folder lives on one, else (a flow's new day)
+    the least-busy online one (hands.workshop_server)."""
+    server = await HANDS.workshop_server(tx, w, spread=w is not None)
     if server is None or SV.state_of(server) != "online":
         return None
     return server if WS.version_ok(server.get("runner_version"), RUNNER_MIN) else None
@@ -526,7 +528,7 @@ async def _hand_over(
     rep = await OR.ensure(tx, ref)
     if rep is None or rep.get("ended_at") is not None:
         return None
-    server = await server_for(tx)
+    server = await server_for(tx, w)
     if server is None:
         return None
     ws = await WS.of_work(tx, w["id"], lock=True)
