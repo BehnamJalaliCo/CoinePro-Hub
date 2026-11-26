@@ -115,16 +115,18 @@ a full-bleed picture or a kinetic-type beat.
    build/ch/* after.
 
 ## Turn 4 — thumbnail, YouTube text, article, delivery
-9. **Thumbnail (16:9) — NO FACE (owner 2026-11-26: «کاور های ویدیو بلند دات کوین چهره من همش تکراریه … اصلا از این
-   عکسی که بهتون دادم استفاده نکنید»):** never the owner's photos (none of COVER_SYSTEM.md's photos 1–6), never any
-   person's face. The THUMBNAIL IS THE TOPIC: its real logo / real object / real UI as the hero, big, in 3D or a
-   striking close-up, with ONE giant word and the short Persian title — the DotCoin look (black + mustard
-   #F3C242 + white), a DIFFERENT layout and hero every day (read the last 5 thumbnails in the topics list / out of
-   the past workspaces and change composition, angle and hero: never the same twice). ONE `substitute.call` seat
-   creative, kind image, player gpt (and the same brief to player gemini; keep the better) with
-   `example/thumbnail_brief.txt` filled for this video and ONLY covers 7–8 of COVER_SYSTEM.md as STYLE refs;
-   check every letter (Read at 320 px wide too: it must read on a phone); `PY -I tools/thumb.py <picture>
-   <logo or ->` → out/thumbnail.jpg (1280×720). The video's first frame is the hook, fully drawn at t = 0.
+9. **Thumbnail (16:9, the owner's cover system) — his face YES, the same photo NO (owner 2026-11-26: «کاور های
+   ویدیو بلند دات کوین چهره من همش تکراریه … اینی که توی دو تای آخر استفاده شده نباشه و مثل کاور هاش متفاوت
+   باشه»):** the 11-25 and 11-26 thumbnails pasted photo 1 (yellow circle, grey suit, striped tie) as a cut-out
+   — NEVER again: photo 1 (`172c9d70…`, dotcoin_ref_00_portrait_suit) is NOT sent, and no reference photo is ever
+   pasted or cut out into a thumbnail. ChatGPT DRAWS him new every day, like his reel covers: a new outfit, a new
+   pose and gesture, a new expression, a new layout. ONE `substitute.call` seat creative, kind image, player gpt,
+   with SEVEN files in this order: photos 2, 3, 4, 5, 6 of COVER_SYSTEM.md (identity only) then images 7 and 8
+   (style), and `example/thumbnail_brief.txt` filled for this video; before you send it, look at the last 5
+   thumbnails (YouTube: `https://i.ytimg.com/vi/<id>/maxresdefault.jpg` of the channel's newest videos) and make
+   this one DIFFERENT in outfit, pose and layout. Check his face (him, not a look-alike, not a pasted photo) and
+   every letter; `PY -I tools/thumb.py <picture> <logo or ->` → out/thumbnail.jpg (1280×720). The video's first
+   frame is the hook, fully drawn at t = 0.
 10. `python3 -I tools/yt_meta.py` → out/meta.json, out/subtitles.fa.srt, out/chapters.txt, out/caption.txt.
 11. **The article** `out/article.md`: a NEW lesson at https://dotcoin.me/learn/<slug>/ (the topic row's slug,
     keyword and links), full ARTICLE_BRIEF quality (REELS/site/ARTICLE_BRIEF.md; model `example/article.md`):
