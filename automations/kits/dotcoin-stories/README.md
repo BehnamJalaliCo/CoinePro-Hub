@@ -5,7 +5,9 @@ The owner: «ریلز عکس نداریم اصلا، منظورم تعدادی �
 های مجزا و جداگانه و فقط باید ازش بخواهی».
 So the day's stories are **ONE lesson in twelve slides**, designed by **ChatGPT** (⟨2026-11-27⟩ one
 call per slide, the first slide attached to the others as the series' style: ChatGPT's 12-picture chat
-shows its pictures as a gallery the hub cannot take whole yet). Gemini helps with the art. They are **educational only**; promotional only when the
+shows its pictures as a gallery the hub cannot take whole yet). Gemini helps with the art when it
+is signed in (⟨2026-11-27⟩ the owner: «فعلا با چت جی پی تی ساخته شود»: until Gemini is signed in again
+the days are made with ChatGPT ONLY — see step 3). They are **educational only**; promotional only when the
 owner says so.
 
 You are the day's session, started by n8n at 04:00 Tehran. Opus 5.5, extra-high effort.
@@ -64,7 +66,7 @@ them in a system font — zeros as heavy squares, «٬» as «’» («۵’■�
 running out of its box. Its own score said 8.5–8.8. From now on:
 - **NO SUBSTITUTE, EVER (the owner, 2026-11-27: «همیشه اگر خطا داد ساخته نشه، خطا برطرف بشه بعد ساخته
   بشه، هیچ اشتباهی پیش نیاد — اتوماسیون‌ها مرتب و منظم عین یک انسان پشت اپراتور»).** Every slide is
-  ChatGPT's picture (with Gemini's art). If ChatGPT or Gemini fails, you do NOT draw, compose, typeset
+  ChatGPT's picture (with Gemini's art when Gemini works — step 3). If ChatGPT fails, you do NOT draw, compose, typeset
   or fake anything instead — no HTML, no Pillow, no slide of our own, no ChatGPT picture without its
   words with our words on it. You retry the real path; if it keeps failing, you report the exact error
   (`order.progress`, one Persian line: which player, which error, since when) and end the turn: the
@@ -131,11 +133,12 @@ running out of its box. Its own score said 8.5–8.8. From now on:
    Then end the turn with `order.progress` («تصویرهای جمنای در راه است»). At the next turn,
    **Read** each one: keep the good ones, ask again for a bad one (≤ 2 more tries). Each one reaches
    `in/` with its `file_id`, so it can go with ChatGPT's call.
-   - **Refused or failed** (`channel_not_configured`, `signed_out`, `expired`, `recipe_failed`): ask once
-     more after 20 minutes. Still refused: `order.progress` with the exact error («جمنای: <code> از
-     <ساعت>؛ تا رفع آن استوری‌ها ساخته نمیشود») and end the turn; the day waits for the fix (no
-     story without Gemini's art, no art of our own). `expired` / `signed_out` = the owner's sign-in is
-     needed: say so in that line.
+   - **Refused or failed** (`channel_not_configured`, `signed_out`, `expired`, `recipe_failed`): ⟨2026-11-27⟩
+     the owner: «فعلا با چت جی پی تی ساخته شود» — do NOT wait for Gemini. Write one `order.progress` line
+     («جمنای: <code>؛ امروز فقط با چت‌جی‌پی‌تی») and go on to step 4 with NO Gemini pictures: ChatGPT
+     draws the art inside each slide itself (add to the brief: "draw the hero object/scene of this
+     slide yourself, in the look"). Still NO art of our own: no Pillow/HTML/stock picture in its place.
+     If ChatGPT also fails, the day waits (the TYPOGRAPHY rule above).
 4. **The twelve slides — one ChatGPT call per slide** (⟨2026-11-27⟩ `images: 12` is not used: GPT-6.2
    shows a many-picture answer as a gallery the hub's browser cannot take whole):
    - Slide 1 first: `substitute.call` seat creative, kind image, placement instagram_story, player
