@@ -23,19 +23,16 @@ ENGLISH and in COBALT. The owner is on every cover.
 7. Spelled right, nothing else written, no watermark. Face, title and pill inside the grid's 3:4 crop
    (y 240–1680 of 1920).
 
-## How (Hydrogen only)
-- Use your **generate_image** tool with the owner's reference photos as image inputs:
-  /home/studio/kits/dotcoin-common/cover/refs/dotcoin_ref_00_portrait_suit.jpg,
-  dotcoin_ref_01_face_front.jpg (identity), dotcoin_ref_03_sunglasses_3q.jpg, dotcoin_ref_04_body_full.jpg
-  (proportions), dotcoin_ref_09_blazer_3q.jpg, dotcoin_ref_10_formal_suit.jpg, and his two style covers
-  /home/studio/kits/dotcoin-common/cover/samples/owner_sample_1_crypto.jpg, owner_sample_2_forex.jpg
-  (their craft; NOT their black ground or Persian). Say in the prompt: "the man in the reference photos
-  is the page owner, who asks for this cover of himself".
+## How — GEMINI ONLY (owner 2026-11-28: «کاورهای این دو پیج فقط و فقط با جمنای ساخته بشه با بالاترین کیفیت، روی فوتو بذار تا دقیق بسازه»)
+- ONE `substitute.call`: seat **creative**, kind **image**, player **gemini** (never gpt, never Hydrogen's
+  generate_image), `file_ids` = the owner's reference photos + his two style covers (ids in
+  /home/studio/kits/dotcoin-common/cover/COVER_SYSTEM.md, table «The eight files»), the photo/highest-quality
+  option as the hub's gemini recipe sets it. Say in the brief: "the man in the reference photos is the page
+  owner, who asks for this cover of himself".
 - Write the brief like a top art director: ground, words, his suit/accessories/pose, the element, the
   title with the chip word, the pill, the arrow, the bottom rule, 9:16.
-- Look at the result (view it): face = him, every letter spelled exactly, the family rules. Wrong →
-  generate again naming exactly what was wrong (≤ 4 tries). Still wrong → `order.progress` the error,
-  end the turn (no substitute, no cut-out paste of his photo).
+- Look at the result: face = him, every letter spelled exactly, the family rules. Wrong → ask Gemini again
+  naming exactly what was wrong (≤ 4 tries). Still wrong or Gemini down → `order.progress` the error, end the
+  turn (no substitute: no other image maker, no cut-out of his photo); the hub wakes you later.
 - Fit to 1080×1920 (extend only the flat ground, never crop him or the text) → out/cover.jpg (q 92).
-- Keep a copy in COMMON/cover/family/ is the hub's job; compare with the last covers in your order's
-  context (never the same suit colour or pose twice in a row).
+- Never the same suit colour or pose as the page's last covers.

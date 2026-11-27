@@ -39,9 +39,8 @@ PCKIT = /home/studio/kits/prochart-reels (ASR tools). BUILD = /home/studio/bin/a
    The bar: would a top global finance channel post this? Anything below 9/10 → build/notes.md with
    exact, numbered notes (shot, time, what is wrong, what it must become) → `BUILD build build/notes.md
    --resume <AGY_CONVERSATION_ID> --detach` → wait → review again (≤ 3 rounds).
-7. **Cover:** a brief for Hydrogen's generate_image per COMMON/cover/COVER_SYSTEM.md (the owner's refs
-   as image inputs) → `BUILD cover cover/BRIEF.md` (its own folder) → check face, every letter, the family
-   → out/cover.jpg 1080×1920.
+7. **Cover — GEMINI ONLY** (owner 2026-11-28): COMMON/cover/COVER_SYSTEM.md «How» (`substitute.call`
+   player gemini with the owner's ref files) → check face, every letter, the family → out/cover.jpg 1080×1920.
 8. **Caption** out/caption.txt (English; 3–5 hashtags incl. #oneoxxo; WEEX reels add "Not financial
    advice. Trading involves risk."), **comment.txt** out/comment.txt (keyword / reply ×3 / public ×10, as
    COMMON/DIRECTION.md; no links), out/topic.txt (title + "style: …"). Copy build/out/video.mp4 →
