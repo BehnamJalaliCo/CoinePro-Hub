@@ -76,6 +76,12 @@ async def test_a_flow_day_goes_to_the_least_busy_workshop_and_a_folder_never_mov
     for key in HANDS.HOST_BOUND_FLOWS:
         bound = {"id": uuid.UUID(other["id"]), "run_meta": {"flow": {"key": key}}}
         assert await pick(hub, bound, spread=True) == "workshop"
+    # ...nor the new pages' days, nor any day on a Hydrogen model (agy needs Google, which the second
+    # workshop's fence does not reach),
+    for flow in ({"key": "oneoxxo_reels"}, {"key": "fxbyfx_x"},
+                 {"key": "prochart_reels", "model": "gemini-4-hydrogen-xhigh"}):  # fmt: skip
+        bound = {"id": uuid.UUID(other["id"]), "run_meta": {"flow": flow}}
+        assert await pick(hub, bound, spread=True) == "workshop"
     # ...and never a work whose folder lives on the first one (spread or not).
     assert await pick(hub, as_flow("prochart_reels"), spread=True) == "workshop"
     # Callers that do not spread keep the first workshop.
@@ -92,3 +98,7 @@ def test_the_flow_key_is_read_from_the_work() -> None:
     assert HANDS.flow_key_of({"run_meta": "not json"}) is None
     assert HANDS.flow_key_of({"run_meta": None}) is None
     assert HANDS.flow_key_of(None) is None
+    assert HANDS.host_bound({"run_meta": {"flow": {"key": "oneoxxo_reels"}}})
+    assert HANDS.host_bound({"run_meta": json.dumps({"flow": {"key": "x", "model": "gemini-4-hydrogen-high"}})})
+    assert not HANDS.host_bound({"run_meta": {"flow": {"key": "x", "model": "claude-opus-5-5"}}})
+    assert not HANDS.host_bound(None)

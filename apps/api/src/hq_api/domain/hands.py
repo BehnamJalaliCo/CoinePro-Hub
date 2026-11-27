@@ -102,6 +102,25 @@ HOST_BOUND_FLOWS = frozenset(
         "zaribsad_noon",
     }
 )
+# ⟨2026-11-27⟩ the new pages are built by Antigravity (agy, Gemini 4 Hydrogen): the second workshop's
+# fence lets its studio user reach only DNS and the hub, never Google, so their days, and any day of a
+# flow on a Hydrogen model, stay on the first workshop.
+HOST_BOUND_PREFIXES = ("oneoxxo_", "fxbyfx_")
+
+
+def host_bound(w: dict[str, Any] | None) -> bool:
+    """A flow's day that stays on the first workshop (see HOST_BOUND_FLOWS)."""
+    key = flow_key_of(w)
+    if key is not None and (key in HOST_BOUND_FLOWS or key.startswith(HOST_BOUND_PREFIXES)):
+        return True
+    meta = (w or {}).get("run_meta")
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except ValueError:
+            return False
+    flow = meta.get("flow") if isinstance(meta, dict) else None
+    return is_agy(flow.get("model") if isinstance(flow, dict) else None)
 
 
 def flow_key_of(w: dict[str, Any] | None) -> str | None:
@@ -143,7 +162,7 @@ async def workshop_server(
             for r in rows:
                 if r["id"] == ws["server_id"]:
                     return await SV.load_server(tx, r["id"])
-    if spread and flow_key_of(w) not in HOST_BOUND_FLOWS:
+    if spread and not host_bound(w):
         online = [r for r in rows if r["state"] == "online"]
         if online:
             # min keeps the first on a tie
