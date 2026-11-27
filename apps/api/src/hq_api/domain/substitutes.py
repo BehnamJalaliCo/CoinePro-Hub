@@ -731,6 +731,10 @@ async def holder(
 
 # ⟨1.10⟩ §28.4 the council's robustness
 WEB_ERROR_HOLD = timedelta(hours=6)
+# ⟨2026-11-27⟩ a failed SET of slides (images > 1: its own recipe task, `slides`) held ChatGPT for 6 h on every
+# page, so DotCoin's stories could not ask again before their first hour (CR-1064 failed 00:34Z, ChatGPT
+# refused until 06:34Z) and fell to an improvised set. A set's failure holds the player this long only
+SET_ERROR_HOLD = timedelta(minutes=20)
 # ⟨2026-11-11⟩ the hub's browser was not available (egress `off`): the player's web seats are
 # refused (`browser_unavailable`) for this long, not queued to fail one by one
 BROWSER_HOLD = timedelta(minutes=10)
@@ -2126,12 +2130,16 @@ def template_prompt(brief: str, placement: str, kind: str, duration: int | None)
 # ⟨2026-11-15⟩ a creative's reference pictures (a cover pack); ⟨2026-11-17⟩ 10, as many as a
 # browser job carries: at 4, DotCoin.me's cover lost the owner's own two sample covers unseen
 REFERENCE_MAX = 10
-# ⟨2026-11-17⟩ what every set of slides asks ChatGPT, whatever its brief says
+# ⟨2026-11-17⟩ what every set of slides asks ChatGPT, whatever its brief says. ⟨2026-11-27⟩ GPT-6.2 Sol
+# answered CR-1064 (DotCoin, 12 slides) by typesetting the slides with Python («Ran command», PNG files in
+# its outputs panel), not with its image tool, and the recipe waits for drawn pictures: the tool is named
 SLIDES_NOTE = (
     "IMPORTANT: generate {n} separate images now, one per slide, one after another in this answer "
     "(slide 1 first, then slide 2 … up to slide {n}): each its own full picture, never a grid, a "
-    "collage, a contact sheet or a sheet of objects. Do not ask anything first and do not stop "
-    "before all {n} are made. If you must stop, the next message says «continue»."
+    "collage, a contact sheet or a sheet of objects. Draw every slide with your built-in image "
+    "generation tool: do not write or run code, do not use Python, do not make files. Do not ask "
+    "anything first and do not stop before all {n} are made. If you must stop, the next message "
+    "says «continue»."
 )
 
 
@@ -3120,7 +3128,7 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
             await tx.exec(
                 """UPDATE substitutes.players SET web_error_until = now() + :hold, updated_at = now()
                    WHERE id = :id""",
-                hold=WEB_ERROR_HOLD,
+                hold=SET_ERROR_HOLD if int(c.get("images") or 1) > 1 else WEB_ERROR_HOLD,
                 id=p["id"],
             )
         failed = await tx.one(
