@@ -10,12 +10,14 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.routing import APIRoute
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from hq_api import __version__, errors, media
 from hq_api.errors import ApiError, problem_response
@@ -148,6 +150,58 @@ def upload_limit(path: str, max_file: int, max_body: int) -> int:
     return max_file if path in UPLOAD_PATHS else max_body
 
 
+class RequestContext:
+    """Every request's id (`request.state.request_id`, the `X-Request-ID` answer), the body size
+    cap, the safe headers and the access line. Pure ASGI: the app's `receive` is the server's own,
+    so a client that hangs up is seen by `request.is_disconnected()`."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        request = Request(scope, receive)
+        got = request.headers.get("x-request-id", "")
+        rid = got if _REQUEST_ID.match(got) else str(uuid.uuid4())
+        request.state.request_id = rid
+        settings = scope["app"].state.hub.settings
+        limit = upload_limit(request.url.path, settings.max_file_bytes, settings.max_body_bytes)
+        length = request.headers.get("content-length")
+        if length is not None and (not length.isdigit() or int(length) > limit):
+            refused = problem_response(
+                request, ApiError(413, "validation_failed", "request body too large")
+            )
+            await refused(scope, receive, send)
+            return
+        started = time.perf_counter()
+        status = 500
+
+        async def send_with_headers(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = int(message["status"])
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = rid
+                headers.setdefault("Cache-Control", "no-store")
+                headers["X-Content-Type-Options"] = "nosniff"
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+        route = scope.get("route")
+        log.info(
+            "request",
+            extra={
+                "method": request.method,
+                "route": getattr(route, "path", "unmatched"),
+                "status": status,
+                "ms": round((time.perf_counter() - started) * 1000, 1),
+                "request_id": rid,
+            },
+        )
+
+
 def _operation_id(route: APIRoute) -> str:
     return route.name
 
@@ -179,36 +233,12 @@ def create_app(
         app.state.hub = hub
     errors.install(app)
 
-    @app.middleware("http")
-    async def request_context(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        rid = request.headers.get("x-request-id", "")
-        request.state.request_id = rid if _REQUEST_ID.match(rid) else str(uuid.uuid4())
-        settings = request.app.state.hub.settings
-        limit = upload_limit(request.url.path, settings.max_file_bytes, settings.max_body_bytes)
-        length = request.headers.get("content-length")
-        if length is not None and (not length.isdigit() or int(length) > limit):
-            return problem_response(
-                request, ApiError(413, "validation_failed", "request body too large")
-            )
-        started = time.perf_counter()
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request.state.request_id
-        response.headers.setdefault("Cache-Control", "no-store")
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        route = request.scope.get("route")
-        log.info(
-            "request",
-            extra={
-                "method": request.method,
-                "route": getattr(route, "path", "unmatched"),
-                "status": response.status_code,
-                "ms": round((time.perf_counter() - started) * 1000, 1),
-                "request_id": request.state.request_id,
-            },
-        )
-        return response
+    # ⟨2026-11-27⟩ a plain ASGI layer, not `@app.middleware("http")`: Starlette's
+    # BaseHTTPMiddleware never passes the client's hang-up on, so `request.is_disconnected()` stayed
+    # False and a runner's long poll (routes/servers.runner_next) outlived the runner that made it:
+    # a job queued in those seconds was handed to nobody (IG-Hub's runner restarted 06:18:54Z, the
+    # bjtech reel's publish job went into the dropped poll at 06:19:04Z and timed out at 06:36Z).
+    app.add_middleware(RequestContext)
 
     # ⟨1.5⟩ prompt 12 part B: first, so /runs/health is not read as /runs/{id}
     app.include_router(mgmt.first_router, prefix="/api/v1")

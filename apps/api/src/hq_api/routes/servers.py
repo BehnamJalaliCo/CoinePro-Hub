@@ -385,6 +385,10 @@ async def runner_next(
     if (await hub.companies.holding()).id == r["company_id"]:
         scope = await hub.companies.ids()
     while True:
+        # ⟨2026-11-27⟩ a runner that hung up (restarted, its link dropped) is never handed a job:
+        # it would wait, never run, till its timeout (app.RequestContext passes the hang-up on)
+        if await request.is_disconnected():
+            return Response(status_code=204)
         async with hub.db.tx(scope) as tx:
             if await tx.scalar(
                 "SELECT revoked_at IS NOT NULL FROM infra.runners WHERE id = :id", id=r["id"]

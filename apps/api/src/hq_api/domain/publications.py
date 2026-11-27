@@ -368,8 +368,11 @@ def _j(v: Any) -> Any:
 
 
 def _asks(args: dict[str, Any]) -> bool:
-    meta = args.get("meta") or {}
-    return bool(meta.get("check") or meta.get("cancel"))
+    """A later job of a chain (a question, a cancel, ⟨2026-11-27⟩ a resend): its row is the first
+    job's."""
+    from hq_api.domain import session_publish as SPB
+
+    return SPB._chained(args.get("meta") or {})
 
 
 def comment_of(rule: Any) -> dict[str, Any] | None:

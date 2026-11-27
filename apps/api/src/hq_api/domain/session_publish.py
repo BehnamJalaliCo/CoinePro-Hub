@@ -110,6 +110,20 @@ CHECK_HELD = timedelta(minutes=10)
 HELD_PAGE_FA = "پیج فعلاً در دسترس نیست (اینستاگرام بسته‌اش کرده)؛ به محض باز شدن خودش منتشر میشود"
 
 CHECK_TIMEOUT_S = 120
+# ⟨2026-11-27⟩ the owner: automation heals itself and never loses a day's post. A publication's
+# job the runner never ran (`TRANSIENT`: the runner restarted or its link dropped while the hub
+# handed the job over; 2026-11-20 and 2026-11-27 a story and a reel were lost so) is sent again by
+# itself under the same IG-Hub key (`meta.key`: IG-Hub makes one publication per key, so a job
+# that did reach it can never post twice), up to RESEND_MAX times, each after its wait; the
+# publication stays scheduled/publishing meanwhile. Only the last one's failure is a failure, and
+# the owner is told. A Trial Reel copy (trial_reels.py tries its own) and a rule's job are not.
+RESEND_MAX = 3
+RESEND_AFTER = (timedelta(minutes=2), timedelta(minutes=5), timedelta(minutes=10))
+RESEND_WITHIN = timedelta(hours=3)  # a failure older than this is history, never sent again
+RESENT_FA = "IG-Hub این {kind} را نگرفت (@{account})؛ دوباره فرستاده شد ({n} از {of})"
+# (a notification's title is humanized: a page's handle would not survive it; the body and the
+# order's steps name it)
+GAVE_UP_TITLE_FA = "انتشار خودکار {kind} پس از {n} بار فرستادن انجام نشد"
 SOON = timedelta(minutes=2)  # a time this near is «now»
 FAR = timedelta(days=365)
 CAROUSEL_MAX = 10
@@ -186,6 +200,45 @@ def _waiting(meta: dict[str, Any]) -> State:
     return "scheduled" if when is not None and when > datetime.now(UTC) else "publishing"
 
 
+def _resends(meta: dict[str, Any]) -> int:
+    """How many times this publication was sent again by itself (`meta.resend`)."""
+    try:
+        return max(0, int(meta.get("resend") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _chained(meta: dict[str, Any]) -> bool:
+    """A later job of a publication's chain: a question, a cancel, or a resend of its first job."""
+    return bool(meta.get("check") or meta.get("cancel") or meta.get("resend"))
+
+
+def _never_ran(j: dict[str, Any]) -> bool:
+    """A publication's own job (not a question, a cancel, a rule or a Trial Reel copy) that ended
+    without the runner running it."""
+    args = OR._j(j["args"]) or {}
+    meta = args.get("meta") or {}
+    return (
+        str(j["state"]) == "failed"
+        and str(j.get("error_code") or "") in TRANSIENT
+        and not (meta.get("check") or meta.get("cancel"))
+        and not args.get("rule_for")
+        and not args.get("trial")
+    )
+
+
+def _resendable(j: dict[str, Any], now: datetime | None = None) -> bool:
+    """⟨2026-11-27⟩ It is sent again (follow_up): it never ran, its tries are not used up, and it
+    ended within RESEND_WITHIN (an older one is history: failed)."""
+    if not _never_ran(j):
+        return False
+    meta = (OR._j(j["args"]) or {}).get("meta") or {}
+    ended = j.get("finished_at") or j.get("created_at")
+    if not isinstance(ended, datetime):
+        return False
+    return _resends(meta) < RESEND_MAX and ended > (now or datetime.now(UTC)) - RESEND_WITHIN
+
+
 def _state(j: dict[str, Any]) -> State:
     st = str(j["state"])
     meta = (OR._j(j["args"]) or {}).get("meta") or {}
@@ -207,6 +260,8 @@ def _state(j: dict[str, Any]) -> State:
     code = str(j.get("error_code") or "")
     if meta.get("check") and (code in TRANSIENT or (st == "cancelled" and code in HELD)):
         return _waiting(meta)  # the question was never answered: it is asked again
+    if _resendable(j):
+        return _waiting(meta)  # ⟨2026-11-27⟩ never ran: it is sent again by itself
     return "failed"
 
 
@@ -287,7 +342,7 @@ def collapse(rows: list[Any], limit: int = 20) -> list[SessionPublish]:
         j = dict(r)
         key = publication_of(j)
         meta = (OR._j(j["args"]) or {}).get("meta") or {}
-        asks = bool(meta.get("check") or meta.get("cancel"))
+        asks = _chained(meta)
         if key in open_chain:
             out[open_chain[key]].at = j.get("created_at")
             if not asks:
@@ -1995,6 +2050,27 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                     source_code="publish",
                     owner_action=True,
                 )
+        # ⟨2026-11-27⟩ sent again by itself and still not out: the owner hears it (a standing
+        # word's run is told above)
+        gave_up = not ok and (_resends(meta) > 0 or _never_ran(j))
+        if gave_up and company_id is not None and not (standing and run is not None):
+            from hq_api.domain import notify
+
+            gave_up_fa = GAVE_UP_TITLE_FA.format(kind=kind, n=_resends(meta) + 1)
+            why_fa = FAILED_FA.format(kind=kind, account=account, why=done.note_fa or "-")
+            await notify.raise_notification(
+                tx,
+                company_id=company_id,
+                company_code=str(s.get("company") or ""),
+                level="report",
+                title_fa=gave_up_fa[:300],
+                body_fa=why_fa[:1000],
+                link_kind="order" if ref else "deliverable",
+                link_ref=ref or str(s.get("output") or ""),
+                source_kind="system",
+                source_code="publish",
+                owner_action=True,
+            )
         if company_id is not None:
             outcome = (
                 f"published {done.url or ''}" if ok else f"failed ({j['error_code'] or j['state']})"
@@ -2118,8 +2194,8 @@ CROSS JOIN LATERAL (
                 THEN CAST(j.args -> 'meta' ->> 'scheduled_at' AS timestamptz) END AS at) s
 WHERE j.kind = 'publish' AND j.args ? 'session'
   AND GREATEST(j.created_at, s.at) > now() - interval '8 days'
-  AND (s.at IS NULL OR s.at <= CAST(:now AS timestamptz))
-  AND ((j.state = 'done' AND j.result ->> 'external_id' LIKE 'pub:%' AND j.result ->> 'url' IS NULL)
+  AND (((s.at IS NULL OR s.at <= CAST(:now AS timestamptz))
+   AND ((j.state = 'done' AND j.result ->> 'external_id' LIKE 'pub:%' AND j.result ->> 'url' IS NULL)
        OR (j.state = 'failed' AND j.args -> 'meta' ? 'check'
            AND j.error_code = ANY(CAST(:transient AS text[])))
        OR (j.state = 'cancelled' AND j.args -> 'meta' ? 'check'
@@ -2127,7 +2203,12 @@ WHERE j.kind = 'publish' AND j.args ? 'session'
        OR (j.state = 'failed' AND j.args -> 'meta' ? 'cancel'
            AND COALESCE(j.error_code, '') <> 'publish_cancelled')
        OR (j.state = 'cancelled' AND j.args -> 'meta' ? 'cancel'
-           AND j.error_code = ANY(CAST(:held AS text[]))))
+           AND j.error_code = ANY(CAST(:held AS text[])))))
+   -- ⟨2026-11-27⟩ a publication's own job the runner never ran, whatever its time: sent again
+   OR (j.state = 'failed' AND j.error_code = ANY(CAST(:transient AS text[]))
+       AND NOT j.args -> 'meta' ? 'check' AND NOT j.args -> 'meta' ? 'cancel'
+       AND NOT j.args ? 'rule_for' AND NOT j.args ? 'trial'
+       AND j.finished_at > CAST(:now AS timestamptz) - CAST(:within AS interval)))
   AND NOT EXISTS (
       SELECT 1 FROM infra.server_jobs n
       WHERE n.kind = 'publish' AND n.created_at > j.created_at
@@ -2135,6 +2216,82 @@ WHERE j.kind = 'publish' AND j.args ? 'session'
         AND n.args -> 'session' ->> 'file_id' = j.args -> 'session' ->> 'file_id'
         AND n.args ->> 'account' = j.args ->> 'account' AND n.args ->> 'kind' = j.args ->> 'kind')
 ORDER BY j.created_at LIMIT 50"""
+
+
+NEWER_SQL = """SELECT 1 FROM infra.server_jobs n
+WHERE n.kind = 'publish' AND n.created_at > :t AND n.args -> 'session' ->> 'output' = :o
+  AND n.args -> 'session' ->> 'file_id' = :f AND n.args ->> 'account' = :a AND n.args ->> 'kind' = :k
+LIMIT 1"""
+
+
+async def _resend(tx: Tx, j: dict[str, Any], now: datetime) -> bool:
+    """⟨2026-11-27⟩ A publication's job the runner never ran goes again, the same job under the
+    same IG-Hub key, once its wait is over (RESEND_AFTER: 2, 5, 10 minutes after the failure).
+    Its time stays when it is still ahead; one gone by is «now». Never at night (quiet_hours):
+    then it is set for the morning (IG-Hub holds it; its page's pace is IG-Hub's own). The
+    session hears it as a step. True: sent."""
+    from hq_api.domain import quiet_hours as QH
+
+    args = OR._j(j["args"]) or {}
+    meta = dict(args.get("meta") or {})
+    n = _resends(meta)
+    since = j["finished_at"] or j["created_at"]
+    if now < since + RESEND_AFTER[min(n, len(RESEND_AFTER) - 1)]:
+        return False
+    meta["resend"] = n + 1
+    when = _when(meta.get("scheduled_at"))
+    if when is None or when <= now + SOON:
+        meta.pop("scheduled_at", None)
+        when = now
+    if QH.is_quiet(when):
+        meta["scheduled_at"] = QH.out_of_night(when).isoformat()
+    s = args.get("session") or {}
+    kind = KIND_FA.get(str(args.get("kind")), "پست")
+    account = str(args.get("account") or "")
+    try:
+        async with tx.conn.begin_nested():
+            # a tap, a flow or another follow-up sending the same publication meanwhile: one
+            o, f, a, k = publication_of(j)
+            await lock_publication(tx, o, f, a, k)
+            if await tx.scalar(NEWER_SQL, t=j["created_at"], o=o, f=f, a=a, k=k):
+                return False
+            company_id = await tx.scalar(
+                "SELECT id FROM core.companies WHERE code = :c", c=str(s.get("company") or "")
+            )
+            if company_id is None:
+                return False
+            route = await _route(tx, company_id)
+            server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
+            made = await SV.create_job(
+                tx,
+                server=server,
+                kind="publish",
+                args={**args, "meta": meta},
+                actor_kind=SERVICE.kind,
+                actor_code=SERVICE.code,
+                work_ref=j["work_ref"],
+                summary=f"ارسال دوباره‌ی {kind} در @{account} ({n + 1} از {RESEND_MAX})",
+                timeout_s=TIMEOUT_S,
+            )
+            await _follow(tx, made["id"])
+            if s.get("order"):
+                rep = await OR.ensure(tx, str(s["order"]))
+                if rep is not None:
+                    say = RESENT_FA.format(kind=kind, account=account, n=n + 1, of=RESEND_MAX)
+                    await OR._append_steps(tx, rep["id"], [_line(SYSTEM_FA, say)])
+            await audit.record(
+                tx, SERVICE, company_id=company_id, action="publish.resent", action_class="A1",
+                target_kind="order" if s.get("order") else "deliverable",
+                target_ref=str(s.get("order") or s.get("output") or "")[:64],
+                summary=f"{args.get('kind')} to @{account}: job {j['id']} never ran "
+                f"({j.get('error_code')}); sent again as {made['id']} ({n + 1}/{RESEND_MAX}, "
+                f"key {meta.get('key')})"[:500],
+            )  # fmt: skip
+    except Exception:  # noqa: BLE001 - one publication never stops the others
+        log.warning("publish resend failed", extra={"job": str(j["id"])})
+        return False
+    log.info("publish resent", extra={"job": str(j["id"]), "try": n + 1})
+    return True
 
 
 async def follow_up(hub: Any, now: datetime | None = None) -> int:
@@ -2153,9 +2310,16 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
     now = now or datetime.now(UTC)
     asked = 0
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        rows = await tx.all(FOLLOW_SQL, transient=list(TRANSIENT), held=list(HELD), now=now)
+        rows = await tx.all(
+            FOLLOW_SQL, transient=list(TRANSIENT), held=list(HELD), now=now,
+            within=RESEND_WITHIN,
+        )  # fmt: skip
         for row in rows:
             j = dict(row)
+            if _never_ran(j):
+                if _resendable(j, now) and await _resend(tx, j, now):
+                    asked += 1
+                continue
             args = OR._j(j["args"]) or {}
             meta = dict(args.get("meta") or {})
             result = OR._j(j.get("result")) or {}
