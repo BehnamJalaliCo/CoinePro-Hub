@@ -42,7 +42,7 @@
 # Driven by automations/sites/dotcoin/youtube.py, youtube_long.py and seo.py (host timers), never
 # by an agent.
 key: youtube-web
-version: "2026-11-21.1"
+version: "2026-11-27.2"
 site: studio.youtube.com
 # ⟨2026-11-21⟩ every Studio route names the channel by its id: this profile's account (dotcoin.me) is also an
 # EDITOR of @behnamjalali-tech, whose jobs (youtube-bj) now run in this same profile
@@ -252,39 +252,29 @@ tasks:
       - {do: pause, ms: 5000}
       - {do: read, selector: "#tags-container", alt: ["ytcp-video-metadata-editor"]}
   subtitles:
-    # The job's one spooled .srt (with timing) as the video's (job's video_id) Persian subtitles, as
-    # Studio's page shows it (2026-11-17, video 1): a video whose language row has no subtitles yet
-    # offers «Add» -> «Upload file»; one with YouTube's automatic track shows, under the pointer, an
-    # edit icon -> «Overwrite track» Continue -> the editor's ⋮ -> «Upload file». The file goes into
-    # the dialog's file input (never the native chooser), then Publish; the answer is the row.
+    # The job's one spooled .srt (with timing) as the video's (job's video_id) Persian subtitles.
+    # Studio's Languages page since 2026-11-26 (no language rows any more): «Upload manual» -> «With
+    # timing» -> the file into the dialog's input (no chooser) -> toast «… subtitles uploaded» (a
+    # draft) -> «Edit subtitles» -> Publish -> toast «… subtitles published»; the answer is that toast.
+    # (The behnamjalali.tech channel still has the old page with language rows: youtube-bj.yaml keeps
+    # the old steps; if it moves too, give it these.)
     timeout_s: 300
     steps:
-      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations"}
-      - {do: wait, selector: "ytgn-video-translation-row", state: attached, timeout_s: 60}
+      - {do: goto, url: "https://studio.youtube.com/video/{video_id}/translations?hl=en"}
+      - {do: wait, selector: "ytcp-button:has-text('Upload manual'):visible", timeout_s: 60}
       - {do: pause, ms: 3000}
-      # no subtitles yet: the row's «Add»
-      - {do: click, selector: "ytgn-video-translation-row:has-text('Persian') ytcp-button:has-text('Add'):visible", optional: true, timeout_s: 3}
-      # YouTube's automatic track: the pointer on the cell, its first icon (edit), Continue, the ⋮
-      - {do: click, selector: "ytgn-video-translation-row >> text=Published", optional: true, timeout_s: 3}
-      - {do: pause, ms: 800}
-      - {do: click, selector: "ytgn-video-translation-row:has-text('Persian') ytcp-icon-button:visible >> nth=0", optional: true, timeout_s: 5}
-      - {do: click, selector: "ytcp-button:has-text('Continue'):visible", optional: true, timeout_s: 5}
-      - {do: wait, selector: "ytcp-button:has-text('Edit as text'):visible", optional: true, timeout_s: 20}
-      - {do: pause, ms: 1500}
-      - {do: click, selector: ":is(ytcp-icon-button, tp-yt-icon-button, button):visible:right-of(ytcp-button:has-text('Edit as text')) >> nth=0", optional: true, timeout_s: 5}
-      - {do: pause, ms: 1500}
-      # both ways: «Upload file», with timing, the file into the dialog's input
-      - {do: click, selector: "text=Upload file >> visible=true", timeout_s: 15}
+      - {do: click, selector: "ytcp-button:has-text('Upload manual'):visible", timeout_s: 15}
       - {do: pause, ms: 2000}
       - {do: click, selector: "tp-yt-paper-radio-button:has-text('With timing'):visible", optional: true, timeout_s: 5}
-      # the dialog's own input is the newest one: the file set there loads at once (no Continue, no chooser)
       - {do: attach, selector: "input[type=file] >> nth=-1", file: 0, timeout_s: 15}
-      - {do: pause, ms: 5000}
-      - {do: wait, selector: "ytcp-button:has-text('Edit as text'):visible", timeout_s: 30}
-      - {do: click, selector: "ytcp-button:has-text('Publish'):visible", timeout_s: 30}
-      - {do: pause, ms: 5000}
-      # the video language's row (our track); YouTube's automatic one is listed apart once ours is in
-      - {do: read, selector: "ytgn-video-translation-row:has-text('video language')", alt: ["ytgn-video-translations-section"]}
+      - {do: wait, selector: "text=/subtitles uploaded/i", timeout_s: 60}
+      - {do: pause, ms: 4000}
+      - {do: click, selector: "ytcp-button:has-text('Edit subtitles'):visible", timeout_s: 20}
+      - {do: wait, selector: "ytcp-button:has-text('Publish'):visible", timeout_s: 30}
+      - {do: pause, ms: 2500}
+      - {do: click, selector: "ytcp-button:has-text('Publish'):visible", timeout_s: 20}
+      - {do: wait, selector: "text=/subtitles published/i", timeout_s: 60}
+      - {do: read, selector: "text=/subtitles published/i", timeout_s: 10}
   thumbnail:
     # an uploaded video's (job's video_id) custom thumbnail: the job's one spooled picture into the
     # details page's own thumbnail input (no file chooser), then Save; the answer is the thumbnail
