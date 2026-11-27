@@ -381,7 +381,7 @@ async def test_a_page_meta_refuses_trials_is_left_alone_and_off_means_none(
     for _ in range(3):
         await TR.tick(hub)
     assert await trials(su, main["ref"]) == 1
-    async with hub.db.tx([pc["id"]]) as tx:
+    async with hub.db.tx(await hub.companies.ids()) as tx:  # (the job is the IG-Hub runner's)
         assert await TR._probe_ok(tx, main["account"], datetime.now(UTC)) == (False, True)
         tomorrow = datetime.now(UTC) + timedelta(days=1)
         # tomorrow: on its daily probe (one trial, once none of the page's is on its way)

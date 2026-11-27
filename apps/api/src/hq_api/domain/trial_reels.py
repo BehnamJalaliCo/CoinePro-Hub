@@ -217,7 +217,7 @@ def spread(n: int, k: int) -> set[int]:
     """Which of a day's `n` reels (in their order) get the day's `k` trials: spread through the
     day, the earlier of two equal picks (its trial still has its own day): 5/3 → 1st, 2nd, 4th;
     4/2 → 1st, 3rd."""
-    return {i * n // k for i in range(min(n, k))}
+    return set(range(n)) if n <= k else {i * n // k for i in range(k)}
 
 
 async def busy(
