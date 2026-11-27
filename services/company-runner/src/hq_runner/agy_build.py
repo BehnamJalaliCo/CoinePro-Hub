@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""⟨0.4.0⟩ `agy-build`: Antigravity (`agy`, Gemini 4 Hydrogen) as the BUILDER inside a workshop turn.
+"""⟨0.4.0⟩ `agy-build`: Antigravity (`agy`, Gemini 4 Hydrogen) as the BUILDER in a workshop turn.
 
 The owner, 2026-11-27: the new pages are directed and edited by Claude (script, storyboard,
 voice, frame-sheet reviews, final approval) and BUILT by Hydrogen on its own Google quota. A
@@ -95,6 +95,10 @@ def argv_for(
     return argv
 
 
+def as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _cut(text: str, n: int = LOG_TEXT) -> str:
     t = " ".join(str(text).split())
     return t if len(t) <= n else t[:n] + "…"
@@ -103,7 +107,7 @@ def _cut(text: str, n: int = LOG_TEXT) -> str:
 def tool_line(info: dict[str, Any]) -> str:
     """A tool step in one line: its name and its most telling parameter."""
     name = str(info.get("name") or "tool")
-    params = info.get("parameters") if isinstance(info.get("parameters"), dict) else {}
+    params = as_dict(info.get("parameters"))
     for key in ("CommandLine", "Path", "TargetFile", "AbsolutePath", "Url", "Query", "Prompt"):
         if params.get(key):
             return f"{name}: {_cut(str(params[key]), 240)}"
@@ -146,17 +150,17 @@ class Stream:
                     if self.text.get(idx, "").strip():
                         out.append(f"say: {_cut(self.text[idx])}")
             elif kind in ("tool", "subagent"):
-                info = st.get("tool_info") if isinstance(st.get("tool_info"), dict) else {}
+                info = as_dict(st.get("tool_info"))
                 if not info:
                     info = {"name": st.get("tool_name")}
+                name = str(info.get("name") or st.get("tool_name") or "")
+                params = as_dict(info.get("parameters"))
+                path = params.get("Path") or params.get("TargetFile")
+                if name in FILE_TOOLS and path and str(path) not in self.files:
+                    self.files.append(str(path))
                 if state == "ACTIVE":
                     out.append(f"tool {tool_line(info)}")
                 elif state == "DONE":
-                    name = str(info.get("name") or st.get("tool_name") or "")
-                    params = info.get("parameters") if isinstance(info.get("parameters"), dict) else {}
-                    path = params.get("Path") or params.get("TargetFile")
-                    if name in FILE_TOOLS and path and str(path) not in self.files:
-                        self.files.append(str(path))
                     secs = st.get("duration_seconds")
                     took = f" ({secs:.0f}s)" if isinstance(secs, int | float) and secs >= 5 else ""
                     if took:
@@ -196,7 +200,13 @@ class Stream:
         return sum(int(u.get(k) or 0) for k in ("input_tokens", "output_tokens", "thinking_tokens"))
 
 
-FILE_TOOLS = {"write_file", "write_to_file", "edit_file", "replace_file_content", "multi_replace_file_content"}
+FILE_TOOLS = {
+    "write_file",
+    "write_to_file",
+    "edit_file",
+    "replace_file_content",
+    "multi_replace_file_content",
+}
 
 
 # ---------------------------------------------------------------- the command --
@@ -212,6 +222,7 @@ def _write_state(d: Path, **kv: Any) -> dict[str, Any]:
         state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         state = {}
+    state = as_dict(state)
     state.update(kv)
     tmp = d / "state.json.tmp"
     tmp.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -278,8 +289,15 @@ def run(args: argparse.Namespace) -> int:
                  exit=None, tokens=None)  # fmt: skip
     stream = Stream()
     stopped = False
-    with open(d / "log.txt", "a", encoding="utf-8") as log, open(d / "run.jsonl", "a", encoding="utf-8") as raw:
-        _say(f"agy-build {args.model} in {workdir}" + (f" resume {args.resume}" if args.resume else ""), log)
+    with (
+        open(d / "log.txt", "a", encoding="utf-8") as log,
+        open(d / "run.jsonl", "a", encoding="utf-8") as raw,
+    ):
+        _say(
+            f"agy-build {args.model} in {workdir}"
+            + (f" resume {args.resume}" if args.resume else ""),
+            log,
+        )
         proc = subprocess.Popen(
             argv, cwd=str(workdir), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, start_new_session=True,
@@ -294,7 +312,9 @@ def run(args: argparse.Namespace) -> int:
 
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
-        assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+        assert proc.stdin is not None
+        assert proc.stdout is not None
+        assert proc.stderr is not None
         proc.stdin.write(user_line(brief))
         proc.stdin.close()
         for line in proc.stdout:
@@ -327,14 +347,15 @@ def run(args: argparse.Namespace) -> int:
         response = stream.response
         (d / "response.md").write_text(response, encoding="utf-8")
         _write_state(d, status=status, ended=time.time(), exit=code, tokens=stream.total_tokens,
-                     conversation_id=stream.conversation_id or args.resume, files=stream.files)  # fmt: skip
+                     conversation_id=stream.conversation_id or args.resume,
+                     files=stream.files)  # fmt: skip
         _say(f"response: {_cut(response, 1500)}", log)
-        for line in (
+        for end_line in (
             f"AGY_CONVERSATION_ID={stream.conversation_id or args.resume or ''}",
             f"AGY_STATUS={status}",
             f"AGY_TOKENS={stream.total_tokens}",
         ):
-            _say(line, log)
+            _say(end_line, log)
     return 0 if status == "SUCCESS" else 1
 
 
@@ -345,11 +366,19 @@ def detach(args: argparse.Namespace) -> int:
         return 2
     st = _read_state(workdir)
     if _alive(st.get("pid")) and st.get("status") == "running":
-        print(f"agy-build: a build is already running in {workdir} (pid {st['pid']})", file=sys.stderr)
+        print(
+            f"agy-build: a build is already running in {workdir} (pid {st['pid']})", file=sys.stderr
+        )
         return 4
     d = _state_dir(workdir)
-    rest = [str(workdir), str(Path(args.brief).resolve()), "--model", args.model,
-            "--timeout", str(args.timeout)]
+    rest = [
+        str(workdir),
+        str(Path(args.brief).resolve()),
+        "--model",
+        args.model,
+        "--timeout",
+        str(args.timeout),
+    ]
     if args.resume:
         rest += ["--resume", args.resume]
     if args.agy:
@@ -426,9 +455,9 @@ def stop_build(workdir: Path) -> int:
     st = _read_state(workdir)
     for key in ("pid", "agy_pid"):
         pid = st.get(key)
-        if _alive(pid):
+        if isinstance(pid, int) and _alive(pid):
             with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(int(pid), signal.SIGTERM)
+                os.killpg(pid, signal.SIGTERM)
     print("stopped")
     return 0
 
@@ -442,7 +471,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S, help="seconds (default 3000)")
     p.add_argument("--detach", action="store_true", help="start in the background, return at once")
     p.add_argument("--wait", metavar="WORKDIR", default=None)
-    p.add_argument("--max", type=int, default=WAIT_MAX_S, help="seconds --wait follows (default 540)")
+    p.add_argument(
+        "--max", type=int, default=WAIT_MAX_S, help="seconds --wait follows (default 540)"
+    )
     p.add_argument("--status", metavar="WORKDIR", default=None)
     p.add_argument("--stop", metavar="WORKDIR", default=None)
     p.add_argument("--agy", default=None, help=argparse.SUPPRESS)

@@ -54,8 +54,8 @@ from pathlib import Path
 from typing import Any
 
 import hq_runner
+from hq_runner import agy_job, outbox, sandbox, tools_bridge
 from hq_runner import hook as hook_module
-from hq_runner import outbox, sandbox, tools_bridge
 from hq_runner import workspace as workspace_state
 from hq_runner.config import config_path
 from hq_runner.hub import HubError
@@ -357,9 +357,15 @@ def usage_from_result(obj: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _wall(
-    ctx: JobContext, ref: str, cwd: Path, claude: str, has_oauth: bool
+    ctx: JobContext,
+    ref: str,
+    cwd: Path,
+    claude: str,
+    has_oauth: bool,
+    extra_protect: list[str] | None = None,
 ) -> tuple[sandbox.Plan | None, str | None]:
-    """⟨0.3.4⟩ The wall for this turn, or why it stays down (English, for the report)."""
+    """⟨0.3.4⟩ The wall for this turn, or why it stays down (English, for the report).
+    ⟨0.4.0⟩ `extra_protect`: more closed paths (an agy turn closes the shared ~/.gemini)."""
     if sandbox.switched_off(ctx.env):
         return None, "switched off on this server (HQ_RUNNER_SANDBOX)"
     if not has_oauth:
@@ -370,6 +376,7 @@ async def _wall(
         plan = sandbox.plan(
             ref, cwd, workspace_state.root(), (ctx.cfg_path or config_path()).resolve(), claude
         )
+        plan.protect += [p for p in extra_protect or [] if p not in plan.protect]
     except (sandbox.SandboxError, OSError) as exc:
         return None, str(exc) or type(exc).__name__
     try:
@@ -391,6 +398,10 @@ async def _wall(
 
 async def run_claude(ctx: JobContext) -> JobResult:
     args = ctx.args
+    if agy_job.is_agy(args.get("model")):
+        # ⟨0.4.0⟩ a Gemini model (the owner's Hydrogen pages, the hub's fallback when its Claude
+        # accounts are out): the same turn on Antigravity
+        return await agy_job.run_agy(ctx)
     brief = args.get("brief")
     if not isinstance(brief, str) or not brief.strip():
         raise JobError("شرح کار (brief) داده نشده است.")
@@ -418,6 +429,12 @@ async def run_claude(ctx: JobContext) -> JobResult:
     if not claude:
         raise JobError("Claude Code روی این سرور پیدا نشد.", 127)
     resume = args.get("session_id") or args.get("resume")
+    if isinstance(resume, str) and resume.startswith(agy_job.AGY_PREFIX):
+        # ⟨0.4.0⟩ the work's last turn ran on agy (a fallback): Claude Code cannot take its
+        # conversation up, so this turn starts afresh in the same folder
+        resume = None
+        brief = agy_job.CONTINUED_FA + brief
+        ctx.sink.emit("progress", {"text": "resume dropped: the earlier session was agy's"})
     # ⟨0.3.5⟩ §53 how hard the session thinks (the workshop asks for `max`), when this CLI can
     effort = (
         effort_for(args.get("effort"), await asyncio.to_thread(effort_levels, claude))

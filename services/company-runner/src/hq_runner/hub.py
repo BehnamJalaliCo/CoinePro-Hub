@@ -135,6 +135,10 @@ class Hub:
             h["X-HQ-Runner-Hub-Rtt-Ms"] = f"{self.route.rtt_ms:.1f}"
         if job_id:
             h["X-HQ-Runner-Job"] = job_id
+        from hq_runner import agy_job  # ⟨0.4.0⟩ (late: agy_job imports this module's HubError)
+
+        if agy_job.installed():
+            h["X-HQ-Runner-Agy"] = "1"  # it can run a Gemini (Hydrogen) turn
         tok = self.token() if auth else None
         if tok:
             h["Authorization"] = f"Bearer {tok}"

@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hq-runner"
-version = "0.3.6"
+version = "0.4.0"
 description = "CoinePro HQ job runner for a company server: outbound HTTPS only, like a self-hosted CI runner"
 readme = "README.md"
 license = "MIT"
@@ -30,7 +30,9 @@ src = ["src", "testing"]
 # Persian summaries and messages for the owner.
 "src/hq_runner/*.py" = ["RUF001", "RUF003"]
 # Fixed read-only commands and the job's own command, run without a shell or with bash -lc on purpose.
-"src/hq_runner/{proc,inventory,jobs,claude_job}.py" = ["S603", "S607"]
+"src/hq_runner/{proc,inventory,jobs,claude_job,agy_build,agy_job}.py" = ["S603", "S607"]
+# the fake agy speaks its own long one-line JSON events
+"testing/fake_agy.py" = ["E501", "S108"]
 "testing/*" = ["S603", "S607", "T201"]
 # httpcore's network backend interface names its parameter `timeout`.
 "src/hq_runner/net.py" = ["ASYNC109"]
