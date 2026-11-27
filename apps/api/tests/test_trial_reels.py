@@ -125,6 +125,78 @@ def test_the_trials_hour_is_its_days_far_from_the_rest_and_never_in_the_night() 
     # a reel of two days ago: too late for a trial
     old = at(day - timedelta(days=2), 12)
     assert TR.pick_slot(own_at=old, feed=[old], stories=[], now=now, seed="P-6") is None
+    # ⟨2026-11-28⟩ a day with a reel or post every two hours: a page's trial goes the next
+    # morning; a PER_DAY page's (tight) stays its day, its widest gap of at least an hour
+    packed = [at(day, h) for h in (9, 11, 13, 15, 17, 19, 21, 23)]
+    t = TR.pick_slot(own_at=at(day, 9), feed=packed, stories=[], now=now, seed="P-10")
+    assert t is not None and local(t).date() == day + timedelta(days=1)
+    t = TR.pick_slot(own_at=at(day, 9), feed=packed, stories=[], now=now, seed="P-10", tight=True)
+    assert t is not None and local(t).date() == day
+    assert min(abs(t - x) for x in packed) >= TR.GAP_FEED_TIGHT and t - at(day, 9) >= TR.GAP_OWN
+
+
+class _Tx:
+    """scalar/one of a transaction, answered in order."""
+
+    def __init__(self, *answers: Any) -> None:
+        self.answers = list(answers)
+
+    async def scalar(self, *_a: Any, **_k: Any) -> Any:
+        return self.answers.pop(0)
+
+    async def one(self, *_a: Any, **_k: Any) -> Any:
+        return self.answers.pop(0)
+
+
+def test_a_capped_page_gets_its_days_number_of_trials_spread_through_the_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⟨2026-11-28⟩ @oneoxxo 5 reels → 3 trials, @fxbyfx 4 → 2; other pages one per reel."""
+    assert TR.PER_DAY == {"oneoxxo": 3, "fxbyfx": 2}
+    assert TR.spread(5, 3) == {0, 1, 3} and TR.spread(4, 2) == {0, 2}
+    assert TR.spread(2, 3) == {0, 1} and TR.spread(0, 3) == set()
+    day = datetime(2026, 12, 1, tzinfo=TEHRAN).date()
+    reels = [(at(day, h), f"P-{h}") for h in (9, 12, 15, 18)] + [(at(day, 21), "")]  # one planned
+
+    async def day_reels(*_a: Any) -> list[tuple[datetime, str]]:
+        return reels
+
+    monkeypatch.setattr(TR, "_day_reels", day_reels)
+
+    def row(account: str, h: int) -> dict[str, Any]:
+        return {"account": account, "ref": f"P-{h}", "published_at": None,
+                "scheduled_at": at(day, h), "at": at(day, h)}  # fmt: skip
+
+    def cap_ok(account: str, h: int, used: int) -> bool:
+        return asyncio.run(TR._cap_ok(_Tx(used), row(account, h)))  # type: ignore[arg-type]
+
+    # 5 reels, 3 a day: the 1st, 2nd and 4th (each looked at once the ones before have theirs)
+    got = [cap_ok("oneoxxo", 9, 0), cap_ok("oneoxxo", 12, 1), cap_ok("oneoxxo", 15, 2),
+           cap_ok("oneoxxo", 18, 2)]  # fmt: skip
+    assert got == [True, True, False, True]
+    assert not cap_ok("oneoxxo", 18, 3)  # the day has its three
+    # the 2nd got none (its hour, its video): the 3rd takes its place when it is needed
+    assert cap_ok("oneoxxo", 15, 1) is False  # two picks still ahead (the 4th, and the 5th)
+    assert cap_ok("oneoxxo", 18, 1) is True
+    # any other page: every reel
+    assert all(asyncio.run(TR._cap_ok(_Tx(), row("theprochart", h))) for h in (9, 15))  # type: ignore[arg-type]
+
+
+def test_a_page_meta_refused_is_probed_once_a_day() -> None:
+    """⟨2026-11-28⟩ «ریلز آزمایشی هر روز تست شود»: none the day of the refusal, then one a day
+    (none while one is on its way) until Meta lets one through."""
+    now = at(datetime(2026, 12, 2, tzinfo=TEHRAN).date(), 10)
+    today = at(datetime(2026, 12, 2, tzinfo=TEHRAN).date(), 0)
+
+    def probe(*answers: Any) -> tuple[bool, bool]:
+        return asyncio.run(TR._probe_ok(_Tx(*answers), "dotcoinme", now))  # type: ignore[arg-type]
+
+    assert probe(None) == (True, False)  # never refused
+    assert probe(today + timedelta(hours=3)) == (False, True)  # refused today
+    yesterday = today - timedelta(hours=5)
+    assert probe(yesterday, {"through": False, "on_way": False}) == (True, True)  # today's probe
+    assert probe(yesterday, {"through": False, "on_way": True}) == (False, True)  # one on its way
+    assert probe(yesterday, {"through": True, "on_way": True}) == (True, False)  # let through
 
 
 def test_the_caption_keeps_its_words_and_moves_its_hashtags() -> None:
@@ -176,6 +248,7 @@ async def test_a_reels_trial_is_made_once_for_its_hour_and_never_a_flows_day(
     su: Any,
     no_model: list[Any],  # noqa: F811
     inline: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ig, pc = await new_company(), await new_company()
     co = pc["code"]
@@ -197,6 +270,8 @@ async def test_a_reels_trial_is_made_once_for_its_hour_and_never_a_flows_day(
     )
     await real_video(hub, su, reel)
 
+    # (a PER_DAY page of one trial a day: its only reel is its pick)
+    monkeypatch.setattr(TR, "PER_DAY", {main["account"]: 1})
     trial = await trial_of(hub, su, main["ref"])
     assert trial["kind"] == "reel" and trial["account"] == main["account"]
     assert trial["title_fa"].startswith("ریلز آزمایشی · ")
@@ -302,10 +377,19 @@ async def test_a_page_meta_refuses_trials_is_left_alone_and_off_means_none(
         "SELECT * FROM media.publications WHERE source ->> 'trial_of' = $1", main["ref"]
     )
     assert trial["state"] == "failed"
-    # refused: never tried again for this reel (nor the page's next reels for three days)
+    # refused: never tried again for this reel (nor the page's next reels today; one tomorrow)
     for _ in range(3):
         await TR.tick(hub)
     assert await trials(su, main["ref"]) == 1
+    async with hub.db.tx([pc["id"]]) as tx:
+        assert await TR._probe_ok(tx, main["account"], datetime.now(UTC)) == (False, True)
+        tomorrow = datetime.now(UTC) + timedelta(days=1)
+        # tomorrow: on its daily probe (one trial, once none of the page's is on its way)
+        assert (await TR._probe_ok(tx, main["account"], tomorrow))[1] is True
+    # (every test's page is @pro.chart: the refusal goes to another page for the next tests)
+    await su.execute(
+        "UPDATE media.publications SET account = 'refused.page' WHERE id = $1", trial["id"]
+    )
 
 
 async def test_the_host_makes_the_copy_the_worker_asked_for_and_the_worker_takes_it(
@@ -334,8 +418,6 @@ async def test_the_host_makes_the_copy_the_worker_asked_for_and_the_worker_takes
         "SELECT * FROM media.publications WHERE chain[1] = $1", UUID(job["id"])
     )
     await real_video(hub, su, reel)
-    # (every test's page is @pro.chart: the refusal of the test before is past here)
-    monkeypatch.setattr(TR, "REFUSED_FOR", timedelta(0))
     volume = Path(hub.storage.local_path("0" * 32)).parent.parent
     ask = volume / TC.QUEUE / f"{main['ref']}-1.json"
     # the worker asks (another test's reel may be asked first)

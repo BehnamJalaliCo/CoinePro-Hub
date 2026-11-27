@@ -29,8 +29,17 @@ Each trial is a row of media.publications with `source.trial_of` = its reel's re
 reads it (flows.PUBLISHED_SQL, DONE_SQL, REPEAT_SQL, tg_posts.REELS_SQL leave it out). One trial
 per reel: the job's IG-Hub key is the same on every try (never posted twice); a trial that failed
 is tried once more under a new key (TRIES), never more. A page Meta does not let post trials
-(IG-Hub: `trial_not_eligible`, Meta 10/2207081) is left alone for REFUSED_FOR, then tried again;
-its reels are never touched. Off: `trial_reels` in owner.settings.flows_off.
+(IG-Hub: `trial_not_eligible`, Meta 10/2207081) is left alone the rest of that day (Tehran), then
+tried again every day (⟨2026-11-28⟩ the owner: «ریلز آزمایشی هر روز تست شود»; was every three
+days) with ONE trial a day, its probe, until Meta lets one through; its reels are never touched.
+
+⟨2026-11-28⟩ A page in PER_DAY (the owner: @oneoxxo 5 reels a day → 3 trials, @fxbyfx 4 → 2) gets
+that many trials a day, not one per reel: copies of that many of the day's reels (the reel's own
+Tehran day; out, scheduled or still planned by a flow), picked spread through the day (`spread`);
+a picked reel that gets none (no hour, its video gone) leaves its place to a later one. Such a page's
+day is full, so its trial may sit as close as GAP_FEED_TIGHT to its other reels and posts when no
+hour two hours clear is left. Every other page: one trial per reel, as before.
+Off: `trial_reels` in owner.settings.flows_off.
 """
 
 from __future__ import annotations
@@ -70,9 +79,11 @@ GAP_STORY = timedelta(minutes=20)
 STEP = timedelta(minutes=5)
 LEAD = timedelta(minutes=30)  # the copy is made and sent before its hour
 LOOK_BACK = timedelta(hours=40)  # a reel of yesterday evening still gets its trial today
-REFUSED_FOR = timedelta(days=3)
 TRIES = 2
-LOOK = 10  # reels read per tick
+LOOK = 40  # reels read per tick (a capped page's reels without a trial stay among them)
+# ⟨2026-11-28⟩ the owner: trials a day for these pages (any other page: one per reel)
+PER_DAY: dict[str, int] = {"oneoxxo": 3, "fxbyfx": 2}
+GAP_FEED_TIGHT = timedelta(hours=1)  # a PER_DAY page's full day: the last resort
 FEED_STATES = ("scheduled", "publishing", "published", "held")
 PROBE_LIMIT_S = 30.0
 MARKS = ("👀", "✨", "📌", "🎬", "🔥")
@@ -97,6 +108,32 @@ SELECT p.id, p.ref, p.company_id, c.code AS company, p.account, p.state, p.title
                         SELECT 1 FROM infra.server_job_events e WHERE e.job_id = ANY(t.chain)
                            AND e.type = 'stderr' AND e.data ->> 'text' LIKE '%trial_not_eligible%'))
  ORDER BY p.at LIMIT :n"""
+# a page's reels of one day (Tehran) and how many of them have (or still may get) their trial
+DAY_REELS_SQL = """
+SELECT ref, at FROM media.publications
+ WHERE account = :a AND channel = 'instagram' AND kind = 'reel' AND NOT source ? 'trial_of'
+   AND state = ANY(:states) AND at >= :lo AND at < :hi"""
+USED_SQL = """
+SELECT count(*) FROM (
+  SELECT count(*) AS n, bool_or(t.state NOT IN ('cancelled', 'failed')) AS live,
+         bool_or(t.state = 'failed') AS failed
+    FROM media.publications t JOIN media.publications p ON p.ref = t.source ->> 'trial_of'
+   WHERE t.account = :a AND t.source ? 'trial_of' AND p.at >= :lo AND p.at < :hi
+   GROUP BY t.source ->> 'trial_of') x
+ WHERE live OR (failed AND n < :tries)"""
+# Meta's last refusal of a page's trial; then whether one went through since, and whether a trial
+# of the page is still on its way or was made today (that day's probe)
+REFUSED_SQL = """
+SELECT max(t.updated_at) FROM media.publications t
+ WHERE t.account = :a AND t.source ? 'trial_of' AND t.state = 'failed' AND EXISTS (
+       SELECT 1 FROM infra.server_job_events e WHERE e.job_id = ANY(t.chain)
+          AND e.type = 'stderr' AND e.data ->> 'text' LIKE '%trial_not_eligible%')"""
+PROBE_SQL = """
+SELECT EXISTS (SELECT 1 FROM media.publications t WHERE t.account = :a AND t.source ? 'trial_of'
+                  AND t.state = 'published' AND t.published_at > :refused) AS through,
+       EXISTS (SELECT 1 FROM media.publications t WHERE t.account = :a AND t.source ? 'trial_of'
+                  AND (t.state IN ('scheduled', 'held', 'publishing') OR t.created_at >= :today))
+         AS on_way"""
 ORPHANS_SQL = """
 SELECT t.ref, t.chain[1] AS job FROM media.publications t
   JOIN media.publications p ON p.ref = t.source ->> 'trial_of'
@@ -149,9 +186,11 @@ def pick_slot(
     stories: list[datetime],
     now: datetime,
     seed: str,
+    tight: bool = False,
 ) -> datetime | None:
     """The trial's hour (UTC): the reel's own day if it fits there, else the next morning on;
-    None when neither day has one (or both went by)."""
+    None when neither day has one (or both went by). `tight` (a PER_DAY page): a day with no hour
+    GAP_FEED_MIN clear takes its widest gap of at least GAP_FEED_TIGHT."""
     rng = random.Random(seed)  # noqa: S311 - a spread of hours, not a secret
     first_day = own_at.astimezone(TEHRAN).date()
     for day in (first_day, first_day + timedelta(days=1)):
@@ -167,10 +206,18 @@ def pick_slot(
         good = [t for t, far in fits if far >= GAP_FEED]
         if good:
             return rng.choice(good)
-        ok = [(t, far) for t, far in fits if far >= GAP_FEED_MIN]
+        least = GAP_FEED_TIGHT if tight else GAP_FEED_MIN
+        ok = [(t, far) for t, far in fits if far >= least]
         if ok:
             return max(ok, key=lambda x: (x[1], -x[0].timestamp()))[0]
     return None
+
+
+def spread(n: int, k: int) -> set[int]:
+    """Which of a day's `n` reels (in their order) get the day's `k` trials: spread through the
+    day, the earlier of two equal picks (its trial still has its own day): 5/3 → 1st, 2nd, 4th;
+    4/2 → 1st, 3rd."""
+    return {i * n // k for i in range(min(n, k))}
 
 
 async def busy(
@@ -390,7 +437,77 @@ async def _source(tx: Tx, hub: Any, row: dict[str, Any]) -> Source | None:
 async def _slot(tx: Tx, row: dict[str, Any], now: datetime) -> datetime | None:
     own = row["published_at"] or row["scheduled_at"] or row["at"]
     feed, stories = await busy(tx, row["account"], row["id"], own)
-    return pick_slot(own_at=own, feed=feed, stories=stories, now=now, seed=str(row["ref"]))
+    return pick_slot(
+        own_at=own, feed=feed, stories=stories, now=now, seed=str(row["ref"]),
+        tight=row["account"] in PER_DAY,
+    )  # fmt: skip
+
+
+def _day_of(t: datetime) -> tuple[datetime, datetime]:
+    day = t.astimezone(TEHRAN).date()
+    return _at(day, time(0, 0)), _at(day + timedelta(days=1), time(0, 0))
+
+
+async def _probe_ok(tx: Tx, account: str, now: datetime) -> tuple[bool, bool]:
+    """(may a trial of this page be made now, is the page on its daily probe). A page Meta refused
+    gets none the day of the refusal, then one a day (none while one is on its way) until one is
+    let through."""
+    refused = await tx.scalar(REFUSED_SQL, a=account)
+    if refused is None:
+        return True, False
+    today, _ = _day_of(now)
+    if refused >= today:
+        return False, True
+    got = await tx.one(PROBE_SQL, a=account, refused=refused, today=today)
+    if got["through"]:
+        return True, False
+    return not got["on_way"], True
+
+
+async def _day_reels(
+    tx: Tx, account: str, lo: datetime, hi: datetime
+) -> list[tuple[datetime, str]]:
+    """The page's reels of that day in their order: out or scheduled (their ref), and still to be
+    made by its flows ("")."""
+    from hq_api.domain import publications as PB
+
+    out = [(r["at"], str(r["ref"])) for r in await tx.all(
+        DAY_REELS_SQL, a=account, states=list(FEED_STATES), lo=lo, hi=hi)]  # fmt: skip
+    try:
+        async with tx.conn.begin_nested():
+            for p in await PB.planned_today(tx, lo.astimezone(TEHRAN).date()):
+                if p.account == account and p.kind == "reel" and lo <= p.publish_at < hi:
+                    out.append((p.publish_at, ""))
+    except Exception:  # noqa: BLE001 - the reels out or scheduled are still known
+        log.warning("the flows' plan was not read", extra={"account": account})
+    return sorted(out)
+
+
+async def _cap_ok(tx: Tx, row: dict[str, Any]) -> bool:
+    """A PER_DAY page: is this reel one of its day's picks (`spread`), or needed to reach the day's
+    number; any other page: yes."""
+    cap = PER_DAY.get(str(row["account"]))
+    if cap is None:
+        return True
+    lo, hi = _day_of(row["published_at"] or row["scheduled_at"] or row["at"])
+    used = int(await tx.scalar(USED_SQL, a=row["account"], lo=lo, hi=hi, tries=TRIES) or 0)
+    if used >= cap:
+        return False
+    reels = await _day_reels(tx, str(row["account"]), lo, hi)
+    i = next((k for k, (_, ref) in enumerate(reels) if ref == row["ref"]), None)
+    if i is None:
+        return True
+    return i in spread(len(reels), cap) or len(reels) - i - 1 < cap - used
+
+
+async def _allowed(tx: Tx, row: dict[str, Any], now: datetime) -> tuple[bool, bool]:
+    """(may this reel's trial be made now, one at a time for its page: a capped page or one on
+    its daily probe)."""
+    ok, probing = await _probe_ok(tx, str(row["account"]), now)
+    if not ok:
+        return False, True
+    capped = row["account"] in PER_DAY
+    return await _cap_ok(tx, row), probing or capped
 
 
 async def _cancel_orphans(tx: Tx) -> int:
@@ -414,18 +531,26 @@ async def _plan(tx: Tx, hub: Any, now: datetime) -> list[Source]:
     lo = max(_at(SINCE, time(0, 0)), now - LOOK_BACK)
     rows = await tx.all(
         CANDIDATES_SQL, states=list(FEED_STATES), lo=lo, tries=TRIES,
-        refused_since=now - REFUSED_FOR, n=LOOK,
+        refused_since=_day_of(now)[0], n=LOOK,
     )  # fmt: skip
     out: list[Source] = []
+    one_each: set[str] = set()  # pages whose trials are made one at a time (one this tick)
     for r in rows:
         row = dict(r)
+        if row["account"] in one_each:
+            continue
         if await gate.automation_lock(tx, row["company_id"]) is not None:
+            continue
+        ok, single = await _allowed(tx, row, now)
+        if not ok:
             continue
         if await _slot(tx, row, now) is None:
             continue
         src = await _source(tx, hub, row)
         if src is not None:
             out.append(src)
+            if single:
+                one_each.add(str(row["account"]))
     return out
 
 
@@ -436,6 +561,9 @@ async def _send(tx: Tx, hub: Any, src: Source, made: Made, now: datetime) -> dic
     from hq_api.domain import session_publish as SPB
 
     row = src.row
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k="trial-page:" + row["account"]
+    )
     await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))", k="trial:" + row["ref"])
     standing = await tx.scalar(
         "SELECT count(*) FROM media.publications WHERE source ->> 'trial_of' = :r", r=row["ref"]
@@ -445,6 +573,8 @@ async def _send(tx: Tx, hub: Any, src: Source, made: Made, now: datetime) -> dic
     fresh = dict(await tx.one("SELECT * FROM media.publications WHERE id = :id", id=row["id"]))
     if fresh["state"] not in FEED_STATES:
         return None
+    if not (await _allowed(tx, {**row, **fresh}, now))[0]:
+        return None  # the page's day has its trials, or its probe is out
     slot = await _slot(tx, {**row, **fresh}, now)
     if slot is None:
         return None
