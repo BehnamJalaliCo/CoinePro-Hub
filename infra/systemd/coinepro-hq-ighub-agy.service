@@ -1,0 +1,10 @@
+[Unit]
+Description=CoinePro HQ: IG-Hub Gemini replies, Antigravity writes what the Gemini API did not (owner 2026-11-27)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=Hub
+ExecStart=/usr/bin/python3 -I /home/Hub/bin/ighub_ai_agy.py
+TimeoutStartSec=900
+Nice=10
