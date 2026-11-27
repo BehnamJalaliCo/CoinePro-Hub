@@ -13,7 +13,7 @@ motif: vault
 description: برداشت بایننس بعد از هک ۶٫۳ میلیارد دلاری آبان دوباره کامل باز شد. چه اتفاقی افتاد، کیف پول گرم چیست و اثبات ذخایر برای تو چه معنایی دارد؟
 lead: بایننس اعلام کرد همه‌ی توقف‌های برداشتِ مربوط به هک آبان برداشته شده است. این خبر را ساده مرور می‌کنیم و می‌بینیم برای یک تازه‌کار چه درسی دارد.
 answer: برداشت بایننس بعد از هک ۷ آبان ۱۴۰۵ دوباره کامل باز شد. در آن حمله حدود ۶٫۳ میلیارد دلار از کیف‌پول‌های گرم این صرافی برده شد. بایننس بیش از ۶٫۳۴ میلیارد دلار از سرمایه‌ی خودش را برای جبران ضرر کاربران کنار گذاشت و برداشت‌ها را از ۱۰ آبان، اول با بیت‌کوین، مرحله‌به‌مرحله برگرداند.
-reel:
+reel: https://www.instagram.com/reel/DgQKqjhA6mL/
 sources:
 - Cointelegraph: Binance completes withdrawal recovery four weeks after $6.3B hack | https://cointelegraph.com/news/binance-completes-withdrawal-recovery-four-weeks-after-63b-hack
 summary:
