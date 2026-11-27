@@ -28,7 +28,7 @@ SCN.kinetic=function(tl,d,sh){const p=sh.p;const dark=(sh.bgk||'black')==='black
  slamWords(sh,tl,p.text,p.key,W/2,H/2,p.size||96,1560,dark?WH:BK,dark?MU:BK,dark?BK:MU,{sync:p.sync!==false});};
 // 3. bignumber: a number that rolls in, its unit and a label; optional bar of scale
 SCN.bignumber=function(tl,d,sh){const p=sh.p;const dark=(sh.bgk||'black')!=='mustard'&&sh.bgk!=='paper';const col=dark?WH:BK;
- const at=Math.min(wsub(sh,p.at,0.15),0.35);const u=eo(pr(tl,at,p.roll||1.1));const v=p.value*u;const txt=p.text?(u>0.98?p.text:fa(Math.round(v))):(p.decimals?fa(v.toFixed(p.decimals)).replace('.','٫'):sep(Math.round(v)));
+ const at=Math.min(wsub(sh,p.at,0.15),0.35);const u=eo(pr(tl,at,p.roll||1.1));const v=p.value*u;const txt=p.text?(u>0.98?p.text:fa(Math.round(v))):(p.decimals?fa(v.toFixed(p.decimals)).replace('.','/'):sep(Math.round(v)));
  if(u<=0&&!p.pre)return;X.save();const sc=lerp(1.25,1,eback(pr(tl,at,0.5)));X.translate(W/2,H/2-30);X.scale(sc,sc);
  T(txt,0,0,p.size||260,'YKE',p.col||(dark?MU:BK),'center');X.restore();
  if(p.unit){const q=eo(pr(tl,at+0.4,0.4));X.save();X.globalAlpha=q;T(p.unit,W/2,H/2+140,58,'YKK',col,'center');X.restore();}

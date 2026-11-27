@@ -41,3 +41,9 @@ trick / behind the scenes; 22:00 the day's hot news + what it means), twelve sto
 (bjtech-common/tools/card.py), the breaking news (a host watcher on the vendors' own sources starts a flash story
 and a full reel the moment a new model lands), and a daily 8–15 minute YouTube video. Narrator Arlo. Banks:
 bjtech-reels/topics.md (406), bjtech-longform/topics.md (142), researched 2026-11-18 with sources.
+
+fa-type (2026-11-27): Persian typography and the TYPE GATE every page's picture tools import (fatype.py): the
+number rules, and before a picture is written Chrome's own report of the font that drew every glyph (a system
+font = fail), text out of its box / chip / over other text = fail. Born from DotCoin's stories of 11-27
+(F-0246: figures drawn by a system font). dotcoin-stories/tools/slide_fallback.py is the tested fallback when
+the art path fails; deliver_check.py refuses a set the gate did not pass. See fa-type/README.md.

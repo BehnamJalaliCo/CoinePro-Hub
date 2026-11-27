@@ -52,9 +52,32 @@ and paper-cut pictures: too basic and too childish. From now on:
   - the content layer: free, full colour;
   - the meaning layer: green #16C784 up, red #EA3943 down, a coin in its own colours.
 - **Type:** Persian set by ChatGPT in the slides, in a bold modern Persian sans like IRANYekanX
-  (our tool sets IRANYekanX Pro itself for the frame and the fallback).
+  (our tools set IRANYekanX Pro FaNum themselves for the frame and the fallback).
   - ≤ 20 words a slide, short lines, Persian digits.
   - No full stop at the end of a line. Casual, warm Persian with «تو».
+
+## TYPOGRAPHY — HARD RULES (the owner, 2026-11-27: «با فونت خراب … این اشتباه ها تکرار نشه»)
+F-0246 (11-27) went out with broken figures: ChatGPT failed, Gemini was off, and the session drew the
+twelve slides with its OWN HTML whose big figures named a font the page never loaded, so Chromium drew
+them in a system font — zeros as heavy squares, «٬» as «’» («۵’■■■»), «٫» like «ر», a chip «۱۲ از ۱۰۰»
+running out of its box. Its own score said 8.5–8.8. From now on:
+- **Our text is drawn ONLY by the kit's tools:** `tools/slide_frame.py` (the frame, and a ChatGPT
+  slide's words when it got them wrong) and `tools/slide_fallback.py` (whole slides when the art path
+  failed). **Never your own HTML, CSS, fonts, weights, Pillow text or any other improvised renderer.**
+  Never a font stack, a weight or a family the tools do not set; never ExtraBlack (950) for figures.
+- **Both tools run the TYPE GATE** (/home/studio/kits/fa-type, README there): Chrome reports the font of
+  every glyph (a system-font fallback fails), a face that did not load fails, text out of its chip / box /
+  column / over other text / in the frame's zones fails, and the number rules below fail. **A failing
+  slide is not written** (exit 2): shorten or fix the text and run again. Never work around the gate.
+- **The number rules** (fa-type does them for figures you give as numbers; write text the same way):
+  Persian digits only (۰–۹, never 0–9 or ٠–٩); up to 4 digits NO separator («۵۰۰۰», «۱۲۵۰»); 5 digits
+  and more «٬» (U+066C) every three («۶۰٬۴۸۰»); decimals «/» («۹/۶»: the Persian press's mark; never «.»
+  «,» and never «٫», which several of our fonts draw like «ر»); «٪» right after the number («۹/۶٪»); NO «-» or «+» beside a figure: say «افت» / «رشد» or let the tool
+  colour it (tone down/up, ▼/▲); never «’» «'» «,» in a figure; «دلار» in words, no «$» in Persian lines.
+  Check any string first: `VENV/bin/python -I /home/studio/kits/fa-type/tools/type_gate.py --text "…"`.
+- **Delivery is gated:** `VENV/bin/python -I KIT/tools/deliver_check.py` must say DELIVERABLE (every
+  out/story_N.jpg byte for byte a picture slide_frame.py made with the gate passed, every slide's
+  typography scored ≥ 9 in qc/scores.md). NOT DELIVERABLE = you do not deliver: fix and check again.
 - **Every slide keeps its top 260 px and its bottom 420 px calm** (background only). Instagram's bar
   and reply box sit there, and our frame puts the mark, the number and the word bar there.
 - **Never** the look of Pro-Chart or Zarib×100 (no navy/cyan neon, no glassy crypto-neon).
@@ -98,6 +121,10 @@ and paper-cut pictures: too basic and too childish. From now on:
    Then end the turn with `order.progress` («تصویرهای جمنای در راه است»). At the next turn,
    **Read** each one: keep the good ones, ask again for a bad one (≤ 2 more tries). Each one reaches
    `in/` with its `file_id`, so it can go with ChatGPT's call.
+   - **Refused** (`channel_not_configured`, `signed_out`, `expired`: Gemini's browser profile is signed
+     out — 11-21 → 11-27 it was): do NOT wait for it and do not stop. Say it once in qc/scores.md, go on
+     with ChatGPT alone, and ask Gemini once more after step 4 (a picture that comes can still be the
+     hero of a slide redone in (a)).
 4. **The twelve slides — ONE ChatGPT call:**
    - `substitute.call` seat creative, kind image, placement instagram_story, player **gpt**,
      **images: 12**, `file_ids`: the Gemini pictures to use (0–3).
@@ -119,7 +146,11 @@ and paper-cut pictures: too basic and too childish. From now on:
      own colours. <Attached pictures: use them as the hero art of slides …>.
      TYPE: Persian, right to left, a bold modern Persian sans-serif like IRANYekanX (Black titles,
      Medium body), large and sharp on a phone, Persian digits. Write EXACTLY the Persian words given
-     for each slide, letter by letter, nothing more, no English except a ticker (BTC).
+     for each slide, letter by letter, nothing more, no English except a ticker (BTC). Persian
+     digits drawn cleanly: the zero «۰» a small open ring or dot (never a big solid square), «٬» a
+     low comma, decimals written «/» («۹/۶»); a highlighted figure stays INSIDE its box.
+     Draw EVERY slide with your built-in image generation tool: do not write or run code, do not use
+     Python, do not make files (a slide typeset by code is refused).
      Keep the TOP 260 px and the BOTTOM 420 px of EVERY slide empty (background only): no text,
      no objects there.
      No logos, no watermark, no page name, no slide numbers (added later).
@@ -128,12 +159,25 @@ and paper-cut pictures: too basic and too childish. From now on:
      …
      Slide 12 (summary): title «…»; lines «…», «…», «…».
      ```
-   - The hub adds "exactly 12 separate images, one per slide".
+   - The hub adds "exactly 12 separate images, one per slide" (and the image tool, no code).
+   - Give every figure in the brief by THE NUMBER RULES above (check with type_gate.py --text).
    - It takes 10–25 minutes. End the turn with `order.progress` («اسلایدها در راه است»).
+   - **It failed** (`recipe_failed`, or refused `error` / `limited`: a failed set holds ChatGPT 20 min):
+     the art path is retried, not dropped. Ask again after 20–25 minutes, up to 3 calls in all, while
+     the first story's hour is at least 90 minutes away (the first story is at 09:00 Tehran; the day
+     starts 04:00). Meanwhile write build/fb/set.json and run the fallback (step 5b) so a gated set is
+     ready. A set that comes in time replaces the fallback slide by slide (only slides that pass
+     step 5); no set by then = the fallback set goes out. Write each try and its answer in qc/scores.md.
    - The slides reach `in/` as CR-…-slide_01 … CR-…-slide_12, ten at a turn: if only ten came, end the turn
      once more and the rest follow.
-5. **Read EVERY slide** (Read), score it out of 10 (the look, the finish, the information) in
-   qc/scores.md: **under 8.5 is redone** like a wrong slide. Check also:
+5. **Read EVERY slide** (Read), score it out of 10 (the look, the finish, the information) AND its
+   typography out of 10, one row a slide in qc/scores.md exactly so (deliver_check reads it):
+   `| 3 | <what the slide shows> | 8.7 | type 9.5 |`
+   **under 8.5 overall or under 9 typography is redone** like a wrong slide. The TYPOGRAPHY check, at
+   full size (crop and Read the figures if they are small): every digit a Persian digit in the same
+   clean font, every zero a small ring/dot (a solid square = broken), «٬» a low comma (an apostrophe
+   «’» = broken), decimals a clean «/» (a hook like «ر» = broken), no figure or word out of its chip or box,
+   no letter cut, no reversed or scrambled run (RTL/LTR), the same type system on all twelve. Check also:
    - every number and chart on the slide against qc/ (a chart that does not match its numbers = wrong);
    - the level: nothing a beginner's first video would say;
    - every Persian letter and word against build/lesson.md (a wrong or missing letter, a reversed
@@ -148,13 +192,20 @@ and paper-cut pictures: too basic and too childish. From now on:
        «the same series, slide N, exactly this text: …»; ≤ 2 tries.
    (b) Still wrong: ask for that slide **without any text**, and set the words with our tool's
        fallback (`headline`, `lines`).
+   (c) No art in time, or a slide still wrong: that slide from **the tested fallback**:
+       `VENV/bin/python -I KIT/tools/slide_fallback.py --set build/fb/set.json` (one spec a slide, its
+       docstring lists the visuals: figure, gauge, figures, share, formula, calc, levels, table, lines,
+       bars, blocks, checklist, art = a Gemini picture as hero). One theme for the set (paper; mustard
+       or ink for slides 1 and 12). Read each PNG it writes; the gate already checked the type.
 
    Fewer than 12 came: ask for the missing ones the same way (the good slides attached).
 6. **Frame** each slide:
    `VENV/bin/python -I KIT/tools/slide_frame.py build/f1.json` … → out/story_1.jpg … story_12.jpg,
    in order. Each spec takes `bg` the slide, `n`/`of` (1–12 of 12), `word` the day's word, `mark`
    true, `out`. Then Read every out/story_N.jpg: the frame clean, nothing under the bar or the
-   reply box, the word right.
+   reply box, the word right. A slide the gate refuses is not written: fix its text and frame again.
+   Never copy or convert a picture into out/ by hand (deliver_check refuses any file the frame did
+   not make).
 7. **comment.txt** (the DM every reply with the day's word gets; the hub makes the rule):
    ```
    keyword: <the day's word>
@@ -166,7 +217,9 @@ and paper-cut pictures: too basic and too childish. From now on:
    - ≤ 900 characters, no hashtags.
    - No link yet (the site joins later).
 8. **topic.txt:** one line, the lesson's title and «سبک: <the look in 3–6 words>».
-9. **Deliver:** out/ holds ONLY story_1.jpg … story_12.jpg, comment.txt and topic.txt. The hub
+9. **Deliver:** first `VENV/bin/python -I KIT/tools/deliver_check.py` → it must print DELIVERABLE
+   (exit 0). NOT DELIVERABLE = no delivery: fix what it lists (redo, re-frame, score) and run it again.
+   out/ holds ONLY story_1.jpg … story_12.jpg, comment.txt and topic.txt. The hub
    schedules each story at its hour, turns the DM rule on and closes the session.
 
    Your last `order.progress` is one Persian line: the lesson, the look, the slides redone.

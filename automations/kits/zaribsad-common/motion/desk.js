@@ -39,10 +39,11 @@ function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >
 // families registered by the engine: ZF<weight> = IRANYekanX Pro (Persian text; digits made Persian by iso()),
 // ZM<weight> = IBM Plex Mono (data, tickers, the HUD), ZC<weight> = IBM Plex Sans Condensed (big Latin numbers, the wordmark)
 const FA_DIG = '۰۱۲۳۴۵۶۷۸۹';
-const fa = v => String(v).replace(/[0-9]/g, d => FA_DIG[d]).replace(/\./g, '٫').replace(/,/g, '٬').replace(/%/g, '٪');
+// ⟨2026-11-27⟩ decimals «/» (fa-type: the one decimal mark every page's font draws the same)
+const fa = v => String(v).replace(/[0-9]/g, d => FA_DIG[d]).replace(/\./g, '/').replace(/,/g, '٬').replace(/%/g, '٪');
 // Digits and Latin runs inside RTL text (the font is IRANYekanX Pro with Latin digits; nothing is left to a
 // FaNum font): a run WITH a Latin letter or $ (Zarib100x, SOL/USDT, 50 USDT, $70.48, GPT-5) stays Latin and is
-// isolated LTR (LRI … PDI), so it never scrambles; a run of digits ALONE becomes Persian digits (۱۳۳، ۶۱٪، ۲٫۱).
+// isolated LTR (LRI … PDI), so it never scrambles; a run of digits ALONE becomes Persian digits (۱۳۳، ۶۱٪، ۲/۱).
 // Never Persian and Latin digits inside one run. Every DESK text call does this.
 const LRI = '\u2066', PDI = '\u2069';
 const iso = s => String(s).replace(/[A-Za-z0-9$][A-Za-z0-9$%.,/:+\-×#@_ ]*[A-Za-z0-9%$x]|[A-Za-z0-9$]/g,
@@ -210,6 +211,17 @@ function panel(key, t, x, y, w, h, o, fn) {
 }
 
 /* ----------------------------------------------------------- the numbers ---- */
+/** ⟨2026-11-27⟩ ▲ ▼ ■ are in NONE of the page's fonts (fa-type/tools/coverage.py: AnjomanMax, Ravagh, IBM Plex
+ *  Mono/Condensed, IRANYekanX all lack them), so as text they were drawn by a system font: drawn as shapes. */
+function tri(g, x, yBase, px, kind, col) {   // x = left edge, yBase = the text's baseline, px = the text's size
+  const s = px * 0.62, top = yBase - px * 0.72, h = s * 0.87;
+  g.save(); g.fillStyle = col; g.beginPath();
+  if (kind === 'up') { g.moveTo(x, top + h); g.lineTo(x + s, top + h); g.lineTo(x + s / 2, top); }
+  else if (kind === 'down') { g.moveTo(x, top); g.lineTo(x + s, top); g.lineTo(x + s / 2, top + h); }
+  else { g.rect(x + s * 0.12, top + h * 0.1, s * 0.76, s * 0.76); }
+  g.closePath(); g.fill(); g.restore();
+  return s;
+}
 /** The odometer: every digit rolls and lands EXACTLY on the value at t0+dur (hold it ≥ 1.2 s after).
  *  o: {px, w, kind ('C' Latin condensed | 'F' Persian), col, align, prefix, suffix, dec, sep, change}
  *  change: true for a % change or any up/down value — it gets ▲/▼, the sign and the meaning colour itself. */
@@ -224,10 +236,10 @@ function odometer(t, value, x, y, t0, dur, o = {}) {
   if (o.change) {   // the glyph at half size, left of the number, both in the meaning colour
     if (value > 0 && !o.plus) s = '+' + s;
     const col = value >= 0 ? Z.up : Z.dn, gpx = px * 0.5, gap = px * 0.22;
-    const nw = measure(s, {kind, w: o.w || 700, px}), gw = measure('▲', {kind: 'M', w: 600, px: gpx});
+    const nw = measure(s, {kind, w: o.w || 700, px}), gw = gpx * 0.62;
     const al = o.align || 'center', total = nw + gap + gw;
     const left = al === 'center' ? x - total / 2 : al === 'right' ? x - total : x;
-    txt(value >= 0 ? '▲' : '▼', left, y - px * 0.12, {kind: 'M', w: 600, px: gpx, col});
+    X.save(); X.globalAlpha *= E.o3(P(t, t0, 0.3)); tri(X, left, y - px * 0.12, gpx, value >= 0 ? 'up' : 'down', col); X.restore();
     return txt(s, left + gw + gap, y, {px, w: o.w || 700, kind, col, align: 'left', rtl: false, track: o.track}) + gw + gap;
   }
   return txt(s, x, y, {px, w: o.w || 700, kind, col: o.col || Z.tx, align: o.align || 'center', rtl: kind === 'F' ? true : false, track: o.track});
@@ -236,13 +248,15 @@ function odometer(t, value, x, y, t0, dur, o = {}) {
 function changeChip(t, pct, x, y, t0, o = {}) {
   const a = E.o3(P(t, t0, 0.3)); if (a <= 0) return;
   const up = pct > 0, col = pct === 0 ? Z.flat : up ? Z.up : Z.dn, px = o.px || 40;
-  const s = `${up ? '▲' : pct < 0 ? '▼' : '■'} ${up ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(o.dec === undefined ? 1 : o.dec)}%`;
-  const w = measure(s, {kind: 'M', w: 600, px}) + px * 1.1, h = px * 1.7;
+  const s = `${up ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(o.dec === undefined ? 1 : o.dec)}%`;
+  const tw = px * 0.62 + px * 0.35;   // the triangle (a shape: no font has it) and its gap
+  const w = tw + measure(s, {kind: 'M', w: 600, px}) + px * 1.1, h = px * 1.7;
   const x0 = o.align === 'right' ? x - w : o.align === 'center' ? x - w / 2 : x;
   X.save(); X.globalAlpha *= a;
   X.beginPath(); X.roundRect(x0, y - h / 2, w, h, h / 2); X.fillStyle = rgba(col, 0.16); X.fill(); X.lineWidth = 2; X.strokeStyle = rgba(col, 0.8); X.stroke();
+  tri(X, x0 + px * 0.55, y + px * 0.36, px, up ? 'up' : pct < 0 ? 'down' : 'flat', col);
   X.restore();
-  txt(s, x0 + px * 0.55, y + px * 0.36, {kind: 'M', w: 600, px, col, a});
+  txt(s, x0 + px * 0.55 + tw, y + px * 0.36, {kind: 'M', w: 600, px, col, a});
 }
 
 /* -------------------------------------------------------------- the charts ---- */
@@ -287,7 +301,12 @@ function returnBars(t, rows, x, y, w, h, t0, o = {}) {
     const bx = x + i * bw + bw * 0.22, bwi = bw * 0.56;
     g.fillStyle = rgba(col, 0.9); g.beginPath(); g.roundRect(bx, r.v >= 0 ? zy - bh : zy, bwi, Math.max(2, bh), 8); g.fill();
     g.font = font('M', 600, 30); g.direction = 'ltr'; g.textAlign = 'center'; g.fillStyle = col;
-    if (p > 0.6) g.fillText(`${r.v >= 0 ? '▲ +' : '▼ −'}${Math.abs(r.v).toFixed(1)}%`, bx + bwi / 2, r.v >= 0 ? zy - bh - 16 : zy + bh + 40);
+    if (p > 0.6) {   // ⟨2026-11-27⟩ the triangle as a shape (no font of the page has it), then the value
+      const lab = `${r.v >= 0 ? '+' : '−'}${Math.abs(r.v).toFixed(1)}%`, ly = r.v >= 0 ? zy - bh - 16 : zy + bh + 40;
+      const lw = g.measureText(lab).width, ts = 30 * 0.62, gp = 8, lx = bx + bwi / 2 - (lw + ts + gp) / 2;
+      tri(g, lx, ly, 30, r.v >= 0 ? 'up' : 'down', col);
+      g.textAlign = 'left'; g.fillText(lab, lx + ts + gp, ly); g.textAlign = 'center';
+    }
     g.fillStyle = Z.mu; g.font = font('M', 500, 26); g.fillText(String(r.k).toUpperCase(), bx + bwi / 2, r.v >= 0 ? zy + 44 : zy - 22);
   });
   g.restore();
@@ -330,7 +349,8 @@ function hud(t, a = 1) {
 /** The price tape under the HUD (y 306–350): real tickers of the day, scrolling right→left, meaning colours. */
 function tape(t, a = 1) {
   if (!TAPE || !TAPE.length || a <= 0) return;
-  const y = 338, items = TAPE.map(r => `${r.s} ${r.p}  ${r.c >= 0 ? '▲ +' : '▼ −'}${Math.abs(r.c).toFixed(2)}%`);
+  // ⟨2026-11-27⟩ «▲»/«▼» as shapes (no font of the page has them): «  » keeps their room in the measure
+  const y = 338, items = TAPE.map(r => `${r.s} ${r.p}    ${r.c >= 0 ? '+' : '−'}${Math.abs(r.c).toFixed(2)}%`);
   X.save(); X.globalAlpha *= a; X.fillStyle = rgba(Z.gr, 0.6); X.fillRect(0, 306, W, 46); X.restore();
   X.save(); X.beginPath(); X.rect(0, 306, W, 46); X.clip();
   X.font = font('M', 500, 25); const gap = 70;
@@ -340,7 +360,10 @@ function tape(t, a = 1) {
     const r = TAPE[i];
     txt(r.s, x, y, {kind: 'M', w: 600, px: 25, col: Z.tx, a: a * 0.9});
     const w1 = measure(r.s + ' ', {kind: 'M', w: 600, px: 25});
-    txt(`${r.p}  ${r.c >= 0 ? '▲ +' : '▼ −'}${Math.abs(r.c).toFixed(2)}%`, x + w1, y, {kind: 'M', w: 500, px: 25, col: r.c >= 0 ? Z.up : Z.dn, a: a * 0.9});
+    const col = r.c >= 0 ? Z.up : Z.dn, w2 = measure(`${r.p}  `, {kind: 'M', w: 500, px: 25});
+    txt(r.p, x + w1, y, {kind: 'M', w: 500, px: 25, col, a: a * 0.9});
+    X.save(); X.globalAlpha *= a * 0.9; tri(X, x + w1 + w2, y, 25, r.c >= 0 ? 'up' : 'down', col); X.restore();
+    txt(`${r.c >= 0 ? '+' : '−'}${Math.abs(r.c).toFixed(2)}%`, x + w1 + w2 + 25 * 0.62 + 8, y, {kind: 'M', w: 500, px: 25, col, a: a * 0.9});
     x += ws[i];
   });
   X.restore();

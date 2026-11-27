@@ -60,6 +60,16 @@ import mimetypes
 import os
 import sys
 
+# ⟨2026-11-27⟩ the TYPE GATE (fa-type: after DotCoin's broken figures of F-0246): before the screenshot,
+# Chrome's own report of the font that drew every glyph (a system-font fallback fails), text out of its box
+# or over other text; a failing picture is not written (exit 2)
+for _c in (os.environ.get("FATYPE", ""), "/home/studio/kits/fa-type",
+           os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "fa-type")):
+    if _c and os.path.exists(os.path.join(_c, "fatype.py")):
+        sys.path.insert(0, _c)
+        break
+import fatype as F  # noqa: E402
+
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
@@ -241,8 +251,13 @@ def main() -> None:
         pg = b.new_page(viewport={"width": W, "height": H}, device_scale_factor=2)
         pg.goto("file://" + os.path.abspath(tmp))
         pg.wait_for_function("window.READY === true", timeout=30000)
-        pg.screenshot(path=master, full_page=False)
+        ok = F.guard(pg, os.path.join(outdir, "cover.jpg"), "dotcoin-common/cover_compose", numbers="fa", overlap=False)
+        if ok:
+            pg.screenshot(path=master, full_page=False)
         b.close()
+    if not ok:
+        os.remove(tmp)
+        sys.exit(2)
     os.remove(tmp)
     im = Image.open(master).convert("RGB")
     im.resize((W, H), Image.LANCZOS).save(os.path.join(outdir, "cover.jpg"), quality=92)

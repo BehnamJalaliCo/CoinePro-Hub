@@ -42,10 +42,11 @@ function R(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => { s = (M
 // families registered by the engine: A<w> = Anjoman Max (display: hooks, headlines, numbers, the wordmark),
 // R<w> = Ravagh (captions, labels, body), M<w> = IBM Plex Mono (file numbers, dates, tickers — Latin only)
 const FA_DIG = '۰۱۲۳۴۵۶۷۸۹';
-const fa = v => String(v).replace(/[0-9]/g, d => FA_DIG[d]).replace(/\./g, '٫').replace(/,/g, '٬').replace(/%/g, '٪');
+// ⟨2026-11-27⟩ decimals «/» (fa-type): AnjomanMax draws «٫» as a hook that reads like «ر»
+const fa = v => String(v).replace(/[0-9]/g, d => FA_DIG[d]).replace(/\./g, '/').replace(/,/g, '٬').replace(/%/g, '٪');
 // Digits and Latin runs inside RTL text: a run WITH a Latin letter or $ (FTX, $65B, bitmart, iPhone 4) stays
 // Latin and is isolated LTR (LRI … PDI) so it never scrambles; a run of digits ALONE becomes Persian digits
-// (۱۹۹۰، ۶۵٪، ۲٫۵). Never Persian and Latin digits in one run. Every STORY text call does this.
+// (۱۹۹۰، ۶۵٪، ۲/۵). Never Persian and Latin digits in one run. Every STORY text call does this.
 const LRI = '⁦', PDI = '⁩';
 const iso = s => String(s).replace(/[A-Za-z0-9$€£][A-Za-z0-9$€£%.,/:+\-×#@_ ]*[A-Za-z0-9%$€£]|[A-Za-z0-9$€£]/g,
   m => /[A-Za-z$€£]/.test(m) ? LRI + m + PDI : fa(m));
@@ -445,6 +446,17 @@ function dateline(t, year, place, t0, o = {}) {
 /** The counter: every digit rolls and lands EXACTLY on the value at t0+dur (hold it ≥ 1.2 s after).
  *  o: {px, w, kind ('A' default), col, align, prefix, suffix, dec, latin (Latin digits, e.g. «$65B»),
  *      unit (a Persian word set under it), change (▲/▼ + the meaning colour)} */
+/** ⟨2026-11-27⟩ ▲ ▼ ■ are in NONE of the page's fonts (fa-type/tools/coverage.py: AnjomanMax, Ravagh, IBM Plex
+ *  Mono/Condensed, IRANYekanX all lack them), so as text they were drawn by a system font: drawn as shapes. */
+function tri(g, x, yBase, px, kind, col) {   // x = left edge, yBase = the text's baseline, px = the text's size
+  const s = px * 0.62, top = yBase - px * 0.72, h = s * 0.87;
+  g.save(); g.fillStyle = col; g.beginPath();
+  if (kind === 'up') { g.moveTo(x, top + h); g.lineTo(x + s, top + h); g.lineTo(x + s / 2, top); }
+  else if (kind === 'down') { g.moveTo(x, top); g.lineTo(x + s, top); g.lineTo(x + s / 2, top + h); }
+  else { g.rect(x + s * 0.12, top + h * 0.1, s * 0.76, s * 0.76); }
+  g.closePath(); g.fill(); g.restore();
+  return s;
+}
 function counter(t, value, x, y, t0, dur, o = {}) {
   const p = E.o5(P(t, t0, dur)), dec = o.dec || 0;
   const v = value * p;   // no leading zeros while it rolls: the number grows into its width
@@ -453,9 +465,14 @@ function counter(t, value, x, y, t0, dur, o = {}) {
   s = (value < 0 ? '−' : (o.plus && value > 0 ? '+' : '')) + (o.prefix || '') + s + (o.suffix || '');
   const px = o.px || 200, al = o.align || 'center';
   let col = o.col || B.cr;
-  if (o.change) { col = value >= 0 ? B.up : B.dn; s = (value >= 0 ? '▲ ' : '▼ ') + s; }
+  if (o.change) col = value >= 0 ? B.up : B.dn;
   const str = o.latin ? s : fa(s);
-  const wd = txt(str, x, y, {kind: o.kind || 'A', w: o.w || 990, px, col, align: al, rtl: !o.latin});
+  let wd = txt(str, x, y, {kind: o.kind || 'A', w: o.w || 990, px, col, align: al, rtl: !o.latin});
+  if (o.change) {   // the triangle as a shape on the number's left, half its size
+    const tp = px * 0.5, gap = px * 0.18, left = al === 'center' ? x - wd / 2 : al === 'right' ? x - wd : x;
+    tri(X, left - gap - tp * 0.62, y - px * 0.12, tp, value >= 0 ? 'up' : 'down', col);
+    wd += gap + tp * 0.62;
+  }
   if (o.unit) txt(o.unit, al === 'center' ? x : al === 'right' ? x : x + wd, y + px * 0.62, {kind: 'R', w: 700, px: px * 0.3, col: o.unitCol || B.orG, align: al === 'left' ? 'left' : al, a: E.o3(P(t, t0 + dur * 0.6, 0.3))});
   return wd;
 }
@@ -463,11 +480,13 @@ function counter(t, value, x, y, t0, dur, o = {}) {
 function changeChip(t, pct, x, y, t0, o = {}) {
   const a = E.o3(P(t, t0, 0.3)); if (a <= 0) return;
   const up = pct > 0, col = pct === 0 ? B.flat : up ? B.up : B.dn, px = o.px || 40;
-  const s = `${up ? '▲' : pct < 0 ? '▼' : '■'} ${up ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(o.dec === undefined ? 1 : o.dec)}%`;
-  const w = measure(s, {kind: 'M', w: 600, px}) + px * 1.1, h = px * 1.7;
+  const s = `${up ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct).toFixed(o.dec === undefined ? 1 : o.dec)}%`;
+  const tw = px * 0.62 + px * 0.35;   // the triangle (a shape: no font has it) and its gap
+  const w = tw + measure(s, {kind: 'M', w: 600, px}) + px * 1.1, h = px * 1.7;
   const x0 = o.align === 'right' ? x - w : o.align === 'center' ? x - w / 2 : x;
-  X.save(); X.globalAlpha *= a; X.beginPath(); X.roundRect(x0, y - h / 2, w, h, h / 2); X.fillStyle = rgba(col, 0.16); X.fill(); X.lineWidth = 2; X.strokeStyle = rgba(col, 0.8); X.stroke(); X.restore();
-  txt(s, x0 + px * 0.55, y + px * 0.36, {kind: 'M', w: 600, px, col, a});
+  X.save(); X.globalAlpha *= a; X.beginPath(); X.roundRect(x0, y - h / 2, w, h, h / 2); X.fillStyle = rgba(col, 0.16); X.fill(); X.lineWidth = 2; X.strokeStyle = rgba(col, 0.8); X.stroke();
+  tri(X, x0 + px * 0.55, y + px * 0.36, px, up ? 'up' : pct < 0 ? 'down' : 'flat', col); X.restore();
+  txt(s, x0 + px * 0.55 + tw, y + px * 0.36, {kind: 'M', w: 600, px, col, a});
 }
 /** Comparison bars (Persian labels right, values left): the hero row (o.hero index) in orange, the rest in
  *  cream at 45 %; they grow staggered from the right. rows: [{label, v, show}] (show = the text for the value). */

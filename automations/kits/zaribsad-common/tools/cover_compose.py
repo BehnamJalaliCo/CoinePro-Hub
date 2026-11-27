@@ -16,8 +16,19 @@ usage: PY -I COMMON/tools/cover_compose.py spec.json"""
 import html
 import json
 import re
+import os
 import sys
 import tempfile
+
+# ⟨2026-11-27⟩ the TYPE GATE (fa-type: after DotCoin's broken figures of F-0246): before the screenshot,
+# Chrome's own report of the font that drew every glyph (a system-font fallback fails), text out of its box
+# or over other text; a failing picture is not written (exit 2)
+for _c in (os.environ.get("FATYPE", ""), "/home/studio/kits/fa-type",
+           os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "fa-type")):
+    if _c and os.path.exists(os.path.join(_c, "fatype.py")):
+        sys.path.insert(0, _c)
+        break
+import fatype as F  # noqa: E402
 from pathlib import Path
 
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
@@ -25,7 +36,7 @@ PRO = Path("/home/studio/kits/fonts-pro")
 COMMON = Path(__file__).resolve().parent.parent
 OWN = COMMON / "fonts"
 GR, OX, OXL, MINT, TX, MU, UP, DN = "#160A0E", "#461A23", "#6B2A37", "#83CAAD", "#F4EFE6", "#A8979B", "#35E06E", "#FF4D57"
-FA_DIG = str.maketrans("0123456789.,%", "۰۱۲۳۴۵۶۷۸۹٫٬٪")
+FA_DIG = str.maketrans("0123456789.,%", "۰۱۲۳۴۵۶۷۸۹/٬٪")  # ⟨2026-11-27⟩ decimals «/» (fa-type)
 
 
 def clean(t: str) -> str:  # raw text, never a full stop at the end (escaped later by iso)
@@ -121,6 +132,8 @@ def render(html_text: str, out: Path) -> None:
                 if pg.evaluate("document.body.dataset.fit") != "ok":
                     raise SystemExit("the title does not fit in two lines at 84 px: shorten it")
                 pg.wait_for_timeout(200)
+                if not F.guard(pg, out, "zaribsad-common/cover_compose", numbers="any", overlap=False):
+                    raise SystemExit(2)
                 pg.screenshot(path=str(png))
             finally:
                 b.close()

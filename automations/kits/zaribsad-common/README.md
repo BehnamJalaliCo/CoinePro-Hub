@@ -20,3 +20,17 @@ Tools (PY = /home/studio/kits/prochart-reels/venv-render/bin/python, PLAYWRIGHT_
 - `tools/cover_sheet.py` — the cover's row check beside the last 4.
 - `tools/make_board.py` — renders brand/board.png and cover/board.png again (after a new profile photo).
 - `fonts/` — IBM Plex Mono and IBM Plex Sans Condensed (SIL OFL 1.1, `OFL-IBMPlex.txt`).
+
+## TYPE GATE (2026-11-27, every page — /home/studio/kits/fa-type/README.md)
+DotCoin's stories of 11-27 went out with figures a SYSTEM font drew (zeros as squares, «٬» as «’»):
+an improvised renderer named a font it never loaded. From now on desk.js draws ▲/▼ as shapes and writes decimals «/»; cover_compose.py gates the cover.
+- Text on a picture comes ONLY from the kit's own tools; they run the type gate (Chrome's report of
+  the font of every glyph: a system-font fallback, a face that did not load, text out of its box or
+  chip fails) and a failing picture is NOT written (exit 2): fix the text and run again. Never your
+  own HTML/Pillow text, never a font or weight the tools do not load, never a work-around.
+- Signs the page's fonts lack are drawn as shapes by the tools (▲ ▼ ■ ← → · ✓: `fatype.symbols`, the
+  engines' `tri()`); do not type them into Persian text yourself.
+- Figures: Persian digits where the page writes Persian digits; up to 4 digits no separator, 5+ «٬»;
+  decimals «/» («۲/۱»: the Arabic decimal mark reads like «ر» in AnjomanMax and Estedad); never
+  «’» or «'» in a figure. Check strings: `VENV/bin/python -I /home/studio/kits/fa-type/tools/type_gate.py --json spec.json`.
+- Read every picture at full size for the figures (crop if small) before delivery.

@@ -10,7 +10,7 @@ spec = {
   "kicker": "کارنامه‌ی سیگنال",       # the small label with the mint bar
   "headline": "۸۱ برد از [۱۳۳] سیگنال", # big title; [..] = the key word in the mint chip
   "lines": ["۳۰ روز گذشته، همه در کانال VIP"],   # 0–3 short lines
-  "rows": [["نرخ برد", "۶۱٪"], ["ضریب سود", "۲٫۱"]], # optional data card, 0–4 rows; a signed change («+2.1%», «−3.4%») gets ▲/▼ and its meaning colour
+  "rows": [["نرخ برد", "۶۱٪"], ["ضریب سود", "۲/۱"]], # optional data card, 0–4 rows; a signed change («+2.1%», «−3.4%») gets ▲/▼ and its meaning colour
   "foot": "آمار از سایت تریدیار، ۲۳ آبان",   # optional small line (a source, a date)
   "cta_word": "الماس",               # the day's reply word (the CTA bar), or "" for none
   "cta": "رو ریپلای کن تا لینک VIP رایگان برات بیاد",  # optional, after the word
@@ -26,6 +26,16 @@ import os
 import re
 import sys
 import tempfile
+
+# ⟨2026-11-27⟩ the TYPE GATE (fa-type: after DotCoin's broken figures of F-0246): before the screenshot,
+# Chrome's own report of the font that drew every glyph (a system-font fallback fails), text out of its box
+# or over other text; a failing picture is not written (exit 2)
+for _c in (os.environ.get("FATYPE", ""), "/home/studio/kits/fa-type",
+           os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "fa-type")):
+    if _c and os.path.exists(os.path.join(_c, "fatype.py")):
+        sys.path.insert(0, _c)
+        break
+import fatype as F  # noqa: E402
 from pathlib import Path
 
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
@@ -42,7 +52,7 @@ def esc(t: str) -> str:
     return html.escape(t)
 
 
-FA_DIG = str.maketrans("0123456789.,%", "۰۱۲۳۴۵۶۷۸۹٫٬٪")
+FA_DIG = str.maketrans("0123456789.,%", "۰۱۲۳۴۵۶۷۸۹/٬٪")  # ⟨2026-11-27⟩ decimals «/» (fa-type)
 
 
 def iso(t: str) -> str:
@@ -71,9 +81,9 @@ def value(v: str) -> str:
     glyph always with the colour (COMMON/brand/README.md: mint is close to green, so colour alone never says it)."""
     t = str(v).strip()
     if re.match(r"^[+▲]", t):
-        return f'<bdi dir="ltr" style="color:{UP}">▲ +{key(t.lstrip("+▲ "))}</bdi>'
+        return f'<bdi dir="ltr" style="color:{UP}">{F.symbols("▲")}+{key(t.lstrip("+▲ "))}</bdi>'
     if re.match(r"^[-−▼]", t):
-        return f'<bdi dir="ltr" style="color:{DN}">▼ −{key(t.lstrip("-−▼ "))}</bdi>'
+        return f'<bdi dir="ltr" style="color:{DN}">{F.symbols("▼")}−{key(t.lstrip("-−▼ "))}</bdi>'
     return key(t)
 
 
@@ -96,7 +106,7 @@ def page(s: dict) -> str:
     place = {"top": "flex-start", "center": "center"}.get(lay, "flex-end")
     scrim = {"top": "180deg", "center": "180deg"}.get(lay, "0deg")
     tab = esc(s.get("tab") or "")  # optional mono tab (Latin): «VIP · RECORD 30D», «MARKET · 08:30»
-    return f"""<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>{faces()}
+    return f"""<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>{faces()}{F.SYM_CSS}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 html, body {{ width: 1080px; height: 1920px; background: {GR}; font-family: ZF; color: {TX}; overflow: hidden; }}
 .bg {{ position: absolute; inset: 0; background: url("file://{Path(s['bg']).resolve()}") center/cover no-repeat;
@@ -153,6 +163,8 @@ def main(spec_path: str) -> None:
                 pg.evaluate("document.fonts.ready")
                 pg.wait_for_timeout(400)
                 pg.evaluate("document.fonts.ready")
+                if not F.guard(pg, out, "zaribsad-stories/story_card", numbers="any", overlap=False):
+                    raise SystemExit(2)
                 pg.screenshot(path=str(png), full_page=False)
             finally:
                 b.close()

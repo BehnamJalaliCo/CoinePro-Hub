@@ -18,44 +18,73 @@ spec = {
   "out": "out/story_3.jpg"
 }
 No full stop at the end of any line. Instagram covers the top ~230 px (the bar) and the bottom
-~300 px (the reply box): the frame sits just inside them."""
+~300 px (the reply box): the frame sits just inside them.
+
+⟨2026-11-27⟩ THE TYPE GATE (fa-type, after DotCoin's broken figures of F-0246): every text of the frame
+and of the fallback text block is set by the number rules, drawn ONLY by IRANYekanX (Chrome reports the
+font of every glyph: a system-font fallback fails), stays inside its box/chip and off the other text.
+A failing slide is NOT written (exit 2) and qc/type_gate.jsonl records every verdict with the picture's
+sha256 (tools/deliver_check.py reads it). The words ChatGPT drew INTO the slide are not text to the gate:
+the session reads them (README step 5, the typography check)."""
 
 import html
 import json
+import os
 import re
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+for _c in (os.environ.get("FATYPE", ""), "/home/studio/kits/fa-type", str(HERE.parent.parent / "fa-type")):
+    if _c and Path(_c, "fatype.py").exists():
+        sys.path.insert(0, _c)
+        break
+import fatype as F  # noqa: E402
 
 CHROME = "/home/studio/kits/prochart-reels/ms-playwright/chromium-1243/chrome-linux64/chrome"
 FONTS = Path("/home/studio/kits/fonts-pro")
 BRAND = Path("/home/studio/kits/dotcoin-common/brand")
 MUSTARD, BLACK, WHITE = "#F3C242", "#000000", "#FFFFFF"
 FA = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+BANDS = [(0, 370), (1390, 1920)]  # the frame's own zones: only [data-frame] text may sit there
 
 
 def esc(t: str) -> str:
-    t = re.sub(r"[.。،؛]\s*$", "", str(t).strip())  # never a full stop at the end
-    return html.escape(t)
+    t = re.sub(r"[.。،؛]\s*$", "", F.normalize(str(t)).strip())  # never a full stop at the end
+    t = F.symbols(html.escape(t))
+    return re.sub(r"[۰-۹]+(?:[/\u066c][۰-۹]+)*٪?", lambda m: f"<bdi>{m.group(0)}</bdi>", t)
 
 
 def key(t: str) -> str:
     return re.sub(r"\[(.+?)\]", lambda m: f'<span class="k">{m.group(1)}</span>', esc(t))
 
 
+def mustard_under(bg: str) -> bool:
+    """⟨2026-11-27⟩ Whether the slide is mustard where the number chip sits (a mustard chip would vanish)."""
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(bg) as im:
+            im = ImageOps.fit(im.convert("RGB"), (1080, 1920))
+            r, g, b = im.crop((40, 250, 300, 330)).resize((1, 1)).getpixel((0, 0))
+        return abs(r - 243) + abs(g - 194) + abs(b - 66) < 110
+    except Exception:  # noqa: BLE001 - no picture yet: the usual chip
+        return False
+
+
 def page(s: dict) -> str:
     n, of = int(s.get("n") or 0), int(s.get("of") or 0)
-    count = f'<div class="num">{f"{n} از {of}".translate(FA)}</div>' if n and of else ""
+    dark = mustard_under(str(s.get("bg") or ""))
+    count = f'<div class="num{" dark" if dark else ""}" data-frame><bdi>{F.fa(n)}</bdi> از <bdi>{F.fa(of)}</bdi></div>' if n and of else ""
     word = str(s.get("word") or "").strip()
     cta = (
-        f'<div class="cta"><span class="w">«{esc(word)}»</span> '
+        f'<div class="cta" data-frame><span class="w">«{esc(word)}»</span> '
         f'{esc(s.get("cta") or "رو دایرکت کن تا خلاصه‌ی درس برات بیاد")}</div>'
         if word
         else ""
     )
     mark = (
-        f'<div class="mark"><img src="file://{BRAND}/logo_round.png"><b>DotCoin<span class="k2">Me</span></b></div>'
+        f'<div class="mark" data-frame><img src="file://{BRAND}/logo_round.png"><b>DotCoin<span class="k2">Me</span></b></div>'
         if s.get("mark", True)
         else ""
     )
@@ -71,6 +100,7 @@ def page(s: dict) -> str:
 @font-face {{ font-family: Yk; font-weight: 800; src: url("file://{FONTS}/IRANYekanXFaNum-ExtraBold.ttf"); }}
 @font-face {{ font-family: Yk; font-weight: 900; src: url("file://{FONTS}/IRANYekanXFaNum-Black.ttf"); }}
 @font-face {{ font-family: YkEn; font-weight: 800; src: url("file://{FONTS}/IRANYekanX-ExtraBold.ttf"); }}
+{F.SYM_CSS}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 html, body {{ width: 1080px; height: 1920px; background: {BLACK}; font-family: Yk; color: {WHITE}; overflow: hidden; }}
 .bg {{ position: absolute; inset: 0; background: url("file://{Path(s["bg"]).resolve()}") center/cover no-repeat;
@@ -82,6 +112,7 @@ html, body {{ width: 1080px; height: 1920px; background: {BLACK}; font-family: Y
 .k2 {{ color: {MUSTARD}; }}
 .num {{ position: absolute; top: 258px; left: 56px; background: {MUSTARD}; color: {BLACK}; font-weight: 800;
        font-size: 32px; padding: 8px 24px; border-radius: 40px; }}
+.num.dark {{ background: {BLACK}; color: {MUSTARD}; }}
 .box {{ position: absolute; left: 64px; right: 64px; top: 380px; bottom: 470px; display: flex; flex-direction: column; gap: 22px; }}
 h1 {{ font-size: 88px; line-height: 1.25; font-weight: 900; text-shadow: 0 4px 18px rgba(0,0,0,.55); }}
 .k {{ background: {MUSTARD}; color: {BLACK}; border-radius: 22px; padding: 0 18px; }}
@@ -92,33 +123,13 @@ p {{ font-size: 46px; line-height: 1.55; font-weight: 600; text-shadow: 0 3px 14
 </style></head><body><div class="bg"></div>{mark}{count}{text}{cta}</body></html>"""
 
 
-def main(spec_path: str) -> None:
+def main(spec_path: str) -> int:
     s = json.loads(Path(spec_path).read_text(encoding="utf-8"))
     out = Path(s["out"])
-    out.parent.mkdir(parents=True, exist_ok=True)
-    from playwright.sync_api import sync_playwright
-
-    with tempfile.TemporaryDirectory() as tmp:
-        page_file = Path(tmp) / "slide.html"
-        page_file.write_text(page(s), encoding="utf-8")
-        png = Path(tmp) / "slide.png"
-        with sync_playwright() as p:
-            b = p.chromium.launch(executable_path=CHROME, headless=True,
-                                  args=["--allow-file-access-from-files"])  # fmt: skip
-            try:
-                pg = b.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=1)
-                pg.goto(page_file.as_uri())
-                pg.wait_for_timeout(400)
-                pg.evaluate("document.fonts.ready")
-                pg.screenshot(path=str(png), full_page=False)
-            finally:
-                b.close()
-        from PIL import Image
-
-        Image.open(png).convert("RGB").save(out, "JPEG", quality=93, optimize=True)
-    subprocess.run(["pkill", "-f", "[c]hromium-1243/chrome-linux64/chrome"], check=False)
-    print(out)
+    verdict = F.render(page(s), out, bands=BANDS, fonts_allowed=("IRANYekanX",), tool="dotcoin-stories/slide_frame")
+    F.report(verdict, out)
+    return 0 if verdict["ok"] else 2
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    sys.exit(main(sys.argv[1]))

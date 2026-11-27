@@ -31,7 +31,7 @@
            HEAD(s, at, str, x, y, px, {keys:[words], w, stagger, al, lineH, maxW}) a kinetic headline (words rise
              out of a mask, key words in the spectrum; wraps by itself).
            BIG(s, at, str, x, y, px, {f, spec, track}) a giant number or name that lands with a blur-to-sharp.
-           fa(n, dec) Persian digits («٫» decimals, «٬» groups) · count(s, at, d, from, to) an eased number.
+           fa(n, dec) Persian digits («/» decimals, «٬» groups) · count(s, at, d, from, to) an eased number.
    Panels: PANEL(x, y, w, h, {r, title, dot, alpha, accent, glass, tilt, lift}) a glass card (returns its inner
              box {x,y,w,h}); TERM(box, lines, s, at, {cps, prompt, col}) a terminal typing; CODE(box, src, s, at,
              {cps, from, scroll}) code with colours; BARS(box, rows, s, at, {hi, unit, max, title}) benchmark bars
@@ -116,7 +116,7 @@ function fa(n, dec = 0, group = true) {
   let s = Number(n).toFixed(dec);
   let [a, b] = s.split('.');
   if (group) a = a.replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
-  s = b ? a + '٫' + b : a;
+  s = b ? a + '/' + b : a;   // ⟨2026-11-27⟩ decimals «/» (fa-type): Estedad draws the Arabic decimal mark like «ر»
   return s.replace(/[0-9]/g, d => FA_D[+d]);
 }
 const count = (s, at, d, from, to) => mix(from, to, E.o5(pr(s, at, at + d)));

@@ -29,6 +29,16 @@ import os
 import re
 import sys
 
+# ⟨2026-11-27⟩ the TYPE GATE (fa-type: after DotCoin's broken figures of F-0246): before the screenshot,
+# Chrome's own report of the font that drew every glyph (a system-font fallback fails), text out of its box
+# or over other text; a failing picture is not written (exit 2)
+for _c in (os.environ.get("FATYPE", ""), "/home/studio/kits/fa-type",
+           os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "fa-type")):
+    if _c and os.path.exists(os.path.join(_c, "fatype.py")):
+        sys.path.insert(0, _c)
+        break
+import fatype as F  # noqa: E402
+
 COMMON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FD = os.environ.get("BJ_FONTS", "/home/studio/kits/fonts-bj")
 FP = os.environ.get("BJ_FONTS_PRO", "/home/studio/kits/fonts-pro")  # the owner's licensed IRANYekanX (the page's covers)
@@ -427,6 +437,7 @@ FIT_JS = """() => { document.querySelectorAll('[data-fit]').forEach(el => {
 
 def render(specs, outs):
     from playwright.sync_api import sync_playwright
+    failed = []
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME, headless=True, args=["--no-sandbox", "--disable-gpu", "--allow-file-access-from-files"])
         try:
@@ -444,12 +455,20 @@ def render(specs, outs):
                 over = pg.evaluate("""() => [...document.querySelectorAll('.title,.body,.chip,.en,.nvtitle,.nvsub,.nvchip,.nvlatin')].filter(e =>
                     e.scrollWidth > e.clientWidth + 2 || e.getBoundingClientRect().right > innerWidth + 1 ||
                     e.getBoundingClientRect().left < -1 || e.getBoundingClientRect().bottom > innerHeight + 1).map(e => e.textContent.slice(0, 40))""")
+                if over or not F.guard(pg, out, "bjtech-common/card", numbers="any", overlap=False):
+                    failed.append(out)
+                    pg.close()
+                    os.remove(tmp)
+                    print(out, "NOT WRITTEN:", "overflow:" if over else "type gate", *(over or []))
+                    continue
                 pg.screenshot(path=out, type="jpeg", quality=93)
                 pg.close()
                 os.remove(tmp)
-                print(out, "overflow:" if over else "ok", *(over or []))
+                print(out, "ok")
         finally:
             b.close()
+    if failed:
+        sys.exit(f"{len(failed)} card(s) failed (overflow or the type gate) and were not written: fix their text")
 
 
 def sheet(folder, out):
