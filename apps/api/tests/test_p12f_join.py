@@ -91,7 +91,7 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0068"] == "0067"  # 2026-11-17: a set of slides in one ChatGPT chat
     assert rev["0069"] == "0068"  # ⟨1.39⟩ §60 the publish centre (media.publications)
     assert rev["0070"] == "0069"  # ⟨1.39⟩ §61 the automations as data
-    assert heads == {"0070"}
+    assert heads == {"0071"}
     assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0070"
 
 
