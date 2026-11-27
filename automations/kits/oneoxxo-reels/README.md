@@ -19,9 +19,10 @@ PCKIT = /home/studio/kits/prochart-reels (ASR tools). BUILD = /home/studio/bin/a
 2. **Script** script/voice.txt: 75–95 words (≈ 35–45 s after the voice), hook ≤ 10 words that stops a
    global scroll, ONE idea, a concrete example in real numbers, the takeaway, CTA «Comment <WORD>, and
    I'll send you <the thing>». Spoken English, numbers written as words for the voice.
-3. **Voice:** `speech.make` voice "Orus", style "Fast-paced, punchy, premium finance creator; confident,
-   never shouting", the whole script in one call → qc/voice.wav. If it runs longer than 48 s, ask again
-   with a brisker style (never cut or speed it yourself beyond `ffmpeg atempo` ≤ 1.2, applied evenly).
+3. **Voice:** `speech.make` voice "Orus", **NO style** (a style is spoken ALOUD by the TTS — 11-28 every
+   day-1 voice began «Read the following Persian text aloud…»), the whole script in one call →
+   qc/voice.wav. Then transcribe it and compare with the script: any extra or missing words = make it
+   again. Never cut or speed it.
    Word times: PCKIT/asr venv faster-whisper with `language="en"` → build/words.json
    ([{w,s,e}] seconds; spelling fixed against the script).
 4. **Storyboard** build/BRIEF.md for Hydrogen: "FIRST read COMMON/DIRECTION.md" + the reel's folder

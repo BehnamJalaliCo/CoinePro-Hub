@@ -48,7 +48,7 @@ take your time, review your own frames like the strictest art director, and neve
   ice with an ink stroke, the key word in cobalt chip), centred around y≈1180.
 
 ## 3. The voice — impactful English narrator
-- `speech.make` voice **"Orus"** (firm, confident), language English, the WHOLE script in one call.
+- `speech.make` voice **"Orus"** (firm, confident), NO style (styles are read aloud), the WHOLE script in one call.
   Delivery: punchy, short sentences, energy of a top finance creator, never shouting. ~2.6 words/s.
 - Script: hook line (≤ 10 words) → the one idea with a concrete example in real numbers → the
   takeaway → CTA: «Comment "<WORD>" and I'll DM you the <cheat sheet / full breakdown / checklist>».

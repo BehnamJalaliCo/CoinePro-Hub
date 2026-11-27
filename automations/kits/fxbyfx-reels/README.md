@@ -17,8 +17,8 @@ FATYPE = /home/studio/kits/fa-type (the Persian typography gate; read its README
 - Topic claim "FXbyFX: <title>"; topics: KIT kinds below; premium level (no 101).
 - Script: Persian, 90–110 words (≈ 40–50 s), «تو», numbers written as words for the voice; on-screen text
   uses Persian digits. CTA «کلمه‌ی «…» رو کامنت کن تا <…> رو برات دایرکت کنم».
-- Voice: `speech.make` voice "Iapetus", style «تند و پرانرژی ولی حرفه‌ای، مثل یک ریلز اینستاگرام؛ مکث‌های
-  کوتاه؛ مطمئن و گرم»; ASR `language="fa"`.
+- Voice: `speech.make` voice "Iapetus", **NO style** (a style is spoken aloud by the TTS); ASR `language="fa"`;
+  the transcript must match the script (extra words at the start = the TTS read an instruction: make it again).
 - Review adds the Persian check: letters joined, dots, rtl order, Persian digits, bdi on pair names, no
   line-end full stops — on every caption and title in the frames you read; and FATYPE's gate on the stills.
 - Caption out/caption.txt Persian, 3–5 hashtags (#فارکس always; #fxbyfx), comment.txt in Persian.

@@ -39,7 +39,7 @@ own frames like the strictest art director.
   the voice (IRANYekanX Pro FaNum Heavy, white, key word in a lime chip with dark letters).
 
 ## 3. Voice — premium Persian narrator
-`speech.make` voice **"Iapetus"** (clear) — calm authority, a private-banker's confidence, ~2.4
+`speech.make` voice **"Iapetus"** (clear), NO style (styles are read aloud) — calm authority, a private-banker's confidence, ~2.4
 Persian words/s; names as spoken (یورو-دلار, پاول, فدرال رزرو). Script: hook → one idea → a worked
 example in real numbers → the takeaway → CTA: «کلمه‌ی «…» رو کامنت کن تا <جمع‌بندی / چک‌لیست> رو
 برات دایرکت کنم».
