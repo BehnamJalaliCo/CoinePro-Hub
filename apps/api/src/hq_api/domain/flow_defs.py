@@ -297,6 +297,8 @@ def model_name(model: str) -> str:
     """`claude-opus-5-5` → «Opus 5.5» (the apps never write a model's name of their own)."""
     if not model:
         return "Opus 5.5"
+    if model.startswith("gemini-4-hydrogen-"):  # ⟨2026-11-27⟩ Antigravity's Gemini 4 Hydrogen
+        return f"Hydrogen 4 ({model.removeprefix('gemini-4-hydrogen-')})"
     parts = model.removeprefix("claude-").split("-")
     nums = [p for p in parts if p.isdigit()]
     words = [p.capitalize() for p in parts if not p.isdigit()]

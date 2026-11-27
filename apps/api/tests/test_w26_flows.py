@@ -348,6 +348,8 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
         (fable, day + timedelta(days=1), HANDS.MODEL),
         (fable, day, HANDS.MODEL),
         ("claude-opus-5-5", day, "claude-opus-5-5"),
+        # ⟨2026-11-27⟩ the new pages: Antigravity's Gemini 4 Hydrogen
+        ("gemini-4-hydrogen-xhigh", None, "gemini-4-hydrogen-xhigh"),
     ):
         fk = f"m{uuid.uuid4().hex[:8]}"
         flow = replace(a_flow(co["code"], fk), model=model, model_from=since)

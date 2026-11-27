@@ -797,7 +797,11 @@ async def test_the_p2_pages_kits_a_new_automation_and_the_week(
         g = (await client.get(f"/api/v1/automations/flows/{ref}/graph", headers=owner)).json()
         assert g["nodes"] and g["lanes"][0] == "n8n"
         opts = (await client.get("/api/v1/automations/flows/options", headers=owner)).json()
-        assert {m["id"]: m["name_fa"] for m in opts["models"]} == {"claude-opus-5-5": "Opus 5.5"}
+        assert {m["id"]: m["name_fa"] for m in opts["models"]} == {
+            "claude-opus-5-5": "Opus 5.5",
+            "gemini-4-hydrogen-xhigh": "Hydrogen 4 (xhigh)",
+            "gemini-4-hydrogen-high": "Hydrogen 4 (high)",
+        }
         kits = (await client.get("/api/v1/automations/kits", headers=owner)).json()
         assert any(k["key"] == "p39-test" for k in kits)
         r = await client.get("/api/v1/automations/kits/p39-test/graph", headers=owner)

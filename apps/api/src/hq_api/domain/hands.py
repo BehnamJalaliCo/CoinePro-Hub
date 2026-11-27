@@ -43,7 +43,18 @@ MODEL = "claude-opus-5-5"
 # ⟨2026-11-15⟩ the models a workshop turn may run on (an automation names its own). ⟨2026-11-20⟩ the
 # owner: «نباید مدلی از فیبل استفاده بکنه»: Fable is out (it was here for the 11-15 test); a flow
 # that still names it runs on MODEL (model_of), and a save that names it is refused (422).
-MODELS = ("claude-opus-5-5",)
+# ⟨2026-11-27⟩ the owner: the new pages are built ONLY with Antigravity (`agy`) on Gemini 4 Hydrogen,
+# 0 Claude tokens: a turn whose model starts with `gemini-` runs on the runner's agy executor
+# (company-runner agy_job.py, >= AGY_RUNNER_MIN), never on Claude Code.
+HYDROGEN = "gemini-4-hydrogen-xhigh"
+HYDROGEN_MODELS = ("gemini-4-hydrogen-xhigh", "gemini-4-hydrogen-high")
+MODELS = ("claude-opus-5-5", *HYDROGEN_MODELS)
+AGY_RUNNER_MIN = "0.4.0"  # the runner with the agy executor
+
+
+def is_agy(model: object) -> bool:
+    """A model the runner's agy executor runs (Gemini), not Claude Code."""
+    return isinstance(model, str) and model.startswith("gemini-")
 # ⟨1.31⟩ §53 the owner's order: «حتماً Opus 5.5 با بیشترین effort». Every turn of the workshop
 # thinks as hard as the model can unless the caller asks for less; the runner (>= 0.3.5) passes it
 # to Claude Code, an older one runs the turn as before
