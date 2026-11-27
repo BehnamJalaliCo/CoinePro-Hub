@@ -5,16 +5,13 @@ educational stories designed by ChatGPT in one chat, «اسلاید های مج�
 
 Usage: VENV/bin/python -I tools/slide_frame.py spec.json
 spec = {
-  "bg": "in/slide_03.png",          # ChatGPT's slide (any size; cropped to fill 9:16)
+  "bg": "in/CR-1100-slide_03.png",  # ChatGPT's slide in in/ (CR-…; any other picture is refused)
   "focus": "50% 50%",               # optional: the point kept in the crop
   "n": 3, "of": 12,                 # the slide's number (shown «۳ از ۱۲»); 0 = none
   "word": "کیف‌پول",                 # the day's reply word (the CTA bar), "" = no bar
   "cta": "رو دایرکت کن تا خلاصه‌ی درس برات بیاد",   # optional, after the word
   "mark": true,                     # the round mark + «DotCoinMe» (false: the slide has it)
-  # the FALLBACK only (a slide whose Persian ChatGPT got wrong, made again without text):
-  "headline": "کیف‌پول [سرد] چیه؟",   # [..] = the key word on a mustard chip
-  "lines": ["کلید تو، بیرون از اینترنت"], # 0–4 short lines
-  "layout": "bottom",               # bottom | top | center: where that text block sits
+  # (⟨2026-11-27⟩ "headline"/"lines" — our words on a text-free slide — are RETIRED: refused, owner's rule)
   "out": "out/story_3.jpg"
 }
 No full stop at the end of any line. Instagram covers the top ~230 px (the bar) and the bottom
@@ -126,7 +123,17 @@ p {{ font-size: 46px; line-height: 1.55; font-weight: 600; text-shadow: 0 3px 14
 def main(spec_path: str) -> int:
     s = json.loads(Path(spec_path).read_text(encoding="utf-8"))
     out = Path(s["out"])
-    verdict = F.render(page(s), out, bands=BANDS, fonts_allowed=("IRANYekanX",), tool="dotcoin-stories/slide_frame")
+    # ⟨2026-11-27⟩ the owner: «اگر خطا داد ساخته نشه، خطا برطرف بشه بعد ساخته بشه»: the frame goes on
+    # ChatGPT's own slide (in/CR-…) only, and sets no words of ours on it (no headline/lines any more)
+    bg = Path(str(s.get("bg") or ""))
+    if os.environ.get("FRAME_TEST") != "1" and not (bg.parts[:1] == ("in",) and bg.name.startswith("CR-")):
+        print(f"REFUSED: bg {bg} is not a ChatGPT slide in in/ (CR-…). No substitute slide is ever framed.")
+        return 2
+    if s.get("headline") or s.get("lines"):
+        print("REFUSED: headline/lines are retired (owner 2026-11-27): ChatGPT's slide carries its own words.")
+        return 2
+    verdict = F.render(page(s), out, bands=BANDS, fonts_allowed=("IRANYekanX",), tool="dotcoin-stories/slide_frame",
+                       extra={"bg": str(bg)})
     F.report(verdict, out)
     return 0 if verdict["ok"] else 2
 

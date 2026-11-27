@@ -48,7 +48,9 @@ them in a SYSTEM font (DejaVu / Liberation): Persian zeros as heavy squares, «�
 - Figures at most Black (900). ExtraBlack (950) only for words, never for big figures.
 
 ## Where it runs (2026-11-27)
-- dotcoin-stories: `slide_frame.py`, `slide_fallback.py` (the tested fallback), `deliver_check.py`.
+- dotcoin-stories: `slide_frame.py` (on ChatGPT's slide only), `deliver_check.py`. (`slide_fallback.py`, the tested
+  fallback built the same morning, was RETIRED the same day by the owner's rule: no substitute, ever — a failed
+  path is retried, its error reported and fixed, then the day is made.)
 - zaribsad-stories `story_card.py`, bjtech-common `card.py`, bitmart-common `cover_make.py`,
   dotcoin-common and zaribsad-common `cover_compose.py`: the gate before the screenshot; a failing
   card is not written.

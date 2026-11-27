@@ -109,8 +109,8 @@ rules, not suggestions.
 12. **Cover — the cover package, COMMON/cover/COVER_SYSTEM.md (the owner, 2026-11-26):** ChatGPT draws the WHOLE
     cover — the owner in a new suit and 2026 accessories in front of the mint arch, the tag `COIN · <SYMBOL>/USDT`,
     the Persian title with its mint chip, the pill with the comment word, the coin itself as the element (its real
-    logo on it) — from the eight files (`file_ids`) and the package's brief. Check every letter and his face; the
-    fallback (`COMMON/tools/cover_compose.py`) only after 3 wrong titles.
+    logo on it) — from the eight files (`file_ids`) and the package's brief. Check every letter and his face; NO
+    fallback (owner 2026-11-27): wrong after 3 tries = ask again with the exact error, else the day waits (COVER_SYSTEM.md step 4).
     `COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg` → ground/arch/chip ok, read the row;
     `cp out/cover.jpg qc/z100x_cover.jpg`. Never a video frame; no TradeYar logo.
 13. **Texts:** `out/caption.txt` (exactly 3 hashtags, #Zarib100x among them; ends with the comment-word ask).

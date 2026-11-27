@@ -335,20 +335,23 @@ def gate(page: Any, *, bands: list[tuple[int, int]] | None = None, max_weight: i
     return {"ok": not uniq, "problems": uniq, "fonts": used, "texts": shown}
 
 
-def record(out: Path, verdict: dict[str, Any], tool: str, log: str | Path = GATE_LOG) -> None:
+def record(out: Path, verdict: dict[str, Any], tool: str, log: str | Path = GATE_LOG,
+           extra: dict[str, Any] | None = None) -> None:
     """One line in qc/type_gate.jsonl: the picture's sha256 and its verdict (deliver checks read it)."""
     p = Path(log)
     p.parent.mkdir(parents=True, exist_ok=True)
     sha = hashlib.sha256(out.read_bytes()).hexdigest() if out.exists() else ""
     row = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "tool": tool, "out": str(out),
-           "sha256": sha, "ok": verdict["ok"], "problems": verdict["problems"][:30], "fonts": verdict.get("fonts", {})}
+           "sha256": sha, "ok": verdict["ok"], "problems": verdict["problems"][:30], "fonts": verdict.get("fonts", {}),
+           **(extra or {})}
     with p.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def render(html: str, out: str | Path, *, size: tuple[int, int] = (1080, 1920), bands=None,
            fonts_allowed: tuple[str, ...] = (), tool: str = "fatype", jpeg_q: int = 93,
-           log: str | Path | None = GATE_LOG, keep_png: bool = False, wait_ms: int = 300) -> dict[str, Any]:
+           log: str | Path | None = GATE_LOG, keep_png: bool = False, wait_ms: int = 300,
+           extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """HTML → gated picture. The picture is written ONLY when the gate passes; a failing page
     leaves `out` untouched (or removed when an old one was there) and returns the problems."""
     import tempfile
@@ -383,7 +386,7 @@ def render(html: str, out: str | Path, *, size: tuple[int, int] = (1080, 1920), 
             else:
                 out.write_bytes(png.read_bytes())
     if log:
-        record(out, verdict, tool, log)
+        record(out, verdict, tool, log, extra)
     return verdict
 
 

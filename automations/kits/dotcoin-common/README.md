@@ -9,7 +9,8 @@ voice or cover is taken from Pro-Chart or Zarib×100.
 - brand/README.md — the two colours, the fonts, the page's mark.
 - tools/cutout.py — a person or subject cut out (ISNet, onnxruntime) as RGBA.
 - tools/cover_compose.py — the cover composed exactly (Chromium): ground, giant English words behind
-  the cut-out, the Persian title bar, the topic's real logo.
+  the cut-out, the Persian title bar, the topic's real logo. ⟨2026-11-27⟩ Samples and tests only: never a delivered
+  cover (owner: no substitute, ever — a wrong ChatGPT cover is asked again or the day waits).
 - tools/cover_sheet.py — the cover's row check: the new cover beside the last 4 (cover/family/) and
   a ground check; run it and read the sheet before every delivery.
 - tools/pin_find.py — Pinterest search (signed out: read from the page's own results), numbered sheets.

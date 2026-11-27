@@ -4,9 +4,9 @@
 Usage (in the workspace): VENV/bin/python -I KIT/tools/deliver_check.py [--n 12]
 Exit 0 = the set may be delivered; exit 2 = it may NOT (every reason listed). It checks:
   1. out/ holds story_1.jpg … story_N.jpg (1080×1920), comment.txt and topic.txt, nothing else;
-  2. every story_K.jpg is byte for byte a picture slide_frame.py made and the TYPE GATE passed
-     (its sha256 in qc/type_gate.jsonl with ok=true): a picture copied in from anywhere else, an
-     improvised render or a failed one cannot go out;
+  2. every story_K.jpg is byte for byte a picture slide_frame.py made on ChatGPT's own slide (in/CR-…)
+     and the TYPE GATE passed (its sha256 in qc/type_gate.jsonl with ok=true): a picture copied in from
+     anywhere else, a substitute/improvised slide or a failed one cannot go out (owner 2026-11-27);
   3. qc/scores.md scores every slide with its typography («type» for slide K, out of 10) and no slide
      is under 8.5 overall or under 9 for typography;
   4. comment.txt has its keyword line and the summary keeps the number rules for any figure.
@@ -47,8 +47,10 @@ def main(argv: list[str]) -> int:
                 r = json.loads(line)
             except ValueError:
                 continue
-            if r.get("ok") and str(r.get("tool", "")).endswith("slide_frame") and r.get("sha256"):
-                passed.add(r["sha256"])
+            bg = Path(str(r.get("bg") or ""))
+            if (r.get("ok") and str(r.get("tool", "")).endswith("slide_frame") and r.get("sha256")
+                    and bg.parts[:1] == ("in",) and bg.name.startswith("CR-")):
+                passed.add(r["sha256"])  # a gated frame on ChatGPT's own slide (no substitute, owner 11-27)
     else:
         bad.append(f"{F.GATE_LOG} is missing: frame every slide with tools/slide_frame.py")
     from PIL import Image
@@ -59,7 +61,7 @@ def main(argv: list[str]) -> int:
             continue
         sha = hashlib.sha256(p.read_bytes()).hexdigest()
         if sha not in passed:
-            bad.append(f"{p}: not a picture slide_frame.py made with the type gate passed (re-frame it; never copy a picture into out/)")
+            bad.append(f"{p}: not slide_frame.py's gated frame on a ChatGPT slide from in/ (re-frame it; never copy a picture into out/, never a substitute)")
         with Image.open(p) as im:
             if im.size != (1080, 1920):
                 bad.append(f"{p}: {im.size[0]}×{im.size[1]}, not 1080×1920")

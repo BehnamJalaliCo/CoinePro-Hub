@@ -16,7 +16,8 @@ Tools (PY = /home/studio/kits/prochart-reels/venv-render/bin/python, PLAYWRIGHT_
 - `tools/tape.py` — the HUD's price tape (real tickers, the morning of the build) → qc/tape.json.
 - `tools/textlint.py` — the text gate: on-screen strings, caption, comment (old names, full stops, mixed digits,
   kashida, Arabic ي/ك, disclaimers, «ویفنس», hashtag count, button length).
-- `tools/cover_compose.py` — the FALLBACK only: the Persian title, chip and pill set on ChatGPT's picture (and the samples).
+- `tools/cover_compose.py` — the samples only (make_board.py); NEVER a delivered cover (owner 2026-11-27: no fallback,
+  ever — a wrong cover is asked again or the day waits, cover/COVER_SYSTEM.md step 4).
 - `tools/cover_sheet.py` — the cover's row check beside the last 4.
 - `tools/make_board.py` — renders brand/board.png and cover/board.png again (after a new profile photo).
 - `fonts/` — IBM Plex Mono and IBM Plex Sans Condensed (SIL OFL 1.1, `OFL-IBMPlex.txt`).

@@ -118,9 +118,10 @@ cover itself — him, the words, the Persian title, the chip, the pill, the arro
      sheet (ONE FAMILY, rule 3).
    Wrong: ask again (≤ 2 more), saying exactly what was wrong («the word «…» was written «…»», «the
    legs show under the pill: leave clean mustard there», «the ground must be mustard, not black»).
-4. **Still wrong letters after 3 tries:** ONE more call asking for the same cover WITHOUT any Persian
-   text (its place left empty), then set the Persian yourself on it with
-   `COMMON/tools/cover_compose.py` and `"background": "<that picture>"` (IRANYekanX Pro).
+4. **Still wrong letters after 3 tries:** **No substitute, ever (the owner, 2026-11-27: «همیشه اگر خطا داد ساخته نشه، خطا برطرف بشه بعد ساخته بشه، هیچ اشتباهی پیش نیاد»):** never set the Persian on the picture yourself, never a picture of our own in its place. Ask ChatGPT again (≤ 3 more),
+   each time naming the exact wrong letters; still wrong, or no image maker answers: `order.progress` with the
+   exact error in one Persian line and end the turn — the day WAITS until the cause is fixed, then the cover is made
+   and the reel goes out (late is fine; nothing between 00:00 and 08:00 Tehran).
 5. **Size:** fit to 1080×1920 (Lanczos; crop to 9:16 only on the ground, never on him or the text;
    a picture narrower than 9:16 gets its flat ground extended at both sides) → `out/cover.jpg`
    (quality 92). His face and the title must sit inside the grid's 3:4 crop (y 240–1680).

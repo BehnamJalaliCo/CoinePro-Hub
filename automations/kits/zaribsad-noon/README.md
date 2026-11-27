@@ -103,7 +103,8 @@ output short. `order.ack` the plan at the start (the steps below); mark each don
     cover — the owner in a new suit and 2026 accessories in front of the mint arch, the tag (`LESSON · …`,
     `CAMPAIGN · <EXCHANGE>`, `MARKET · …` / `NEWS · …` by today's kind), the Persian title with its mint chip, the
     pill with the comment word, ONE element of the topic — from the eight files (`file_ids`) and the package's brief.
-    Check every letter and his face; the fallback (`COMMON/tools/cover_compose.py`) only after 3 wrong titles.
+    Check every letter and his face; NO fallback (owner 2026-11-27): wrong after 3 tries = ask again with the exact
+    error, else the day waits (COVER_SYSTEM.md step 4).
     `COMMON/tools/cover_sheet.py out/cover.jpg qc/cover_sheet.jpg` → ground/arch/chip ok, read the row;
     `cp out/cover.jpg qc/z100x_cover.jpg`. Never a video frame; no TradeYar logo.
 12. **Texts:** `out/caption.txt` (exactly 3 hashtags, #Zarib100x among them; the comment-word ask).

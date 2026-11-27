@@ -55,11 +55,10 @@ the heavy ivory Persian title under him, its key word in a **rounded mint chip w
    - the row check (rule 3).
    Wrong: ask again (≤ 2 more), saying exactly what was wrong («the word «…» was written «…»», «the arch is missing»,
    «his legs show under the title: end his body behind the title»).
-4. **Persian still wrong after 3 tries (the fallback, only then):** ONE more call with the same brief but «leave the
-   area under him EMPTY — no Persian title, no pill, no chip (keep «Zarib100x» and the tag at the top)», then set the
-   title, the chip and the pill yourself on that picture:
-   `PY -I COMMON/tools/cover_compose.py build/cover.json` with `{"background": "in/<picture>", "title": ["…", "…"],
-   "word": "<comment word>", "out": "out/cover.jpg"}` (IRANYekanX Pro, the family's exact chip and pill).
+4. **Still wrong letters after 3 tries:** **No substitute, ever (the owner, 2026-11-27: «همیشه اگر خطا داد ساخته نشه، خطا برطرف بشه بعد ساخته بشه، هیچ اشتباهی پیش نیاد»):** never set the Persian on the picture yourself, never a picture of our own in its place. Ask ChatGPT again (≤ 3 more),
+   each time naming the exact wrong letters; still wrong, or no image maker answers: `order.progress` with the
+   exact error in one Persian line and end the turn — the day WAITS until the cause is fixed, then the cover is made
+   and the reel goes out (late is fine; nothing between 00:00 and 08:00 Tehran).
 5. **Size:** fit to 1080×1920 (Lanczos; extend the dark ground at the sides if narrower than 9:16, never crop his
    head or the title) → `out/cover.jpg` (quality 92). His face and the title inside the grid's 3:4 crop (y 240–1680).
 6. **The row check on the final file** (rule 3), then `cp out/cover.jpg qc/z100x_cover.jpg`. No image maker answers

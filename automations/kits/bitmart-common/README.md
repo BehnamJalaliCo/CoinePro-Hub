@@ -14,7 +14,8 @@ The page **@bitmart** (IG-Hub account 25, company IG): «قصه‌ی پول», t
 Tools (PY = /home/studio/kits/prochart-reels/venv-render/bin/python, PLAYWRIGHT_BROWSERS_PATH=/home/studio/kits/prochart-reels/ms-playwright):
 - `tools/textlint.py` — the text gate (full stops, mixed digits, kashida, Arabic ي/ك, the exchange / signal /
   «come to the DM» words, hashtag count, no link in the caption).
-- `tools/cover_make.py` — the FALLBACK only: the Persian title set on ChatGPT's 4th picture (after 3 wrong titles).
+- `tools/cover_make.py` — NOT for a delivered cover (owner 2026-11-27: no fallback, ever — a wrong cover is asked again
+  or the day waits, cover/COVER_SYSTEM.md step 4); kept for tests only.
 - `tools/cover_sheet.py` — the cover's row check beside the last 4 (ground / words).
 - `fonts/` — IBM Plex Mono (OFL). The display and text fonts are the owner's licence: /home/studio/kits/fonts-bitmart.
 
