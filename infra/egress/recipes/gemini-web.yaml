@@ -26,8 +26,12 @@
 # on 11-21; the page shows «برای ذخیره فعالیت، به سیستم وارد شوید» and a «ورود به سیستم» button), and
 # the signed-out model menu cannot pick Neon. `expired` only knew the English «Sign in», so the jobs
 # said recipe_failed instead of «sign in again»: the Persian page's sign-in button now counts too.
+# 2026-11-28.1 (owner's order: the covers of @oneoxxo and @fxbyfx ONLY by Gemini, highest quality,
+# «روی فوتو», his face from his reference photos): the image task now attaches the call's files,
+# turns on Gemini's «ساختن تصویر» tool with 9:16 and the «تصویر» format, and takes the FULL-SIZE
+# file (1536x2752) through `capture` instead of the shown 768x1376 picture. Details at the task.
 key: gemini-web
-version: "2026-11-27.2"
+version: "2026-11-28.1"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -50,6 +54,9 @@ hosts:
   # refused in the jobs (it was a login host only), the session died on 11-18 (Gemini opened signed
   # out, every image failed). youtube-bj, chatgpt-web and deepseek-web allow it and stayed signed in.
   - accounts.google.com
+  # 2026-11-28.1: where Gemini's composer uploads an attached file (the owner's reference photos for a
+  # cover); refused until now, every attachment showed «!» and the prompt could not be sent
+  - push.clients6.google.com
 login_hosts:
   - accounts.google.com
   # Google's consent pages after sign-in (the EU consent, the account bar)
@@ -106,15 +113,10 @@ tasks:
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
       # 2026-11-14.1 (owner: «اگر جمنای قراره بسازه مدل آرگون باید بسازه»): the model menu, then
-      # «4 Argon» (a chat model; with it chosen, Gemini's own image tool makes the picture); the
-      # full-size file through Gemini's download button (checked on the live page 2026-11-14)
-      # 2026-11-14.2: .1 failed at the download (TargetClosedError): the steps of the test that
-      # worked the same day: short pauses for the menu and before the download (the full-size file
-      # is still being fetched when the image shows), and the button by any of its names
+      # «4 Argon» (a chat model; with it chosen, Gemini's own image tool makes the picture)
       # 2026-11-27.2 (seen live, signed in): the menu = menuitemradio «4 Neon» … plus a SUBMENU
-      # «سطح «اندیشگر»» holding پایین / متوسط / بالا. The old steps looked for «بالا» in the main menu,
-      # missed, and the second menu click CLOSED the still-open menu, so Neon was never found (10:click).
-      # Now: Neon first (required), then the thinking submenu → «بالا» (optional), then Escape.
+      # «سطح «اندیشگر»» holding پایین / متوسط / بالا. Neon first (required), then the thinking
+      # submenu → «بالا» (optional), then Escape.
       - {do: pause, ms: 2000}
       - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10}
       - {do: pause, ms: 1500}
@@ -129,18 +131,52 @@ tasks:
       - {do: pause, ms: 1200}
       - {do: press, selector: "body", key: Escape, optional: true}
       - {do: pause, ms: 800}
+      # 2026-11-28.1 (owner: the new pages' covers ONLY by Gemini, at its highest quality, «روی فوتو
+      # بذار تا دقیق بسازه», his face exactly from his reference photos). Seen live 2026-11-28:
+      # the composer's «+» («بارگذاری و ابزارها» / «Upload & tools») holds the file uploads (an
+      # input accept=image/*,video/* multiple, present only once the menu is open) and the tools:
+      # «ساختن تصویر» / «Create image» (a menuitemcheckbox). With that tool on, the composer shows
+      # «نسبت ابعادی» (1:1, 9:16, 3:4, 4:3, 16:9) and «قالب» (تصویر | گیف): «تصویر» is the
+      # photo (a still picture, not a GIF). The style gallery (تک‌رنگ, سینمایی …) is left
+      # untouched: no style is the plain photoreal one.
+      # The call's files (the owner's photos) go first; a call without files skips the attach.
+      - {do: click, selector: "button[aria-label='بارگذاری و ابزارها'], button[aria-label='Upload & tools']", timeout_s: 10}
+      - {do: pause, ms: 1200}
+      - {do: attach, selector: "input[type=file][accept*='image']", timeout_s: 20, optional: true}
+      # (each file uploads to push.clients6.google.com: the send button stays disabled until done)
+      - {do: pause, ms: 5000}
+      - {do: press, selector: "body", key: Escape, optional: true}
+      - {do: pause, ms: 800}
+      - {do: click, selector: "button[aria-label='بارگذاری و ابزارها'], button[aria-label='Upload & tools']", timeout_s: 10}
+      - {do: pause, ms: 1200}
+      - {do: click, selector: "[role=menuitemcheckbox]:has-text('ساختن تصویر'), [role=menuitemcheckbox]:has-text('Create image')", timeout_s: 10}
+      - {do: pause, ms: 2000}
+      - {do: click, selector: "button:has-text('نسبت ابعادی'), button:has-text('Aspect ratio')", timeout_s: 10}
+      - {do: pause, ms: 1000}
+      - {do: click, selector: "[role=menuitemradio][aria-label='۹:۱۶'], [role=menuitemradio][aria-label='9:16']", timeout_s: 10}
+      - {do: pause, ms: 1000}
+      - {do: click, selector: "button:has-text('قالب'), button:has-text('Format')", timeout_s: 6, optional: true}
+      - {do: pause, ms: 1000}
+      - {do: click, selector: "[role=menuitemradio][aria-label='تصویر'], [role=menuitemradio][aria-label='Image']", timeout_s: 6, optional: true}
+      - {do: pause, ms: 1000}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
-      - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
-      - {do: wait, selector: "generated-image img, single-image img.image", timeout_s: 140}
       - {do: pause, ms: 3000}
-      # 2026-11-15.4: the night of 11-14 every image failed at the download: Gemini revokes the
-      # picture's blob: URL once it is drawn (fetching it fails), and its download button closed the
-      # page (TargetClosedError). The shown picture is now taken from its own pixels at its natural
-      # size (browser-web's download_image, 2026-11-15); the download button is not used.
-      # 2026-11-15.7 = .4 again after diagnostic calls .5/.6: the button's full-size download takes
-      # the whole browser down 5-10 s after the click (its profile lock left behind; browser-web's
-      # memory at its 1 GiB ceiling), so the shown picture stays the answer (572x1024 for now).
+      # the send button is enabled only once every attached file is uploaded
+      - {do: wait, selector: "button[aria-label*='ارسال'][aria-disabled=false], button[aria-label*='Send'][aria-disabled=false]", timeout_s: 40, optional: true}
+      - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
+      - {do: wait, selector: "user-query", timeout_s: 20, optional: true}
+      - {do: wait, selector: "generated-image img, single-image img.image", timeout_s: 150}
+      - {do: pause, ms: 3000}
+      # 2026-11-15.4/.7: the shown picture (from its own pixels; Gemini revokes the blob) is the
+      # answer when nothing better comes: 768x1376 at 9:16 (seen 2026-11-28)
       - {do: download_image, selector: "generated-image img, single-image img.image", attr: src, timeout_s: 30}
+      # 2026-11-28.1: the FULL-SIZE file (1536x2752 JPEG at 9:16, seen live; no visible mark).
+      # Gemini's «بارگیری تصویر در اندازه کامل» button fetches gg-dl → work.fife rd-gg-dl (text hops)
+      # → lh3 rd-gg-dl (the JPEG). `capture` takes that last request's body with the profile's own
+      # session and answers the page with an empty 204, so Chromium's download path (which took the
+      # whole browser down on 11-15) never gets the 3 MB file. Optional: without it, the shown
+      # picture above stays the answer (the job's `skipped` names this step).
+      - {do: capture, selector: "[data-test-id=download-generated-image-button] button, button[aria-label*='اندازه کامل'], button[aria-label*='full size']", url: "https://lh3.googleusercontent.com/rd-gg-dl/", timeout_s: 45, optional: true}
   video:
     timeout_s: 600
     steps:
