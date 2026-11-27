@@ -244,6 +244,10 @@ async def runner(request: Request, hub: Hub = Depends(get_hub)) -> dict[str, Any
     via = q.get("via") or request.headers.get("x-hq-runner-via")
     rtt = _rtt(q.get("hub_rtt_ms") or request.headers.get("x-hq-runner-hub-rtt-ms"))
     version = (request.headers.get("x-hq-runner-version") or "")[:40] or None
+    # ⟨2026-11-27⟩ runner >= 0.4.0: whether it runs agy (Gemini) turns, on every request
+    agy: bool | None = request.headers.get("x-hq-runner-agy") == "1"
+    if not agy and not WS.version_ok(version, HANDS.AGY_RUNNER_MIN):
+        agy = None  # an older runner says nothing of agy: the label stays as it was
     async with hub.db.tx(await _wide(hub)) as tx:
         r = await SV.runner_by_token(tx, token)
         if r is None:
@@ -256,7 +260,7 @@ async def runner(request: Request, hub: Hub = Depends(get_hub)) -> dict[str, Any
                 raise ApiError(410, "runner_revoked")
             raise ApiError(401, "unauthenticated")
         hub.limiter.check(f"runner:{r['id']}", max(RUNNER_PER_MIN, hub.settings.rate_per_principal))
-        await SV.seen(tx, r, via if via in ("private", "public") else None, rtt, version)
+        await SV.seen(tx, r, via if via in ("private", "public") else None, rtt, version, agy)
     return r
 
 
@@ -397,11 +401,25 @@ async def runner_next(
             cancels = await SV.cancels_for(tx, r)
             # ⟨2026-11-09⟩ a Claude Code job runs on the hub's account of the moment; both full: it waits
             pick = await SV.runner_claude_pick(tx, hub) if slots > 0 else SV.NO_PICK
-            job = await SV.dispatch(tx, r, hold_claude=pick.hold) if slots > 0 else None
-            if job is not None and job["kind"] == "claude":
+            # ⟨2026-11-27⟩ a runner that runs agy takes the Gemini turns, and every Claude turn
+            # while no Claude account has room (the owner's Hydrogen fallback, on by default)
+            agy = slots > 0 and request.headers.get("x-hq-runner-agy") == "1"
+            hydrogen = (
+                agy and not SV.claude_has_room(hub, pick) and await SV.hydrogen_fallback_on(tx)
+            )
+            job = (
+                await SV.dispatch(tx, r, hold_claude=pick.hold, agy=agy, hydrogen=hydrogen)
+                if slots > 0
+                else None
+            )
+            if job is not None and job["kind"] == "claude" and not SV.is_agy_job(job) and hydrogen:
+                job = await SV.to_hydrogen(tx, job, "no_room")
+            if job is not None and job["kind"] == "claude" and not SV.is_agy_job(job):
                 # ⟨2026-11-11⟩ the account is written on the job: its usage and its rate-limit
                 # events are that account's (a turn the limit stopped takes the other one)
                 pick = await SV.claim_account(tx, hub, job, pick)
+            elif job is not None and job["kind"] == "claude":
+                pick = await SV.claim_account(tx, hub, job, SV.NO_PICK)  # no Claude account
             out = SV.runner_job(job, hub, claude_token=pick.token) if job else None
             # ⟨1.15⟩ §33.10 the works closed since, once each: the runner removes their
             # folders 30 days later (only a runner on 0.3.0 has workspaces)

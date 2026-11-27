@@ -99,6 +99,8 @@ def test_the_flow_key_is_read_from_the_work() -> None:
     assert HANDS.flow_key_of({"run_meta": None}) is None
     assert HANDS.flow_key_of(None) is None
     assert HANDS.host_bound({"run_meta": {"flow": {"key": "oneoxxo_reels"}}})
-    assert HANDS.host_bound({"run_meta": json.dumps({"flow": {"key": "x", "model": "gemini-4-hydrogen-high"}})})
+    assert HANDS.host_bound(
+        {"run_meta": json.dumps({"flow": {"key": "x", "model": "gemini-4-hydrogen-high"}})}
+    )
     assert not HANDS.host_bound({"run_meta": {"flow": {"key": "x", "model": "claude-opus-5-5"}}})
     assert not HANDS.host_bound(None)

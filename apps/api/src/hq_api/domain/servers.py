@@ -835,7 +835,7 @@ async def rotate(tx: Tx, runner: dict[str, Any]) -> dict[str, Any]:
 
 
 async def seen(tx: Tx, runner: dict[str, Any], via: str | None, rtt: float | None,
-               version: str | None = None) -> None:  # fmt: skip
+               version: str | None = None, agy: bool | None = None) -> None:  # fmt: skip
     """A poll: the server is online, its route and its round trip to the hub. `server.state`
     when it comes online, its route changes or ⟨1.24⟩ its round trip changes tier."""
     s = await load_server(tx, runner["server_id"], lock=True)
@@ -844,12 +844,16 @@ async def seen(tx: Tx, runner: dict[str, Any], via: str | None, rtt: float | Non
         """UPDATE infra.servers SET last_seen_at = now(), state = 'online',
                via = COALESCE(:via, via), hub_rtt_ms = COALESCE(:rtt, hub_rtt_ms),
                runner_version = COALESCE(:v, runner_version),
+               labels = CASE WHEN CAST(:agy AS boolean) IS NULL THEN labels
+                             ELSE labels || jsonb_build_object('agy', CAST(:agy AS boolean)) END,
                state_since = CASE WHEN CAST(:back AS boolean) THEN now() ELSE state_since END
            WHERE id = :id""",
         id=s["id"],
         via=via,
         rtt=rtt,
         v=version,
+        # ⟨2026-11-27⟩ runner >= 0.4.0 says whether it runs agy (Gemini) turns: X-HQ-Runner-Agy
+        agy=agy,
         back=was != "online",
     )
     await tx.exec("UPDATE infra.runners SET last_used_at = now() WHERE id = :id", id=runner["id"])
@@ -1231,12 +1235,21 @@ STALE_AFTER = timedelta(hours=12)
 
 
 async def dispatch(
-    tx: Tx, runner: dict[str, Any], *, hold_claude: bool = False
+    tx: Tx,
+    runner: dict[str, Any],
+    *,
+    hold_claude: bool = False,
+    agy: bool = False,
+    hydrogen: bool = False,
 ) -> dict[str, Any] | None:
     """The oldest queued job of the runner's server, now running; None when
     there is none (or the company is locked: nothing new starts).
     ⟨2026-11-09⟩ `hold_claude`: both Claude accounts are full, so a Claude Code job stays queued
-    (it starts once either has room, as the hub's own calls wait) and the other kinds go on."""
+    (it starts once either has room, as the hub's own calls wait) and the other kinds go on.
+    ⟨2026-11-27⟩ `agy`: the runner runs Gemini (Hydrogen) turns; a turn on a gemini-* model goes
+    only to such a runner, whatever the Claude accounts. `hydrogen`: the Claude accounts have no
+    room and the owner's fallback is on: a Claude turn is not held (the caller moves it to
+    Hydrogen, to_hydrogen)."""
     lock = await tx.scalar("SELECT control.lock_state(:co)", co=runner["company_id"])
     if lock in ("holding", "company"):
         return None
@@ -1251,7 +1264,10 @@ async def dispatch(
         """SELECT j.id FROM infra.server_jobs j
              LEFT JOIN work.work w ON w.ref = j.work_ref
             WHERE j.server_id = :s AND j.state = 'queued'
-             AND (NOT CAST(:hold AS boolean) OR j.kind <> 'claude')
+             AND (j.kind <> 'claude' OR CASE
+                    WHEN coalesce(j.args ->> 'model', '') LIKE 'gemini-%' OR j.usage ? 'hydrogen'
+                    THEN CAST(:agy AS boolean)
+                    ELSE NOT CAST(:hold AS boolean) OR CAST(:hydro AS boolean) END)
              AND NOT EXISTS (SELECT 1 FROM work.workspaces ws WHERE ws.last_job_id = j.id
                                AND control.lock_state(ws.company_id) IN ('holding', 'company'))
            ORDER BY (w.run_meta -> 'flow' ->> 'publish_at') IS NOT NULL,
@@ -1260,6 +1276,8 @@ async def dispatch(
            LIMIT 1 FOR UPDATE OF j SKIP LOCKED""",
         s=runner["server_id"],
         hold=hold_claude,
+        agy=agy,
+        hydro=hydrogen and agy,
         stale=(datetime.now(UTC) - STALE_AFTER).strftime("%Y-%m-%dT%H:%M:%S+00:00"),
     )
     if row is None:
@@ -1465,6 +1483,138 @@ async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
     return pick.token, pick.hold
 
 
+# ⟨2026-11-27⟩ The owner: «در صورت لیمیت خوردن و تموم شدن اشتراک کلود کل بار گردن هیدروژن ۴ بیفته … ۱
+# ثانیه هم اتوماسیون از کار نیفته». When the hub's Claude accounts have no room (every stored one full,
+# refused or switched off) every Claude Code turn goes to Antigravity on Gemini 4 Hydrogen (the
+# runner's agy executor, >= 0.4.0, on a server whose runner says it can run it), and goes back to
+# Claude by itself once an account has room (nothing is pinned: each dispatch decides). A Claude
+# turn that a limit or a refusal stopped before it did anything runs again on Hydrogen at once.
+# Switched off by `hydrogen_fallback` in owner.settings.flows_off (then the turns wait, as before).
+AGY_PREFIX = "gemini-"
+HYDROGEN = "gemini-4-hydrogen-xhigh"
+HYDROGEN_OFF_KEY = "hydrogen_fallback"
+HYDROGEN_FA = (
+    "حساب‌های Claude الان جا ندارند؛ این نوبت روی Hydrogen 4 (Antigravity) اجرا میشود. وقتی Claude "
+    "دوباره جا داشت، نوبت‌های بعد خودشان به Claude برمیگردند."
+)
+HYDROGEN_MOVED_FA = (
+    "حساب Claude به سقف یا خطای حساب خورد و حساب دیگری جا ندارد؛ همین نوبت همین حالا روی Hydrogen 4 "
+    "(Antigravity) دوباره اجرا میشود."
+)
+
+
+def is_agy_model(model: Any) -> bool:
+    return isinstance(model, str) and model.startswith(AGY_PREFIX)
+
+
+def is_agy_job(j: dict[str, Any]) -> bool:
+    """A claude job the runner runs on agy: its model is a Gemini one, or the hub moved it to
+    Hydrogen (`usage.hydrogen`: the api may not rewrite a job's args, so the move is booked
+    beside the account and runner_job hands the runner the Hydrogen model)."""
+    args = j.get("args")
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except ValueError:
+            args = None
+    if j.get("kind") != "claude":
+        return False
+    return is_agy_model((args or {}).get("model")) or bool(_book(j).get("hydrogen"))
+
+
+async def hydrogen_fallback_on(tx: Tx) -> bool:
+    """The owner's switch: on unless `hydrogen_fallback` is in owner.settings.flows_off."""
+    off = await tx.scalar("SELECT flows_off FROM owner.settings WHERE id = 1")
+    return HYDROGEN_OFF_KEY not in {str(k) for k in off or []}
+
+
+def claude_has_room(hub: Any, pick: AccountPick) -> bool:
+    """Whether a Claude Code turn can run on Claude now: an account was picked, or no account is
+    stored at all (the server's own login, as before). Every stored account full (`hold`) or
+    switched off / refused (no pick): no room."""
+    if pick.key:
+        return True
+    if pick.hold:
+        return False
+    sec = getattr(hub, "secrets", None)
+    return not any(str(getattr(sec, attr, "") or "") for _, attr in RUNNER_ACCOUNTS)
+
+
+async def server_runs_agy(tx: Tx, server_id: Any) -> bool:
+    return bool(
+        await tx.scalar(
+            "SELECT coalesce((labels ->> 'agy')::boolean, false) FROM infra.servers WHERE id = :s",
+            s=server_id,
+        )
+    )
+
+
+async def hydrogen_ready(tx: Tx) -> bool:
+    """The fallback can take the turns now: it is on and an online workshop runs agy."""
+    if not await hydrogen_fallback_on(tx):
+        return False
+    return bool(
+        await tx.scalar(
+            """SELECT 1 FROM infra.servers s JOIN core.companies c ON c.id = s.company_id
+               WHERE c.kind = 'holding' AND s.state = 'online'
+                 AND coalesce((s.labels ->> 'agy')::boolean, false) LIMIT 1"""
+        )
+    )
+
+
+def hydrogen_mark(args: dict[str, Any], why: str) -> dict[str, Any]:
+    """What a move to Hydrogen books on the job (`usage.hydrogen`): the model it had and why."""
+    return {"from": str(args.get("model") or "claude"), "why": why, "at": now().isoformat()}
+
+
+def hydrogen_args(args: dict[str, Any], mark: dict[str, Any]) -> dict[str, Any]:
+    """The args the runner gets for a turn moved to Hydrogen (the stored args stay as made)."""
+    return {**args, "model": HYDROGEN, "fallback": mark}
+
+
+async def to_hydrogen(tx: Tx, j: dict[str, Any], why: str) -> dict[str, Any]:
+    """A dispatched Claude turn runs on Hydrogen instead (no Claude account has room). Recorded
+    on the job (usage.hydrogen), on its work (run_meta.hydrogen), on its session and in Audit."""
+    args = j["args"] if isinstance(j["args"], dict) else json.loads(j["args"] or "{}")
+    mark = hydrogen_mark(args, why)
+    await tx.exec(
+        """UPDATE infra.server_jobs
+           SET usage = (COALESCE(usage, '{}'::jsonb) - 'account')
+                       || jsonb_build_object('hydrogen', CAST(:m AS jsonb))
+           WHERE id = :id""",
+        m=json.dumps(mark),
+        id=j["id"],
+    )
+    await _record_hydrogen(tx, j, why, mark["from"])
+    return await load_job(tx, j["id"])
+
+
+async def _record_hydrogen(tx: Tx, j: dict[str, Any], why: str, was: str) -> None:
+    mark = {"job": str(j["id"]), "why": why, "from": was, "at": now().isoformat()}
+    if j.get("work_ref"):
+        await tx.exec(
+            """UPDATE work.work SET run_meta = coalesce(run_meta, '{}'::jsonb)
+                   || jsonb_build_object('hydrogen', CAST(:m AS jsonb))
+               WHERE ref = :w""",
+            w=j["work_ref"],
+            m=json.dumps(mark),
+        )
+    if j.get("session_id"):
+        from hq_api.workshop import domain as WD
+
+        try:
+            sess = await WD.load(tx, j["session_id"])
+        except ApiError:
+            sess = None
+        if sess is not None:
+            await WD.append(tx, sess, "state", HYDROGEN_FA, {"executor": "agy", **mark})
+    await audit.record(
+        tx, SERVICE, company_id=j["company_id"], action="server.job", action_class="A1",
+        target_kind="server_job", target_ref=str(j["id"]),
+        summary=f"claude turn moved to {HYDROGEN} ({why}; was {was}); work {j.get('work_ref')}",
+    )  # fmt: skip
+
+
 def _book(j: dict[str, Any]) -> dict[str, Any]:
     """⟨2026-11-11⟩ What the hub keeps on a claude job's `usage` beside the runner's figures: the
     account it was given (`account`), the job a usage-limit failure moved here (`retry_of`), and
@@ -1477,7 +1627,7 @@ def _book(j: dict[str, Any]) -> dict[str, Any]:
             u = None
     if not isinstance(u, dict):
         return {}
-    return {k: u[k] for k in ("account", "retry_of", "avoid") if k in u}
+    return {k: u[k] for k in ("account", "retry_of", "avoid", "hydrogen") if k in u}
 
 
 async def claim_account(tx: Tx, hub: Any, j: dict[str, Any], pick: AccountPick) -> AccountPick:
@@ -1770,6 +1920,9 @@ def runner_job(j: dict[str, Any], hub: Any, *, claude_token: str = "") -> dict[s
             for f in args["inputs"]
             if isinstance(f, dict) and f.get("file_id")
         ]
+    hydro = _book(j).get("hydrogen") if j["kind"] == "claude" else None
+    if isinstance(hydro, dict):
+        args = hydrogen_args(args, hydro)  # ⟨2026-11-27⟩ moved to Hydrogen by the hub
     out = {
         "id": str(j["id"]),
         "kind": j["kind"],
@@ -1786,7 +1939,7 @@ def runner_job(j: dict[str, Any], hub: Any, *, claude_token: str = "") -> dict[s
     # job at pickup (over the runner's HTTPS), only into that process's environment; never in the
     # job's stored args, the events or a log. Without a token (or for any other kind) the server's
     # own login is used.
-    if j["kind"] == "claude" and claude_token:
+    if j["kind"] == "claude" and claude_token and not is_agy_job(j):
         out["claude_oauth"] = claude_token
     return out
 
@@ -1966,6 +2119,7 @@ async def finish(
     # done turn whose answer is the CLI's limit notice, never a generic exit-1 failure; once, it
     # runs again on the other account while that one has room
     moved: AccountPick | None = None
+    hydro = False
     if await usage_limited(tx, j, ok, data):
         ok, state, err = False, "failed", USAGE_LIMIT
         if book.get("account"):
@@ -1977,6 +2131,17 @@ async def finish(
         summary_fa = (
             MOVED_FA if moved is not None else MIDWAY_FA if other is not None else LIMIT_FAILED_FA
         )
+        # ⟨2026-11-27⟩ no other account: the same turn on Hydrogen at once (never a wait)
+        if (
+            other is None
+            and not book.get("retry_of")
+            and j["actor_code"] not in NO_REQUEUE_ACTORS
+            and await hydrogen_fallback_on(tx)
+            and await server_runs_agy(tx, j["server_id"])
+            and await _untouched(tx, j, data)
+        ):
+            hydro = True
+            summary_fa = HYDROGEN_MOVED_FA
     if ok:
         result = await _apply(tx, hub, j, data)
     elif j["kind"] == "publish":
@@ -2023,11 +2188,11 @@ async def finish(
         from hq_api.domain import payments
 
         await payments.on_job_finished(tx, j)
-    if moved is not None:
-        # the same turn, queued again for the other account: its session and workspace go on
-        # with the new job; this one is only the record of the refused attempt
+    if moved is not None or hydro:
+        # the same turn, queued again for the other account (or on Hydrogen): its session and
+        # workspace go on with the new job; this one is only the record of the refused attempt
         await emit_call(tx, j, exit_code=exit_code, ms=ms)
-        return {**j, "requeued_as": await _requeue_claude(tx, hub, j, moved)}
+        return {**j, "requeued_as": await _requeue_claude(tx, hub, j, moved, hydrogen=hydro)}
     if j["session_id"]:
         if ok:
             await _session_end(tx, j, "idle", None, j["summary_fa"] or "")
@@ -2047,8 +2212,8 @@ async def usage_limited(tx: Tx, j: dict[str, Any], ok: bool, data: dict[str, Any
     """A claude job the account's usage limit stopped: its final text is the CLI's own limit
     notice (also with exit 0, where it would have been posted as the turn's answer), or it failed
     after the CLI reported the account `rejected`. Never limit wording alone."""
-    if j["kind"] != "claude":
-        return False
+    if j["kind"] != "claude" or is_agy_job(j):
+        return False  # ⟨2026-11-27⟩ a Hydrogen turn spends no Claude account
     final = str(data.get("result_fa") or "")
     if limit_notice(final) or account_refused(final):
         return True
@@ -2136,10 +2301,14 @@ async def _untouched(tx: Tx, j: dict[str, Any], data: dict[str, Any]) -> bool:
     return not await tx.scalar(DID_SQL, j=j["id"])
 
 
-async def _requeue_claude(tx: Tx, hub: Any, j: dict[str, Any], to: AccountPick) -> str:
+async def _requeue_claude(
+    tx: Tx, hub: Any, j: dict[str, Any], to: AccountPick | None, *, hydrogen: bool = False
+) -> str:
     """The refused turn again, as a new queued job of the same server, session and workspace (a
     fresh job: its events and transcript are its own); returns the new job's id. Called in the
-    job's own company scope (the runner's result route)."""
+    job's own company scope (the runner's result route). ⟨2026-11-27⟩ `hydrogen`: on Hydrogen."""
+    args = j["args"] if isinstance(j["args"], dict) else json.loads(j["args"] or "{}")
+    mark = hydrogen_mark(args, "limit") if hydrogen else None
     new = await tx.scalar(
         """INSERT INTO infra.server_jobs (company_id, server_id, kind, actor_kind, actor_code,
                on_behalf_code, work_ref, args, args_sha256, summary_in, state, category, pattern,
@@ -2149,10 +2318,13 @@ async def _requeue_claude(tx: Tx, hub: Any, j: dict[str, Any], to: AccountPick) 
                   session_id, timeout_s,
                   jsonb_build_object('retry_of', CAST(id AS text),
                                      'avoid', jsonb_build_array(CAST(:acct AS text)))
+                  || CASE WHEN CAST(:m AS jsonb) IS NULL THEN '{}'::jsonb
+                          ELSE jsonb_build_object('hydrogen', CAST(:m AS jsonb)) END
            FROM infra.server_jobs WHERE id = :id
            RETURNING id""",
         id=j["id"],
         acct=str(_book(j).get("account") or ""),
+        m=json.dumps(mark) if mark else None,
     )
     # a workshop turn's workspace is its work's company's (the workshop is the holding's server):
     # seen in every company's view for this one statement, as the workshop's own poll reads
@@ -2172,8 +2344,13 @@ async def _requeue_claude(tx: Tx, hub: Any, j: dict[str, Any], to: AccountPick) 
         target_kind="server_job",
         target_ref=str(new),
         summary=f"{j['server_name']} claude queued again after a usage limit on "
-        f"{_book(j).get('account')}: job {j['id']} -> {to.key}",
+        f"{_book(j).get('account')}: job {j['id']} -> "
+        f"{HYDROGEN if hydrogen else (to.key if to else '')}",
     )
+    if hydrogen:
+        await tx.rescope(await hub.companies.ids())
+        await _record_hydrogen(tx, {**j, "id": new}, "limit", str(args.get("model") or "claude"))
+        await tx.rescope([j["company_id"]])
     return str(new)
 
 
@@ -2431,17 +2608,22 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
     usd = await turn_cost(tx, j, usage, usd)
     if not (inp or out or cr or cw or think or usd):
         return
-    account = str(_book(j).get("account") or "") or None
+    # ⟨2026-11-27⟩ a turn on agy (Gemini 4 Hydrogen) spends the owner's Google quota: booked under
+    # its own model and provider, never to a Claude account (connection, windows, quota)
+    agy = usage.get("executor") == "agy" or is_agy_model(usage.get("model")) or is_agy_job(j)
+    account = None if agy else (str(_book(j).get("account") or "") or None)
     await tx.exec(
         """INSERT INTO llm.calls (id, started_at, finished_at, company_id, actor_ref, work_ref,
                task_class, priority, caller, provider, model, input_tokens, output_tokens,
                cache_read_tokens, cache_write_tokens, thinking_tokens, cost_usd, equiv_cost_usd,
                status, meta, connection_id)
            VALUES (gen_random_uuid(), COALESCE(:start, now()), now(), :co, :actor, :wr,
-                   'server_claude', 3, 'company_runner', 'anthropic', :model, :inp, :out, :cr, :cw,
+                   :tc, 3, 'company_runner', :prov, :model, :inp, :out, :cr, :cw,
                    :th, 0, :usd, 'ok', CAST(:meta AS jsonb),
                    (SELECT id FROM llm.connections WHERE key = CAST(:acct AS text)))""",
         acct=account,
+        tc="server_agy" if agy else "server_claude",
+        prov="google" if agy else "anthropic",
         start=j["started_at"],
         co=j["company_id"],
         actor=j["actor_code"],
@@ -2460,7 +2642,8 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
                 "session": j.get("session_ref"),
                 # ⟨20.1⟩ prompt 20 finding 6: whose quota it spent and for what; ⟨2026-11-11⟩
                 # the hub's account the job was given, else the server's own Claude Code login
-                "quota": "hub_account" if account else "company_server",
+                "quota": "agy_google" if agy else "hub_account" if account else "company_server",
+                **({"executor": "agy"} if agy else {}),
                 **({"account": account} if account else {}),
                 "via": "catalogue" if j["actor_code"] == "catalogue" else "server_claude",
             }

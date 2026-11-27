@@ -1022,6 +1022,8 @@ async def claude_wait_fa(
     at: datetime | bool | None
     try:
         async with tx.conn.begin_nested():
+            if await SV.hydrogen_ready(tx):
+                return None  # ⟨2026-11-27⟩ the turn runs on Hydrogen meanwhile: no wait
             if hub is not None:
                 if not (await SV.runner_claude_pick(tx, hub)).hold:
                     return None

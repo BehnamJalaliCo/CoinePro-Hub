@@ -1132,6 +1132,7 @@ async def claude_room(tx: Tx) -> bool:
 async def keep(hub: Any, now: datetime, *, force: bool = False) -> list[str]:
     """The keeper's pass (see KEEP_EVERY_MIN): the sessions it woke."""
     from hq_api.domain import direct as DR
+    from hq_api.domain import servers as SV
     from hq_api.domain import work as W
 
     if not force and now.minute % KEEP_EVERY_MIN:
@@ -1162,7 +1163,8 @@ async def keep(hub: Any, now: datetime, *, force: bool = False) -> list[str]:
     if not left:
         return []
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        if not await claude_room(tx):
+        # ⟨2026-11-27⟩ no Claude room but the Hydrogen fallback can take the turns: woken too
+        if not await claude_room(tx) and not await SV.hydrogen_ready(tx):
             return []
         for r in left:
             if await over_cap(tx, r["id"]):
@@ -1494,9 +1496,7 @@ ART_HELD_FA = (
 )
 
 
-async def _art_missing(
-    tx: Tx, w: dict[str, Any], meta: dict[str, Any], need: int
-) -> str | None:
+async def _art_missing(tx: Tx, w: dict[str, Any], meta: dict[str, Any], need: int) -> str | None:
     """None = the stories' art really came from their player; else the day is held ("art")."""
     player = ART_FROM.get(str(meta.get("key") or ""))
     if not player:

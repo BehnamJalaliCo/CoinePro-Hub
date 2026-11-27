@@ -368,7 +368,11 @@ async def test_a_flow_runs_its_turns_on_its_own_model(
         await refuse_queued(su, str(wid))
         r = await run_ask(client, holder, {"work": work_ref, "brief": "بسته‌ی امروز"})
         assert r.status_code == 201, r.text
-        job = await take(client, ws)
+        # ⟨2026-11-27⟩ a Gemini turn goes only to a runner that runs agy (>= 0.4.0 says so)
+        agy = {"X-HQ-Runner-Version": "0.4.0", "X-HQ-Runner-Agy": "1"}
+        job = await take(
+            client, {**ws, "h": {**ws["h"], **agy}} if want.startswith("gemini-") else ws
+        )
         assert job["args"]["model"] == want, job["args"]
         r = await client.post(
             f"/api/v1/runners/jobs/{job['id']}/result",
@@ -721,14 +725,30 @@ async def test_the_keeper_wakes_an_idle_day_only_while_an_account_has_room(
     async def room(tx: Any) -> bool:
         return True
 
+    from hq_api.domain import servers as SV
+
+    async def no_hydrogen(tx: Any) -> bool:
+        return False
+
     monkeypatch.setattr(FL, "claude_room", no_room)
+    # ⟨2026-11-27⟩ ...and no Hydrogen to take the turns either (the owner's fallback off)
+    monkeypatch.setattr(SV, "hydrogen_ready", no_hydrogen)
     assert work_ref not in await FL.keep(hub, later, force=True)  # every account blocked or full
+    # Claude out but Hydrogen ready: the day is woken (its turns run on Hydrogen)
+    monkeypatch.setattr(SV, "hydrogen_ready", room)
+    assert work_ref in await FL.keep(hub, later, force=True)
+    await su.execute(
+        "UPDATE agents.runs SET state = 'failed', finished_at = now() WHERE work_id = $1"
+        " AND state IN ('queued', 'claimed', 'running')",
+        w["id"],
+    )
+    monkeypatch.setattr(SV, "hydrogen_ready", no_hydrogen)
     monkeypatch.setattr(FL, "claude_room", room)
     assert work_ref in await FL.keep(hub, later, force=True)
     kept = await su.fetchval(
         "SELECT count(*) FROM work.work_events WHERE work_id = $1 AND kind = 'flow_kept'", w["id"]
     )
-    assert kept == 1
+    assert kept == 2  # the Hydrogen wake above and this one
     assert work_ref not in await FL.keep(hub, later, force=True)  # its run is queued now
     assert await FL.keep(hub, later.replace(minute=7), force=False) == []  # not the keeper's minute
     # at most KEEP_MAX wakes in 24 hours

@@ -55,6 +55,8 @@ AGY_RUNNER_MIN = "0.4.0"  # the runner with the agy executor
 def is_agy(model: object) -> bool:
     """A model the runner's agy executor runs (Gemini), not Claude Code."""
     return isinstance(model, str) and model.startswith("gemini-")
+
+
 # ⟨1.31⟩ §53 the owner's order: «حتماً Opus 5.5 با بیشترین effort». Every turn of the workshop
 # thinks as hard as the model can unless the caller asks for less; the runner (>= 0.3.5) passes it
 # to Claude Code, an older one runs the turn as before
@@ -123,6 +125,16 @@ def host_bound(w: dict[str, Any] | None) -> bool:
     return is_agy(flow.get("model") if isinstance(flow, dict) else None)
 
 
+def _labels(row: dict[str, Any]) -> dict[str, Any]:
+    raw = row.get("labels")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
 def flow_key_of(w: dict[str, Any] | None) -> str | None:
     meta = (w or {}).get("run_meta")
     if isinstance(meta, str):
@@ -144,7 +156,7 @@ async def workshop_server(
     (a NEW turn of a flow's day not bound to the hub host): the online one with the fewest open
     jobs, the first one on a tie. Otherwise the first paired one (an online one first)."""
     rows = await tx.all(
-        """SELECT s.id, s.runner_version, s.state,
+        """SELECT s.id, s.runner_version, s.state, s.labels,
                   (SELECT count(*) FROM infra.server_jobs j
                     WHERE j.server_id = s.id AND j.state = ANY(:open)) AS open_jobs
            FROM infra.servers s
@@ -164,6 +176,12 @@ async def workshop_server(
                     return await SV.load_server(tx, r["id"])
     if spread and not host_bound(w):
         online = [r for r in rows if r["state"] == "online"]
+        if len(online) > 1:
+            # ⟨2026-11-27⟩ no Claude room: the day goes where its turns can run on Hydrogen
+            from hq_api.domain import flows as FL
+
+            if not await FL.claude_room(tx) and await SV.hydrogen_ready(tx):
+                online = [r for r in online if _labels(r).get("agy")] or online
         if online:
             # min keeps the first on a tie
             best = min(online, key=lambda r: int(r["open_jobs"] or 0))
