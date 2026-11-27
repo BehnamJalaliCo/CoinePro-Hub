@@ -2166,7 +2166,8 @@ async def create_creative(
     """⟨1.9⟩ `source_creative`: a picked image this video is made from
     (contract §27.2 animate): its file goes with the call. ⟨2026-11-15⟩ `reference_files`: an
     image's reference pictures (a brand's cover pack: its colours and its title font), attached to
-    ChatGPT's chat (the worker runs it as its `cover` task; Gemini's image task attaches nothing)."""
+    ChatGPT's chat (the worker runs it as its `cover` task); ⟨2026-11-28⟩ or Gemini's when the
+    creative names Gemini (its `image` task attaches them)."""
     if kind == "video" and player == "gpt":
         raise ApiError(422, "validation_failed", fields={"player": "videos are Gemini's"})
     refs = list(reference_files or [])[:REFERENCE_MAX]
@@ -2179,11 +2180,14 @@ async def create_creative(
                            message_fa="چند عکس در یک گفتگو فقط با ChatGPT ساخته می‌شود.")  # fmt: skip
         player = "gpt"
     if refs:
-        if kind != "image" or player not in (None, "gpt"):
+        # ⟨2026-11-28⟩ the owner: the covers of @oneoxxo / @fxbyfx ONLY by Gemini, his face from his
+        # photos: Gemini's image task attaches the call's files too (gemini-web 2026-11-28.1);
+        # a creative that names no player stays ChatGPT's
+        if kind != "image" or player not in (None, "gpt", "gemini"):
             raise ApiError(422, "validation_failed",
-                           fields={"file_ids": "reference pictures go with a ChatGPT image only"},
-                           message_fa="عکس راهنما فقط همراه ساخت تصویر با ChatGPT می‌رود.")  # fmt: skip
-        player = "gpt"
+                           fields={"file_ids": "reference pictures go with an image only"},
+                           message_fa="عکس راهنما فقط همراه ساخت تصویر می‌رود.")  # fmt: skip
+        player = player or "gpt"
     # a cover from a pack: its brief names the one title ChatGPT sets (the owner's order,
     # 2026-11-15); every other picture is made without text, the hub's or the session's own type
     # goes on it later
