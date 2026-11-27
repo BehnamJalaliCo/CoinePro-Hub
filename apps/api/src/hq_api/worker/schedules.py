@@ -91,6 +91,8 @@ Schedule ids:
     hq-sales-tick             every 15 min  SalesTick (§33.4, §33.6: lead reminders; impacts)
     hq-telegram-tick          every minute  TelegramTick (⟨2026-11-19⟩ a page's Telegram channel:
                               its due posts after the bot's own rights; gated on the lock)
+    hq-trial-reels            every 5 min  TrialReelsTick (⟨2026-11-26⟩ each Instagram reel's Trial
+                              Reel copy, made and set for its own hour; gated on the lock)
     hq-affiliate-gaps         daily 07:20 Asia/Tehran  AffiliateGaps (§33.5, after the revenue pull)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
@@ -184,6 +186,7 @@ USAGE_DAILY = "hq-usage-daily"
 USAGE_WEEKLY = "hq-usage-weekly"
 SALES_TICK = "hq-sales-tick"
 TELEGRAM_TICK = "hq-telegram-tick"
+TRIAL_REELS = "hq-trial-reels"
 AFFILIATE_GAPS = "hq-affiliate-gaps"
 P24M = (
     MONEY_READ,
@@ -223,6 +226,7 @@ FIXED = (
     *OWNER_TOOLS,
     MEDIA_SWEEP,
     TELEGRAM_TICK,
+    TRIAL_REELS,
     *P13B,
     *P14,
     *P21C,
@@ -647,6 +651,14 @@ def studio_fixed() -> list[Desired]:
         ),
         Desired(
             TELEGRAM_TICK, "TelegramTick", (), every(1), timedelta(minutes=2), timedelta(minutes=10)
+        ),
+        Desired(
+            TRIAL_REELS,
+            "TrialReelsTick",
+            (),
+            every(5),
+            timedelta(minutes=10),
+            timedelta(minutes=45),
         ),
     ]
 

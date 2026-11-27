@@ -677,6 +677,7 @@ async def _send(
     first_comment: str | None = None,
     flow: dict[str, Any] | None = None,
     publication: dict[str, Any] | None = None,
+    trial: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One `publish` job on IG-Hub's server: the file (a reel's cover, a carousel's other
     files), the caption, the company's own command. ⟨§46⟩ `scheduled_at`: IG-Hub holds it for
@@ -687,7 +688,10 @@ async def _send(
     (`publication`: what the caller knows beyond the job: a flow's key, day and topic, a set's key
     and place).
     ⟨2026-11-26⟩ the owner: nothing goes out between 00:00 and 08:00 Tehran (quiet_hours): a
-    time in the night, or «now» in the night, waits for the morning."""
+    time in the night, or «now» in the night, waits for the morning.
+    ⟨2026-11-26⟩ `trial`: a reel's Trial Reel copy (trial_reels.py: {of: its reel's row, n: the
+    try, day, of_ext: its IG-Hub id}): IG-Hub makes it a Trial Reel (MANUAL, never on the grid),
+    under its own key for each try."""
     from hq_api.domain import quiet_hours as QH
 
     asked = scheduled_at or datetime.now(UTC)
@@ -720,6 +724,13 @@ async def _send(
         # ⟨1.31⟩ the publication's own key, the same on a second try (IG-Hub may refuse a twin)
         "key": publication_key(str(d["ref"]), str(f["id"]), account, what),
     }
+    if trial and what == "reel":
+        meta["trial"] = True
+        meta["key"] = publication_key(
+            str(d["ref"]), str(f["id"]), account, f"reel:trial:{int(trial.get('n') or 1)}"
+        )
+        if trial.get("of_ext"):
+            meta["trial_of"] = str(trial["of_ext"])[:60]
     if scheduled_at is not None:
         meta["scheduled_at"] = scheduled_at.isoformat()
     if comment and what != "story":
@@ -748,6 +759,7 @@ async def _send(
             },
             **({"standing": standing} if standing else {}),
             **({"flow": flow} if flow else {}),
+            **({"trial": trial} if trial and what == "reel" else {}),
             "kind": what,
             "placement": f"instagram_{what}",
             "account": account,
@@ -760,7 +772,11 @@ async def _send(
         actor_kind=who.kind,
         actor_code=who.code,
         work_ref=str(d["work_ref"]) if d.get("work_ref") else None,
-        summary=f"انتشار {'خودکار ' if standing or flow else ''}{KIND_FA[what]} در @{account} از {where}",
+        summary=(
+            f"انتشار ریلز آزمایشی (Trial) در @{account} از {d['ref']}"
+            if trial and what == "reel"
+            else f"انتشار {'خودکار ' if standing or flow else ''}{KIND_FA[what]} در @{account} از {where}"
+        ),
         timeout_s=TIMEOUT_S,
         request_id=request_id,
     )

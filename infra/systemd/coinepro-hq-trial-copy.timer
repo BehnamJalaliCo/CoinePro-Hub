@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: a Trial Reel copy pass every minute (one copy a pass)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Unit=coinepro-hq-trial-copy.service
+
+[Install]
+WantedBy=timers.target

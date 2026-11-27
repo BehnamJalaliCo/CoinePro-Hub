@@ -62,4 +62,19 @@ class TelegramTick:
         return out
 
 
-STUDIO_WORKFLOWS = [MediaSweep, MediaPublish, MediaUnpublish, TelegramTick]
+@workflow.defn(name="TrialReelsTick")
+class TrialReelsTick:
+    """⟨2026-11-26⟩ Every 5 minutes: one Instagram reel's Trial Reel copy, made and set for its hour
+    (a copy is sent once: its IG-Hub key is the same on every try)."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        out: dict[str, Any] = await workflow.execute_activity(
+            "trial_reels_tick",
+            start_to_close_timeout=timedelta(minutes=40),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+        return out
+
+
+STUDIO_WORKFLOWS = [MediaSweep, MediaPublish, MediaUnpublish, TelegramTick, TrialReelsTick]

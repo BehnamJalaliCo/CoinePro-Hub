@@ -555,7 +555,7 @@ DONE_KINDS = {
 DONE_MAX_CHARS = 4500  # (the order's text is at most 10 000 characters)
 DONE_SQL = """SELECT coalesce(nullif(topic_fa, ''), title_fa) AS t, max(at) AS at
     FROM media.publications WHERE account = :a AND kind = ANY(:k)
-      AND state IN ('scheduled', 'publishing', 'published', 'held')
+      AND state IN ('scheduled', 'publishing', 'published', 'held') AND NOT source ? 'trial_of'
     GROUP BY 1 ORDER BY max(at) DESC LIMIT 300"""
 NO_REPEAT_FA = (
     "قاعده‌ی مالک، تکرار ممنوع: موضوع‌هایی که این پیج تا امروز منتشر کرده یا در صف دارد (تازه‌ترین "
@@ -905,8 +905,9 @@ CLOCK_WHO = Principal(kind="owner", code="owner", role="owner")  # (n8n's call i
 DAY_SQL = """SELECT 1 FROM work.work WHERE parent_id IS NULL
     AND run_meta -> 'flow' ->> 'key' = :k AND run_meta -> 'flow' ->> 'day' = :d LIMIT 1"""
 DUPLICATE_DAY = "duplicate_day"  # a work's close_reason: a second order of a day, never made again
+# ⟨2026-11-26⟩ a reel's Trial Reel copy (trial_reels.py, `source.trial_of`) is never a flow's day
 PUBLISHED_SQL = """SELECT ref FROM media.publications
-    WHERE state NOT IN ('failed', 'cancelled') AND (
+    WHERE state NOT IN ('failed', 'cancelled') AND NOT source ? 'trial_of' AND (
         (source ->> 'flow_key' = :k AND source ->> 'day' = :d)
         OR (account = :a AND kind = :kind AND at >= :lo AND at < :hi
             AND coalesce(source ->> 'flow_key', '') IN ('', :k)))
@@ -1397,6 +1398,7 @@ REPEAT_SQL = """SELECT topic_fa, coalesce(published_at, scheduled_at, created_at
   FROM media.publications
  WHERE account = :a AND kind = 'reel' AND state NOT IN ('cancelled', 'failed')
    AND coalesce(topic_fa, '') <> '' AND coalesce(source ->> 'work', '') <> :w
+   AND NOT source ? 'trial_of'
  ORDER BY created_at DESC LIMIT :n"""
 TOPIC_REPEAT_FA = (
     "موضوع این ریلز («{topic}») پیش از این در همین پیج رفته است ({at}). تکرار ممنوع است (دستور "

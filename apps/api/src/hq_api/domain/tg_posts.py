@@ -563,6 +563,7 @@ async def connected(tx: Tx, company_id: Any, page: str) -> str | None:
 REELS_SQL = """SELECT coalesce(nullif(topic_fa, ''), title_fa) AS t FROM media.publications
     WHERE account = :a AND channel = 'instagram' AND kind IN ('reel', 'story')
       AND state IN ('scheduled', 'publishing', 'published') AND at > now() - interval '3 days'
+      AND NOT source ? 'trial_of'
     GROUP BY 1 ORDER BY max(at) DESC LIMIT 12"""
 
 

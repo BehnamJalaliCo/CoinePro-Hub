@@ -11,7 +11,9 @@ workshop is studio's, the file volume is the api's).
    at least GRACE_MIN ago, or `cancelled`, and at least one is published; no publish job still
    queued or running carries it; and a reel of a page that mirrors its reels to YouTube Shorts
    (SHORTS) has its Short uploaded (that page's state file says `done` for the reel's work or for
-   the file's sha256), unless the reel is older than the Shorts window. Only the bytes go: the
+   the file's sha256), unless the reel is older than the Shorts window; ⟨2026-11-26⟩ and a reel
+   whose Trial Reel copy is not made yet (hq_api.domain.trial_reels, TRIAL_SQL) waits for it, up to
+   40 hours after it went out. Only the bytes go: the
    files.files row is append-only and stays (the app then answers «file content missing», 404), the
    cover, the thumbnails and the caption stay. The archive's copy of it (the §58.4 publication
    record) is destroyed the archive's way (destroyed_at, hashes kept), never while a hold exists.
@@ -178,6 +180,22 @@ def long_done(ref: str) -> str | None:
 
 
 # ------------------------------------------------------------------ 1. posted videos
+# ⟨2026-11-26⟩ a reel out on Instagram whose trial copy is still to be made from its video (trials on,
+# its page not refused by Meta in the last 3 days, under 40 hours old): its video waits for it
+TRIAL_SQL = """
+SELECT p.ref FROM media.publications p
+ WHERE p.channel = 'instagram' AND p.kind = 'reel' AND NOT p.source ? 'trial_of'
+   AND p.state = 'published' AND p.published_at > now() - interval '40 hours'
+   AND p.published_at >= TIMESTAMPTZ '2026-11-26 20:30:00+00'
+   AND NOT EXISTS (SELECT 1 FROM media.publications t WHERE t.source ->> 'trial_of' = p.ref)
+   AND NOT EXISTS (SELECT 1 FROM owner.settings s WHERE 'trial_reels' = ANY(s.flows_off))
+   AND NOT EXISTS (SELECT 1 FROM media.publications t JOIN infra.server_job_events e
+                     ON e.job_id = ANY(t.chain) AND e.type = 'stderr'
+                    WHERE t.account = p.account AND t.source ? 'trial_of' AND t.state = 'failed'
+                      AND t.updated_at > now() - interval '3 days'
+                      AND e.data ->> 'text' LIKE '%trial_not_eligible%')"""
+
+
 def posted_videos() -> None:
     rows = sql("""
         SELECT f.id::text AS id, f.storage_key AS key, f.sha256 AS sha, f.size AS size,
@@ -194,6 +212,7 @@ def posted_videos() -> None:
     )
     shorts = {acc: load(p).get("uploads") or {} for acc, p in SHORTS.items()}
     holds = sql("SELECT count(*) AS n FROM archive.holds")[0]["n"]
+    trials = {r["ref"] for r in sql(TRIAL_SQL)}
     for f in rows:
         if not KEY.fullmatch(str(f["key"] or "")):
             continue
@@ -214,6 +233,8 @@ def posted_videos() -> None:
             why = "published < grace or no post URL"
         elif f["id"] in busy:
             why = "a publish job still carries it"
+        elif any(p["ref"] in trials for p in pubs):
+            why = "its trial reel is not made yet"
         else:
             why = short_waits(pubs, f["sha"], shorts)
         if why:

@@ -54,6 +54,9 @@ Match = Literal["title", "topic", "caption", "word"]
 KIND_FA = {"reel": "ریلز", "story": "استوری", "post": "پست", "carousel": "اسلاید", "short": "شورت",
            "video": "ویدیو", "tg_post": "پست تلگرام", "article": "مقاله"}  # fmt: skip
 HELD_FA = "صفحه بسته است؛ به محض باز شدن پیج میرود"
+# ⟨2026-11-26⟩ a reel's Trial Reel copy (trial_reels.py)
+TRIAL_AUTOMATION = "TRIAL"
+TRIAL_FA = "ریلز آزمایشی"
 TITLE_MAX = 80
 SNIPPET_MAX = 80
 CAPTION_MAX = 5000
@@ -481,8 +484,18 @@ async def _session_topic(tx: Tx, order: str | None) -> str | None:
 async def _source(
     tx: Tx, j: dict[str, Any], args: dict[str, Any], extra: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """§60.1 `source`, and the flow's run it came from ({} when none)."""
+    """§60.1 `source`, and the flow's run it came from ({} when none). ⟨2026-11-26⟩ a reel's Trial
+    Reel copy (trial_reels.py: `args.trial`) is no flow's and no session's: `trial_of` names its
+    reel's row, and every rule that reads a flow's day or a page's topics leaves it out."""
     s = args.get("session") or {}
+    trial = args.get("trial") or {}
+    if trial.get("of"):
+        return {
+            "automation": TRIAL_AUTOMATION, "automation_fa": TRIAL_FA, "flow_key": None,
+            "version": None, "day": trial.get("day"), "order": None, "work": None,
+            "output": s.get("output"), "session": None, "job_id": str(j["id"]),
+            "trial_of": str(trial["of"]), "trial_n": int(trial.get("n") or 1),
+        }, {}  # fmt: skip
     flow = await _flow_meta(tx, s.get("work"))
     key = extra.get("flow_key") or flow.get("key")
     automation, automation_fa, version = extra.get("automation"), extra.get("automation_fa"), None
@@ -541,6 +554,8 @@ async def _values(
     story_word = str(words[0]) if kind == "story" and words else None
     topic = extra.get("topic_fa") or await _topic(tx, s.get("order"), j.get("created_at"))
     title = title_of(topic, await _session_topic(tx, s.get("order")), caption, kind, account)
+    if (args.get("trial") or {}).get("of"):
+        title = f"{TRIAL_FA} · {title}"[:200]
     files = _roles(args, int(set_n) if set_n else None)
     await _sizes(tx, files)
     thumb = next((f["file_id"] for f in files if f["role"] == "cover"), None) or next(

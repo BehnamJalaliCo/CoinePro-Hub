@@ -1,0 +1,17 @@
+[Unit]
+Description=CoinePro HQ: one Trial Reel copy the worker asked for (hq_api.trial_copy; x264 needs more memory than the worker holds)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# root only to read the file volume; ffmpeg/ffprobe run as its owner (uid 10001, setpriv)
+ExecStart=/usr/bin/python3 -I /home/Hub/CoinePro-Hub/apps/api/src/hq_api/trial_copy.py
+TimeoutStartSec=40min
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=1200M
+CPUQuota=200%
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateNetwork=yes
