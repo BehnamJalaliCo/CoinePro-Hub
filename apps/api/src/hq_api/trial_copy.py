@@ -41,7 +41,10 @@ SIZE_MAX = 190 * 1024 * 1024
 ENCODE_LIMIT_S = 1800
 RID = re.compile(r"^P-\d{6,9}-[1-9]$")
 KEY = re.compile(r"^[0-9a-f]{32}$")
-VOLUME = Path("/var/lib/docker/volumes/coinepro-hq_hq-files/_data")
+# the unit binds the volume here: uid 10001 cannot pass /var/lib/docker (root's, 0710)
+VOLUME = Path(
+    os.environ.get("HQ_TRIAL_VOLUME") or "/var/lib/docker/volumes/coinepro-hq_hq-files/_data"
+)
 OWNER = 10001  # the file volume's owner (the api's and the worker's user)
 RANGES = {
     "zoom": (0.01, 0.025),

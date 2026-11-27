@@ -6,6 +6,9 @@ After=docker.service
 [Service]
 Type=oneshot
 # root only to read the file volume; ffmpeg/ffprobe run as its owner (uid 10001, setpriv)
+# the file volume bound where its owner can reach it (/var/lib/docker is root's alone)
+BindPaths=/var/lib/docker/volumes/coinepro-hq_hq-files/_data:/run/hq-trial-files
+Environment=HQ_TRIAL_VOLUME=/run/hq-trial-files
 ExecStart=/usr/bin/python3 -I /home/Hub/CoinePro-Hub/apps/api/src/hq_api/trial_copy.py
 TimeoutStartSec=40min
 Nice=10
