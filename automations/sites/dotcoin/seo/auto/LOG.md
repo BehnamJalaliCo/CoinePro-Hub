@@ -121,3 +121,32 @@ the next day's input pack (applied.json); the session copies the outcome here th
 - **Index requests first:** /learn/usdc/, / (still not on Google), /learn/tether/, /learn/proof-of-stake/.
 - **Measure (2026-12-10):** exp-2026-11-26-01…04: usdc indexed and its queries; bitcoin-mining,
   bitcoin-history, proof-of-stake inspections; usdt-networks totals (7 impr, 1 click, 6.4).
+
+## 2026-11-27 — the daily session (F-0236)
+- **Yesterday (applied.json):** 2026-11-26 (W-001219) done: /learn/usdc/ live, nothing left out, IndexNow 200;
+  «Request indexing»: usdc, tether, bitcoin-halving, stablecoin requested; usdt-networks refused (Google's cap).
+- **Data (Search Console, 28 days to the 2026-11-26 export):** unchanged since 2026-11-24 (35 impressions, 1 click,
+  position 42.7; 2026-11-22…24 show 0, the lag). Pages: /exchanges/lbank/ 14 (59.3), usdt-networks 7, 1 click (6.4),
+  ourbit 6 (46.3), weex 3, bitcoin-halving 2 (26), glossary 2, /exchanges/ 2, hash 1 (2). 7-day queries: کد رفرال اوربیت 6
+  (46.3), کد رفرال lbank 6 (58.2), ال بانک ثبت نام 4 (65.2), صرافی weex 2, ثبت نام در lbank 1, هاوینگ بعدی بیت کوین 1 (8).
+  No striking-distance or CTR row (all under 50 impressions). Experiments due: 0. Index: 28 of 40 seen on Google.
+  Not on Google: /, fear-greed-extreme-fear-2026-11, trust-wallet-guide, tether, proof-of-stake, bitcoin-history,
+  south-korea-bank-stablecoin-bill, referral-code, coin-vs-token, smart-contract, bitcoin-mining, ethereum. Indexing phase.
+- **Health:** build + audit 0 errors / 0 warnings (40 pages, 41 with today's); live_check all ok (pages, /vip/, /go/vip-*,
+  robots); Lighthouse mobile /exchanges/lbank/, /learn/usdc/, /vip/: performance 99/99/99, accessibility 100, best
+  practices 100, SEO 92 (robots Content-Signal, known §8).
+- **New page:** /learn/kyc/ «KYC چیست؟ احراز هویت در صرافی ارز دیجیتال به زبان ساده» (TOPIC_MAP #5). Why today: the only
+  queries with impressions are LBank/Ourbit registration, and KYC is those readers' next step; suggest «kyc» --deep 194
+  completions (چیست، مخفف، در صرافی چیست، مدارک، فرایند) and «احراز هویت صرافی» --deep (ال بانک، اوربیت، چقدر طول میکشد،
+  خطرناک است، خرید احراز هویت). Covers: meaning, why exchanges ask (LBank, WEEX in their words), the steps, documents,
+  review times and rejection reasons (LBank), a 3-exchange table, exchange account vs personal wallet table, a worked
+  example, common mistakes (documents outside the official app, buying a verified account). Dropped: country/«ایرانی»
+  completions (sanctions rule). Sources: LBank KYC FAQ, WEEX «Does WEEX require KYC», WEEX Sumsub guide.
+- **Changes (link additions; no `updated:`):**
+  - /learn/how-to-buy-crypto/ «قدم ۳: احراز هویت»: +1 sentence → /learn/kyc/ (link in).
+  - /exchanges/lbank/ FAQ «برای احراز هویت در ال بانک چه چیزی لازم است؟»: +1 sentence → /learn/kyc/ (exp-02).
+  - /exchanges/ourbit/ FAQ «بدون احراز هویت می‌شود از اوربیت استفاده کرد؟»: +1 sentence → /learn/kyc/ (exp-03).
+  - /learn/kyc/ links out to /learn/trust-wallet-guide/ (not on Google; exp-04); glossary kyc → /learn/kyc/ by slug.
+- **Index requests first:** /learn/kyc/, /exchanges/lbank/, /learn/how-to-buy-crypto/.
+- **Measure (2026-12-11):** exp-2026-11-27-01…04: kyc indexed and its queries; lbank (14 impr, 59.3) and ourbit
+  (6 impr, 46.3) totals; trust-wallet-guide inspection.

@@ -313,6 +313,62 @@
       "suggest": "TOPIC_MAP #2 (page live 2026-11-25; that day's KEYWORDS were left out by the hub)",
       "gsc": null,
       "updated": "2026-11-26"
+    },
+    "kyc چیست": {
+      "page": "/learn/kyc/",
+      "cluster": "kyc",
+      "suggest": "suggest «kyc» --deep 2026-11-27 (first completion)",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "kyc مخفف چیست": {
+      "page": "/learn/kyc/",
+      "cluster": "kyc",
+      "suggest": "suggest «kyc» --deep 2026-11-27",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "kyc در صرافی چیست": {
+      "page": "/learn/kyc/",
+      "cluster": "kyc",
+      "suggest": "suggest «kyc» --deep 2026-11-27",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "احراز هویت صرافی ارز دیجیتال": {
+      "page": "/learn/kyc/",
+      "cluster": "kyc",
+      "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "احراز هویت در صرافی چقدر طول میکشد": {
+      "page": "/learn/kyc/",
+      "cluster": "kyc",
+      "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27 (FAQ)",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "ایا احراز هویت در صرافی خطرناک است": {
+      "page": "/learn/kyc/",
+      "cluster": "kyc",
+      "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27 (FAQ)",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "احراز هویت صرافی ال بانک": {
+      "page": "/exchanges/lbank/",
+      "cluster": "kyc / lbank",
+      "suggest": "suggest «احراز هویت صرافی» 2026-11-27",
+      "gsc": null,
+      "updated": "2026-11-27"
+    },
+    "احراز هویت صرافی اوربیت": {
+      "page": "/exchanges/ourbit/",
+      "cluster": "kyc / ourbit",
+      "suggest": "suggest «احراز هویت صرافی» 2026-11-27",
+      "gsc": null,
+      "updated": "2026-11-27"
     }
   }
 }

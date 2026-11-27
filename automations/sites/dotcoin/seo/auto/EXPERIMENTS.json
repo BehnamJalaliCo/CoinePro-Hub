@@ -201,5 +201,69 @@
     "opened": "2026-11-26",
     "judge_on": "2026-12-10",
     "verdict": null
+  },
+  {
+    "id": "exp-2026-11-27-01",
+    "page": "/learn/kyc/",
+    "query": "kyc چیست",
+    "change": "new page (TOPIC_MAP #5) + links in from how-to-buy-crypto (قدم ۳), /exchanges/lbank/ and /exchanges/ourbit/ KYC FAQs; glossary kyc term links to it by slug",
+    "baseline": {
+      "impressions": 0,
+      "clicks": 0,
+      "ctr": null,
+      "position": null,
+      "window": "28d to 2026-11-26 export",
+      "note": "new URL; suggest «kyc» --deep 194, «احراز هویت صرافی» --deep: ال بانک، اوربیت، مدارک، چقدر طول میکشد، خطرناک است"
+    },
+    "opened": "2026-11-27",
+    "judge_on": "2026-12-11",
+    "verdict": null
+  },
+  {
+    "id": "exp-2026-11-27-02",
+    "page": "/exchanges/lbank/",
+    "query": "(page totals)",
+    "change": "+1 sentence in the FAQ «برای احراز هویت در ال بانک چه چیزی لازم است؟» → /learn/kyc/",
+    "baseline": {
+      "impressions": 14,
+      "clicks": 0,
+      "ctr": 0.0,
+      "position": 59.3,
+      "window": "28d to 2026-11-26 export",
+      "note": "top page by impressions; queries ال بانک ثبت نام 4 (65.2), کد رفرال lbank 6 (58.2); too little data, watch only"
+    },
+    "opened": "2026-11-27",
+    "judge_on": "2026-12-11",
+    "verdict": null
+  },
+  {
+    "id": "exp-2026-11-27-03",
+    "page": "/exchanges/ourbit/",
+    "query": "(page totals)",
+    "change": "+1 sentence in the FAQ «بدون احراز هویت می‌شود از اوربیت استفاده کرد؟» → /learn/kyc/",
+    "baseline": {
+      "impressions": 6,
+      "clicks": 0,
+      "ctr": 0.0,
+      "position": 46.3,
+      "window": "28d to 2026-11-26 export",
+      "note": "query کد رفرال اوربیت 6 (46.3); too little data, watch only"
+    },
+    "opened": "2026-11-27",
+    "judge_on": "2026-12-11",
+    "verdict": null
+  },
+  {
+    "id": "exp-2026-11-27-04",
+    "page": "/learn/trust-wallet-guide/",
+    "query": "(index state)",
+    "change": "a link in from the new /learn/kyc/ (section «بدون احراز هویت چه کارهایی می‌شود کرد؟»)",
+    "baseline": {
+      "index": "URL is not on Google (inspected 2026-11-26)",
+      "impressions": 0
+    },
+    "opened": "2026-11-27",
+    "judge_on": "2026-12-11",
+    "verdict": null
   }
 ]

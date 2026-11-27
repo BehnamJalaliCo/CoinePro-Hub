@@ -21,7 +21,7 @@ instead of writing a second one.
 | 2 | `tether` | تتر چیست | تتر چیست به زبان ساده، تتر usdt، پشتوانه تتر | info | basics | stablecoin, usdt-networks, how-to-buy-crypto | P1 | live:2026-11-25 |
 | 3 | `crypto-for-beginners` | آموزش ارز دیجیتال از صفر | شروع ارز دیجیتال، ارز دیجیتال برای مبتدی ها | hub / path | basics | every cornerstone lesson | P1 | candidate |
 | 4 | `price-action` | پرایس اکشن چیست | آموزش پرایس اکشن، پرایس اکشن ارز دیجیتال | info | market | technical-analysis (video), support-resistance | P1 | candidate |
-| 5 | `kyc` | احراز هویت صرافی ارز دیجیتال | kyc چیست، مدارک احراز هویت صرافی | info / how-to | exchange | how-to-buy-crypto, /exchanges/ | P1 | candidate |
+| 5 | `kyc` | kyc چیست | احراز هویت صرافی ارز دیجیتال، kyc مخفف چیست، مدارک احراز هویت صرافی، احراز هویت در صرافی چقدر طول میکشد | info / how-to | exchange | how-to-buy-crypto, /exchanges/ (links in: how-to-buy-crypto, /exchanges/lbank/, /exchanges/ourbit/, glossary kyc) | P1 | live:2026-11-27 |
 | 6 | `usdc` | usdc چیست | یو اس دی سی، فرق تتر و usdc | info | basics | stablecoin, tether, usdt-networks (links in: stablecoin, tether, usdt-networks) | P1 | live:2026-11-26 |
 | 7 | `margin-trading` | معاملات مارجین چیست | مارجین ترید، کراس و ایزوله | info | market | leverage, futures-trading (video) | P1 | candidate |
 | 8 | `altseason` | آلت سیزن چیست | فصل آلت کوین ها، شاخص آلت سیزن | info | market | altcoins (video), bitcoin-dominance | P1 | candidate |
