@@ -57,8 +57,14 @@
 # only its Persian label («توقف…», no data-testid). So the set task waits for the first DRAWN picture itself
 # (up to 10 min, like the cover task of 11-21) before the stop-button wait, and the briefs (the hub's note +
 # the kits) ask for the image tool and forbid code.
+# 2026-11-27.2: two test sets through egress itself: .1 got the first drawn picture, then more_images failed
+# again at «Locator.fill: Timeout». Seen live: GPT-6.2 Sol shows several pictures of ONE answer as a gallery
+# (one big picture + thumbnails), and a chat holding such a gallery has a hidden contenteditable before the
+# composer, so `div[contenteditable=true]`'s first match was never fillable (a probe typed into
+# `div[contenteditable=true]:visible` at once). The set task finds the composer by `:visible`, and the hub's
+# note asks for ONE picture per answer (slide 1 now, each next slide when asked), so no gallery forms.
 key: chatgpt-web
-version: "2026-11-27.1"
+version: "2026-11-27.2"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -184,11 +190,11 @@ tasks:
     timeout_s: 1500
     steps:
       - {do: goto, url: "https://chatgpt.com/"}
-      - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
+      - {do: wait, selector: "div[contenteditable=true]:visible", timeout_s: 30}
       - {do: attach, selector: "input[type=file]", optional: true}
       - {do: pause, ms: 3000}
-      - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
-      - {do: press, selector: "div[contenteditable=true]", key: Enter}
+      - {do: fill, selector: "div[contenteditable=true]:visible", text: "{prompt}"}
+      - {do: press, selector: "div[contenteditable=true]:visible", key: Enter}
       - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
       # 2026-11-27.1: the thinking phase shows no stop button: the first drawn picture itself is waited for
       # (by its alt only: an attached reference picture is on the same file addresses)
@@ -207,7 +213,7 @@ tasks:
         selector: >-
           img[alt^='تصویر تولیدشده'], img[alt^='Generated image'],
           img[src*='/backend-api/estuary/content'], img[src*='oaiusercontent.com']
-        composer: "div[contenteditable=true]"
+        composer: "div[contenteditable=true]:visible"
         busy: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']"
         timeout_s: 1300
         # 2026-11-27.1: a «continue» that cannot be typed (GPT thinking again, no stop button) no longer
