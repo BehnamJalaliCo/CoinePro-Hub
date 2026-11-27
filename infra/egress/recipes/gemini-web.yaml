@@ -27,7 +27,7 @@
 # the signed-out model menu cannot pick Neon. `expired` only knew the English «Sign in», so the jobs
 # said recipe_failed instead of «sign in again»: the Persian page's sign-in button now counts too.
 key: gemini-web
-version: "2026-11-27.1"
+version: "2026-11-27.2"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -75,17 +75,24 @@ tasks:
       - {do: goto, url: "{start_url}"}
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
-      # 2026-11-20.3 (the owner: «جمنای رو روی مدل نئون پرو و high بذار»): the thinking level «بالا» / High
-      # first (optional: a menu without it never stops the job), then 4 Neon
+      # 2026-11-27.2 (seen live, signed in): the menu = menuitemradio «4 Neon» … plus a SUBMENU
+      # «سطح «اندیشگر»» holding پایین / متوسط / بالا. The old steps looked for «بالا» in the main menu,
+      # missed, and the second menu click CLOSED the still-open menu, so Neon was never found (10:click).
+      # Now: Neon first (optional in text), then the thinking submenu → «بالا» (optional), then Escape.
       - {do: pause, ms: 2000}
       - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
       - {do: pause, ms: 1500}
-      - {do: click, selector: "[role=menuitem]:has-text('بالا'), [role=menuitemradio]:has-text('بالا'), [role=menuitem]:has-text('High'), [role=menuitemradio]:has-text('High')", timeout_s: 8, optional: true}
+      - {do: click, selector: "[role=menuitemradio]:has-text('Neon'), [role=menuitem]:has-text('Neon')", timeout_s: 10, optional: true}
       - {do: pause, ms: 1500}
+      - {do: press, selector: "body", key: Escape, optional: true}
       - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
-      - {do: pause, ms: 1500}
-      - {do: click, selector: "[role=menuitem]:has-text('Neon'), [role=menuitemradio]:has-text('Neon')", timeout_s: 8, optional: true}
-      - {do: pause, ms: 1500}
+      - {do: pause, ms: 1200}
+      - {do: click, selector: "[role=menuitem]:has-text('اندیشگر'), [role=menuitem]:has-text('Thinking')", timeout_s: 6, optional: true}
+      - {do: pause, ms: 1200}
+      - {do: click, selector: "[role=menuitemradio]:has-text('بالا'), [role=menuitemradio]:has-text('High')", timeout_s: 6, optional: true}
+      - {do: pause, ms: 1200}
+      - {do: press, selector: "body", key: Escape, optional: true}
+      - {do: pause, ms: 800}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "button[aria-label='Stop response'], button[aria-label*='توقف']", timeout_s: 20, optional: true}
@@ -104,19 +111,24 @@ tasks:
       # 2026-11-14.2: .1 failed at the download (TargetClosedError): the steps of the test that
       # worked the same day: short pauses for the menu and before the download (the full-size file
       # is still being fetched when the image shows), and the button by any of its names
-      # 2026-11-20.3 (the owner: «جمنای رو روی مدل نئون پرو و high بذار»): the thinking level «بالا» / High
-      # first (optional: a menu without it never stops the job), then 4 Neon
+      # 2026-11-27.2 (seen live, signed in): the menu = menuitemradio «4 Neon» … plus a SUBMENU
+      # «سطح «اندیشگر»» holding پایین / متوسط / بالا. The old steps looked for «بالا» in the main menu,
+      # missed, and the second menu click CLOSED the still-open menu, so Neon was never found (10:click).
+      # Now: Neon first (required), then the thinking submenu → «بالا» (optional), then Escape.
       - {do: pause, ms: 2000}
-      - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
-      - {do: pause, ms: 1500}
-      - {do: click, selector: "[role=menuitem]:has-text('بالا'), [role=menuitemradio]:has-text('بالا'), [role=menuitem]:has-text('High'), [role=menuitemradio]:has-text('High')", timeout_s: 8, optional: true}
-      - {do: pause, ms: 1500}
       - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10}
       - {do: pause, ms: 1500}
-      # 2026-11-20: «Argon» is gone from the menu (seen live: خودکار, 4 Hydrogen, 4 Neon «جدید», 4 Carbon);
-      # 4 Neon is the new deep model in its place. Argon stays as the fallback should it come back.
-      - {do: click, selector: "[role=menuitem]:has-text('Neon'), [role=menuitemradio]:has-text('Neon'), [role=menuitem]:has-text('Argon'), [role=menuitemradio]:has-text('Argon')", timeout_s: 10}
+      - {do: click, selector: "[role=menuitemradio]:has-text('Neon'), [role=menuitem]:has-text('Neon'), [role=menuitemradio]:has-text('Argon'), [role=menuitem]:has-text('Argon')", timeout_s: 10}
       - {do: pause, ms: 1500}
+      - {do: press, selector: "body", key: Escape, optional: true}
+      - {do: click, selector: "[data-test-id=bard-mode-menu-button], bard-mode-switcher button", timeout_s: 10, optional: true}
+      - {do: pause, ms: 1200}
+      - {do: click, selector: "[role=menuitem]:has-text('اندیشگر'), [role=menuitem]:has-text('Thinking')", timeout_s: 6, optional: true}
+      - {do: pause, ms: 1200}
+      - {do: click, selector: "[role=menuitemradio]:has-text('بالا'), [role=menuitemradio]:has-text('High')", timeout_s: 6, optional: true}
+      - {do: pause, ms: 1200}
+      - {do: press, selector: "body", key: Escape, optional: true}
+      - {do: pause, ms: 800}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "generated-image img, single-image img.image", timeout_s: 140}

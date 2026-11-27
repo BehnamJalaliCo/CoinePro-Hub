@@ -1,4 +1,5 @@
-"""Prompt 14.1 §1: the owner's sign-in window is the image's own Chromium,
+"""Prompt 14.1 §1: the owner's sign-in window is the image's own Chromium (Google accounts: the
+jobs' own Playwright launch since 2026-11-27),
 started directly (no Playwright, no CDP, no automation flag), so
 navigator.webdriver is false and Google lets the owner sign in; the profile
 jobs hide automation too (test_browser_web.py, where Playwright is);
@@ -48,8 +49,14 @@ def test_the_window_runs_chromium_itself_without_automation(account: str) -> Non
     assert argv[-1] == LOGIN_PAGES[account]
     # ChatGPT's app needs more than the read tool's 192 MiB heap (§1.2).
     assert "--js-flags=--max-old-space-size=512" in argv
+
+def test_google_accounts_sign_in_through_the_jobs_own_launch() -> None:
+    """⟨2026-11-27⟩ a Google session minted in the plain window died on the jobs' first use; one
+    minted through browser_web login (the jobs' own Playwright launch) held. Others stay plain."""
     script = SCRIPT.read_text()
-    assert "hq_egress.browser_web" not in script  # no Playwright launch
+    assert 'python3 -m hq_egress.browser_web login "$account"' in script
+    assert "gemini-web | aistudio-web | youtube-web | youtube-bj) google=true" in script
+    assert 'HQ_WEB_LOGIN_RAW:-0' in script
 
 
 def test_an_unknown_account_is_refused() -> None:

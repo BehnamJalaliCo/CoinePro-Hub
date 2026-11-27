@@ -87,5 +87,16 @@ echo "In your own terminal: ssh -L 6080:127.0.0.1:6080 <you>@<the hub>"
 echo "Then open http://127.0.0.1:6080/vnc.html  (one-time password: $pass)"
 echo "Sign in, then close the browser window. Nothing you type reaches the hub."
 unset pass
-timeout "$seconds" "$chrome" "${flags[@]}" "$url" >/dev/null 2>&1 || true
+# ⟨2026-11-27⟩ the window is now the SAME Playwright launch the jobs use (browser_web login): a
+# Google session minted in the plain Chromium above died on the jobs' first use (gemini-web 11-21
+# and 11-27 14:19Z: .google.com SID gone in seconds, «expired»), while one minted through
+# browser_web login on 11-27 14:25Z held and drew. Google's accounts only (ChatGPT/DeepSeek/Pinterest
+# keep the plain window of 14.1 §1); HQ_WEB_LOGIN_RAW=1 keeps the plain window for any account.
+google=false
+case "$account" in gemini-web | aistudio-web | youtube-web | youtube-bj) google=true ;; esac
+if [[ "${HQ_WEB_LOGIN_RAW:-0}" == "1" ]] || ! $google; then
+  timeout "$seconds" "$chrome" "${flags[@]}" "$url" >/dev/null 2>&1 || true
+else
+  timeout "$seconds" python3 -m hq_egress.browser_web login "$account" >/dev/null 2>&1 || true
+fi
 echo "The sign-in window is closed."
