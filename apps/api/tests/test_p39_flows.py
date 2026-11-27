@@ -437,7 +437,7 @@ async def test_the_list_and_the_options(
         assert {"id": OPUS, "name_fa": "Opus 5.5", "efforts": ["high", "xhigh", "max"]} in opts[
             "models"
         ]
-        assert opts["usd_cap"] == {"min": 1, "max": 500} and opts["stories_max"] == 15
+        assert opts["usd_cap"] == {"min": 1, "max": 500} and opts["stories_max"] == 20
         assert opts["cycle_max"] == 7 and opts["note_max"] == 2000
         assert any(k["key"] == "p39-test" for k in opts["kits"])
         r = await client.get("/api/v1/automations/flows/AF-999999", headers=owner)
