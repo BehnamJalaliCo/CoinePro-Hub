@@ -20,8 +20,14 @@
 # already spent) failed at the wait step. Its download button now takes the
 # Persian label too: «دانلود» together with «وید…» (ویدیو or ویدئو), so another
 # download button on the page is not taken for it.
+# 2026-11-27.1: every Gemini picture since 11-21 failed at 10:click (the «4 Neon» menu item) and the
+# hub then held Gemini for 6 h after each failure, so the DotCoin stories of 11-27 (00:32Z) got
+# «channel_not_configured». Seen with web.browse: the profile is SIGNED OUT (Google ended the session
+# on 11-21; the page shows «برای ذخیره فعالیت، به سیستم وارد شوید» and a «ورود به سیستم» button), and
+# the signed-out model menu cannot pick Neon. `expired` only knew the English «Sign in», so the jobs
+# said recipe_failed instead of «sign in again»: the Persian page's sign-in button now counts too.
 key: gemini-web
-version: "2026-11-21.1"
+version: "2026-11-27.1"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -60,6 +66,8 @@ expired:
   selectors:
     - "a[href*='ServiceLogin']"
     - "a:has-text('Sign in')"
+    - "a:has-text('ورود به سیستم')"
+    - "button:has-text('ورود به سیستم')"
 tasks:
   text:
     timeout_s: 240

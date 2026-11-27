@@ -47,8 +47,18 @@
 # languages: a read of the page (2026-11-14) showed <img alt="تصویر تولیدشده 1" src="blob:…">
 # and an unnamed twin of the same blob; the site's file addresses (estuary, oaiusercontent) stay
 # as a last fallback. The last such image is the made one (a cover's attached files come first).
+# 2026-11-27.1 (DotCoin stories F-0246, the owner: «با فونت خراب … این اشتباه ها تکرار نشه»): every set of
+# slides since 11-25 (CR-1064 and the two before it) failed at 10:more_images in 46 s with «Locator.fill:
+# Timeout». Seen on the live page with web.browse (the failed chat itself and two test prompts): GPT-6.2 Sol
+# first THINKS with no stop button at all, so the stop-button wait ended at once and more_images typed into
+# a composer that takes no text while it works; and asked for a set, it wrote the slides with CODE («Ran
+# command» → slide-01.png … in the «خروجی‌ها» panel, typeset by Python), not with its image tool. Told «with
+# the image generation tool only», it drew a real image (img alt «تصویر تولیدشده»); its stop button now has
+# only its Persian label («توقف…», no data-testid). So the set task waits for the first DRAWN picture itself
+# (up to 10 min, like the cover task of 11-21) before the stop-button wait, and the briefs (the hub's note +
+# the kits) ask for the image tool and forbid code.
 key: chatgpt-web
-version: "2026-11-21.2"
+version: "2026-11-27.1"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -180,6 +190,9 @@ tasks:
       - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
       - {do: press, selector: "div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
+      # 2026-11-27.1: the thinking phase shows no stop button: the first drawn picture itself is waited for
+      # (by its alt only: an attached reference picture is on the same file addresses)
+      - {do: wait, selector: "img[alt^='تصویر تولیدشده'], img[alt^='Generated image']", timeout_s: 600}
       - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 600}
       - do: wait
         selector: >-
@@ -197,6 +210,9 @@ tasks:
         composer: "div[contenteditable=true]"
         busy: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']"
         timeout_s: 1300
+        # 2026-11-27.1: a «continue» that cannot be typed (GPT thinking again, no stop button) no longer
+        # throws away the slides already drawn: they are downloaded and the session asks for the rest
+        optional: true
       - {do: pause, ms: 3000}
       - do: download_images
         selector: >-
