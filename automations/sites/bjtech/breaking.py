@@ -312,12 +312,20 @@ def candidates(src: dict, text: str, seen: dict, t: datetime) -> list[dict]:
     elif kind == "page":
         rx = MODEL_IDS[src["ids"]]
         found = sorted(set(m.lower() for m in rx.findall(text)))
+        # ⟨2026-11-27⟩ one model id, one key: xAI's page began writing «grok-4.5» for the «grok-4-5» seen on
+        # 11-18, and two months-old models fired as breaking news (W-001249..56). Ids compare with «.» and «-»
+        # between digits as the same.
+        same = lambda m: re.sub(r"(\d)[.-](?=\d)", r"\1.", m)
+        pre = f"{src['id']}|"
+        known = {same(k[len(pre):]) for k in seen if k.startswith(pre)}
         fresh = []
         for mid in found:
             k = f"{src['id']}|{mid}"
-            if k in seen:
+            if k in seen or same(mid) in known:
+                seen.setdefault(k, t.isoformat())
                 continue
             seen[k] = t.isoformat()
+            known.add(same(mid))
             fresh.append(mid)
         groups: dict[str, list[str]] = {}
         for mid in fresh:
