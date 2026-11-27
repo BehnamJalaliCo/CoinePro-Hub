@@ -2133,13 +2133,15 @@ REFERENCE_MAX = 10
 # ⟨2026-11-17⟩ what every set of slides asks ChatGPT, whatever its brief says. ⟨2026-11-27⟩ GPT-6.2 Sol
 # answered CR-1064 (DotCoin, 12 slides) by typesetting the slides with Python («Ran command», PNG files in
 # its outputs panel), not with its image tool, and the recipe waits for drawn pictures: the tool is named
+# ⟨2026-11-27.2⟩ several pictures in ONE answer show as a gallery (one big picture, thumbnails) whose
+# hidden editor blocked the next message and whose other pictures are not in the page: ONE picture per
+# answer, slide 1 now; the recipe's more_images asks for each next slide in the same chat
 SLIDES_NOTE = (
-    "IMPORTANT: generate {n} separate images now, one per slide, one after another in this answer "
-    "(slide 1 first, then slide 2 … up to slide {n}): each its own full picture, never a grid, a "
-    "collage, a contact sheet or a sheet of objects. Draw every slide with your built-in image "
-    "generation tool: do not write or run code, do not use Python, do not make files. Do not ask "
-    "anything first and do not stop before all {n} are made. If you must stop, the next message "
-    "says «continue»."
+    "IMPORTANT: this is a set of {n} slides made one by one in this chat. Now make ONLY slide 1, as ONE "
+    "image; I will then ask for slide 2, slide 3 … up to slide {n}, one image per answer, all in the same "
+    "series. Each slide its own full picture, never a grid, a collage, a contact sheet or a sheet of "
+    "objects. Draw every slide with your built-in image generation tool: do not write or run code, do "
+    "not use Python, do not make files. Do not ask anything first."
 )
 
 

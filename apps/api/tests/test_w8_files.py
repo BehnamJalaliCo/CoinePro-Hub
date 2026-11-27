@@ -753,7 +753,7 @@ async def test_a_set_of_slides_is_one_chatgpt_chat_and_keeps_every_picture(
             "image", 12, "gpt", S.SLIDES_TIMEOUT_S,
         )  # fmt: skip
         # the note first and last (CR-0142: only at the end, it came back as one sheet)
-        assert c["prompt_md"].startswith("IMPORTANT: generate 12 separate images")
+        assert c["prompt_md"].startswith("IMPORTANT: this is a set of 12 slides")
         assert c["prompt_md"].rstrip().endswith("the next message says «continue».")
         assert S.NO_TEXT not in c["prompt_md"]
         assert S.web_task(c, False) == "slides"

@@ -1471,6 +1471,71 @@ async def _hold_repeat(
     return "repeat"
 
 
+# ⟨2026-11-27⟩ THE ART GATE. The owner, after DotCoin's stories went out with a set the session drew itself
+# (F-0246: ChatGPT failed, Gemini was signed out, its own HTML drew the figures in a system font): «همیشه اگر
+# خطا داد ساخته نشه، خطا برطرف بشه بعد ساخته بشه، هیچ اشتباهی پیش نیاد». A stories flow whose pictures are
+# ChatGPT's art is not sent unless this work's ChatGPT calls really drew them (done image calls of the
+# work, at least one picture a story): a substitute set is held, its session woken to ask ChatGPT again,
+# ART_WAKES times at most; past that the day waits on its report (the cause is fixed first, then it goes).
+ART_FROM: dict[str, str] = {"dotcoin_stories": "gpt"}
+ART_WAKES = 6
+ART_SQL = """SELECT coalesce(sum(greatest(coalesce(c.images, 1), 1)), 0)
+  FROM substitutes.creatives cr JOIN substitutes.calls c ON c.id = cr.call_id
+ WHERE cr.work_id = :w AND cr.player = :p AND c.state = 'done' AND cr.kind = 'image'"""
+ART_MISSING_FA = (
+    "این روز منتشر نشد: تصویرهای استوری باید کارِ {player} باشد، ولی فراخوانی موفقِ {player} برای "
+    "این کار فقط {got} تصویر داده (لازم: {need}). دستور مالک: «اگر خطا داد ساخته نشه، خطا برطرف بشه بعد "
+    "ساخته بشه» — هیچ مجموعه‌ی جایگزین یا ساخت خودمان منتشر نمیشود. دوباره از {player} بخواه (کیت، "
+    "قدم ۴)؛ اگر باز خطا داد، خطا را دقیق در گزارش بگو و منتظر رفعش بمان. دیر رفتن اشکالی ندارد."
+)
+ART_HELD_FA = (
+    "این روز هنوز منتشر نشده: تصویرهای {player} نرسیده‌اند ({got} از {need}). تا خطای مسیر {player} "
+    "برطرف نشود، چیزی ساخته و منتشر نمیشود."
+)
+
+
+async def _art_missing(
+    tx: Tx, w: dict[str, Any], meta: dict[str, Any], need: int
+) -> str | None:
+    """None = the stories' art really came from their player; else the day is held ("art")."""
+    player = ART_FROM.get(str(meta.get("key") or ""))
+    if not player:
+        return None
+    got = int(await tx.scalar(ART_SQL, w=w["id"], p=player) or 0)
+    if got >= need:
+        return None
+    asked = int(meta.get("art_wakes") or 0)
+    meta["art_wakes"] = asked + 1
+    await tx.exec(
+        "UPDATE work.work SET run_meta = jsonb_set(run_meta, '{flow}', CAST(:m AS jsonb))"
+        " WHERE id = :w",
+        w=w["id"],
+        m=_json(meta),
+    )
+    name = {"gpt": "ChatGPT", "gemini": "Gemini"}.get(player, player)
+    said = (ART_MISSING_FA if asked < ART_WAKES else ART_HELD_FA).format(
+        player=name, got=got, need=need
+    )
+    order = str(meta.get("order") or "")
+    rep = await OR.ensure(tx, order) if order else None
+    if rep is not None:
+        await OR._append_steps(tx, rep["id"], [OR._step("سامانه", said)])
+    await audit.record(
+        tx, FLOW, company_id=w["company_id"], action="flow.art_missing", action_class="A1",
+        target_kind="work", target_ref=str(w["ref"]),
+        summary=f"{meta.get('account')}: {got} of {need} pictures from {name}: not sent",
+    )  # fmt: skip
+    if asked < ART_WAKES:
+        await tx.scalar(
+            "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"art_missing:{order or w['ref']}"
+        )
+    log.warning(
+        "flow stories without their art: not sent",
+        extra={"work": str(w["ref"]), "account": meta.get("account"), "got": got, "need": need},
+    )
+    return "art"
+
+
 VIDEO_LEFT_SQL = """SELECT 1 FROM infra.server_jobs j,
         jsonb_array_elements(coalesce(j.result -> 'files_skipped', '[]'::jsonb)) s
     WHERE j.state = 'done' AND s ->> 'name' = 'video.mp4'
@@ -1606,6 +1671,8 @@ async def _publish(tx: Tx, hub: Any, work_id: UUID) -> str | None:
     if not route["ready"] or account not in route["accounts"]:
         return "route"
     if "stories" in pkg:
+        if (held := await _art_missing(tx, w, meta, len(pkg["stories"]))) is not None:
+            return held
         return await _publish_stories(tx, hub, w, meta, pkg, route, account)
     d, reel, story = pkg["d"], pkg["reel"], pkg["story"]
     caption = (await SPB._text_of(tx, hub, pkg["caption_d"], SPB.CAPTION_NAMES) or "").strip()
