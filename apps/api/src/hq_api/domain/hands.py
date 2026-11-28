@@ -46,8 +46,8 @@ MODEL = "claude-opus-5-5"
 # ⟨2026-11-27⟩ the owner: the new pages are built ONLY with Antigravity (`agy`) on Gemini 4 Hydrogen,
 # 0 Claude tokens: a turn whose model starts with `gemini-` runs on the runner's agy executor
 # (company-runner agy_job.py, >= AGY_RUNNER_MIN), never on Claude Code.
-HYDROGEN = "gemini-4-hydrogen-xhigh"
-HYDROGEN_MODELS = ("gemini-4-hydrogen-xhigh", "gemini-4-hydrogen-high")
+HYDROGEN = "gemini-4-hydrogen-medium"
+HYDROGEN_MODELS = ("gemini-4-hydrogen-medium", "gemini-4-hydrogen-high", "gemini-4-hydrogen-xhigh")
 MODELS = ("claude-opus-5-5", *HYDROGEN_MODELS)
 AGY_RUNNER_MIN = "0.4.0"  # the runner with the agy executor
 

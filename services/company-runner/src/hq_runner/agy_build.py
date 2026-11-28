@@ -12,7 +12,7 @@ Claude turn of the workshop (the studio user, behind the Landlock wall) runs thi
     agy-build --stop <workdir>                stop a detached build
 
 It runs `agy` headless (stream-json in and out; the brief goes in on stdin, never on argv where
-every process of this user could read it) in <workdir>, on gemini-4-hydrogen-xhigh unless told
+every process of this user could read it) in <workdir>, on gemini-4-hydrogen-medium unless told
 otherwise, prints a short log (tools, commands, the model's words), and ends with
 
     AGY_CONVERSATION_ID=<id>       (pass it to --resume with review notes as the next brief)
@@ -41,7 +41,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL = "gemini-4-hydrogen-xhigh"
+DEFAULT_MODEL = "gemini-4-hydrogen-medium"
 DEFAULT_TIMEOUT_S = 3000
 WAIT_MAX_S = 540
 STATE_DIR = ".agy"

@@ -1491,7 +1491,7 @@ async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
 # turn that a limit or a refusal stopped before it did anything runs again on Hydrogen at once.
 # Switched off by `hydrogen_fallback` in owner.settings.flows_off (then the turns wait, as before).
 AGY_PREFIX = "gemini-"
-HYDROGEN = "gemini-4-hydrogen-xhigh"
+HYDROGEN = "gemini-4-hydrogen-medium"
 HYDROGEN_OFF_KEY = "hydrogen_fallback"
 HYDROGEN_FA = (
     "حساب‌های Claude الان جا ندارند؛ این نوبت روی Hydrogen 4 (Antigravity) اجرا میشود. وقتی Claude "
