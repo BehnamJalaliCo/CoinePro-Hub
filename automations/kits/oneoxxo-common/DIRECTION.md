@@ -43,7 +43,7 @@ take your time, review your own frames like the strictest art director, and neve
   empty halves, no tiny text, no default fonts, no stock-template look.
 - **Hook in the first 1.2 s:** a bold claim or question in giant type + motion + a hit sound.
   Pattern interrupt every 2–3 s (a new shot, a zoom, a number counting, a reveal).
-- 1080×1920, 60 fps, 25–45 s (the idea's length; 35 s is the sweet spot), safe zone x 60–1020,
+- 1080×1920, 30 fps (RENDER SPEED: software GL renders ~1.5–2 s a frame; no big CSS blur/backdrop-filter, no full-screen canvas particles; stills first, then ONE full render), 25–45 s (the idea's length; 35 s is the sweet spot), safe zone x 60–1020,
   y 260–1640 (IG UI), subtitles: big burned-in word-by-word captions synced to the voice (Inter 800,
   ice with an ink stroke, the key word in cobalt chip), centred around y≈1180.
 

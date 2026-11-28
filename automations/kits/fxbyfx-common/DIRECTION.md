@@ -35,7 +35,7 @@ own frames like the strictest art director.
   typography (big, heavy, perfect), match cuts on the beat. Every frame a designed poster; no empty
   halves, no tiny text, no template look.
 - Hook in 1.2 s; a pattern interrupt every 2–3 s; open loops ("آخرش می‌گم چرا…") paid off.
-- 1080×1920, 60 fps, 30–50 s, safe zone x 60–1020, y 260–1640; burned-in Persian captions synced to
+- 1080×1920, 30 fps (RENDER SPEED: software GL renders ~1.5–2 s a frame; no big CSS blur/backdrop-filter, no full-screen canvas particles; stills first, then ONE full render), 30–50 s, safe zone x 60–1020, y 260–1640; burned-in Persian captions synced to
   the voice (IRANYekanX Pro FaNum Heavy, white, key word in a lime chip with dark letters).
 
 ## 3. Voice — premium Persian narrator
