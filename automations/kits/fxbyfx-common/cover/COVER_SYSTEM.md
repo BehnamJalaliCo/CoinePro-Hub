@@ -16,3 +16,5 @@ A premium «journal issue» look — a private-bank research note turned into a 
 5. No face, no broker, no logo, no clutter. Title and pill inside the grid's 3:4 crop (y 240–1680).
 How: Gemini (the hero) → our HTML layout (fonts-pro, rtl, bdi) screenshotted at 1080×1920 →
 out/cover.jpg; the fa-type gate on it; the director checks every letter.
+
+**The picture to use (11-28):** the creative's RAW Gemini file (1536×2752, the call's own file), never the hub's composed 1080×1920 copy — that one carries a pink overlay icon at the left. Scale to 1080 wide (Lanczos) and centre-crop to 1920.

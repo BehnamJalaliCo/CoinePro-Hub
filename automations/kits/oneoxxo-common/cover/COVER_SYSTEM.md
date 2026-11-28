@@ -36,3 +36,5 @@ ENGLISH and in COBALT. The owner is on every cover.
   turn (no substitute: no other image maker, no cut-out of his photo); the hub wakes you later.
 - Fit to 1080×1920 (extend only the flat ground, never crop him or the text) → out/cover.jpg (q 92).
 - Never the same suit colour or pose as the page's last covers.
+
+**The picture to use (11-28):** the creative's RAW Gemini file (1536×2752, the call's own file), never the hub's composed 1080×1920 copy — that one carries a pink overlay icon at the left. Scale to 1080 wide (Lanczos) and centre-crop to 1920.
