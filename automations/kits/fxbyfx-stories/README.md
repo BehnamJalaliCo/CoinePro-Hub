@@ -63,3 +63,8 @@ Deliver only these. Last `order.progress`: one line (the lesson, the look, stori
 - Series: ۱–۵ نبض بازار فارکس (EUR/USD, XAU/USD, DXY, USD/JPY, GBP/USD…, تقویم اقتصادی به وقت تهران)،
   ۶–۱۰ یک درس مهارتی با مثال عددی، ۱۱–۱۵ ذهن معامله‌گر، ۱۶–۲۰ پرونده‌ی یک رویداد مشهور فارکس.
 - The bar «کلمه‌ی «…» رو دایرکت کن»; comment.txt in Persian; no broker ever; no signals.
+
+## WEEKENDS (director, 11-28): forex and stock markets are CLOSED Saturday and Sunday (Tehran Sat/Sun
+stories). Then story_1–5 = «WEEKLY CLOSE / پایان هفته» with Friday's closing numbers (labelled as such;
+crypto trades on, use its latest confirmed price + UTC time) and NEXT WEEK's calendar (Mon–Fri, real
+events only, confirmed). Never «today's session» for a closed market. The story's date chip = the publish day.

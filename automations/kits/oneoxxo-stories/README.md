@@ -56,3 +56,8 @@ tied to the lesson; never one already used — your order lists them) and the sm
   ≤ 900 characters, no hashtags, no links.
 - out/topic.txt: one line, the lesson's title + "style: <look>".
 Deliver only these. Last `order.progress`: one line (the lesson, the look, stories redone).
+
+## WEEKENDS (director, 11-28): forex and stock markets are CLOSED Saturday and Sunday (Tehran Sat/Sun
+stories). Then story_1–5 = «WEEKLY CLOSE / پایان هفته» with Friday's closing numbers (labelled as such;
+crypto trades on, use its latest confirmed price + UTC time) and NEXT WEEK's calendar (Mon–Fri, real
+events only, confirmed). Never «today's session» for a closed market. The story's date chip = the publish day.
