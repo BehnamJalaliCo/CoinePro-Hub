@@ -2,14 +2,14 @@
  "_note": "TradeYar's public record (its own public API, no key); written by seo.py --vip-stats, never by hand.",
  "source": "https://tradeyar.trade-future.ir/api/v1/public/performance/summary",
  "methodology": "1.2.0",
- "as_of": "2026-11-27T03:09:24+00:00",
+ "as_of": "2026-11-27T14:48:46+00:00",
  "from": "2026-05-17T15:13:12+00:00",
  "days": 194,
- "trades": 1874,
- "win_rate_pct": 63.3,
- "profit_factor": 1.77,
+ "trades": 1878,
+ "win_rate_pct": 63.4,
+ "profit_factor": 1.78,
  "symbols": 104,
- "published_to_telegram": 1577,
- "d30_trades": 97,
- "d30_win_rate_pct": 66.0
+ "published_to_telegram": 1581,
+ "d30_trades": 101,
+ "d30_win_rate_pct": 67.3
 }

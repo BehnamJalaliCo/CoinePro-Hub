@@ -150,3 +150,35 @@ the next day's input pack (applied.json); the session copies the outcome here th
 - **Index requests first:** /learn/kyc/, /exchanges/lbank/, /learn/how-to-buy-crypto/.
 - **Measure (2026-12-11):** exp-2026-11-27-01…04: kyc indexed and its queries; lbank (14 impr, 59.3) and ourbit
   (6 impr, 46.3) totals; trust-wallet-guide inspection.
+
+## 2026-11-28 — the daily session (F-0258)
+- **Yesterday (applied.json):** 2026-11-27 (W-001247) done: /learn/kyc/ live, nothing left out, IndexNow 200; «Request
+  indexing»: kyc requested, /exchanges/lbank/ refused (Google's cap).
+- **Data (Search Console, 28 days to the 2026-11-27 export):** unchanged since 2026-11-24 (35 impressions, 1 click, position
+  42.7; 2026-11-22…25 show 0, the lag). 7-day queries: کد رفرال lbank 1→6 (58.2), ال بانک ثبت نام 0→4 (65.2), کد رفرال اوربیت
+  2→4 (44.0), هاوینگ بعدی بیت کوین 1 (8.0), دپوزیت چیست 1 (88), ثبت نام در lbank 1 (52), صرافی ویکس/weex 1 each. Pages: lbank
+  14 (59.3), usdt-networks 7, 1 click (6.4), ourbit 6 (46.3), weex 3, halving 2 (26). No striking-distance or CTR row (all under
+  50 impressions). Experiments due: 0. Index: 29 of 43 seen on Google (28 of 40 yesterday). Not on Google: /, binance-
+  withdrawals-restored, spot-vs-futures, fear-greed-extreme-fear-2026-11, trust-wallet-guide, tether, proof-of-stake,
+  bitcoin-history, south-korea-bank-stablecoin-bill, referral-code, coin-vs-token, smart-contract, bitcoin-mining, ethereum.
+  Content links in = 0: spot-vs-futures, fear-greed-extreme-fear-2026-11, binance-withdrawals-restored, south-korea… Indexing phase.
+- **Health:** build + audit 0 errors / 0 warnings (43 pages, 44 with today's); live_check all ok (pages, /vip/, /go/vip-*,
+  robots); Lighthouse mobile /exchanges/lbank/, /learn/kyc/, /vip/: performance 99/95/98, accessibility 100, best practices
+  100, SEO 92 (robots Content-Signal, known §8).
+- **New page:** /learn/pump-and-dump/ «پامپ و دامپ چیست؟ از کانال پامپ تا نشانه‌هایش در ارز دیجیتال» (TOPIC_MAP #11, P1).
+  Evidence: suggest «پامپ و دامپ» --deep 24 completions (چیست، در ارز دیجیتال، جعلی چیست، فرق/تفاوت، به چه فعالیتی اشاره دارد،
+  اندیکاتور تشخیص، کلاهبرداری) and «کانال پامپ» (شت کوین). «پامپ» alone is a TV show (not targeted). Covers: meaning + everyday
+  example, the 4 stages, pump vs dump table, real rise vs scheme table, why small caps, Telegram channels (CFTC: thousands of
+  members, a cycle under 8 minutes; USENIX 2019: 412 Telegram pumps Jun 2018–Feb 2019), a worked late-buyer example, signs and
+  how to stay out, pump vs signal. No strategy to take part (dropped «استراتژی پامپ و دامپ»). Sources: CFTC advisory, SEC
+  Investor.gov, Xu & Livshits USENIX 2019. Glossary: + pump-and-dump. Chosen over #41 deposit (suggest is hotel/car; longform
+  #92 owns the deposit how-to) and #40 (crypto-signal already covers judging a channel).
+- **Changes (link additions; no `updated:`):**
+  - /learn/crypto-signal/ mistakes bullet «خرید با یک پیام هیجانی»: «گروه‌های پامپ» → «[گروه‌های پامپ و دامپ](/learn/pump-and-dump/)».
+  - /learn/crypto-signal/ «سیگنال فیوچرز با سیگنال اسپات…»: +1 sentence → /learn/spot-vs-futures/ (0 links in; exp-02).
+  - /learn/pump-and-dump/ links out to spot-vs-futures, fear-greed-extreme-fear-2026-11 (0 links in; exp-03), coin-vs-token
+    (crawled, not indexed; exp-04), crypto-signal, cryptocurrency, how-to-buy-crypto.
+  - No change: /learn/bitcoin-halving/ for «هاوینگ بعدی بیت کوین» (pos 8, 1 impression): title, table and FAQ already answer it.
+- **Index requests first:** /learn/pump-and-dump/, /learn/spot-vs-futures/, /.
+- **Measure (2026-12-12):** exp-2026-11-28-01…04: pump-and-dump indexed and its queries; spot-vs-futures, fear-greed-…,
+  coin-vs-token inspections. First earlier judgements fall due 2026-12-06 (exp-2026-11-22-*).

@@ -1,374 +1,422 @@
 {
-  "_note": "query -> {page, cluster, suggest, gsc: {impressions, clicks, ctr, position, window}, updated}. Filled by the daily session from Search Console and Google suggest; never a guessed volume.",
-  "queries": {
-    "کد رفرال چیست": {
-      "page": "/learn/referral-code/",
-      "cluster": "referral-code",
-      "suggest": "suggest «کد رفرال» #1 (2026-11-22)",
-      "gsc": null,
-      "updated": "2026-11-22"
-    },
-    "کد رفرال صرافی چیست": {
-      "page": "/learn/referral-code/",
-      "cluster": "referral-code",
-      "suggest": "suggest «کد رفرال چیست»",
-      "gsc": null,
-      "updated": "2026-11-22"
-    },
-    "چگونه کد رفرال بگیریم": {
-      "page": "/learn/referral-code/",
-      "cluster": "referral-code",
-      "suggest": "suggest «کد رفرال» --deep",
-      "gsc": null,
-      "updated": "2026-11-22"
-    },
-    "کد رفرال کجاست": {
-      "page": "/learn/referral-code/",
-      "cluster": "referral-code",
-      "suggest": "suggest «کد رفرال» --deep",
-      "gsc": null,
-      "updated": "2026-11-22"
-    },
-    "کد رفرال بروکر چیست": {
-      "page": "/learn/referral-code/",
-      "cluster": "referral-code",
-      "suggest": "suggest «کد رفرال»",
-      "gsc": null,
-      "updated": "2026-11-22"
-    },
-    "کد رفرال lbank": {
-      "page": "/exchanges/lbank/",
-      "cluster": "exchange-lbank",
-      "suggest": "suggest: کد رفرال ال بانک / کجاست",
-      "gsc": {
-        "impressions": 7,
-        "clicks": 0,
-        "ctr": 0,
-        "position": 60.1,
-        "window": "7d to 2026-11-25"
-      },
-      "updated": "2026-11-26"
-    },
-    "کد رفرال اوربیت": {
-      "page": "/exchanges/ourbit/",
-      "cluster": "exchange-ourbit",
-      "suggest": "suggest «کد رفرال» #3",
-      "gsc": {
-        "impressions": 6,
-        "clicks": 0,
-        "ctr": 0,
-        "position": 46.3,
-        "window": "7d to 2026-11-25"
-      },
-      "updated": "2026-11-26"
-    },
-    "صرافی weex": {
-      "page": "/exchanges/weex/",
-      "cluster": "exchange-weex",
-      "suggest": null,
-      "gsc": {
-        "impressions": 2,
-        "clicks": 0,
-        "ctr": 0,
-        "position": 63.5,
-        "window": "7d to 2026-11-25"
-      },
-      "updated": "2026-11-26"
-    },
-    "ال بانک ثبت نام": {
-      "page": "/exchanges/lbank/",
-      "cluster": "exchange-lbank",
-      "suggest": null,
-      "gsc": {
-        "impressions": 4,
-        "clicks": 0,
-        "ctr": 0,
-        "position": 65.2,
-        "window": "7d to 2026-11-25"
-      },
-      "updated": "2026-11-26"
-    },
-    "ثبت نام در lbank": {
-      "page": "/exchanges/lbank/",
-      "cluster": "exchange-lbank",
-      "suggest": null,
-      "gsc": {
-        "impressions": 1,
-        "clicks": 0,
-        "ctr": 0.0,
-        "position": 52,
-        "window": "28d to 2026-11-23"
-      },
-      "updated": "2026-11-24"
-    },
-    "صرافی ویکس": {
-      "page": "/exchanges/weex/",
-      "cluster": "exchange-weex",
-      "suggest": null,
-      "gsc": {
-        "impressions": 1,
-        "clicks": 0,
-        "ctr": 0.0,
-        "position": 65,
-        "window": "28d to 2026-11-23"
-      },
-      "updated": "2026-11-24"
-    },
-    "دپوزیت چیست": {
-      "page": "/glossary/#deposit",
-      "cluster": "deposit (longform exchange-withdrawal-guide owns واریز و برداشت)",
-      "suggest": null,
-      "gsc": {
-        "impressions": 1,
-        "clicks": 0,
-        "ctr": 0,
-        "position": 88.0,
-        "window": "7d to 2026-11-25"
-      },
-      "updated": "2026-11-26"
-    },
-    "سیگنال ارز دیجیتال چیست": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال چ» (2026-11-24)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال ارز دیجیتال یعنی چی": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "کانال سیگنال ارز دیجیتال": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال ارز دیجیتال فیوچرز": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال ارز دیجیتال رایگان": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "چگونه از سیگنال ارز دیجیتال استفاده کنیم": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال ارز دیجیتال با هوش مصنوعی": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال پامپ ارز دیجیتال": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "از کجا سیگنال ارز دیجیتال بگیریم": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال ارز دیجیتال پولی": {
-      "page": "/learn/crypto-signal/",
-      "cluster": "crypto-signal",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "بهترین کانال سیگنال ارز دیجیتال": {
-      "page": null,
-      "cluster": "crypto-signal-checklist",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions); TOPIC_MAP #40, not built yet",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "سیگنال معتبر ارز دیجیتال": {
-      "page": null,
-      "cluster": "crypto-signal-checklist",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions); TOPIC_MAP #40, not built yet",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "معتبرترین کانال سیگنال ارز دیجیتال": {
-      "page": null,
-      "cluster": "crypto-signal-checklist",
-      "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions); TOPIC_MAP #40, not built yet",
-      "gsc": null,
-      "updated": "2026-11-24"
-    },
-    "هاوینگ بعدی بیت کوین": {
-      "page": "/learn/bitcoin-halving/",
-      "cluster": "bitcoin-halving",
-      "suggest": null,
-      "gsc": {
-        "impressions": 1,
-        "clicks": 0,
-        "ctr": 0,
-        "position": 8.0,
-        "window": "7d to 2026-11-25"
-      },
-      "updated": "2026-11-26"
-    },
-    "دانلود صرافی ال بانک": {
-      "page": "/exchanges/lbank/",
-      "cluster": "exchange-lbank",
-      "suggest": null,
-      "gsc": {
-        "impressions": 1,
-        "clicks": 0,
-        "ctr": 0.0,
-        "position": 93,
-        "window": "28d to 2026-11-23"
-      },
-      "updated": "2026-11-24"
-    },
-    "usdc چیست": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep (108 completions, 2026-11-26)",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "ارز usdc چیست": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc چیست»",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "usdc مخفف چیست": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc چیست»",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "usdc e چیست": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "usdc روی کدام شبکه است": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "usdc بهتره یا usdt": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "تفاوت usdc و usdt": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "usdc متمرکز است یا غیر متمرکز": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "تبدیل usdc به usdt": {
-      "page": "/learn/usdc/",
-      "cluster": "usdc",
-      "suggest": "suggest «usdc» --deep",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "تتر چیست": {
-      "page": "/learn/tether/",
-      "cluster": "tether",
-      "suggest": "TOPIC_MAP #2 (page live 2026-11-25; that day's KEYWORDS were left out by the hub)",
-      "gsc": null,
-      "updated": "2026-11-26"
-    },
-    "kyc چیست": {
-      "page": "/learn/kyc/",
-      "cluster": "kyc",
-      "suggest": "suggest «kyc» --deep 2026-11-27 (first completion)",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "kyc مخفف چیست": {
-      "page": "/learn/kyc/",
-      "cluster": "kyc",
-      "suggest": "suggest «kyc» --deep 2026-11-27",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "kyc در صرافی چیست": {
-      "page": "/learn/kyc/",
-      "cluster": "kyc",
-      "suggest": "suggest «kyc» --deep 2026-11-27",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "احراز هویت صرافی ارز دیجیتال": {
-      "page": "/learn/kyc/",
-      "cluster": "kyc",
-      "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "احراز هویت در صرافی چقدر طول میکشد": {
-      "page": "/learn/kyc/",
-      "cluster": "kyc",
-      "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27 (FAQ)",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "ایا احراز هویت در صرافی خطرناک است": {
-      "page": "/learn/kyc/",
-      "cluster": "kyc",
-      "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27 (FAQ)",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "احراز هویت صرافی ال بانک": {
-      "page": "/exchanges/lbank/",
-      "cluster": "kyc / lbank",
-      "suggest": "suggest «احراز هویت صرافی» 2026-11-27",
-      "gsc": null,
-      "updated": "2026-11-27"
-    },
-    "احراز هویت صرافی اوربیت": {
-      "page": "/exchanges/ourbit/",
-      "cluster": "kyc / ourbit",
-      "suggest": "suggest «احراز هویت صرافی» 2026-11-27",
-      "gsc": null,
-      "updated": "2026-11-27"
-    }
+ "_note": "query -> {page, cluster, suggest, gsc: {impressions, clicks, ctr, position, window}, updated}. Filled by the daily session from Search Console and Google suggest; never a guessed volume.",
+ "queries": {
+  "کد رفرال چیست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال» #1 (2026-11-22)",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال صرافی چیست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال چیست»",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "چگونه کد رفرال بگیریم": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال» --deep",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال کجاست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال» --deep",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال بروکر چیست": {
+   "page": "/learn/referral-code/",
+   "cluster": "referral-code",
+   "suggest": "suggest «کد رفرال»",
+   "gsc": null,
+   "updated": "2026-11-22"
+  },
+  "کد رفرال lbank": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": "suggest: کد رفرال ال بانک / کجاست",
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 6,
+    "clicks": 0,
+    "position": 58.2
+   },
+   "updated": "2026-11-28"
+  },
+  "کد رفرال اوربیت": {
+   "page": "/exchanges/ourbit/",
+   "cluster": "exchange-ourbit",
+   "suggest": "suggest «کد رفرال» #3",
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 4,
+    "clicks": 0,
+    "position": 44.0
+   },
+   "updated": "2026-11-28"
+  },
+  "صرافی weex": {
+   "page": "/exchanges/weex/",
+   "cluster": "exchange-weex",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 1,
+    "clicks": 0,
+    "position": 67.0
+   },
+   "updated": "2026-11-28"
+  },
+  "ال بانک ثبت نام": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 4,
+    "clicks": 0,
+    "position": 65.2
+   },
+   "updated": "2026-11-28"
+  },
+  "ثبت نام در lbank": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 1,
+    "clicks": 0,
+    "position": 52.0
+   },
+   "updated": "2026-11-28"
+  },
+  "صرافی ویکس": {
+   "page": "/exchanges/weex/",
+   "cluster": "exchange-weex",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 1,
+    "clicks": 0,
+    "position": 65.0
+   },
+   "updated": "2026-11-28"
+  },
+  "دپوزیت چیست": {
+   "page": "/glossary/#deposit",
+   "cluster": "deposit (longform exchange-withdrawal-guide owns واریز و برداشت)",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 1,
+    "clicks": 0,
+    "position": 88.0
+   },
+   "updated": "2026-11-28",
+   "note": "suggest «دپوزیت» 2026-11-28 mostly hotel/car/rent; the crypto how-to is longform #92 exchange-withdrawal-guide (reserved)"
+  },
+  "سیگنال ارز دیجیتال چیست": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال چ» (2026-11-24)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال ارز دیجیتال یعنی چی": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "کانال سیگنال ارز دیجیتال": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال ارز دیجیتال فیوچرز": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال ارز دیجیتال رایگان": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "چگونه از سیگنال ارز دیجیتال استفاده کنیم": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال ارز دیجیتال با هوش مصنوعی": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال پامپ ارز دیجیتال": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "از کجا سیگنال ارز دیجیتال بگیریم": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال ارز دیجیتال پولی": {
+   "page": "/learn/crypto-signal/",
+   "cluster": "crypto-signal",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions)",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "بهترین کانال سیگنال ارز دیجیتال": {
+   "page": null,
+   "cluster": "crypto-signal-checklist",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions); TOPIC_MAP #40, not built yet",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "سیگنال معتبر ارز دیجیتال": {
+   "page": null,
+   "cluster": "crypto-signal-checklist",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions); TOPIC_MAP #40, not built yet",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "معتبرترین کانال سیگنال ارز دیجیتال": {
+   "page": null,
+   "cluster": "crypto-signal-checklist",
+   "suggest": "suggest «سیگنال ارز دیجیتال» --deep (2026-11-24, 148 completions); TOPIC_MAP #40, not built yet",
+   "gsc": null,
+   "updated": "2026-11-24"
+  },
+  "هاوینگ بعدی بیت کوین": {
+   "page": "/learn/bitcoin-halving/",
+   "cluster": "bitcoin-halving",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 1,
+    "clicks": 0,
+    "position": 8.0
+   },
+   "updated": "2026-11-28"
+  },
+  "دانلود صرافی ال بانک": {
+   "page": "/exchanges/lbank/",
+   "cluster": "exchange-lbank",
+   "suggest": null,
+   "gsc": {
+    "7d_to": "2026-11-27",
+    "impressions": 1,
+    "clicks": 0,
+    "position": 93.0
+   },
+   "updated": "2026-11-28"
+  },
+  "usdc چیست": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep (108 completions, 2026-11-26)",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "ارز usdc چیست": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc چیست»",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "usdc مخفف چیست": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc چیست»",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "usdc e چیست": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "usdc روی کدام شبکه است": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "usdc بهتره یا usdt": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "تفاوت usdc و usdt": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "usdc متمرکز است یا غیر متمرکز": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "تبدیل usdc به usdt": {
+   "page": "/learn/usdc/",
+   "cluster": "usdc",
+   "suggest": "suggest «usdc» --deep",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "تتر چیست": {
+   "page": "/learn/tether/",
+   "cluster": "tether",
+   "suggest": "TOPIC_MAP #2 (page live 2026-11-25; that day's KEYWORDS were left out by the hub)",
+   "gsc": null,
+   "updated": "2026-11-26"
+  },
+  "kyc چیست": {
+   "page": "/learn/kyc/",
+   "cluster": "kyc",
+   "suggest": "suggest «kyc» --deep 2026-11-27 (first completion)",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "kyc مخفف چیست": {
+   "page": "/learn/kyc/",
+   "cluster": "kyc",
+   "suggest": "suggest «kyc» --deep 2026-11-27",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "kyc در صرافی چیست": {
+   "page": "/learn/kyc/",
+   "cluster": "kyc",
+   "suggest": "suggest «kyc» --deep 2026-11-27",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "احراز هویت صرافی ارز دیجیتال": {
+   "page": "/learn/kyc/",
+   "cluster": "kyc",
+   "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "احراز هویت در صرافی چقدر طول میکشد": {
+   "page": "/learn/kyc/",
+   "cluster": "kyc",
+   "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27 (FAQ)",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "ایا احراز هویت در صرافی خطرناک است": {
+   "page": "/learn/kyc/",
+   "cluster": "kyc",
+   "suggest": "suggest «احراز هویت صرافی» --deep 2026-11-27 (FAQ)",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "احراز هویت صرافی ال بانک": {
+   "page": "/exchanges/lbank/",
+   "cluster": "kyc / lbank",
+   "suggest": "suggest «احراز هویت صرافی» 2026-11-27",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "احراز هویت صرافی اوربیت": {
+   "page": "/exchanges/ourbit/",
+   "cluster": "kyc / ourbit",
+   "suggest": "suggest «احراز هویت صرافی» 2026-11-27",
+   "gsc": null,
+   "updated": "2026-11-27"
+  },
+  "پامپ و دامپ چیست": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ و دامپ» --deep 2026-11-28 (24 completions)",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "پامپ و دامپ در ارز دیجیتال": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ و دامپ» --deep 2026-11-28 (24 completions)",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "پامپ و دامپ جعلی چیست": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ و دامپ» --deep 2026-11-28 (24 completions)",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "فرق پامپ و دامپ": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ و دامپ» --deep 2026-11-28 (24 completions)",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "پامپ و دامپ به چه فعالیتی اشاره دارد": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ و دامپ» --deep 2026-11-28 (24 completions)",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "اندیکاتور تشخیص پامپ و دامپ": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ و دامپ» --deep 2026-11-28 (24 completions)",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "کانال پامپ شت کوین": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «کانال پامپ» 2026-11-28",
+   "gsc": null,
+   "updated": "2026-11-28"
+  },
+  "پامپ ارز دیجیتال چیست": {
+   "page": "/learn/pump-and-dump/",
+   "cluster": "pump-and-dump",
+   "suggest": "suggest «پامپ ارز» 2026-11-28 («پامپ» alone = a TV show: not a target)",
+   "gsc": null,
+   "updated": "2026-11-28"
   }
+ }
 }

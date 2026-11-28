@@ -27,7 +27,7 @@ instead of writing a second one.
 | 8 | `altseason` | آلت سیزن چیست | فصل آلت کوین ها، شاخص آلت سیزن | info | market | altcoins (video), bitcoin-dominance | P1 | candidate |
 | 9 | `bitcoin-etf` | ای تی اف بیت کوین چیست | etf بیت کوین، بلک راک بیت کوین | info | market | bitcoin, news lessons | P1 | candidate |
 | 10 | `open-interest` | اوپن اینترست چیست | open interest در ارز دیجیتال | info | market | funding-rate (video), long-short (video) | P1 | candidate |
-| 11 | `pump-and-dump` | پامپ و دامپ چیست | پامپ چیست، کانال پامپ | info / safety | myths | crypto-scams (video), rug-pull (video) | P1 | candidate |
+| 11 | `pump-and-dump` | پامپ و دامپ چیست | پامپ و دامپ در ارز دیجیتال، پامپ و دامپ جعلی چیست، فرق پامپ و دامپ، کانال پامپ شت کوین | info / safety | myths | crypto-signal, coin-vs-token, spot-vs-futures, fear-greed-extreme-fear-2026-11, cryptocurrency, how-to-buy-crypto (links in: crypto-signal, glossary pump-and-dump) | P1 | live:2026-11-28 |
 | 12 | `bollinger-bands` | باند بولینگر چیست | اندیکاتور بولینگر | info | market | rsi-indicator (video), moving-average (video) | P2 | candidate |
 | 13 | `ichimoku` | ایچیموکو چیست | آموزش ایچیموکو، ابر ایچیموکو | info | market | technical-analysis (video) | P2 | candidate |
 | 14 | `divergence` | واگرایی در تحلیل تکنیکال | واگرایی rsi، واگرایی مثبت و منفی | info | market | rsi-indicator (video), macd (video) | P2 | candidate |
@@ -57,5 +57,5 @@ instead of writing a second one.
 | 38 | `oco-order` | سفارش oco چیست | سفارش او سی او | info | market | limit-stop-order, take-profit (video) | P3 | candidate |
 | 39 | `liquidation-price` | قیمت لیکوئید شدن | محاسبه قیمت لیکوئید | info | market | leverage, margin-trading | P2 | candidate |
 | 40 | `crypto-signal-checklist` | بهترین کانال سیگنال ارز دیجیتال | چطور کانال سیگنال معتبر را بشناسیم | info → VIP | market | crypto-signal, /vip/ | P1 | candidate |
-| 41 | `crypto-deposit` | دپوزیت چیست | واریز به صرافی، deposit یعنی چه | info / how-to | exchange | usdt-networks, how-to-buy-crypto | P3 | candidate (evidence: Search Console 1 impr, pos 88, 28d to 2026-11-23; glossary line first) |
+| 41 | `crypto-deposit` | دپوزیت چیست | واریز به صرافی، deposit یعنی چه | info / how-to | exchange | usdt-networks, how-to-buy-crypto | P3 | on hold (2026-11-28: suggest «دپوزیت» is mostly hotel/car/rent; the crypto deposit how-to is longform #92 `exchange-withdrawal-guide`, reserved) |
 | 42 | `usdc-e` | — | usdc e چیست | — | — | — | — | merged into usdc (2026-11-26: H2 «USDC.e چیست» + FAQ; suggest «usdc» --deep) |

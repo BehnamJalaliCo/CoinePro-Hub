@@ -1,269 +1,322 @@
 [
-  {
-    "id": "exp-2026-11-22-01",
-    "page": "/learn/referral-code/",
-    "query": "کد رفرال چیست",
-    "change": "new page (TOPIC_MAP #36) + links in from the 3 exchange pages",
-    "baseline": {
-      "impressions": 0,
-      "clicks": 0,
-      "ctr": null,
-      "position": null,
-      "window": "28d to 2026-11-21",
-      "note": "page did not exist"
-    },
-    "opened": "2026-11-22",
-    "judge_on": "2026-12-06",
-    "verdict": null
+ {
+  "id": "exp-2026-11-22-01",
+  "page": "/learn/referral-code/",
+  "query": "کد رفرال چیست",
+  "change": "new page (TOPIC_MAP #36) + links in from the 3 exchange pages",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": null,
+   "position": null,
+   "window": "28d to 2026-11-21",
+   "note": "page did not exist"
   },
-  {
-    "id": "exp-2026-11-22-02",
-    "page": "/learn/bitcoin-mining/",
-    "query": null,
-    "change": "contextual link from /learn/bitcoin/ (anchor «استخراج یا ماینینگ بیت‌کوین»)",
-    "baseline": {
-      "index": "URL is not on Google (inspection 2026-11-20/21)",
-      "impressions": 0,
-      "window": "28d to 2026-11-21"
-    },
-    "opened": "2026-11-22",
-    "judge_on": "2026-12-06",
-    "verdict": null
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-02",
+  "page": "/learn/bitcoin-mining/",
+  "query": null,
+  "change": "contextual link from /learn/bitcoin/ (anchor «استخراج یا ماینینگ بیت‌کوین»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
   },
-  {
-    "id": "exp-2026-11-22-03",
-    "page": "/learn/metamask-guide/",
-    "query": null,
-    "change": "contextual link from /learn/crypto-wallet/ (anchor «راهنمای کیف‌پول متامسک»)",
-    "baseline": {
-      "index": "URL is not on Google (inspection 2026-11-20/21)",
-      "impressions": 0,
-      "window": "28d to 2026-11-21"
-    },
-    "opened": "2026-11-22",
-    "judge_on": "2026-12-06",
-    "verdict": null
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-03",
+  "page": "/learn/metamask-guide/",
+  "query": null,
+  "change": "contextual link from /learn/crypto-wallet/ (anchor «راهنمای کیف‌پول متامسک»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
   },
-  {
-    "id": "exp-2026-11-22-04",
-    "page": "/learn/coin-vs-token/",
-    "query": null,
-    "change": "contextual link from /learn/cryptocurrency/ (anchor «فرق کوین و توکن»)",
-    "baseline": {
-      "index": "URL is not on Google (inspection 2026-11-20/21)",
-      "impressions": 0,
-      "window": "28d to 2026-11-21"
-    },
-    "opened": "2026-11-22",
-    "judge_on": "2026-12-06",
-    "verdict": null
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-04",
+  "page": "/learn/coin-vs-token/",
+  "query": null,
+  "change": "contextual link from /learn/cryptocurrency/ (anchor «فرق کوین و توکن»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
   },
-  {
-    "id": "exp-2026-11-22-05",
-    "page": "/learn/tether-reserves-sp-warning/",
-    "query": null,
-    "change": "contextual link from /learn/stablecoin/ (anchor «هشدار اس‌اندپی درباره‌ی پشتوانه‌ی تتر»)",
-    "baseline": {
-      "index": "URL is not on Google (inspection 2026-11-20/21)",
-      "impressions": 0,
-      "window": "28d to 2026-11-21"
-    },
-    "opened": "2026-11-22",
-    "judge_on": "2026-12-06",
-    "verdict": null
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-22-05",
+  "page": "/learn/tether-reserves-sp-warning/",
+  "query": null,
+  "change": "contextual link from /learn/stablecoin/ (anchor «هشدار اس‌اندپی درباره‌ی پشتوانه‌ی تتر»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-20/21)",
+   "impressions": 0,
+   "window": "28d to 2026-11-21"
   },
-  {
-    "id": "exp-2026-11-24-01",
-    "page": "/learn/crypto-signal/",
-    "query": "سیگنال ارز دیجیتال چیست",
-    "change": "new page (TOPIC_MAP #1) + links in from /vip/ (FAQ «کارنامه‌ی سیگنال‌ها را کجا ببینم؟») and /learn/referral-code/ (VIP paragraph)",
-    "baseline": {
-      "impressions": 0,
-      "clicks": 0,
-      "ctr": null,
-      "position": null,
-      "window": "28d to 2026-11-23",
-      "note": "page did not exist"
-    },
-    "opened": "2026-11-24",
-    "judge_on": "2026-12-08",
-    "verdict": null
+  "opened": "2026-11-22",
+  "judge_on": "2026-12-06",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-01",
+  "page": "/learn/crypto-signal/",
+  "query": "سیگنال ارز دیجیتال چیست",
+  "change": "new page (TOPIC_MAP #1) + links in from /vip/ (FAQ «کارنامه‌ی سیگنال‌ها را کجا ببینم؟») and /learn/referral-code/ (VIP paragraph)",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": null,
+   "position": null,
+   "window": "28d to 2026-11-23",
+   "note": "page did not exist"
   },
-  {
-    "id": "exp-2026-11-24-02",
-    "page": "/learn/smart-contract/",
-    "query": null,
-    "change": "contextual link from /learn/blockchain/ (section «بلاک‌چین به چه کاری می‌آید»; anchor «قرارداد هوشمند»)",
-    "baseline": {
-      "index": "URL is not on Google (inspection 2026-11-23; last crawl 2026-11-20)",
-      "impressions": 0,
-      "window": "28d to 2026-11-23"
-    },
-    "opened": "2026-11-24",
-    "judge_on": "2026-12-08",
-    "verdict": null
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-02",
+  "page": "/learn/smart-contract/",
+  "query": null,
+  "change": "contextual link from /learn/blockchain/ (section «بلاک‌چین به چه کاری می‌آید»; anchor «قرارداد هوشمند»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-23; last crawl 2026-11-20)",
+   "impressions": 0,
+   "window": "28d to 2026-11-23"
   },
-  {
-    "id": "exp-2026-11-24-03",
-    "page": "/learn/blackrock-ibit-outflows-end-2026-11/",
-    "query": null,
-    "change": "first contextual link in, from /learn/crypto-signal/ (anchor «ای‌تی‌اف‌های بیت‌کوین»)",
-    "baseline": {
-      "index": "URL is not on Google (inspection 2026-11-23; last crawl 2026-11-19)",
-      "impressions": 0,
-      "window": "28d to 2026-11-23"
-    },
-    "opened": "2026-11-24",
-    "judge_on": "2026-12-08",
-    "verdict": null
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-03",
+  "page": "/learn/blackrock-ibit-outflows-end-2026-11/",
+  "query": null,
+  "change": "first contextual link in, from /learn/crypto-signal/ (anchor «ای‌تی‌اف‌های بیت‌کوین»)",
+  "baseline": {
+   "index": "URL is not on Google (inspection 2026-11-23; last crawl 2026-11-19)",
+   "impressions": 0,
+   "window": "28d to 2026-11-23"
   },
-  {
-    "id": "exp-2026-11-24-04",
-    "page": "/glossary/",
-    "query": "دپوزیت چیست",
-    "change": "+ glossary terms deposit (واریز/دپوزیت), signal, take-profit",
-    "baseline": {
-      "impressions": 1,
-      "clicks": 0,
-      "ctr": 0,
-      "position": 88,
-      "window": "28d to 2026-11-23",
-      "note": "too little data; page that showed is not in the export by query"
-    },
-    "opened": "2026-11-24",
-    "judge_on": "2026-12-08",
-    "verdict": null
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-24-04",
+  "page": "/glossary/",
+  "query": "دپوزیت چیست",
+  "change": "+ glossary terms deposit (واریز/دپوزیت), signal, take-profit",
+  "baseline": {
+   "impressions": 1,
+   "clicks": 0,
+   "ctr": 0,
+   "position": 88,
+   "window": "28d to 2026-11-23",
+   "note": "too little data; page that showed is not in the export by query"
   },
-  {
-    "id": "exp-2026-11-26-01",
-    "page": "/learn/usdc/",
-    "query": "usdc چیست",
-    "change": "new page (TOPIC_MAP #6), links in from stablecoin, tether, usdt-networks",
-    "baseline": {
-      "impressions": 0,
-      "clicks": 0,
-      "ctr": 0,
-      "position": null,
-      "window": "28d to 2026-11-25",
-      "note": "new page; suggest «usdc» --deep 108 completions"
-    },
-    "opened": "2026-11-26",
-    "judge_on": "2026-12-10",
-    "verdict": null
+  "opened": "2026-11-24",
+  "judge_on": "2026-12-08",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-26-01",
+  "page": "/learn/usdc/",
+  "query": "usdc چیست",
+  "change": "new page (TOPIC_MAP #6), links in from stablecoin, tether, usdt-networks",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": 0,
+   "position": null,
+   "window": "28d to 2026-11-25",
+   "note": "new page; suggest «usdc» --deep 108 completions"
   },
-  {
-    "id": "exp-2026-11-26-02",
-    "page": "/learn/bitcoin-halving/",
-    "query": "(index) /learn/bitcoin-mining/, /learn/bitcoin-history/",
-    "change": "+1 sentence → bitcoin-mining («بیت‌کوین تازه از کجا می‌آید»), +1 sentence → bitcoin-history (before the reward table)",
-    "baseline": {
-      "impressions": 2,
-      "clicks": 0,
-      "ctr": 0.0,
-      "position": 26,
-      "window": "28d to 2026-11-25",
-      "note": "halving page 28d; both targets «URL is not on Google» (inspected 2026-11-23/25); bitcoin-history had 0 lesson links in"
-    },
-    "opened": "2026-11-26",
-    "judge_on": "2026-12-10",
-    "verdict": null
+  "opened": "2026-11-26",
+  "judge_on": "2026-12-10",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-26-02",
+  "page": "/learn/bitcoin-halving/",
+  "query": "(index) /learn/bitcoin-mining/, /learn/bitcoin-history/",
+  "change": "+1 sentence → bitcoin-mining («بیت‌کوین تازه از کجا می‌آید»), +1 sentence → bitcoin-history (before the reward table)",
+  "baseline": {
+   "impressions": 2,
+   "clicks": 0,
+   "ctr": 0.0,
+   "position": 26,
+   "window": "28d to 2026-11-25",
+   "note": "halving page 28d; both targets «URL is not on Google» (inspected 2026-11-23/25); bitcoin-history had 0 lesson links in"
   },
-  {
-    "id": "exp-2026-11-26-03",
-    "page": "/learn/blockchain/",
-    "query": "(index) /learn/proof-of-stake/",
-    "change": "+1 sentence in the PoS bullet → /learn/proof-of-stake/",
-    "baseline": {
-      "impressions": 0,
-      "clicks": 0,
-      "ctr": 0,
-      "position": null,
-      "window": "28d to 2026-11-25",
-      "note": "proof-of-stake not on Google (inspected 2026-11-25), 0 lesson links in; blockchain indexed"
-    },
-    "opened": "2026-11-26",
-    "judge_on": "2026-12-10",
-    "verdict": null
+  "opened": "2026-11-26",
+  "judge_on": "2026-12-10",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-26-03",
+  "page": "/learn/blockchain/",
+  "query": "(index) /learn/proof-of-stake/",
+  "change": "+1 sentence in the PoS bullet → /learn/proof-of-stake/",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": 0,
+   "position": null,
+   "window": "28d to 2026-11-25",
+   "note": "proof-of-stake not on Google (inspected 2026-11-25), 0 lesson links in; blockchain indexed"
   },
-  {
-    "id": "exp-2026-11-26-04",
-    "page": "/learn/usdt-networks/",
-    "query": "(page totals)",
-    "change": "+1 sentence after the networks table → /learn/usdc/",
-    "baseline": {
-      "impressions": 7,
-      "clicks": 1,
-      "ctr": 0.143,
-      "position": 6.4,
-      "window": "28d to 2026-11-25",
-      "note": "the only page with a click; watch that the added sentence does not lower it"
-    },
-    "opened": "2026-11-26",
-    "judge_on": "2026-12-10",
-    "verdict": null
+  "opened": "2026-11-26",
+  "judge_on": "2026-12-10",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-26-04",
+  "page": "/learn/usdt-networks/",
+  "query": "(page totals)",
+  "change": "+1 sentence after the networks table → /learn/usdc/",
+  "baseline": {
+   "impressions": 7,
+   "clicks": 1,
+   "ctr": 0.143,
+   "position": 6.4,
+   "window": "28d to 2026-11-25",
+   "note": "the only page with a click; watch that the added sentence does not lower it"
   },
-  {
-    "id": "exp-2026-11-27-01",
-    "page": "/learn/kyc/",
-    "query": "kyc چیست",
-    "change": "new page (TOPIC_MAP #5) + links in from how-to-buy-crypto (قدم ۳), /exchanges/lbank/ and /exchanges/ourbit/ KYC FAQs; glossary kyc term links to it by slug",
-    "baseline": {
-      "impressions": 0,
-      "clicks": 0,
-      "ctr": null,
-      "position": null,
-      "window": "28d to 2026-11-26 export",
-      "note": "new URL; suggest «kyc» --deep 194, «احراز هویت صرافی» --deep: ال بانک، اوربیت، مدارک، چقدر طول میکشد، خطرناک است"
-    },
-    "opened": "2026-11-27",
-    "judge_on": "2026-12-11",
-    "verdict": null
+  "opened": "2026-11-26",
+  "judge_on": "2026-12-10",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-27-01",
+  "page": "/learn/kyc/",
+  "query": "kyc چیست",
+  "change": "new page (TOPIC_MAP #5) + links in from how-to-buy-crypto (قدم ۳), /exchanges/lbank/ and /exchanges/ourbit/ KYC FAQs; glossary kyc term links to it by slug",
+  "baseline": {
+   "impressions": 0,
+   "clicks": 0,
+   "ctr": null,
+   "position": null,
+   "window": "28d to 2026-11-26 export",
+   "note": "new URL; suggest «kyc» --deep 194, «احراز هویت صرافی» --deep: ال بانک، اوربیت، مدارک، چقدر طول میکشد، خطرناک است"
   },
-  {
-    "id": "exp-2026-11-27-02",
-    "page": "/exchanges/lbank/",
-    "query": "(page totals)",
-    "change": "+1 sentence in the FAQ «برای احراز هویت در ال بانک چه چیزی لازم است؟» → /learn/kyc/",
-    "baseline": {
-      "impressions": 14,
-      "clicks": 0,
-      "ctr": 0.0,
-      "position": 59.3,
-      "window": "28d to 2026-11-26 export",
-      "note": "top page by impressions; queries ال بانک ثبت نام 4 (65.2), کد رفرال lbank 6 (58.2); too little data, watch only"
-    },
-    "opened": "2026-11-27",
-    "judge_on": "2026-12-11",
-    "verdict": null
+  "opened": "2026-11-27",
+  "judge_on": "2026-12-11",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-27-02",
+  "page": "/exchanges/lbank/",
+  "query": "(page totals)",
+  "change": "+1 sentence in the FAQ «برای احراز هویت در ال بانک چه چیزی لازم است؟» → /learn/kyc/",
+  "baseline": {
+   "impressions": 14,
+   "clicks": 0,
+   "ctr": 0.0,
+   "position": 59.3,
+   "window": "28d to 2026-11-26 export",
+   "note": "top page by impressions; queries ال بانک ثبت نام 4 (65.2), کد رفرال lbank 6 (58.2); too little data, watch only"
   },
-  {
-    "id": "exp-2026-11-27-03",
-    "page": "/exchanges/ourbit/",
-    "query": "(page totals)",
-    "change": "+1 sentence in the FAQ «بدون احراز هویت می‌شود از اوربیت استفاده کرد؟» → /learn/kyc/",
-    "baseline": {
-      "impressions": 6,
-      "clicks": 0,
-      "ctr": 0.0,
-      "position": 46.3,
-      "window": "28d to 2026-11-26 export",
-      "note": "query کد رفرال اوربیت 6 (46.3); too little data, watch only"
-    },
-    "opened": "2026-11-27",
-    "judge_on": "2026-12-11",
-    "verdict": null
+  "opened": "2026-11-27",
+  "judge_on": "2026-12-11",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-27-03",
+  "page": "/exchanges/ourbit/",
+  "query": "(page totals)",
+  "change": "+1 sentence in the FAQ «بدون احراز هویت می‌شود از اوربیت استفاده کرد؟» → /learn/kyc/",
+  "baseline": {
+   "impressions": 6,
+   "clicks": 0,
+   "ctr": 0.0,
+   "position": 46.3,
+   "window": "28d to 2026-11-26 export",
+   "note": "query کد رفرال اوربیت 6 (46.3); too little data, watch only"
   },
-  {
-    "id": "exp-2026-11-27-04",
-    "page": "/learn/trust-wallet-guide/",
-    "query": "(index state)",
-    "change": "a link in from the new /learn/kyc/ (section «بدون احراز هویت چه کارهایی می‌شود کرد؟»)",
-    "baseline": {
-      "index": "URL is not on Google (inspected 2026-11-26)",
-      "impressions": 0
-    },
-    "opened": "2026-11-27",
-    "judge_on": "2026-12-11",
-    "verdict": null
-  }
+  "opened": "2026-11-27",
+  "judge_on": "2026-12-11",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-27-04",
+  "page": "/learn/trust-wallet-guide/",
+  "query": "(index state)",
+  "change": "a link in from the new /learn/kyc/ (section «بدون احراز هویت چه کارهایی می‌شود کرد؟»)",
+  "baseline": {
+   "index": "URL is not on Google (inspected 2026-11-26)",
+   "impressions": 0
+  },
+  "opened": "2026-11-27",
+  "judge_on": "2026-12-11",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-28-01",
+  "page": "/learn/pump-and-dump/",
+  "query": "پامپ و دامپ چیست",
+  "change": "new page (TOPIC_MAP #11): 1,800 words, 2 tables, worked example, 5 FAQ, 3 primary sources (CFTC, SEC Investor.gov, USENIX 2019)",
+  "baseline": {
+   "index": "new",
+   "impressions": 0,
+   "clicks": 0
+  },
+  "opened": "2026-11-28",
+  "judge_on": "2026-12-12",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-28-02",
+  "page": "/learn/spot-vs-futures/",
+  "query": "(index state)",
+  "change": "links in from /learn/crypto-signal/ (futures vs spot section) and /learn/pump-and-dump/ (it had 0 content links in)",
+  "baseline": {
+   "index": "URL is not on Google; No referring sitemaps detected (inspected 2026-11-27)",
+   "impressions": 0
+  },
+  "opened": "2026-11-28",
+  "judge_on": "2026-12-12",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-28-03",
+  "page": "/learn/fear-greed-extreme-fear-2026-11/",
+  "query": "(index state)",
+  "change": "a link in from /learn/pump-and-dump/ («شاخص ترس و طمع»; it had 0 content links in)",
+  "baseline": {
+   "index": "URL is not on Google (inspected 2026-11-26)",
+   "impressions": 0
+  },
+  "opened": "2026-11-28",
+  "judge_on": "2026-12-12",
+  "verdict": null
+ },
+ {
+  "id": "exp-2026-11-28-04",
+  "page": "/learn/coin-vs-token/",
+  "query": "(index state)",
+  "change": "a link in from /learn/pump-and-dump/ («تفاوت کوین و توکن»)",
+  "baseline": {
+   "index": "Crawled, not on Google; last crawl 2026-11-22 (inspected 2026-11-27)",
+   "impressions": 0
+  },
+  "opened": "2026-11-28",
+  "judge_on": "2026-12-12",
+  "verdict": null
+ }
 ]
